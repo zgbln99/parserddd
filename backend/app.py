@@ -224,7 +224,32 @@ def build_timeline(records):
                 start_dt = (base_date + timedelta(minutes=start_min)).astimezone(CET).replace(tzinfo=None)
                 end_dt = (base_date + timedelta(minutes=end_min)).astimezone(CET).replace(tzinfo=None)
                 all_intervals.append((start_dt, end_dt, work_type))
-    return all_intervals
+    # Deduplicate overlapping intervals caused by UTC→CET day boundary overlap
+    return deduplicate_timeline(all_intervals)
+
+
+def deduplicate_timeline(intervals):
+    """Remove overlapping intervals from adjacent UTC daily records."""
+    if not intervals:
+        return []
+    sorted_ivs = sorted(intervals, key=lambda x: x[0])
+    result = [list(sorted_ivs[0])]
+    for start, end, wt in sorted_ivs[1:]:
+        prev = result[-1]
+        if start < prev[1]:
+            # Overlap detected – trim the new interval's start
+            if end <= prev[1]:
+                # Completely contained within previous, skip
+                continue
+            # Partial overlap: keep only the non-overlapping tail
+            start = prev[1]
+        if end > start:
+            # Merge adjacent same-type intervals
+            if prev[2] == wt and abs((start - prev[1]).total_seconds()) < 60:
+                prev[1] = end
+            else:
+                result.append([start, end, wt])
+    return [(s, e, w) for s, e, w in result]
 
 
 def merge_intervals(intervals):
