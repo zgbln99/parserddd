@@ -86,7 +86,7 @@ cd "\$APP_DIR"
 if [ ! -d venv ]; then
     python3 -m venv venv
 fi
-./venv/bin/pip install -q flask gunicorn
+./venv/bin/pip install -q -r requirements.txt gunicorn
 echo "Srodowisko Python gotowe."
 REMOTE_SCRIPT
 
