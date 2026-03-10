@@ -550,7 +550,14 @@
         <div class="detail-panel" id="detail-panel">
             <div class="detail-header">
                 <h3 id="detail-driver-name"></h3>
-                <button class="btn btn-ghost" onclick="closeDetail()">Zamknij</button>
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                    <label style="font-size:0.82em;color:var(--text-secondary)">Od:</label>
+                    <input type="date" id="detail-date-from" onchange="filterDetailFiles()" style="padding:5px 8px;border:1.5px solid var(--border);border-radius:6px;font-family:inherit;font-size:0.82em">
+                    <label style="font-size:0.82em;color:var(--text-secondary)">Do:</label>
+                    <input type="date" id="detail-date-to" onchange="filterDetailFiles()" style="padding:5px 8px;border:1.5px solid var(--border);border-radius:6px;font-family:inherit;font-size:0.82em">
+                    <button class="btn btn-ghost" onclick="clearDateFilter()" style="padding:5px 10px;font-size:0.78em">Wyczysc</button>
+                    <button class="btn btn-ghost" onclick="closeDetail()">Zamknij</button>
+                </div>
             </div>
             <div class="detail-files" id="detail-files"></div>
         </div>
@@ -742,6 +749,8 @@
             return `<span class="days-badge"><span class="days-dot ${cls}"></span> ${label}</span>`;
         }
 
+        let currentDriverFiles = [];
+
         function openDriver(idx) {
             selectedDriverIndex = idx;
             const d = filteredDrivers[idx];
@@ -750,11 +759,42 @@
             const panel = document.getElementById('detail-panel');
             document.getElementById('detail-driver-name').textContent = d.name + ' (' + d.card_number + ')';
 
+            // Set default date range from driver's file dates
+            currentDriverFiles = d.files || [];
+            document.getElementById('detail-date-from').value = d.earliest_date || '';
+            document.getElementById('detail-date-to').value = d.latest_date || '';
+
+            renderDetailFiles(currentDriverFiles);
+
+            panel.classList.add('open');
+            panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            renderTable();
+        }
+
+        function filterDetailFiles() {
+            const from = document.getElementById('detail-date-from').value;
+            const to = document.getElementById('detail-date-to').value;
+            const filtered = currentDriverFiles.filter(f => {
+                const fd = f.file_date || '';
+                if (from && fd < from) return false;
+                if (to && fd > to) return false;
+                return true;
+            });
+            renderDetailFiles(filtered);
+        }
+
+        function clearDateFilter() {
+            document.getElementById('detail-date-from').value = '';
+            document.getElementById('detail-date-to').value = '';
+            renderDetailFiles(currentDriverFiles);
+        }
+
+        function renderDetailFiles(files) {
             const filesDiv = document.getElementById('detail-files');
-            if (!d.files || d.files.length === 0) {
-                filesDiv.innerHTML = '<div class="empty-state">Brak plikow</div>';
+            if (!files || files.length === 0) {
+                filesDiv.innerHTML = '<div class="empty-state">Brak plikow w wybranym zakresie</div>';
             } else {
-                filesDiv.innerHTML = d.files.map(f => {
+                filesDiv.innerHTML = files.map(f => {
                     const sizeKB = f.size ? Math.round(f.size / 1024) : '?';
                     return `<div class="file-row" onclick="analyzeFile('${escAttr(f.path)}', '${escAttr(f.name)}')">
                         <span class="file-icon">&#128196;</span>
@@ -765,10 +805,6 @@
                     </div>`;
                 }).join('');
             }
-
-            panel.classList.add('open');
-            panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            renderTable();
         }
 
         function closeDetail() {
