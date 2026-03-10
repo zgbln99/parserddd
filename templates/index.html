@@ -550,42 +550,125 @@
 
         /* Card history */
         .history-section {
-            margin-top: 18px;
+            margin-top: 20px;
             display: none;
         }
         .history-section.visible { display: block; }
-        .history-title {
-            font-size: 0.82em;
-            font-weight: 600;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 8px;
-        }
-        .history-list { display: flex; flex-direction: column; gap: 6px; }
-        .history-item {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: var(--radius-sm);
-            padding: 10px 14px;
-            cursor: pointer;
-            transition: all 0.15s;
+        .history-header {
             display: flex;
             align-items: center;
             justify-content: space-between;
+            margin-bottom: 10px;
         }
-        .history-item:hover { border-color: var(--primary); background: #eff4ff; }
-        .history-item .hi-name { font-weight: 600; font-size: 0.88em; }
-        .history-item .hi-meta { font-size: 0.75em; color: var(--text-muted); }
-        .history-item .hi-stats { font-size: 0.78em; color: var(--text-secondary); text-align: right; }
-        .history-item .hi-remove {
-            margin-left: 8px;
+        .history-title {
+            font-size: 0.82em;
+            font-weight: 700;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .history-clear {
+            font-size: 0.72em;
             color: var(--text-muted);
-            font-size: 1.1em;
-            padding: 2px 6px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-family: inherit;
+            padding: 2px 8px;
             border-radius: 4px;
         }
-        .history-item .hi-remove:hover { background: #fef2f2; color: var(--red); }
+        .history-clear:hover { color: var(--red); background: #fef2f2; }
+        .history-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+            gap: 10px;
+        }
+        .hi-card {
+            background: var(--surface);
+            border: 1.5px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 14px;
+            cursor: pointer;
+            transition: all 0.15s;
+            position: relative;
+        }
+        .hi-card:hover { border-color: var(--primary); box-shadow: var(--shadow-lg); transform: translateY(-1px); }
+        .hi-card-top {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+        .hi-card .hi-name {
+            font-weight: 700;
+            font-size: 0.92em;
+            color: var(--text);
+            line-height: 1.3;
+        }
+        .hi-card .hi-cardno {
+            font-size: 0.72em;
+            color: var(--text-muted);
+            font-family: monospace;
+        }
+        .hi-card .hi-remove {
+            color: var(--text-muted);
+            font-size: 1.2em;
+            padding: 0 4px;
+            border-radius: 4px;
+            line-height: 1;
+            flex-shrink: 0;
+        }
+        .hi-card .hi-remove:hover { background: #fef2f2; color: var(--red); }
+        .hi-card .hi-dates {
+            font-size: 0.75em;
+            color: var(--text-muted);
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .hi-card .hi-ago {
+            background: var(--surface-hover);
+            padding: 1px 6px;
+            border-radius: 4px;
+            font-size: 0.92em;
+        }
+        .hi-stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 6px;
+        }
+        .hi-stat {
+            text-align: center;
+            padding: 5px 4px;
+            border-radius: 6px;
+            background: var(--surface-hover);
+        }
+        .hi-stat-val {
+            font-size: 0.88em;
+            font-weight: 700;
+            line-height: 1.2;
+        }
+        .hi-stat-label {
+            font-size: 0.6em;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+
+        /* History modal for toolbar access */
+        .history-modal-body {
+            padding: 16px 20px;
+            max-height: 60vh;
+            overflow-y: auto;
+        }
+        .history-modal-empty {
+            text-align: center;
+            padding: 30px;
+            color: var(--text-muted);
+            font-size: 0.88em;
+        }
 
         /* View toggle */
         .view-toggle {
@@ -654,8 +737,11 @@
             <button class="btn" onclick="document.getElementById('file-input').click()">Wybierz plik</button>
             <input type="file" id="file-input" accept=".ddd,.DDD">
             <div class="history-section" id="history-section">
-                <div class="history-title">Ostatnio wgrane karty</div>
-                <div class="history-list" id="history-list"></div>
+                <div class="history-header">
+                    <div class="history-title">Ostatnio wgrane karty</div>
+                    <button class="history-clear" onclick="event.stopPropagation();clearHistory()">Wyczysc wszystko</button>
+                </div>
+                <div class="history-grid" id="history-list"></div>
             </div>
         </div>
 
@@ -685,6 +771,7 @@
                         <button class="active" onclick="setView('list')">Lista</button>
                         <button onclick="setView('month')">Miesiace</button>
                     </div>
+                    <button class="pill pill-upload" onclick="openHistoryModal()" style="background:#f5f3ff;color:#7c3aed;border:1.5px solid #7c3aed" id="toolbar-history-btn">Historia</button>
                     <button class="pill pill-upload" onclick="downloadCSV()" style="background:#f0fdf4;color:#16a34a;border:1.5px solid #16a34a">Pobierz CSV</button>
                     <button class="pill pill-upload" id="dbx-import-btn" onclick="openDropboxBrowser()" style="display:none;background:#eff4ff;color:#0061fe;border-color:#0061fe">Importuj z Dropbox</button>
                     <button class="pill pill-upload" id="dbx-export-btn" onclick="openExportModal()" style="display:none;background:#eff4ff;color:#16a34a;border-color:#16a34a">Eksportuj do Dropbox</button>
@@ -724,6 +811,22 @@
                 <div id="month-view" style="display:none"></div>
             </div>
             <div id="compare-view" style="display:none"></div>
+        </div>
+    </div>
+
+    <!-- History Modal -->
+    <div class="modal-overlay" id="history-modal">
+        <div class="modal" style="width:640px">
+            <div class="modal-header">
+                <h3>Historia kart</h3>
+                <button class="modal-close" onclick="closeModal('history-modal')">&times;</button>
+            </div>
+            <div class="history-modal-body" id="history-modal-body"></div>
+            <div class="modal-footer">
+                <button class="pill pill-ghost" id="history-modal-clear" onclick="clearHistory();renderHistoryModal()" style="color:var(--red)">Wyczysc wszystko</button>
+                <div class="toolbar-spacer"></div>
+                <button class="pill pill-ghost" onclick="closeModal('history-modal')">Zamknij</button>
+            </div>
         </div>
     </div>
 
@@ -1199,11 +1302,14 @@
                 date_range: details.length > 0 ? `${details[0].shift_date} - ${details[details.length-1].shift_date}` : '',
                 total_shifts: s.total_shifts || 0,
                 total_work_hm: s.total_work_hm || '0:00',
+                total_work_decimal: s.total_work_decimal || 0,
+                night_25_decimal: s.night_25_decimal || 0,
+                night_40_decimal: s.night_40_decimal || 0,
                 diet_count: s.diet_count || 0,
+                total_driving_hm: s.total_driving_hm || '0:00',
                 data: data
             };
             let history = getHistory();
-            // Deduplicate by card_number
             if (entry.card_number) {
                 history = history.filter(h => h.card_number !== entry.card_number);
             }
@@ -1211,6 +1317,64 @@
             if (history.length > MAX_HISTORY) history = history.slice(0, MAX_HISTORY);
             try { localStorage.setItem(HISTORY_KEY, JSON.stringify(history)); } catch {}
             renderHistory();
+        }
+
+        function timeAgo(isoStr) {
+            const diff = Date.now() - new Date(isoStr).getTime();
+            const min = Math.floor(diff / 60000);
+            if (min < 1) return 'przed chwila';
+            if (min < 60) return `${min} min temu`;
+            const hrs = Math.floor(min / 60);
+            if (hrs < 24) return `${hrs} godz. temu`;
+            const days = Math.floor(hrs / 24);
+            if (days === 1) return 'wczoraj';
+            if (days < 7) return `${days} dni temu`;
+            return new Date(isoStr).toLocaleDateString('pl-PL');
+        }
+
+        function buildHistoryCardHTML(h, i, context) {
+            const loadFn = context === 'modal' ? 'loadFromHistoryModal' : 'loadFromHistory';
+            const removeFn = context === 'modal' ? 'removeHistoryModal' : 'removeHistory';
+            return `
+            <div class="hi-card" onclick="${loadFn}(${i})">
+                <div class="hi-card-top">
+                    <div>
+                        <div class="hi-name">${esc(h.driver_name)}</div>
+                        ${h.card_number ? `<div class="hi-cardno">${esc(h.card_number)}</div>` : ''}
+                    </div>
+                    <span class="hi-remove" onclick="event.stopPropagation();${removeFn}(${i})">&times;</span>
+                </div>
+                <div class="hi-dates">
+                    <span>${esc(h.date_range)}</span>
+                    <span class="hi-ago">${timeAgo(h.loaded_at)}</span>
+                </div>
+                <div class="hi-stats-grid">
+                    <div class="hi-stat">
+                        <div class="hi-stat-val" style="color:#1e40af">${h.total_work_hm}</div>
+                        <div class="hi-stat-label">Praca</div>
+                    </div>
+                    <div class="hi-stat">
+                        <div class="hi-stat-val" style="color:#f97316">${h.night_25_decimal || 0}h</div>
+                        <div class="hi-stat-label">Nocne 25%</div>
+                    </div>
+                    <div class="hi-stat">
+                        <div class="hi-stat-val" style="color:#ef4444">${h.night_40_decimal || 0}h</div>
+                        <div class="hi-stat-label">Nocne 40%</div>
+                    </div>
+                    <div class="hi-stat">
+                        <div class="hi-stat-val" style="color:#22c55e">${h.diet_count}</div>
+                        <div class="hi-stat-label">Diety</div>
+                    </div>
+                    <div class="hi-stat">
+                        <div class="hi-stat-val" style="color:#475569">${h.total_shifts}</div>
+                        <div class="hi-stat-label">Zmian</div>
+                    </div>
+                    <div class="hi-stat">
+                        <div class="hi-stat-val" style="color:#0ea5e9">${h.total_driving_hm || '0:00'}</div>
+                        <div class="hi-stat-label">Jazda</div>
+                    </div>
+                </div>
+            </div>`;
         }
 
         function renderHistory() {
@@ -1222,20 +1386,25 @@
                 return;
             }
             section.classList.add('visible');
-            list.innerHTML = history.map((h, i) => `
-                <div class="history-item" onclick="loadFromHistory(${i})">
-                    <div>
-                        <div class="hi-name">${esc(h.driver_name)}</div>
-                        <div class="hi-meta">${esc(h.date_range)} | ${new Date(h.loaded_at).toLocaleDateString('pl-PL')}</div>
-                    </div>
-                    <div style="display:flex;align-items:center">
-                        <div class="hi-stats">
-                            ${h.total_shifts} zmian | ${h.total_work_hm} | ${h.diet_count} diet
-                        </div>
-                        <span class="hi-remove" onclick="event.stopPropagation();removeHistory(${i})">&times;</span>
-                    </div>
-                </div>
-            `).join('');
+            list.innerHTML = history.map((h, i) => buildHistoryCardHTML(h, i, 'upload')).join('');
+        }
+
+        function renderHistoryModal() {
+            const history = getHistory();
+            const body = document.getElementById('history-modal-body');
+            const clearBtn = document.getElementById('history-modal-clear');
+            if (history.length === 0) {
+                body.innerHTML = '<div class="history-modal-empty">Brak historii kart. Wgraj plik .ddd aby rozpoczac.</div>';
+                clearBtn.style.display = 'none';
+                return;
+            }
+            clearBtn.style.display = '';
+            body.innerHTML = `<div class="history-grid">${history.map((h, i) => buildHistoryCardHTML(h, i, 'modal')).join('')}</div>`;
+        }
+
+        function openHistoryModal() {
+            renderHistoryModal();
+            openModal('history-modal');
         }
 
         function loadFromHistory(index) {
@@ -1244,10 +1413,30 @@
             addCard(history[index].data);
         }
 
+        function loadFromHistoryModal(index) {
+            const history = getHistory();
+            if (!history[index] || !history[index].data) return;
+            closeModal('history-modal');
+            addCard(history[index].data);
+        }
+
         function removeHistory(index) {
             let history = getHistory();
             history.splice(index, 1);
             try { localStorage.setItem(HISTORY_KEY, JSON.stringify(history)); } catch {}
+            renderHistory();
+        }
+
+        function removeHistoryModal(index) {
+            let history = getHistory();
+            history.splice(index, 1);
+            try { localStorage.setItem(HISTORY_KEY, JSON.stringify(history)); } catch {}
+            renderHistory();
+            renderHistoryModal();
+        }
+
+        function clearHistory() {
+            try { localStorage.removeItem(HISTORY_KEY); } catch {}
             renderHistory();
         }
 
