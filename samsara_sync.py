@@ -13,24 +13,28 @@ Usage:
     0 * * * * cd /opt/ddd-reader && ./venv/bin/python3 samsara_sync.py >> /var/log/samsara-sync.log 2>&1
 
 Environment variables:
-    SAMSARA_API_TOKEN   - Samsara API token (required)
-    DROPBOX_TOKEN       - Dropbox access token (required)
-    SYNC_STATE_FILE     - Path to state file (default: /opt/ddd-reader/samsara_sync_state.json)
-    SYNC_DEST_FOLDER    - Dropbox destination folder (default: /Samsara-DDD)
-    SYNC_DAYS_BACK      - How many days back to check (default: 30)
+    SAMSARA_API_TOKEN       - Samsara API token (required)
+    DROPBOX_REFRESH_TOKEN   - Dropbox refresh token (required, long-lived)
+    DROPBOX_APP_KEY         - Dropbox app key (default: j9ntkihedd9495i)
+    DROPBOX_APP_SECRET      - Dropbox app secret (default: d3hr43reha9kky8)
+    SYNC_STATE_FILE         - Path to state file (default: /opt/ddd-reader/samsara_sync_state.json)
+    SYNC_DEST_FOLDER        - Dropbox destination folder (default: /Samsara-DDD)
+    SYNC_DAYS_BACK          - How many days back to check (default: 30)
 """
 
 import json
 import os
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import dropbox
 import requests
 
 SAMSARA_API_TOKEN = os.environ.get('SAMSARA_API_TOKEN', '')
 SAMSARA_API_BASE = 'https://api.eu.samsara.com'
-DROPBOX_TOKEN = os.environ.get('DROPBOX_TOKEN', '')
+DROPBOX_REFRESH_TOKEN = os.environ.get('DROPBOX_REFRESH_TOKEN', '')
+DROPBOX_APP_KEY = os.environ.get('DROPBOX_APP_KEY', 'j9ntkihedd9495i')
+DROPBOX_APP_SECRET = os.environ.get('DROPBOX_APP_SECRET', 'd3hr43reha9kky8')
 STATE_FILE = os.environ.get('SYNC_STATE_FILE', '/opt/ddd-reader/samsara_sync_state.json')
 DEST_FOLDER = os.environ.get('SYNC_DEST_FOLDER', '/Samsara-DDD')
 DAYS_BACK = int(os.environ.get('SYNC_DAYS_BACK', '30'))
@@ -58,15 +62,16 @@ def save_state(synced_ids):
     with open(STATE_FILE, 'w') as f:
         json.dump({
             'synced_ids': list(synced_ids),
-            'last_sync': datetime.utcnow().isoformat() + 'Z',
+            'last_sync': datetime.now(tz=timezone.utc).isoformat() + 'Z',
         }, f, indent=2)
 
 
 def fetch_samsara_files():
     """Fetch all tachograph files from Samsara API."""
     headers = {'Authorization': f'Bearer {SAMSARA_API_TOKEN}'}
-    end_time = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
-    start_time = (datetime.utcnow() - timedelta(days=DAYS_BACK)).strftime('%Y-%m-%dT%H:%M:%SZ')
+    now = datetime.now(tz=timezone.utc)
+    end_time = now.strftime('%Y-%m-%dT%H:%M:%SZ')
+    start_time = (now - timedelta(days=DAYS_BACK)).strftime('%Y-%m-%dT%H:%M:%SZ')
 
     all_data = []
     has_next = True
@@ -111,8 +116,8 @@ def main():
     if not SAMSARA_API_TOKEN:
         log('ERROR: SAMSARA_API_TOKEN not set')
         sys.exit(1)
-    if not DROPBOX_TOKEN:
-        log('ERROR: DROPBOX_TOKEN not set')
+    if not DROPBOX_REFRESH_TOKEN:
+        log('ERROR: DROPBOX_REFRESH_TOKEN not set')
         sys.exit(1)
 
     log(f'Starting sync (last {DAYS_BACK} days)...')
@@ -152,10 +157,15 @@ def main():
 
     log(f'Found {len(new_files)} new files to sync.')
 
-    # Connect to Dropbox
+    # Connect to Dropbox using refresh token (auto-renews access token)
     try:
-        dbx = dropbox.Dropbox(DROPBOX_TOKEN)
-        dbx.users_get_current_account()
+        dbx = dropbox.Dropbox(
+            oauth2_refresh_token=DROPBOX_REFRESH_TOKEN,
+            app_key=DROPBOX_APP_KEY,
+            app_secret=DROPBOX_APP_SECRET,
+        )
+        acct = dbx.users_get_current_account()
+        log(f'Dropbox connected: {acct.name.display_name}')
     except Exception as e:
         log(f'ERROR: Dropbox connection failed: {e}')
         sys.exit(1)
@@ -170,7 +180,7 @@ def main():
 
         driver_name = f['driver_name']
         safe_name = "".join(c for c in driver_name if c.isalnum() or c in ' _-').strip() or 'kierowca'
-        date_part = f['created_at'][:10] if f['created_at'] else datetime.utcnow().strftime('%Y-%m-%d')
+        date_part = f['created_at'][:10] if f['created_at'] else datetime.now(tz=timezone.utc).strftime('%Y-%m-%d')
         card = f['card_number']
         fname = f"{card}_{date_part}.ddd" if card else f"{safe_name}_{date_part}.ddd"
         dbx_path = f"{DEST_FOLDER}/{safe_name}/{fname}"
