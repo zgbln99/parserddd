@@ -23,6 +23,7 @@ DDDPARSER_PATH = os.environ.get('DDDPARSER_PATH', 'dddparser')
 # Dropbox OAuth2 config
 DROPBOX_APP_KEY = os.environ.get('DROPBOX_APP_KEY', 'j9ntkihedd9495i')
 DROPBOX_APP_SECRET = os.environ.get('DROPBOX_APP_SECRET', 'd3hr43reha9kky8')
+DROPBOX_REDIRECT_URI = os.environ.get('DROPBOX_REDIRECT_URI', 'http://srv33.mikr.us:40110/dropbox/callback')
 
 
 def get_dropbox_auth_flow():
@@ -455,11 +456,10 @@ def upload():
 @app.route('/dropbox/auth')
 def dropbox_auth():
     """Start Dropbox OAuth2 flow."""
-    redirect_uri = request.host_url.rstrip('/') + '/dropbox/callback'
     flow = dropbox.DropboxOAuth2Flow(
         consumer_key=DROPBOX_APP_KEY,
         consumer_secret=DROPBOX_APP_SECRET,
-        redirect_uri=redirect_uri,
+        redirect_uri=DROPBOX_REDIRECT_URI,
         session=session,
         csrf_token_session_key='dropbox-csrf-token',
         token_access_type='offline',
@@ -471,11 +471,10 @@ def dropbox_auth():
 @app.route('/dropbox/callback')
 def dropbox_callback():
     """Handle Dropbox OAuth2 callback."""
-    redirect_uri = request.host_url.rstrip('/') + '/dropbox/callback'
     flow = dropbox.DropboxOAuth2Flow(
         consumer_key=DROPBOX_APP_KEY,
         consumer_secret=DROPBOX_APP_SECRET,
-        redirect_uri=redirect_uri,
+        redirect_uri=DROPBOX_REDIRECT_URI,
         session=session,
         csrf_token_session_key='dropbox-csrf-token',
         token_access_type='offline',
