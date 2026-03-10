@@ -141,6 +141,9 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
         </div>
       )}
 
+      {/* Excel copy helper */}
+      {shifts.length > 0 && <ExcelCopyBlock summary={s} />}
+
       {/* Key metrics - highlighted */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div className="rounded-xl border border-primary-200 bg-primary-50 p-4 text-center dark:border-primary-800 dark:bg-primary-900/30">
@@ -231,9 +234,6 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
         <p className="py-8 text-center text-sm text-gray-400">{t('noData')}</p>
       )}
 
-      {/* Excel copy helper */}
-      {shifts.length > 0 && <ExcelCopyBlock summary={s} />}
-
       {/* Export */}
       <div className="flex justify-center gap-3 pt-2">
         <button
@@ -266,7 +266,8 @@ function ExcelCopyBlock({ summary }: { summary: ReturnType<typeof Object> & Reco
   const n25 = ((s.night_25_minutes as number) / 60).toFixed(2).replace('.', ',');
   const n40 = ((s.night_40_minutes as number) / 60).toFixed(2).replace('.', ',');
   const vma = String(s.diet_count ?? 0);
-  const az = ((s.total_work_minutes as number) / 60).toFixed(2).replace('.', ',');
+  const azMin = s.total_work_minutes as number;
+  const az = `${Math.floor(azMin / 60)}:${String(azMin % 60).padStart(2, '0')}`;
 
   const headers = ['25%', '40%', 'Ü', 'Ur', 'Kr', 'VMA', 'AZ'];
   const values  = [n25,   n40,   '',  '',   '',   vma,   az];
