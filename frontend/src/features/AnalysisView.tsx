@@ -138,11 +138,14 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
               {t('clear')}
             </button>
           )}
+          {/* Excel copy – inline */}
+          {shifts.length > 0 && (
+            <div className="ml-auto">
+              <ExcelCopyBlock summary={s} />
+            </div>
+          )}
         </div>
       )}
-
-      {/* Excel copy helper */}
-      {shifts.length > 0 && <ExcelCopyBlock summary={s} />}
 
       {/* Key metrics - highlighted */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -283,39 +286,34 @@ function ExcelCopyBlock({ summary }: { summary: ReturnType<typeof Object> & Reco
   const cols = headers.map((h, i) => ({ header: h, value: values[i] }));
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/50">
-      <div className="mb-2 flex items-center justify-between">
-        <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Excel</p>
-        <button
-          onClick={handleCopy}
-          className="flex items-center gap-1.5 rounded-lg bg-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 transition hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
-        >
-          {copied ? <Check size={14} /> : <ClipboardCopy size={14} />}
-          {copied ? 'Skopiowano!' : 'Kopiuj'}
-        </button>
-      </div>
-      <div className="overflow-x-auto">
-        <table className="min-w-0 border-collapse text-sm">
-          <thead>
-            <tr>
-              {cols.map((c) => (
-                <th key={c.header} className="border border-gray-300 bg-gray-100 px-3 py-1.5 text-center text-xs font-bold text-gray-600 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300">
-                  {c.header}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              {cols.map((c) => (
-                <td key={c.header} className="border border-gray-300 px-3 py-1.5 text-center font-mono text-sm dark:border-gray-600">
-                  {c.value || <span className="text-gray-300 dark:text-gray-600">&mdash;</span>}
-                </td>
-              ))}
-            </tr>
-          </tbody>
-        </table>
-      </div>
+    <div className="flex items-center gap-2">
+      <table className="border-collapse text-xs">
+        <thead>
+          <tr>
+            {cols.map((c) => (
+              <th key={c.header} className="border border-gray-300 bg-gray-200/60 px-2 py-1 text-center font-bold text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-400">
+                {c.header}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            {cols.map((c) => (
+              <td key={c.header} className="border border-gray-300 bg-white px-2 py-1 text-center font-mono dark:border-gray-600 dark:bg-gray-900">
+                {c.value || <span className="text-gray-300 dark:text-gray-600">&mdash;</span>}
+              </td>
+            ))}
+          </tr>
+        </tbody>
+      </table>
+      <button
+        onClick={handleCopy}
+        className="flex items-center gap-1 rounded-lg bg-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-700 transition hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
+      >
+        {copied ? <Check size={13} /> : <ClipboardCopy size={13} />}
+        {copied ? 'OK!' : 'Kopiuj'}
+      </button>
     </div>
   );
 }
