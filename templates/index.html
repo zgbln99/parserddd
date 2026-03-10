@@ -614,6 +614,74 @@
             color: white;
         }
 
+        /* Violations */
+        .violations-panel {
+            background: #fef2f2;
+            border: 1.5px solid #fecaca;
+            border-radius: var(--radius);
+            margin-bottom: 12px;
+            overflow: hidden;
+            display: none;
+        }
+        .violations-panel.visible { display: block; }
+        .violations-header {
+            background: linear-gradient(135deg, #dc2626, #b91c1c);
+            color: white;
+            padding: 10px 18px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+            user-select: none;
+        }
+        .violations-header:hover { opacity: 0.92; }
+        .violations-title { font-weight: 700; font-size: 0.9em; }
+        .violations-count {
+            background: rgba(255,255,255,0.25);
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            font-weight: 600;
+        }
+        .violations-body { padding: 12px 18px; }
+        .violations-body.collapsed { display: none; }
+        .violation-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 8px 0;
+            border-bottom: 1px solid #fecaca;
+            font-size: 0.84em;
+        }
+        .violation-item:last-child { border-bottom: none; }
+        .violation-icon {
+            flex-shrink: 0;
+            width: 22px; height: 22px;
+            background: #dc2626;
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7em;
+            font-weight: 800;
+        }
+        .violation-text { color: #991b1b; line-height: 1.4; }
+        .violation-text strong { color: #7f1d1d; }
+        .violation-badge {
+            display: inline-block;
+            background: #dc2626;
+            color: white;
+            font-size: 0.65em;
+            font-weight: 700;
+            padding: 1px 5px;
+            border-radius: 4px;
+            margin-left: 4px;
+            vertical-align: middle;
+        }
+        tr.has-violation td { background: #fef2f2 !important; }
+        tr.has-violation:hover td { background: #fee2e2 !important; }
+
         tfoot td {
             font-weight: 700 !important;
             background: #f8f9fb !important;
@@ -630,6 +698,8 @@
             .driver-card .driver-meta { text-align: center; }
         }
     </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.4/jspdf.plugin.autotable.min.js"></script>
 </head>
 <body>
     <div class="container">
@@ -694,10 +764,19 @@
                     </div>
                     <button class="pill pill-upload" onclick="openHistoryModal()" style="background:#f5f3ff;color:#7c3aed;border:1.5px solid #7c3aed" id="toolbar-history-btn">Historia</button>
                     <button class="pill pill-upload" onclick="downloadCSV()" style="background:#f0fdf4;color:#16a34a;border:1.5px solid #16a34a">Pobierz CSV</button>
+                    <button class="pill pill-upload" onclick="downloadPDF()" style="background:#fff7ed;color:#ea580c;border:1.5px solid #ea580c">Pobierz PDF</button>
                     <button class="pill pill-upload" id="dbx-import-btn" onclick="openDropboxBrowser()" style="display:none;background:#eff4ff;color:#0061fe;border-color:#0061fe">Importuj z Dropbox</button>
                     <button class="pill pill-upload" id="dbx-export-btn" onclick="openExportModal()" style="display:none;background:#eff4ff;color:#16a34a;border-color:#16a34a">Eksportuj do Dropbox</button>
                     <button class="pill pill-upload" onclick="document.getElementById('file-input-toolbar').click()">Wgraj nowy plik</button>
                     <input type="file" id="file-input-toolbar" accept=".ddd,.DDD">
+                </div>
+
+                <div class="violations-panel" id="violations-panel">
+                    <div class="violations-header" onclick="toggleViolations()">
+                        <span class="violations-title">Wykryte naruszenia</span>
+                        <span class="violations-count" id="violations-count">0</span>
+                    </div>
+                    <div class="violations-body" id="violations-body"></div>
                 </div>
 
                 <div id="list-view">
@@ -937,14 +1016,22 @@
 
             document.getElementById('shifts-header').textContent = `Zmiany (${details.length})`;
 
+            // Violation detection
+            const violations = detectViolations(details);
+            const violationIndexes = new Set(violations.map(v => v.index));
+            renderViolations(violations);
+
             // List view
             const tbody = document.getElementById('daily-tbody');
             tbody.innerHTML = '';
-            for (const d of details) {
+            for (let i = 0; i < details.length; i++) {
+                const d = details[i];
                 const tr = document.createElement('tr');
+                if (violationIndexes.has(i)) tr.classList.add('has-violation');
                 const plates = (d.vehicles || []).join(', ');
+                const badge = violationIndexes.has(i) ? '<span class="violation-badge">!</span>' : '';
                 tr.innerHTML = `
-                    <td class="shift-time">${fmtDt(d.shift_start)}</td>
+                    <td class="shift-time">${fmtDt(d.shift_start)}${badge}</td>
                     <td class="shift-time">${fmtDt(d.shift_end)}</td>
                     <td class="c-muted">${d.duration_hm}</td>
                     <td class="c-primary">${esc(plates) || '-'}</td>
@@ -1315,6 +1402,284 @@
             const d = document.createElement('div');
             d.textContent = s || '';
             return d.innerHTML;
+        }
+
+        // ===== Violation detection =====
+        function detectViolations(details) {
+            const violations = [];
+            for (let i = 0; i < details.length; i++) {
+                const d = details[i];
+                const shiftViolations = [];
+
+                // 1. Jazda ciagla > 4.5h (270 min) bez przerwy 45min
+                if (d.driving_minutes > 270) {
+                    shiftViolations.push({
+                        type: 'driving',
+                        msg: `Jazda ${d.driving_hm} przekracza limit 4:30 ciaglej jazdy`
+                    });
+                }
+
+                // 2. Czas pracy > 10h (normalny limit) / > 13h (z wydluzeniem max 2x/tydz)
+                if (d.work_minutes > 13 * 60) {
+                    shiftViolations.push({
+                        type: 'work_critical',
+                        msg: `Czas pracy ${d.work_hm} przekracza bezwzgledny limit 13:00`
+                    });
+                } else if (d.work_minutes > 10 * 60) {
+                    shiftViolations.push({
+                        type: 'work',
+                        msg: `Czas pracy ${d.work_hm} przekracza normalny limit 10:00 (dopuszczalne max 2x/tydzien do 13:00)`
+                    });
+                }
+
+                // 3. Czas trwania zmiany > 15h (brak odpoczynku min 9h)
+                if (d.duration_minutes > 15 * 60) {
+                    shiftViolations.push({
+                        type: 'duration',
+                        msg: `Zmiana trwa ${d.duration_hm} - przekroczony max czas 15:00 (min. 9h odpoczynku dziennego)`
+                    });
+                }
+
+                // 4. Odpoczynek miedzy zmianami < 9h (skrocony) / < 11h (normalny)
+                if (i > 0) {
+                    const prev = details[i - 1];
+                    const prevEnd = new Date(prev.shift_end.replace(' ', 'T'));
+                    const currStart = new Date(d.shift_start.replace(' ', 'T'));
+                    const restMinutes = (currStart - prevEnd) / 60000;
+                    if (restMinutes < 9 * 60 && restMinutes >= 0) {
+                        const restH = Math.floor(restMinutes / 60);
+                        const restM = Math.round(restMinutes % 60);
+                        shiftViolations.push({
+                            type: 'rest_critical',
+                            msg: `Odpoczynek ${restH}:${String(restM).padStart(2,'0')} przed ta zmiana - ponizej minimum 9:00`
+                        });
+                    } else if (restMinutes < 11 * 60 && restMinutes >= 9 * 60) {
+                        const restH = Math.floor(restMinutes / 60);
+                        const restM = Math.round(restMinutes % 60);
+                        shiftViolations.push({
+                            type: 'rest',
+                            msg: `Skrocony odpoczynek ${restH}:${String(restM).padStart(2,'0')} (norma 11:00, dopuszczalne 9:00 max 3x/tydz.)`
+                        });
+                    }
+                }
+
+                if (shiftViolations.length > 0) {
+                    violations.push({
+                        index: i,
+                        date: d.shift_start,
+                        items: shiftViolations
+                    });
+                }
+            }
+            return violations;
+        }
+
+        function renderViolations(violations) {
+            const panel = document.getElementById('violations-panel');
+            const body = document.getElementById('violations-body');
+            const count = document.getElementById('violations-count');
+            const totalItems = violations.reduce((s, v) => s + v.items.length, 0);
+
+            if (totalItems === 0) {
+                panel.classList.remove('visible');
+                return;
+            }
+
+            panel.classList.add('visible');
+            count.textContent = totalItems;
+
+            let html = '';
+            for (const v of violations) {
+                for (const item of v.items) {
+                    html += `<div class="violation-item">
+                        <div class="violation-icon">!</div>
+                        <div class="violation-text">
+                            <strong>${fmtDtPlain(v.date)}</strong> — ${esc(item.msg)}
+                        </div>
+                    </div>`;
+                }
+            }
+            body.innerHTML = html;
+        }
+
+        function toggleViolations() {
+            document.getElementById('violations-body').classList.toggle('collapsed');
+        }
+
+        function fmtDtPlain(s) {
+            if (!s) return '-';
+            const [date, time] = s.split(' ');
+            if (!time) return s;
+            const p = date.split('-');
+            return `${p[2]}.${p[1]}.${p[0]} ${time}`;
+        }
+
+        // ===== PDF export =====
+        function downloadPDF() {
+            if (!currentData || !lastFilteredDetails.length) return;
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+            const di = currentData.driver_info || {};
+            const details = lastFilteredDetails;
+            const hm = m => Math.floor(m/60) + ':' + String(m%60).padStart(2,'0');
+            const dec = m => (m/60).toFixed(2);
+
+            // Totals
+            let totWork=0, totDriving=0, totBreak=0, totN25=0, totN40=0, dietCount=0;
+            for (const d of details) {
+                totWork += d.work_minutes;
+                totDriving += d.driving_minutes;
+                totBreak += d.break_minutes;
+                totN25 += d.night_25_minutes;
+                totN40 += d.night_40_minutes;
+                if (d.has_diet) dietCount++;
+            }
+
+            // Violations
+            const violations = detectViolations(details);
+            const violationIndexes = new Set(violations.map(v => v.index));
+
+            // Header
+            doc.setFontSize(16);
+            doc.setFont(undefined, 'bold');
+            doc.text('Raport karty kierowcy', 14, 15);
+
+            doc.setFontSize(9);
+            doc.setFont(undefined, 'normal');
+            doc.text(`Kierowca: ${di.driver_name || '-'}`, 14, 22);
+            doc.text(`Nr karty: ${di.card_number || '-'}`, 14, 27);
+            const fromDate = document.getElementById('date-from').value;
+            const toDate = document.getElementById('date-to').value;
+            if (fromDate || toDate) {
+                doc.text(`Zakres: ${fromDate || '...'} - ${toDate || '...'}`, 14, 32);
+            }
+            doc.text(`Wygenerowano: ${new Date().toLocaleDateString('pl-PL')} ${new Date().toLocaleTimeString('pl-PL')}`, 180, 22);
+
+            // Summary box
+            let sy = 38;
+            doc.setFillColor(240, 242, 247);
+            doc.roundedRect(14, sy, 269, 14, 2, 2, 'F');
+            doc.setFontSize(8);
+            doc.setFont(undefined, 'bold');
+            const summaryItems = [
+                `Zmian: ${details.length}`,
+                `Czas pracy: ${hm(totWork)} (${dec(totWork)}h)`,
+                `Jazda: ${hm(totDriving)}`,
+                `Przerwy: ${hm(totBreak)}`,
+                `Nocne 25%: ${dec(totN25)}h`,
+                `Nocne 40%: ${dec(totN40)}h`,
+                `Diety: ${dietCount}`,
+            ];
+            let sx = 18;
+            for (const item of summaryItems) {
+                doc.text(item, sx, sy + 9);
+                sx += 38;
+            }
+
+            // Shifts table
+            const tableData = details.map((d, i) => {
+                const p = (d.shift_start || '').split(' ');
+                const pEnd = (d.shift_end || '').split(' ');
+                const startFmt = p.length === 2 ? p[0].split('-').reverse().join('.') + ' ' + p[1] : d.shift_start;
+                const endFmt = pEnd.length === 2 ? pEnd[0].split('-').reverse().join('.') + ' ' + pEnd[1] : d.shift_end;
+                return [
+                    startFmt,
+                    endFmt,
+                    d.duration_hm,
+                    (d.vehicles || []).join(', ') || '-',
+                    d.driving_hm,
+                    d.work_only_hm,
+                    d.break_hm,
+                    `${d.work_hm} (${d.work_decimal}h)`,
+                    d.night_25_minutes > 0 ? dec(d.night_25_minutes) : '-',
+                    d.night_40_minutes > 0 ? dec(d.night_40_minutes) : '-',
+                    d.has_diet ? 'TAK' : '-',
+                ];
+            });
+
+            // Footer row
+            tableData.push([
+                '', '', '', 'SUMA',
+                hm(totDriving), '', hm(totBreak),
+                `${hm(totWork)} (${dec(totWork)}h)`,
+                dec(totN25), dec(totN40), String(dietCount)
+            ]);
+
+            doc.autoTable({
+                startY: sy + 18,
+                head: [['Start', 'Koniec', 'Czas', 'Pojazd', 'Jazda', 'Praca', 'Przerwy', 'Czas pracy', '25%', '40%', 'Dieta']],
+                body: tableData,
+                styles: { fontSize: 7, cellPadding: 1.5, font: 'helvetica' },
+                headStyles: { fillColor: [30, 64, 175], textColor: 255, fontStyle: 'bold', fontSize: 7 },
+                columnStyles: {
+                    0: { cellWidth: 30 },
+                    1: { cellWidth: 30 },
+                    3: { cellWidth: 28 },
+                    7: { fontStyle: 'bold' },
+                },
+                didParseCell: function(data) {
+                    // Last row (SUMA) bold
+                    if (data.row.index === tableData.length - 1 && data.section === 'body') {
+                        data.cell.styles.fontStyle = 'bold';
+                        data.cell.styles.fillColor = [240, 242, 247];
+                    }
+                    // Violation rows red background
+                    if (data.section === 'body' && violationIndexes.has(data.row.index)) {
+                        data.cell.styles.fillColor = [254, 242, 242];
+                    }
+                },
+                margin: { left: 14, right: 14 },
+            });
+
+            // Violations section
+            if (violations.length > 0) {
+                let vy = doc.lastAutoTable.finalY + 8;
+                if (vy > 180) {
+                    doc.addPage();
+                    vy = 15;
+                }
+                doc.setFontSize(11);
+                doc.setFont(undefined, 'bold');
+                doc.setTextColor(220, 38, 38);
+                const totalV = violations.reduce((s, v) => s + v.items.length, 0);
+                doc.text(`Wykryte naruszenia (${totalV})`, 14, vy);
+                doc.setTextColor(0, 0, 0);
+                doc.setFontSize(8);
+                doc.setFont(undefined, 'normal');
+                vy += 6;
+
+                for (const v of violations) {
+                    for (const item of v.items) {
+                        if (vy > 195) {
+                            doc.addPage();
+                            vy = 15;
+                        }
+                        doc.setFont(undefined, 'bold');
+                        doc.setTextColor(220, 38, 38);
+                        doc.text('!', 16, vy);
+                        doc.setTextColor(100, 20, 20);
+                        doc.text(fmtDtPlain(v.date), 20, vy);
+                        doc.setFont(undefined, 'normal');
+                        doc.setTextColor(60, 60, 60);
+                        doc.text(' - ' + item.msg, 20 + doc.getTextWidth(fmtDtPlain(v.date)), vy);
+                        doc.setTextColor(0, 0, 0);
+                        vy += 5;
+                    }
+                }
+            }
+
+            // Footer
+            const pageCount = doc.internal.getNumberOfPages();
+            for (let i = 1; i <= pageCount; i++) {
+                doc.setPage(i);
+                doc.setFontSize(7);
+                doc.setTextColor(150);
+                doc.text(`Strona ${i}/${pageCount}`, 270, 205, { align: 'right' });
+                doc.text('LTS - Czytnik kart kierowcow DDD', 14, 205);
+            }
+
+            const safeName = (di.driver_name || 'kierowca').replace(/[^a-zA-Z0-9_ -]/g, '');
+            doc.save(`${safeName}_${new Date().toISOString().slice(0,10)}.pdf`);
         }
 
         // ===== Dropbox Integration =====
