@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, RefreshCw, ChevronUp, ChevronDown, FileText, AlertCircle } from 'lucide-react';
+import { Search, RefreshCw, ChevronUp, ChevronDown, FileText, AlertCircle, AlertTriangle } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { fetchDrivers } from '../lib/api';
 import { formatDate, formatDateTime, daysLabel, daysColor, formatBytes } from '../lib/format';
@@ -36,6 +36,11 @@ export function DriversPage() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // Overdue drivers (>28 days without download)
+  const overdueDrivers = useMemo(() => {
+    return drivers.filter((d) => d.days_since !== null && d.days_since > 28);
+  }, [drivers]);
 
   // Filter + sort
   const filtered = useMemo(() => {
@@ -125,6 +130,20 @@ export function DriversPage() {
         </button>
       </div>
 
+      {/* Overdue download alert */}
+      {overdueDrivers.length > 0 && (
+        <div className="mb-4 flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 dark:border-red-800 dark:bg-red-900/20">
+          <AlertTriangle size={18} className="flex-shrink-0 text-red-500" />
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-red-700 dark:text-red-400">{t('driversOverdueAlert')}</p>
+            <p className="text-xs text-red-600/70 dark:text-red-400/70">
+              {overdueDrivers.length} {t('driversOverdueCount')}: {overdueDrivers.slice(0, 5).map((d) => d.name).join(', ')}{overdueDrivers.length > 5 ? '...' : ''}
+            </p>
+          </div>
+          <Badge variant="red">{overdueDrivers.length}</Badge>
+        </div>
+      )}
+
       {/* Loading / Error / Empty */}
       {loading && !drivers.length && (
         <div className="flex flex-col items-center gap-3 py-20 text-gray-400">
@@ -170,7 +189,7 @@ export function DriversPage() {
                   <tr
                     key={d.name}
                     onClick={() => openDriver(d)}
-                    className="cursor-pointer transition hover:bg-primary-50/50 dark:hover:bg-primary-900/10"
+                    className={`cursor-pointer transition hover:bg-primary-50/50 dark:hover:bg-primary-900/10 ${d.days_since !== null && d.days_since > 28 ? 'bg-red-50/50 dark:bg-red-900/10' : ''}`}
                   >
                     <td className="whitespace-nowrap px-4 py-3 font-semibold">{d.name}</td>
                     <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-gray-500 dark:text-gray-400">{d.card_number}</td>

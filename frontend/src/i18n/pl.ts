@@ -120,6 +120,18 @@ export const pl = {
   syncFilesFrom: 'Pliki z',
   syncHourlyCron: 'Synchronizacja co godzinę',
 
+  // Quick date filters
+  filterThisMonth: 'Ten miesiąc',
+  filterLastMonth: 'Poprzedni miesiąc',
+  filterLast30: 'Ostatnie 30 dni',
+
+  // PDF export
+  analysisExportPdf: 'Eksport PDF',
+
+  // Driver alerts
+  driversOverdueAlert: 'Przeterminowane pobranie (>28 dni)',
+  driversOverdueCount: 'kierowców z przeterminowanym pobraniem',
+
   // Connections
   dropboxConnected: 'Dropbox połączony',
   dropboxDisconnected: 'Dropbox rozłączony',

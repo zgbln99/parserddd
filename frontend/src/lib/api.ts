@@ -92,3 +92,21 @@ export async function exportCsv(driverName: string, shifts: unknown[]) {
   a.click();
   URL.revokeObjectURL(url);
 }
+
+// PDF export (returns blob)
+export async function exportPdf(driverName: string, cardNumber: string, summary: unknown, shifts: unknown[]) {
+  const res = await fetch('/api/export/pdf', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ driver_name: driverName, card_number: cardNumber, summary, shifts }),
+  });
+  if (!res.ok) throw new Error('PDF export failed');
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = res.headers.get('Content-Disposition')?.split('filename=')[1]?.replace(/"/g, '') || 'export.pdf';
+  a.click();
+  URL.revokeObjectURL(url);
+}

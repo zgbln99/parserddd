@@ -664,6 +664,95 @@ def api_export_csv():
     )
 
 
+@app.route('/api/export/pdf', methods=['POST'])
+@login_required
+def api_export_pdf():
+    """Generate a PDF report from analysis data."""
+    payload = request.json or {}
+    driver_name = payload.get('driver_name', 'Kierowca')
+    card_number = payload.get('card_number', '')
+    summary = payload.get('summary', {})
+    shifts = payload.get('shifts', [])
+
+    # Build simple HTML-based PDF using basic HTML tables
+    html_parts = [
+        '<!DOCTYPE html><html><head><meta charset="utf-8">',
+        '<style>',
+        'body{font-family:Arial,sans-serif;font-size:11px;margin:20px;}',
+        'h1{font-size:18px;margin-bottom:4px;}',
+        'h2{font-size:14px;color:#555;margin:16px 0 8px;}',
+        '.meta{color:#666;font-size:10px;margin-bottom:16px;}',
+        '.grid{display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;}',
+        '.card{border:1px solid #ddd;border-radius:8px;padding:10px 16px;text-align:center;min-width:120px;}',
+        '.card .label{font-size:9px;text-transform:uppercase;font-weight:bold;color:#888;letter-spacing:0.5px;}',
+        '.card .val{font-size:18px;font-weight:bold;margin-top:2px;}',
+        '.highlight{border-color:#4f46e5;background:#f5f3ff;}',
+        'table{width:100%;border-collapse:collapse;margin-top:8px;font-size:10px;}',
+        'th{background:#f3f4f6;border:1px solid #ddd;padding:5px 8px;text-align:left;font-size:9px;text-transform:uppercase;}',
+        'td{border:1px solid #eee;padding:4px 8px;}',
+        'tr:nth-child(even){background:#fafafa;}',
+        '.diet-yes{color:#16a34a;font-weight:bold;}',
+        '.footer{margin-top:20px;font-size:9px;color:#999;text-align:center;}',
+        '</style></head><body>',
+        f'<h1>{driver_name}</h1>',
+        f'<div class="meta">{card_number}</div>' if card_number else '',
+        '<h2>Podsumowanie</h2>',
+        '<div class="grid">',
+        f'<div class="card highlight"><div class="label">Czas pracy</div><div class="val">{summary.get("total_work_hm", "-")}</div></div>',
+        f'<div class="card highlight"><div class="label">Nocne 25%</div><div class="val">{summary.get("night_25_minutes", 0) / 60:.2f}h ({summary.get("night_25_hm", "-")})</div></div>',
+        f'<div class="card highlight"><div class="label">Nocne 40%</div><div class="val">{summary.get("night_40_minutes", 0) / 60:.2f}h ({summary.get("night_40_hm", "-")})</div></div>',
+        f'<div class="card highlight"><div class="label">Diety</div><div class="val">{summary.get("diet_count", 0)}</div></div>',
+        '</div>',
+        '<div class="grid">',
+        f'<div class="card"><div class="label">Jazda</div><div class="val">{summary.get("total_driving_hm", "-")}</div></div>',
+        f'<div class="card"><div class="label">Przerwy</div><div class="val">{summary.get("total_break_hm", "-")}</div></div>',
+        f'<div class="card"><div class="label">Łącznie zmian</div><div class="val">{summary.get("total_shifts", 0)}</div></div>',
+        '</div>',
+        '<h2>Zmiany</h2>',
+        '<table><thead><tr>',
+        '<th>Start</th><th>Koniec</th><th>Czas</th><th>Pojazd</th>',
+        '<th>Jazda</th><th>Praca</th><th>Przerwy</th>',
+        '<th>Nocne 25%</th><th>Nocne 40%</th><th>Dieta</th>',
+        '</tr></thead><tbody>',
+    ]
+    for s in shifts:
+        n25 = f"{s.get('night_25_minutes', 0) / 60:.2f}"
+        n40 = f"{s.get('night_40_minutes', 0) / 60:.2f}"
+        diet = '<span class="diet-yes">TAK</span>' if s.get('has_diet') else 'NIE'
+        html_parts.append(
+            f'<tr><td>{s.get("shift_start","")}</td><td>{s.get("shift_end","")}</td>'
+            f'<td><b>{s.get("duration_hm","")}</b></td><td>{", ".join(s.get("vehicles",[]))}</td>'
+            f'<td>{s.get("driving_hm","")}</td><td>{s.get("work_only_hm","")}</td>'
+            f'<td>{s.get("break_hm","")}</td><td>{n25}</td><td>{n40}</td><td>{diet}</td></tr>'
+        )
+    html_parts.append('</tbody></table>')
+    html_parts.append(f'<div class="footer">Portal DDD — wygenerowano {datetime.now().strftime("%Y-%m-%d %H:%M")}</div>')
+    html_parts.append('</body></html>')
+
+    html_content = '\n'.join(html_parts)
+
+    # Try weasyprint first, fall back to HTML download
+    try:
+        from weasyprint import HTML as WeasyHTML
+        pdf_bytes = WeasyHTML(string=html_content).write_pdf()
+        content_type = 'application/pdf'
+        ext = 'pdf'
+    except ImportError:
+        # Fallback: return HTML file that can be printed to PDF from browser
+        pdf_bytes = html_content.encode('utf-8')
+        content_type = 'text/html'
+        ext = 'html'
+
+    safe_name = "".join(c for c in driver_name if c.isalnum() or c in ' _-').strip() or 'kierowca'
+    filename = f"{safe_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{ext}"
+    from flask import Response
+    return Response(
+        pdf_bytes,
+        mimetype=content_type,
+        headers={'Content-Disposition': f'attachment; filename="{filename}"'},
+    )
+
+
 # ---------------------------------------------------------------------------
 # Sync status API
 # ---------------------------------------------------------------------------

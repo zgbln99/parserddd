@@ -118,9 +118,24 @@ export function Layout({ children }: { children: ReactNode }) {
 
       {/* Global date filter bar */}
       <div className="border-b border-gray-100 bg-gray-50/80 backdrop-blur-sm dark:border-gray-800 dark:bg-gray-900/80">
-        <div className="mx-auto flex max-w-[1600px] items-center gap-3 px-4 py-2 sm:px-6">
+        <div className="mx-auto flex max-w-[1600px] flex-wrap items-center gap-2 px-4 py-2 sm:gap-3 sm:px-6">
           <Calendar size={14} className="text-gray-400" />
           <span className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('globalDateFilter')}:</span>
+          {/* Quick presets */}
+          {[
+            { label: t('filterThisMonth'), fn: () => { const now = new Date(); setDateFrom(`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`); const last = new Date(now.getFullYear(), now.getMonth()+1, 0); setDateTo(`${last.getFullYear()}-${String(last.getMonth()+1).padStart(2,'0')}-${String(last.getDate()).padStart(2,'0')}`); }},
+            { label: t('filterLastMonth'), fn: () => { const now = new Date(); const first = new Date(now.getFullYear(), now.getMonth()-1, 1); const last = new Date(now.getFullYear(), now.getMonth(), 0); setDateFrom(`${first.getFullYear()}-${String(first.getMonth()+1).padStart(2,'0')}-01`); setDateTo(`${last.getFullYear()}-${String(last.getMonth()+1).padStart(2,'0')}-${String(last.getDate()).padStart(2,'0')}`); }},
+            { label: t('filterLast30'), fn: () => { const now = new Date(); const past = new Date(now.getTime() - 30*86400000); setDateFrom(`${past.getFullYear()}-${String(past.getMonth()+1).padStart(2,'0')}-${String(past.getDate()).padStart(2,'0')}`); setDateTo(`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`); }},
+          ].map(({ label, fn }) => (
+            <button
+              key={label}
+              onClick={fn}
+              className="rounded-lg border border-gray-200 px-2 py-1 text-xs font-medium text-gray-600 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-800"
+            >
+              {label}
+            </button>
+          ))}
+          <span className="hidden sm:inline text-gray-300 dark:text-gray-700">|</span>
           <label className="text-xs text-gray-500 dark:text-gray-400">{t('detailFrom')}:</label>
           <input
             type="date"

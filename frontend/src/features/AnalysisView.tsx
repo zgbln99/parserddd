@@ -1,9 +1,9 @@
 import { useMemo } from 'react';
 import { useI18n } from '../i18n';
 import { formatDate } from '../lib/format';
-import { exportCsv } from '../lib/api';
+import { exportCsv, exportPdf } from '../lib/api';
 import { Badge } from '../components/Badge';
-import { Download } from 'lucide-react';
+import { Download, FileText } from 'lucide-react';
 import type { AnalysisResult, ShiftDetail } from '../types';
 
 function fmtNight(minutes: number, hm: string) {
@@ -90,6 +90,10 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
 
   const handleExport = () => {
     exportCsv(di.driver_name || 'driver', shifts);
+  };
+
+  const handlePdfExport = () => {
+    exportPdf(di.driver_name || 'driver', di.card_number || '', s, shifts);
   };
 
   const hasDateFilter = onDateFromChange && onDateToChange;
@@ -222,13 +226,20 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
       )}
 
       {/* Export */}
-      <div className="flex justify-center pt-2">
+      <div className="flex justify-center gap-3 pt-2">
         <button
           onClick={handleExport}
           className="flex items-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-primary-700 dark:bg-primary-500 dark:hover:bg-primary-600"
         >
           <Download size={16} />
           {t('analysisExportCsv')}
+        </button>
+        <button
+          onClick={handlePdfExport}
+          className="flex items-center gap-2 rounded-xl border border-primary-200 px-5 py-2.5 text-sm font-semibold text-primary-600 transition hover:bg-primary-50 dark:border-primary-800 dark:text-primary-400 dark:hover:bg-primary-900/20"
+        >
+          <FileText size={16} />
+          {t('analysisExportPdf')}
         </button>
       </div>
     </div>

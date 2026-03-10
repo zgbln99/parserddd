@@ -122,6 +122,18 @@ export const de: Record<TranslationKey, string> = {
   syncFilesFrom: 'Dateien vom',
   syncHourlyCron: 'Stündliche Synchronisierung',
 
+  // Quick date filters
+  filterThisMonth: 'Dieser Monat',
+  filterLastMonth: 'Letzter Monat',
+  filterLast30: 'Letzte 30 Tage',
+
+  // PDF export
+  analysisExportPdf: 'PDF-Export',
+
+  // Driver alerts
+  driversOverdueAlert: 'Überfälliger Download (>28 Tage)',
+  driversOverdueCount: 'Fahrer mit überfälligem Download',
+
   // Connections
   dropboxConnected: 'Dropbox verbunden',
   dropboxDisconnected: 'Dropbox getrennt',
