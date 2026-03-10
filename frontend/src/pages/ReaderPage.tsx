@@ -14,11 +14,15 @@ export function ReaderPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState<AnalysisResult | null>(null);
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
 
   const handleFile = useCallback(async (file: File) => {
     setLoading(true);
     setError('');
     setResult(null);
+    setDateFrom('');
+    setDateTo('');
     try {
       const data = await analyzeUploadedFile(file);
       setResult(data);
@@ -117,7 +121,7 @@ export function ReaderPage() {
             </button>
           </div>
           <Card className="p-6">
-            <AnalysisView data={result} />
+            <AnalysisView data={result} dateFrom={dateFrom} dateTo={dateTo} onDateFromChange={setDateFrom} onDateToChange={setDateTo} />
           </Card>
         </div>
       )}
