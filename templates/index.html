@@ -1039,8 +1039,8 @@
                     <td>${d.work_only_hm}</td>
                     <td class="c-slate">${d.break_hm}</td>
                     <td class="c-bold">${d.work_hm} <span class="c-muted" style="font-size:0.85em;font-weight:400">(${d.work_decimal}h)</span></td>
-                    <td class="c-orange">${d.night_25_minutes > 0 ? dec(d.night_25_minutes) : '-'}</td>
-                    <td class="c-red">${d.night_40_minutes > 0 ? dec(d.night_40_minutes) : '-'}</td>
+                    <td class="c-orange">${d.night_25_minutes > 0 ? dec(d.night_25_minutes) + ' <span class="c-muted" style="font-size:0.85em;font-weight:400">(' + hm(d.night_25_minutes) + ')</span>' : '-'}</td>
+                    <td class="c-red">${d.night_40_minutes > 0 ? dec(d.night_40_minutes) + ' <span class="c-muted" style="font-size:0.85em;font-weight:400">(' + hm(d.night_40_minutes) + ')</span>' : '-'}</td>
                     <td>${d.has_diet ? '<span class="diet-tag yes">TAK</span>' : '<span class="diet-tag no">-</span>'}</td>
                 `;
                 tbody.appendChild(tr);
@@ -1053,8 +1053,8 @@
                     <td></td>
                     <td class="c-slate">${hm(totBreak)}</td>
                     <td class="c-bold">${hm(totWork)} <span class="c-muted" style="font-size:0.85em;font-weight:400">(${dec(totWork)}h)</span></td>
-                    <td class="c-orange">${dec(totN25)}</td>
-                    <td class="c-red">${dec(totN40)}</td>
+                    <td class="c-orange">${dec(totN25)} <span class="c-muted" style="font-size:0.85em;font-weight:400">(${hm(totN25)})</span></td>
+                    <td class="c-red">${dec(totN40)} <span class="c-muted" style="font-size:0.85em;font-weight:400">(${hm(totN40)})</span></td>
                     <td style="color:var(--green);font-weight:700">${dietCount}</td>
                 </tr>
             `;
@@ -1130,8 +1130,8 @@
                         <td>${d.work_only_hm}</td>
                         <td class="c-slate">${d.break_hm}</td>
                         <td class="c-bold">${d.work_hm}</td>
-                        <td class="c-orange">${d.night_25_minutes > 0 ? dec(d.night_25_minutes) : '-'}</td>
-                        <td class="c-red">${d.night_40_minutes > 0 ? dec(d.night_40_minutes) : '-'}</td>
+                        <td class="c-orange">${d.night_25_minutes > 0 ? dec(d.night_25_minutes) + ' <span class="c-muted" style="font-size:0.85em;font-weight:400">(' + hm(d.night_25_minutes) + ')</span>' : '-'}</td>
+                        <td class="c-red">${d.night_40_minutes > 0 ? dec(d.night_40_minutes) + ' <span class="c-muted" style="font-size:0.85em;font-weight:400">(' + hm(d.night_40_minutes) + ')</span>' : '-'}</td>
                         <td>${d.has_diet ? '<span class="diet-tag yes">TAK</span>' : '<span class="diet-tag no">-</span>'}</td>
                     </tr>`;
                 }
@@ -1141,8 +1141,8 @@
                                 <td class="c-blue">${hm(mDriving)}</td><td></td>
                                 <td class="c-slate">${hm(mBreak)}</td>
                                 <td class="c-bold">${hm(mWork)}</td>
-                                <td class="c-orange">${dec(mN25)}</td>
-                                <td class="c-red">${dec(mN40)}</td>
+                                <td class="c-orange">${dec(mN25)} (${hm(mN25)})</td>
+                                <td class="c-red">${dec(mN40)} (${hm(mN40)})</td>
                                 <td style="color:var(--green);font-weight:700">${mDiet}</td>
                             </tr></tfoot>
                             </table>
@@ -1596,8 +1596,8 @@
                     d.work_only_hm,
                     d.break_hm,
                     `${d.work_hm} (${d.work_decimal}h)`,
-                    d.night_25_minutes > 0 ? dec(d.night_25_minutes) : '-',
-                    d.night_40_minutes > 0 ? dec(d.night_40_minutes) : '-',
+                    d.night_25_minutes > 0 ? dec(d.night_25_minutes) + ' (' + hm(d.night_25_minutes) + ')' : '-',
+                    d.night_40_minutes > 0 ? dec(d.night_40_minutes) + ' (' + hm(d.night_40_minutes) + ')' : '-',
                     d.has_diet ? 'TAK' : '-',
                 ];
             });
@@ -1607,7 +1607,7 @@
                 '', '', '', 'SUMA',
                 hm(totDriving), '', hm(totBreak),
                 `${hm(totWork)} (${dec(totWork)}h)`,
-                dec(totN25), dec(totN40), String(dietCount)
+                dec(totN25) + ' (' + hm(totN25) + ')', dec(totN40) + ' (' + hm(totN40) + ')', String(dietCount)
             ]);
 
             doc.autoTable({
