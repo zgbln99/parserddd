@@ -99,6 +99,7 @@ WorkingDirectory=/opt/ddd-reader
 ExecStart=/opt/ddd-reader/venv/bin/gunicorn --bind 127.0.0.1:8000 --workers 2 --timeout 60 app:app
 Environment=DDDPARSER_PATH=/usr/local/bin/dddparser
 Environment=FLASK_SECRET_KEY=$FLASK_SECRET
+Environment=SAMSARA_API_TOKEN=$SAMSARA_TOKEN
 Restart=always
 RestartSec=5
 
