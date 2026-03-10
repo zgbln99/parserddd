@@ -7,6 +7,7 @@ import tempfile
 from datetime import datetime, timedelta
 
 import dropbox
+import requests as http_requests
 from dropbox.exceptions import AuthError
 from flask import Flask, render_template, request, jsonify, redirect, session, url_for
 from zoneinfo import ZoneInfo
@@ -24,6 +25,10 @@ DDDPARSER_PATH = os.environ.get('DDDPARSER_PATH', 'dddparser')
 DROPBOX_APP_KEY = os.environ.get('DROPBOX_APP_KEY', 'j9ntkihedd9495i')
 DROPBOX_APP_SECRET = os.environ.get('DROPBOX_APP_SECRET', 'd3hr43reha9kky8')
 DROPBOX_REDIRECT_URI = os.environ.get('DROPBOX_REDIRECT_URI', 'https://dd.ltslog.de/dropbox/callback')
+
+# Samsara API config
+SAMSARA_API_TOKEN = os.environ.get('SAMSARA_API_TOKEN', '')
+SAMSARA_API_BASE = 'https://api.eu.samsara.com'
 
 
 def get_dropbox_auth_flow():
@@ -619,6 +624,131 @@ def dropbox_export():
         return jsonify({'ok': True, 'path': full_path, 'filename': filename})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+# ===== Samsara Integration =====
+
+def samsara_headers():
+    return {'Authorization': f'Bearer {SAMSARA_API_TOKEN}'}
+
+
+@app.route('/samsara/status')
+def samsara_status():
+    """Check Samsara connection by listing drivers."""
+    if not SAMSARA_API_TOKEN:
+        return jsonify({'connected': False})
+    try:
+        resp = http_requests.get(
+            f'{SAMSARA_API_BASE}/fleet/drivers',
+            headers=samsara_headers(),
+            params={'limit': 1},
+            timeout=10,
+        )
+        if resp.status_code == 200:
+            return jsonify({'connected': True})
+        return jsonify({'connected': False, 'error': resp.text})
+    except Exception as e:
+        return jsonify({'connected': False, 'error': str(e)})
+
+
+@app.route('/samsara/drivers')
+def samsara_drivers():
+    """List drivers with tachograph files available."""
+    if not SAMSARA_API_TOKEN:
+        return jsonify({'error': 'Brak tokenu Samsara'}), 401
+
+    # Get last 90 days of tachograph files
+    end_time = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+    start_time = (datetime.utcnow() - timedelta(days=90)).strftime('%Y-%m-%dT%H:%M:%SZ')
+
+    try:
+        all_data = []
+        has_next = True
+        after = None
+
+        while has_next:
+            params = {
+                'startTime': start_time,
+                'endTime': end_time,
+            }
+            if after:
+                params['after'] = after
+
+            resp = http_requests.get(
+                f'{SAMSARA_API_BASE}/fleet/drivers/tachograph-files/history',
+                headers=samsara_headers(),
+                params=params,
+                timeout=30,
+            )
+
+            if resp.status_code != 200:
+                return jsonify({'error': f'Samsara API: {resp.status_code} {resp.text}'}), 500
+
+            body = resp.json()
+            all_data.extend(body.get('data', []))
+
+            pagination = body.get('pagination', {})
+            after = pagination.get('endCursor')
+            has_next = pagination.get('hasNextPage', False)
+
+        # Build driver list with file counts
+        drivers = []
+        for entry in all_data:
+            driver = entry.get('driver', {})
+            files = entry.get('tachographFiles', entry.get('files', []))
+            if not files:
+                continue
+            # Sort files by date descending
+            files.sort(key=lambda f: f.get('createdAtTime', ''), reverse=True)
+            drivers.append({
+                'id': driver.get('id', ''),
+                'name': driver.get('name', 'Nieznany'),
+                'file_count': len(files),
+                'latest_file': files[0].get('createdAtTime', ''),
+                'files': [{
+                    'id': f.get('id', ''),
+                    'card_number': f.get('cardNumber', ''),
+                    'created_at': f.get('createdAtTime', ''),
+                    'url': f.get('url', ''),
+                } for f in files],
+            })
+
+        drivers.sort(key=lambda d: d.get('name', ''))
+        return jsonify({'drivers': drivers})
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/samsara/import', methods=['POST'])
+def samsara_import():
+    """Download a DDD file from Samsara and analyze it."""
+    if not SAMSARA_API_TOKEN:
+        return jsonify({'error': 'Brak tokenu Samsara'}), 401
+
+    file_url = (request.json or {}).get('url')
+    if not file_url:
+        return jsonify({'error': 'Brak URL pliku'}), 400
+
+    try:
+        # Download the .ddd file from Samsara S3
+        resp = http_requests.get(file_url, timeout=60)
+        if resp.status_code != 200:
+            return jsonify({'error': f'Blad pobierania pliku: {resp.status_code}'}), 500
+
+        with tempfile.NamedTemporaryFile(suffix='.ddd', delete=False) as tmp:
+            tmp.write(resp.content)
+            tmp_path = tmp.name
+
+        data = parse_ddd_file(tmp_path)
+        result = analyze_card(data)
+        result['source'] = 'samsara'
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if 'tmp_path' in locals():
+            os.unlink(tmp_path)
 
 
 if __name__ == '__main__':

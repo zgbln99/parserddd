@@ -763,6 +763,79 @@
             font-weight: 600;
         }
 
+        /* Samsara */
+        .samsara-btn {
+            background: #1a73e8; color: white;
+            padding: 7px 14px; border-radius: 8px;
+            font-size: 0.8em; font-weight: 600;
+            border: none; cursor: pointer;
+            font-family: inherit;
+            transition: all 0.15s;
+            display: inline-flex; align-items: center; gap: 6px;
+        }
+        .samsara-btn:hover { background: #1557b0; }
+        .samsara-btn.connected { background: #16a34a; }
+        .samsara-btn.connected:hover { background: #15803d; }
+        .samsara-driver-list { list-style: none; margin: 0; padding: 0; }
+        .samsara-driver-item {
+            padding: 12px 20px;
+            border-bottom: 1px solid var(--border-light);
+            cursor: pointer;
+            transition: background 0.1s;
+        }
+        .samsara-driver-item:hover { background: var(--surface-hover); }
+        .samsara-driver-item.expanded { background: #f0f7ff; }
+        .samsara-driver-name {
+            font-weight: 600;
+            font-size: 0.92em;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .samsara-driver-meta {
+            font-size: 0.76em;
+            color: var(--text-muted);
+            margin-top: 2px;
+        }
+        .samsara-file-count {
+            font-size: 0.72em;
+            background: var(--surface-hover);
+            padding: 2px 8px;
+            border-radius: 10px;
+            color: var(--text-secondary);
+        }
+        .samsara-files-list {
+            padding: 0 20px 12px 20px;
+            display: none;
+        }
+        .samsara-files-list.open { display: block; }
+        .samsara-file-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 12px;
+            background: white;
+            border: 1px solid var(--border-light);
+            border-radius: 6px;
+            margin-top: 6px;
+            font-size: 0.82em;
+        }
+        .samsara-file-item:hover { border-color: var(--primary); }
+        .samsara-file-date { font-weight: 500; }
+        .samsara-file-card { color: var(--text-muted); font-size: 0.9em; font-family: monospace; }
+        .samsara-import-btn {
+            background: var(--primary); color: white;
+            border: none; padding: 4px 12px; border-radius: 5px;
+            font-size: 0.82em; font-weight: 600;
+            cursor: pointer; font-family: inherit;
+        }
+        .samsara-import-btn:hover { background: var(--primary-dark); }
+        .samsara-import-btn:disabled { opacity: 0.5; cursor: default; }
+        .samsara-loading {
+            text-align: center; padding: 24px;
+            color: var(--text-muted); font-size: 0.88em;
+        }
+
         tfoot td {
             font-weight: 700 !important;
             background: #f8f9fb !important;
@@ -793,6 +866,10 @@
                 </div>
             </div>
             <div style="display:flex;align-items:center;gap:8px">
+                <button class="samsara-btn" id="samsara-btn" onclick="openSamsaraModal()" style="font-size:0.76em;padding:5px 12px">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+                    Samsara
+                </button>
                 <button class="dbx-btn dbx-btn-sm" id="dbx-connect-btn" onclick="dropboxConnect()">
                     <svg width="16" height="16" viewBox="0 0 43 40" fill="currentColor"><path d="M12.5 0L0 8.1l8.6 6.9 12.5-8.1L12.5 0zm17.9 0L18 8.1l12.5 8.1 8.6-6.9L30.4 0zM0 21.9l12.5 8.1 8.6-6.9-12.5-8.1L0 21.9zm30.4 1.2l-12.5 8.1 8.6 6.9 12.5-8.1-8.6-6.9zM12.5 33.1l8.6 6.9 8.6-6.9-8.6-5.7-8.6 5.7z"/></svg>
                     Dropbox
@@ -953,6 +1030,22 @@
                 </div>
                 <div id="dbx-account-info" style="margin-bottom:16px"></div>
                 <button class="dbx-btn-danger" onclick="dropboxDisconnect()">Rozlacz Dropbox</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Samsara Modal -->
+    <div class="modal-overlay" id="samsara-modal">
+        <div class="modal" style="width:600px">
+            <div class="modal-header">
+                <h3>Samsara - Karty kierowcow</h3>
+                <button class="modal-close" onclick="closeModal('samsara-modal')">&times;</button>
+            </div>
+            <div class="modal-body" id="samsara-modal-body" style="max-height:65vh;overflow-y:auto">
+                <div class="samsara-loading">Ladowanie kierowcow...</div>
+            </div>
+            <div class="modal-footer">
+                <button class="pill pill-ghost" onclick="closeModal('samsara-modal')">Zamknij</button>
             </div>
         </div>
     </div>
@@ -2107,8 +2200,135 @@
                 });
         }
 
+        // ===== Samsara Integration =====
+        let samsaraConnected = false;
+        let samsaraDrivers = [];
+
+        function checkSamsaraStatus() {
+            fetch('/samsara/status')
+                .then(r => r.json())
+                .then(data => {
+                    samsaraConnected = data.connected;
+                    const btn = document.getElementById('samsara-btn');
+                    if (data.connected) {
+                        btn.className = 'samsara-btn connected';
+                        btn.style.fontSize = '0.76em';
+                        btn.style.padding = '5px 12px';
+                    }
+                })
+                .catch(() => {});
+        }
+
+        function openSamsaraModal() {
+            openModal('samsara-modal');
+            loadSamsaraDrivers();
+        }
+
+        function loadSamsaraDrivers() {
+            const body = document.getElementById('samsara-modal-body');
+            body.innerHTML = '<div class="samsara-loading"><div class="spinner" style="margin:0 auto 8px;width:30px;height:30px;border:3px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin 0.7s linear infinite"></div>Ladowanie kierowcow z Samsara...</div>';
+
+            fetch('/samsara/drivers')
+                .then(r => r.json())
+                .then(data => {
+                    if (data.error) {
+                        body.innerHTML = `<div class="samsara-loading" style="color:var(--red)">${esc(data.error)}</div>`;
+                        return;
+                    }
+                    samsaraDrivers = data.drivers || [];
+                    if (samsaraDrivers.length === 0) {
+                        body.innerHTML = '<div class="samsara-loading">Brak plikow tachografu w Samsara (ostatnie 90 dni)</div>';
+                        return;
+                    }
+                    renderSamsaraDrivers(body);
+                })
+                .catch(err => {
+                    body.innerHTML = `<div class="samsara-loading" style="color:var(--red)">Blad: ${esc(err.message)}</div>`;
+                });
+        }
+
+        function renderSamsaraDrivers(container) {
+            let html = '<ul class="samsara-driver-list">';
+            for (let di = 0; di < samsaraDrivers.length; di++) {
+                const d = samsaraDrivers[di];
+                const latestDate = d.latest_file ? new Date(d.latest_file).toLocaleDateString('pl-PL') : '';
+                html += `
+                    <li class="samsara-driver-item" onclick="toggleSamsaraDriver(this, ${di})">
+                        <div class="samsara-driver-name">
+                            <span>${esc(d.name)}</span>
+                            <span class="samsara-file-count">${d.file_count} plikow</span>
+                        </div>
+                        <div class="samsara-driver-meta">Ostatni plik: ${latestDate}</div>
+                    </li>
+                    <div class="samsara-files-list" id="samsara-files-${di}"></div>
+                `;
+            }
+            html += '</ul>';
+            container.innerHTML = html;
+        }
+
+        function toggleSamsaraDriver(item, driverIndex) {
+            const filesList = document.getElementById(`samsara-files-${driverIndex}`);
+            const wasOpen = filesList.classList.contains('open');
+
+            // Close all
+            document.querySelectorAll('.samsara-files-list').forEach(el => el.classList.remove('open'));
+            document.querySelectorAll('.samsara-driver-item').forEach(el => el.classList.remove('expanded'));
+
+            if (wasOpen) return;
+
+            item.classList.add('expanded');
+            filesList.classList.add('open');
+
+            const driver = samsaraDrivers[driverIndex];
+            let html = '';
+            for (const f of driver.files) {
+                const created = f.created_at ? new Date(f.created_at) : null;
+                const dateStr = created ? created.toLocaleDateString('pl-PL') + ' ' + created.toLocaleTimeString('pl-PL', {hour:'2-digit',minute:'2-digit'}) : '?';
+                html += `
+                    <div class="samsara-file-item">
+                        <div>
+                            <div class="samsara-file-date">${dateStr}</div>
+                            ${f.card_number ? `<div class="samsara-file-card">${esc(f.card_number)}</div>` : ''}
+                        </div>
+                        <button class="samsara-import-btn" onclick="event.stopPropagation();importSamsaraFile(this, '${f.url.replace(/'/g, "\\'")}', '${esc(driver.name)}')">Importuj</button>
+                    </div>
+                `;
+            }
+            filesList.innerHTML = html;
+        }
+
+        function importSamsaraFile(btn, url, driverName) {
+            btn.disabled = true;
+            btn.textContent = 'Importowanie...';
+
+            closeModal('samsara-modal');
+            uploadArea.style.display = 'none';
+            loading.style.display = 'block';
+            errorMsg.style.display = 'none';
+            results.style.display = 'none';
+            navUploadBtn.style.display = 'none';
+
+            fetch('/samsara/import', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url: url }),
+            })
+                .then(r => r.json())
+                .then(data => {
+                    loading.style.display = 'none';
+                    if (data.error) { showError(data.error); return; }
+                    addCard(data);
+                })
+                .catch(err => {
+                    loading.style.display = 'none';
+                    showError('Blad importu Samsara: ' + err.message);
+                });
+        }
+
         // Init
         checkDropboxStatus();
+        checkSamsaraStatus();
         renderHistory();
     </script>
 </body>
