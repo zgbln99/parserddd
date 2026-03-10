@@ -260,6 +260,9 @@ def analyze_card(data):
 
     shift_details = []
     total_work_minutes = 0
+    total_driving_minutes = 0
+    total_break_minutes = 0
+    total_avail_minutes = 0
     total_night_25_minutes = 0
     total_night_40_minutes = 0
     diet_count = 0
@@ -271,12 +274,29 @@ def analyze_card(data):
         shift_start = shift_intervals[0][0]
         shift_end = shift_intervals[-1][1]
 
-        # Work time = non-break intervals
-        work_sec = sum(
+        # Tachograph activity types: 0=break/rest, 1=availability, 2=work, 3=driving
+        break_sec = sum(
             (end - start).total_seconds()
-            for start, end, wt in shift_intervals if wt > 0
+            for start, end, wt in shift_intervals if wt == 0
         )
+        avail_sec = sum(
+            (end - start).total_seconds()
+            for start, end, wt in shift_intervals if wt == 1
+        )
+        work_only_sec = sum(
+            (end - start).total_seconds()
+            for start, end, wt in shift_intervals if wt == 2
+        )
+        driving_sec = sum(
+            (end - start).total_seconds()
+            for start, end, wt in shift_intervals if wt == 3
+        )
+        work_sec = work_only_sec + driving_sec + avail_sec
         work_minutes = int(round(work_sec / 60))
+        break_minutes = int(round(break_sec / 60))
+        avail_minutes = int(round(avail_sec / 60))
+        driving_minutes = int(round(driving_sec / 60))
+        work_only_minutes = int(round(work_only_sec / 60))
 
         # Duration (start to end including breaks)
         duration_minutes = int(round((shift_end - shift_start).total_seconds() / 60))
@@ -285,6 +305,9 @@ def analyze_card(data):
         night_25, night_40 = calculate_shift_night_hours(shift_intervals, shift_start)
 
         total_work_minutes += work_minutes
+        total_driving_minutes += driving_minutes
+        total_break_minutes += break_minutes
+        total_avail_minutes += avail_minutes
         total_night_25_minutes += night_25
         total_night_40_minutes += night_40
 
@@ -318,6 +341,14 @@ def analyze_card(data):
             'work_minutes': work_minutes,
             'work_hm': minutes_to_hm(work_minutes),
             'work_decimal': minutes_to_decimal(work_minutes),
+            'driving_minutes': driving_minutes,
+            'driving_hm': minutes_to_hm(driving_minutes),
+            'work_only_minutes': work_only_minutes,
+            'work_only_hm': minutes_to_hm(work_only_minutes),
+            'avail_minutes': avail_minutes,
+            'avail_hm': minutes_to_hm(avail_minutes),
+            'break_minutes': break_minutes,
+            'break_hm': minutes_to_hm(break_minutes),
             'night_25_minutes': night_25,
             'night_25_hm': minutes_to_hm(night_25),
             'night_40_minutes': night_40,
@@ -335,6 +366,12 @@ def analyze_card(data):
             'total_work_hm': minutes_to_hm(total_work_minutes),
             'total_work_decimal': minutes_to_decimal(total_work_minutes),
             'total_work_minutes': total_work_minutes,
+            'total_driving_hm': minutes_to_hm(total_driving_minutes),
+            'total_driving_minutes': total_driving_minutes,
+            'total_break_hm': minutes_to_hm(total_break_minutes),
+            'total_break_minutes': total_break_minutes,
+            'total_avail_hm': minutes_to_hm(total_avail_minutes),
+            'total_avail_minutes': total_avail_minutes,
             'night_25_hm': minutes_to_hm(total_night_25_minutes),
             'night_25_decimal': minutes_to_decimal(total_night_25_minutes),
             'night_25_minutes': total_night_25_minutes,
