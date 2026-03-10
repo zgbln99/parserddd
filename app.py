@@ -23,7 +23,7 @@ DDDPARSER_PATH = os.environ.get('DDDPARSER_PATH', 'dddparser')
 # Dropbox OAuth2 config
 DROPBOX_APP_KEY = os.environ.get('DROPBOX_APP_KEY', 'j9ntkihedd9495i')
 DROPBOX_APP_SECRET = os.environ.get('DROPBOX_APP_SECRET', 'd3hr43reha9kky8')
-DROPBOX_REDIRECT_URI = os.environ.get('DROPBOX_REDIRECT_URI', 'http://ddd.bieda.it/dropbox/callback')
+DROPBOX_REDIRECT_URI = os.environ.get('DROPBOX_REDIRECT_URI', 'http://dddd.bieda.it/dropbox/callback')
 
 
 def get_dropbox_auth_flow():
