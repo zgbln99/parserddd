@@ -5,6 +5,10 @@ import tempfile
 from datetime import datetime, timedelta
 
 from flask import Flask, render_template, request, jsonify
+from zoneinfo import ZoneInfo
+
+UTC = ZoneInfo('UTC')
+CET = ZoneInfo('Europe/Berlin')
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max
@@ -108,22 +112,26 @@ def minutes_to_decimal(minutes):
 
 
 def build_timeline(records):
-    """Build continuous timeline of (start_dt, end_dt, work_type) from daily records."""
+    """Build continuous timeline of (start_dt, end_dt, work_type) from daily records.
+
+    Tachograph data is stored in UTC. We convert to Europe/Berlin (CET/CEST)
+    so that night bonus windows align with local German time.
+    """
     all_intervals = []
     sorted_records = sorted(records, key=lambda r: r.get('activity_record_date', ''))
     for record in sorted_records:
         date_str = record.get('activity_record_date')
         if not date_str:
             continue
-        base_date = datetime.strptime(date_str[:10], '%Y-%m-%d')
+        base_date = datetime.strptime(date_str[:10], '%Y-%m-%d').replace(tzinfo=UTC)
         changes = record.get('activity_change_info') or []
         for i, change in enumerate(changes):
             start_min = change['minutes']
             work_type = change['work_type']
             end_min = changes[i + 1]['minutes'] if i + 1 < len(changes) else 1440
             if end_min > start_min:
-                start_dt = base_date + timedelta(minutes=start_min)
-                end_dt = base_date + timedelta(minutes=end_min)
+                start_dt = (base_date + timedelta(minutes=start_min)).astimezone(CET).replace(tzinfo=None)
+                end_dt = (base_date + timedelta(minutes=end_min)).astimezone(CET).replace(tzinfo=None)
                 all_intervals.append((start_dt, end_dt, work_type))
     return all_intervals
 
