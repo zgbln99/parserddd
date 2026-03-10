@@ -904,10 +904,152 @@ def samsara_export_to_dropbox():
 
 # ===== Portal API =====
 
+PORTAL_CACHE_FILE = os.environ.get('PORTAL_CACHE_FILE', '/opt/ddd-reader/portal_cache.json')
+PORTAL_CACHE_MAX_AGE = 300  # 5 minutes
+
+
+def build_drivers_data(dbx, sync_folder):
+    """Build drivers data from Dropbox using a single recursive API call."""
+    # One recursive call gets ALL files and folders
+    result = dbx.files_list_folder(sync_folder, recursive=True)
+    all_entries = list(result.entries)
+    while result.has_more:
+        result = dbx.files_list_folder_continue(result.cursor)
+        all_entries.extend(result.entries)
+
+    # Group files by parent folder (driver)
+    driver_files = {}
+    driver_paths = {}
+    for entry in all_entries:
+        if isinstance(entry, dropbox.files.FolderMetadata):
+            # Top-level folders are drivers
+            rel = entry.path_display[len(sync_folder):].strip('/')
+            if '/' not in rel and rel:
+                driver_paths[rel] = entry.path_display
+            continue
+        if not isinstance(entry, dropbox.files.FileMetadata):
+            continue
+        # Extract driver name from path: /Samsara-DDD/DriverName/file.ddd
+        rel = entry.path_display[len(sync_folder):].strip('/')
+        parts = rel.split('/')
+        if len(parts) != 2:
+            continue
+        driver_name = parts[0]
+        fname = parts[1]
+
+        if driver_name not in driver_files:
+            driver_files[driver_name] = []
+
+        card_number = ''
+        file_date = ''
+        m = re.match(r'^(.+?)_(\d{4}-\d{2}-\d{2})\.ddd$', fname, re.IGNORECASE)
+        if m:
+            card_number = m.group(1)
+            file_date = m.group(2)
+
+        driver_files[driver_name].append({
+            'name': fname,
+            'path': entry.path_display,
+            'size': entry.size,
+            'modified': entry.server_modified.isoformat() if entry.server_modified else '',
+            'card_number': card_number,
+            'file_date': file_date,
+        })
+
+    # Build driver summaries
+    drivers = []
+    all_driver_names = set(driver_paths.keys()) | set(driver_files.keys())
+    for driver_name in all_driver_names:
+        files = driver_files.get(driver_name, [])
+        files.sort(key=lambda x: x.get('file_date', ''), reverse=True)
+
+        earliest_date = ''
+        latest_date = ''
+        latest_download = ''
+        card_number = ''
+        if files:
+            dates = [f['file_date'] for f in files if f['file_date']]
+            if dates:
+                earliest_date = min(dates)
+                latest_date = max(dates)
+            modified_dates = [f['modified'] for f in files if f['modified']]
+            if modified_dates:
+                latest_download = max(modified_dates)
+            for f in files:
+                if f['card_number']:
+                    card_number = f['card_number']
+                    break
+
+        days_since = None
+        if latest_download:
+            try:
+                last_dt = datetime.fromisoformat(latest_download)
+                if last_dt.tzinfo is None:
+                    last_dt = last_dt.replace(tzinfo=UTC)
+                days_since = (datetime.now(UTC) - last_dt).days
+            except Exception:
+                pass
+
+        drivers.append({
+            'name': driver_name,
+            'path': driver_paths.get(driver_name, f'{sync_folder}/{driver_name}'),
+            'card_number': card_number,
+            'file_count': len(files),
+            'earliest_date': earliest_date,
+            'latest_date': latest_date,
+            'latest_download': latest_download,
+            'days_since': days_since,
+            'files': files,
+        })
+
+    drivers.sort(key=lambda d: d.get('latest_download', ''), reverse=True)
+    return drivers
+
+
+def load_portal_cache():
+    """Load cached portal data if fresh enough."""
+    try:
+        if os.path.exists(PORTAL_CACHE_FILE):
+            mtime = os.path.getmtime(PORTAL_CACHE_FILE)
+            age = datetime.now().timestamp() - mtime
+            if age < PORTAL_CACHE_MAX_AGE:
+                with open(PORTAL_CACHE_FILE) as f:
+                    return json.load(f)
+    except Exception:
+        pass
+    return None
+
+
+def save_portal_cache(drivers):
+    """Save portal data to cache file."""
+    try:
+        with open(PORTAL_CACHE_FILE, 'w') as f:
+            json.dump(drivers, f)
+    except Exception:
+        pass
+
+
 @app.route('/portal/drivers')
 @login_required
 def portal_drivers():
     """List all drivers from Dropbox /Samsara-DDD/ folder with file metadata."""
+    force = request.args.get('refresh') == '1'
+
+    if not force:
+        cached = load_portal_cache()
+        if cached is not None:
+            # Recalculate days_since from cached data
+            for d in cached:
+                if d.get('latest_download'):
+                    try:
+                        last_dt = datetime.fromisoformat(d['latest_download'])
+                        if last_dt.tzinfo is None:
+                            last_dt = last_dt.replace(tzinfo=UTC)
+                        d['days_since'] = (datetime.now(UTC) - last_dt).days
+                    except Exception:
+                        pass
+            return jsonify({'drivers': cached, 'cached': True})
+
     dbx = get_server_dropbox_client()
     if not dbx:
         return jsonify({'error': 'Brak polaczenia z Dropbox (brak DROPBOX_REFRESH_TOKEN)'}), 500
@@ -915,100 +1057,9 @@ def portal_drivers():
     sync_folder = os.environ.get('SYNC_DEST_FOLDER', '/Samsara-DDD')
 
     try:
-        # List driver folders
-        result = dbx.files_list_folder(sync_folder)
-        all_entries = list(result.entries)
-        while result.has_more:
-            result = dbx.files_list_folder_continue(result.cursor)
-            all_entries.extend(result.entries)
-
-        drivers = []
-        for entry in all_entries:
-            if not isinstance(entry, dropbox.files.FolderMetadata):
-                continue
-            driver_name = entry.name
-            driver_path = entry.path_display
-
-            # List files in driver folder
-            try:
-                file_result = dbx.files_list_folder(driver_path)
-                file_entries = list(file_result.entries)
-                while file_result.has_more:
-                    file_result = dbx.files_list_folder_continue(file_result.cursor)
-                    file_entries.extend(file_result.entries)
-            except Exception:
-                file_entries = []
-
-            files = []
-            for f in file_entries:
-                if not isinstance(f, dropbox.files.FileMetadata):
-                    continue
-                # Parse card number and date from filename: cardnumber_date.ddd
-                fname = f.name
-                card_number = ''
-                file_date = ''
-                m = re.match(r'^(.+?)_(\d{4}-\d{2}-\d{2})\.ddd$', fname, re.IGNORECASE)
-                if m:
-                    card_number = m.group(1)
-                    file_date = m.group(2)
-
-                files.append({
-                    'name': fname,
-                    'path': f.path_display,
-                    'size': f.size,
-                    'modified': f.server_modified.isoformat() if f.server_modified else '',
-                    'card_number': card_number,
-                    'file_date': file_date,
-                })
-
-            # Sort files by date descending
-            files.sort(key=lambda x: x.get('file_date', ''), reverse=True)
-
-            # Calculate summary info
-            earliest_date = ''
-            latest_date = ''
-            latest_download = ''
-            card_number = ''
-            if files:
-                dates = [f['file_date'] for f in files if f['file_date']]
-                if dates:
-                    earliest_date = min(dates)
-                    latest_date = max(dates)
-                modified_dates = [f['modified'] for f in files if f['modified']]
-                if modified_dates:
-                    latest_download = max(modified_dates)
-                # Use card number from most recent file
-                for f in files:
-                    if f['card_number']:
-                        card_number = f['card_number']
-                        break
-
-            # Calculate days since last download
-            days_since = None
-            if latest_download:
-                try:
-                    last_dt = datetime.fromisoformat(latest_download)
-                    if last_dt.tzinfo is None:
-                        last_dt = last_dt.replace(tzinfo=UTC)
-                    days_since = (datetime.now(UTC) - last_dt).days
-                except Exception:
-                    pass
-
-            drivers.append({
-                'name': driver_name,
-                'path': driver_path,
-                'card_number': card_number,
-                'file_count': len(files),
-                'earliest_date': earliest_date,
-                'latest_date': latest_date,
-                'latest_download': latest_download,
-                'days_since': days_since,
-                'files': files,
-            })
-
-        drivers.sort(key=lambda d: d.get('latest_download', ''), reverse=True)
+        drivers = build_drivers_data(dbx, sync_folder)
+        save_portal_cache(drivers)
         return jsonify({'drivers': drivers})
-
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

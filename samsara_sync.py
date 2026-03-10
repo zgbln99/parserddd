@@ -203,6 +203,16 @@ def main():
 
     # Save state
     save_state(synced_ids)
+
+    # Invalidate portal cache so next page load fetches fresh data
+    cache_file = os.environ.get('PORTAL_CACHE_FILE', '/opt/ddd-reader/portal_cache.json')
+    try:
+        if os.path.exists(cache_file):
+            os.remove(cache_file)
+            log('Portal cache invalidated.')
+    except Exception:
+        pass
+
     log(f'Done: {uploaded} uploaded, {errors} errors, {len(synced_ids)} total synced.')
 
 
