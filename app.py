@@ -39,10 +39,11 @@ def get_driver_info(data):
             info['card_issuing_authority'] = card_id.get('card_issuing_authority_name', '')
             info['card_issue_date'] = card_id.get('card_issue_date')
             info['card_expiry_date'] = card_id.get('card_expiry_date')
-            surname = holder.get('holder_surname', '')
-            first_name = holder.get('holder_first_names', '')
+            name = holder.get('card_holder_name', {})
+            surname = name.get('holder_surname', '')
+            first_name = name.get('holder_first_names', '')
             info['driver_name'] = f"{surname} {first_name}".strip()
-            info['birth_date'] = holder.get('holder_birth_date')
+            info['birth_date'] = holder.get('card_holder_birth_date')
             break
     return info
 
