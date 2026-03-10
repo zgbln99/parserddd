@@ -30,7 +30,7 @@ export function Layout({ children }: { children: ReactNode }) {
     <div className="flex min-h-screen flex-col">
       {/* Top Nav */}
       <header className="sticky top-0 z-40 border-b border-gray-200 bg-white/80 backdrop-blur-lg dark:border-gray-800 dark:bg-gray-950/80">
-        <div className="mx-auto flex h-14 max-w-7xl items-center gap-4 px-4 sm:px-6">
+        <div className="mx-auto flex h-14 max-w-[1600px] items-center gap-4 px-4 sm:px-6">
           {/* Brand */}
           <div className="flex items-center gap-2.5">
             <img src="https://ltslog.de/logo.png" alt="LTS" className="h-7" />
@@ -118,7 +118,7 @@ export function Layout({ children }: { children: ReactNode }) {
 
       {/* Global date filter bar */}
       <div className="border-b border-gray-100 bg-gray-50/80 backdrop-blur-sm dark:border-gray-800 dark:bg-gray-900/80">
-        <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-2 sm:px-6">
+        <div className="mx-auto flex max-w-[1600px] items-center gap-3 px-4 py-2 sm:px-6">
           <Calendar size={14} className="text-gray-400" />
           <span className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('globalDateFilter')}:</span>
           <label className="text-xs text-gray-500 dark:text-gray-400">{t('detailFrom')}:</label>
@@ -148,7 +148,7 @@ export function Layout({ children }: { children: ReactNode }) {
       </div>
 
       {/* Content */}
-      <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6">{children}</main>
+      <main className="mx-auto w-full max-w-[1600px] flex-1 px-4 py-6 sm:px-6">{children}</main>
     </div>
   );
 }
