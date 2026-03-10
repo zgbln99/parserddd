@@ -987,7 +987,9 @@ def portal_drivers():
             days_since = None
             if latest_download:
                 try:
-                    last_dt = datetime.fromisoformat(latest_download.replace('Z', '+00:00'))
+                    last_dt = datetime.fromisoformat(latest_download)
+                    if last_dt.tzinfo is None:
+                        last_dt = last_dt.replace(tzinfo=UTC)
                     days_since = (datetime.now(UTC) - last_dt).days
                 except Exception:
                     pass
