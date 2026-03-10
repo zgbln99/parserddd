@@ -16,12 +16,14 @@ export function formatDate(s: string | undefined, locale: string = 'pl'): string
 export function formatDateTime(s: string | undefined, locale: string = 'pl'): string {
   if (!s) return '-';
   try {
-    const d = new Date(s);
+    // Handle malformed timestamps like "...+00:00Z" (both offset and Z)
+    const cleaned = s.replace(/([+-]\d{2}:\d{2})Z$/, '$1');
+    const d = new Date(cleaned);
     if (isNaN(d.getTime())) return s;
     const months = locale === 'de' ? MONTHS_DE : MONTHS_PL;
     const h = String(d.getHours()).padStart(2, '0');
     const m = String(d.getMinutes()).padStart(2, '0');
-    return `${d.getDate()} ${months[d.getMonth()]} ${h}:${m}`;
+    return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}, ${h}:${m}`;
   } catch {
     return s;
   }

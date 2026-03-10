@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { AlertCircle, CheckCircle, XCircle, MinusCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { useEffect, useState, Fragment } from 'react';
+import { AlertCircle, CheckCircle, XCircle, MinusCircle, ChevronDown, ChevronUp, Clock } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { fetchSyncLog } from '../lib/api';
 import { formatDateTime, formatBytes } from '../lib/format';
@@ -75,7 +75,7 @@ export function SyncPage() {
             <StatCard
               label={t('syncLastRun')}
               value={formatDateTime(last?.timestamp, locale)}
-              icon={<AlertCircle size={20} />}
+              icon={<Clock size={20} />}
               color="primary"
             />
             <StatCard
@@ -109,9 +109,8 @@ export function SyncPage() {
                 </thead>
                 <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
                   {history.map((h, i) => (
-                    <>
+                    <Fragment key={i}>
                       <tr
-                        key={i}
                         onClick={() => setExpandedIdx(expandedIdx === i ? null : i)}
                         className="cursor-pointer transition hover:bg-gray-50 dark:hover:bg-gray-800/50"
                       >
@@ -150,7 +149,7 @@ export function SyncPage() {
                           </td>
                         </tr>
                       )}
-                    </>
+                    </Fragment>
                   ))}
                 </tbody>
               </table>

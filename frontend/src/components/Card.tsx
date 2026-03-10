@@ -56,7 +56,7 @@ export function StatCard({
           <p className="truncate text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
             {label}
           </p>
-          <p className="mt-0.5 text-2xl font-bold tracking-tight">{value}</p>
+          <p className="mt-0.5 text-lg font-bold leading-snug tracking-tight sm:text-2xl">{value}</p>
         </div>
       </div>
     </Card>

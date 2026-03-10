@@ -111,25 +111,25 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
       {/* Date filter */}
       {hasDateFilter && (
         <div className="flex flex-wrap items-center gap-3 rounded-xl bg-gray-50 px-4 py-3 dark:bg-gray-800">
-          <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">{t('analysisDateFilter')}:</span>
+          <span className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('analysisDateFilter')}:</span>
           <label className="text-xs text-gray-500 dark:text-gray-400">{t('detailFrom')}:</label>
           <input
             type="date"
             value={dateFrom || ''}
             onChange={(e) => onDateFromChange(e.target.value)}
-            className="rounded-lg border border-gray-200 px-2 py-1 text-xs dark:border-gray-700 dark:bg-gray-900"
+            className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs outline-none transition focus:border-primary-400 focus:ring-1 focus:ring-primary-200 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:[color-scheme:dark]"
           />
           <label className="text-xs text-gray-500 dark:text-gray-400">{t('detailTo')}:</label>
           <input
             type="date"
             value={dateTo || ''}
             onChange={(e) => onDateToChange(e.target.value)}
-            className="rounded-lg border border-gray-200 px-2 py-1 text-xs dark:border-gray-700 dark:bg-gray-900"
+            className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs outline-none transition focus:border-primary-400 focus:ring-1 focus:ring-primary-200 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:[color-scheme:dark]"
           />
           {(dateFrom || dateTo) && (
             <button
               onClick={() => { onDateFromChange(''); onDateToChange(''); }}
-              className="text-xs text-gray-400 hover:text-gray-600"
+              className="rounded-lg px-2 py-1 text-xs font-medium text-red-500 transition hover:bg-red-50 dark:hover:bg-red-900/20"
             >
               {t('clear')}
             </button>
