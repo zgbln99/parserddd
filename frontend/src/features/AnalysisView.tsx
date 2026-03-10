@@ -5,6 +5,11 @@ import { Badge } from '../components/Badge';
 import { Download } from 'lucide-react';
 import type { AnalysisResult } from '../types';
 
+function fmtNight(minutes: number, hm: string) {
+  const decimal = (minutes / 60).toFixed(2);
+  return `${decimal} (${hm})`;
+}
+
 export function AnalysisView({ data }: { data: AnalysisResult }) {
   const { t, locale } = useI18n();
   const di = data.driver_info;
@@ -34,8 +39,8 @@ export function AnalysisView({ data }: { data: AnalysisResult }) {
         {[
           { label: t('analysisWorkTime'), value: s.total_work_hm },
           { label: t('analysisDriving'), value: s.total_driving_hm },
-          { label: t('analysisNight25'), value: s.night_25_hm },
-          { label: t('analysisNight40'), value: s.night_40_hm },
+          { label: t('analysisNight25'), value: fmtNight(s.night_25_minutes, s.night_25_hm) },
+          { label: t('analysisNight40'), value: fmtNight(s.night_40_minutes, s.night_40_hm) },
           { label: t('analysisBreaks'), value: s.total_break_hm },
           { label: t('analysisTotalShifts'), value: String(s.total_shifts) },
           { label: t('analysisDietCount'), value: String(s.diet_count) },
@@ -74,8 +79,8 @@ export function AnalysisView({ data }: { data: AnalysisResult }) {
                   <td className="whitespace-nowrap px-3 py-2">{sh.driving_hm}</td>
                   <td className="whitespace-nowrap px-3 py-2">{sh.work_only_hm}</td>
                   <td className="whitespace-nowrap px-3 py-2">{sh.break_hm}</td>
-                  <td className="whitespace-nowrap px-3 py-2">{sh.night_25_hm}</td>
-                  <td className="whitespace-nowrap px-3 py-2">{sh.night_40_hm}</td>
+                  <td className="whitespace-nowrap px-3 py-2">{fmtNight(sh.night_25_minutes, sh.night_25_hm)}</td>
+                  <td className="whitespace-nowrap px-3 py-2">{fmtNight(sh.night_40_minutes, sh.night_40_hm)}</td>
                   <td className="whitespace-nowrap px-3 py-2">
                     {sh.has_diet
                       ? <Badge variant="green">{t('yes')}</Badge>
