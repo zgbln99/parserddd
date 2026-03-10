@@ -272,7 +272,7 @@ function ExcelCopyBlock({ summary }: { summary: ReturnType<typeof Object> & Reco
   const values  = [n25,   n40,   '',  '',   '',   vma,   az];
 
   const handleCopy = useCallback(() => {
-    const tsv = headers.join('\t') + '\n' + values.join('\t');
+    const tsv = values.join('\t');
     navigator.clipboard.writeText(tsv).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
