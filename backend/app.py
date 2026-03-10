@@ -358,7 +358,10 @@ def analyze_card(data):
         total_avail += avail_minutes
         total_n25 += night_25
         total_n40 += night_40
-        if duration_minutes > 8 * 60:
+        # Diet only on weekdays (Mon=0..Fri=4), not on weekends
+        is_weekday = shift_start.weekday() < 5
+        has_diet = duration_minutes > 8 * 60 and is_weekday
+        if has_diet:
             diet_count += 1
 
         shift_start_date = shift_start.date()
@@ -392,7 +395,7 @@ def analyze_card(data):
             'night_25_hm': minutes_to_hm(night_25),
             'night_40_minutes': night_40,
             'night_40_hm': minutes_to_hm(night_40),
-            'has_diet': duration_minutes > 8 * 60,
+            'has_diet': has_diet,
             'vehicles': unique_plates,
         })
 
