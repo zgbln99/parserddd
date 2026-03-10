@@ -470,84 +470,6 @@
         .month-body { display: block; }
         .month-body.collapsed { display: none; }
 
-        /* Card tabs */
-        .card-tabs {
-            display: flex;
-            gap: 4px;
-            margin-bottom: 10px;
-            flex-wrap: wrap;
-            align-items: center;
-        }
-        .card-tab {
-            padding: 6px 14px;
-            border-radius: 8px 8px 0 0;
-            border: 1.5px solid var(--border);
-            border-bottom: none;
-            background: var(--surface-hover);
-            font-size: 0.8em;
-            font-weight: 600;
-            cursor: pointer;
-            font-family: inherit;
-            color: var(--text-secondary);
-            position: relative;
-        }
-        .card-tab.active {
-            background: var(--surface);
-            color: var(--primary);
-            border-color: var(--primary);
-        }
-        .card-tab .tab-close {
-            margin-left: 6px;
-            opacity: 0.5;
-            font-size: 1.1em;
-        }
-        .card-tab .tab-close:hover { opacity: 1; }
-        .card-tab-compare {
-            padding: 6px 14px;
-            border-radius: 8px 8px 0 0;
-            border: 1.5px solid var(--amber);
-            border-bottom: none;
-            background: #fffbeb;
-            font-size: 0.8em;
-            font-weight: 600;
-            cursor: pointer;
-            font-family: inherit;
-            color: var(--amber);
-        }
-        .card-tab-compare.active { background: #fef3c7; }
-
-        /* Compare view */
-        .compare-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
-            gap: 12px;
-            margin-bottom: 14px;
-        }
-        .compare-card {
-            background: var(--surface);
-            border-radius: var(--radius);
-            box-shadow: var(--shadow);
-            overflow: hidden;
-        }
-        .compare-card-header {
-            background: linear-gradient(135deg, #1e3a5f, #1e40af);
-            color: white;
-            padding: 12px 16px;
-        }
-        .compare-card-header h3 { font-size: 0.95em; font-weight: 700; }
-        .compare-card-header .detail { opacity: 0.7; font-size: 0.75em; }
-        .compare-card-body { padding: 12px 16px; }
-        .compare-stat-row {
-            display: flex;
-            justify-content: space-between;
-            padding: 5px 0;
-            border-bottom: 1px solid var(--border-light);
-            font-size: 0.85em;
-        }
-        .compare-stat-row:last-child { border-bottom: none; }
-        .compare-stat-label { color: var(--text-secondary); }
-        .compare-stat-value { font-weight: 700; }
-
         /* Card history */
         .history-section {
             margin-top: 20px;
@@ -753,7 +675,6 @@
         <div class="error-msg" id="error-msg"></div>
 
         <div class="results" id="results">
-            <div class="card-tabs" id="card-tabs" style="display:none"></div>
             <div id="single-view">
                 <div class="driver-card" id="driver-info"></div>
                 <div class="summary-strip" id="summary-big"></div>
@@ -810,7 +731,6 @@
 
                 <div id="month-view" style="display:none"></div>
             </div>
-            <div id="compare-view" style="display:none"></div>
         </div>
     </div>
 
@@ -929,30 +849,22 @@
             uploadArea.style.display = 'block';
         }
 
-        // ===== Multi-card state =====
-        let loadedCards = [];
-        let activeCardIndex = 0;
+        // ===== State =====
         let currentData = null;
         let currentView = 'list'; // 'list' or 'month'
-        let compareMode = false;
         let lastFilteredDetails = [];
 
         function addCard(data) {
-            loadedCards.push(data);
-            activeCardIndex = loadedCards.length - 1;
             currentData = data;
             saveToHistory(data);
             showSingleView(data);
-            renderCardTabs();
         }
 
         function showSingleView(data) {
             currentData = data;
-            compareMode = false;
             results.style.display = 'block';
             navUploadBtn.style.display = 'inline-block';
             document.getElementById('single-view').style.display = '';
-            document.getElementById('compare-view').style.display = 'none';
 
             const di = data.driver_info || {};
             document.getElementById('driver-info').innerHTML = `
@@ -975,86 +887,6 @@
                 dateTo.value = details.length > 0 ? details[details.length - 1].shift_date : '';
             }
             applyDateFilter();
-        }
-
-        function renderCardTabs() {
-            const tabsEl = document.getElementById('card-tabs');
-            if (loadedCards.length <= 1 && !compareMode) {
-                tabsEl.style.display = 'none';
-                return;
-            }
-            tabsEl.style.display = 'flex';
-            let html = '';
-            for (let i = 0; i < loadedCards.length; i++) {
-                const di = loadedCards[i].driver_info || {};
-                const name = di.driver_name || `Karta ${i + 1}`;
-                const active = !compareMode && i === activeCardIndex ? ' active' : '';
-                html += `<button class="card-tab${active}" onclick="switchCard(${i})">
-                    ${esc(name)}
-                    ${loadedCards.length > 1 ? `<span class="tab-close" onclick="event.stopPropagation();removeCard(${i})">&times;</span>` : ''}
-                </button>`;
-            }
-            if (loadedCards.length >= 2) {
-                html += `<button class="card-tab-compare${compareMode ? ' active' : ''}" onclick="showCompare()">Porownanie</button>`;
-            }
-            tabsEl.innerHTML = html;
-        }
-
-        function switchCard(index) {
-            activeCardIndex = index;
-            showSingleView(loadedCards[index]);
-            renderCardTabs();
-        }
-
-        function removeCard(index) {
-            loadedCards.splice(index, 1);
-            if (loadedCards.length === 0) {
-                results.style.display = 'none';
-                uploadArea.style.display = 'block';
-                document.getElementById('card-tabs').style.display = 'none';
-                document.getElementById('date-from').value = '';
-                document.getElementById('date-to').value = '';
-                return;
-            }
-            if (activeCardIndex >= loadedCards.length) activeCardIndex = loadedCards.length - 1;
-            showSingleView(loadedCards[activeCardIndex]);
-            renderCardTabs();
-        }
-
-        // ===== Compare view =====
-        function showCompare() {
-            compareMode = true;
-            renderCardTabs();
-            document.getElementById('single-view').style.display = 'none';
-            document.getElementById('compare-view').style.display = '';
-            results.style.display = 'block';
-
-            const hm = m => Math.floor(m/60) + ':' + String(m%60).padStart(2,'0');
-            const dec = m => (m/60).toFixed(2);
-
-            let html = '<div class="compare-grid">';
-            for (const card of loadedCards) {
-                const di = card.driver_info || {};
-                const s = card.summary || {};
-                html += `
-                <div class="compare-card">
-                    <div class="compare-card-header">
-                        <h3>${esc(di.driver_name || 'Nieznany')}</h3>
-                        <div class="detail">Nr: ${esc(di.card_number || '-')}</div>
-                    </div>
-                    <div class="compare-card-body">
-                        <div class="compare-stat-row"><span class="compare-stat-label">Zmian</span><span class="compare-stat-value">${s.total_shifts || 0}</span></div>
-                        <div class="compare-stat-row"><span class="compare-stat-label">Czas pracy</span><span class="compare-stat-value">${s.total_work_hm || '0:00'} <small>(${s.total_work_decimal || 0}h)</small></span></div>
-                        <div class="compare-stat-row"><span class="compare-stat-label">Jazda</span><span class="compare-stat-value">${s.total_driving_hm || '0:00'}</span></div>
-                        <div class="compare-stat-row"><span class="compare-stat-label">Przerwy</span><span class="compare-stat-value">${s.total_break_hm || '0:00'}</span></div>
-                        <div class="compare-stat-row" style="color:var(--orange)"><span class="compare-stat-label">Nocne 25%</span><span class="compare-stat-value">${s.night_25_decimal || 0} h</span></div>
-                        <div class="compare-stat-row" style="color:var(--red)"><span class="compare-stat-label">Nocne 40%</span><span class="compare-stat-value">${s.night_40_decimal || 0} h</span></div>
-                        <div class="compare-stat-row" style="color:var(--green)"><span class="compare-stat-label">Diety</span><span class="compare-stat-value">${s.diet_count || 0}</span></div>
-                    </div>
-                </div>`;
-            }
-            html += '</div>';
-            document.getElementById('compare-view').innerHTML = html;
         }
 
         // ===== Rendering =====
