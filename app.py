@@ -2,9 +2,11 @@ import csv
 import io
 import json
 import os
+import re
 import subprocess
 import tempfile
 from datetime import datetime, timedelta
+from functools import wraps
 
 import dropbox
 import requests as http_requests
@@ -21,14 +23,47 @@ app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'ddd-parser-secret-key-chang
 
 DDDPARSER_PATH = os.environ.get('DDDPARSER_PATH', 'dddparser')
 
+# Portal password
+PORTAL_PASSWORD = os.environ.get('PORTAL_PASSWORD', 'lts2025')
+
 # Dropbox OAuth2 config
 DROPBOX_APP_KEY = os.environ.get('DROPBOX_APP_KEY', 'j9ntkihedd9495i')
 DROPBOX_APP_SECRET = os.environ.get('DROPBOX_APP_SECRET', 'd3hr43reha9kky8')
 DROPBOX_REDIRECT_URI = os.environ.get('DROPBOX_REDIRECT_URI', 'https://dd.ltslog.de/dropbox/callback')
 
+# Dropbox refresh token for server-side access (from samsara_sync)
+DROPBOX_REFRESH_TOKEN = os.environ.get('DROPBOX_REFRESH_TOKEN', '')
+
 # Samsara API config
 SAMSARA_API_TOKEN = os.environ.get('SAMSARA_API_TOKEN', '')
 SAMSARA_API_BASE = 'https://api.eu.samsara.com'
+
+
+def login_required(f):
+    """Decorator to require login for routes."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not session.get('logged_in'):
+            if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return jsonify({'error': 'Unauthorized'}), 401
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated
+
+
+def get_server_dropbox_client():
+    """Get a Dropbox client using the server-side refresh token."""
+    if not DROPBOX_REFRESH_TOKEN:
+        return None
+    try:
+        dbx = dropbox.Dropbox(
+            oauth2_refresh_token=DROPBOX_REFRESH_TOKEN,
+            app_key=DROPBOX_APP_KEY,
+            app_secret=DROPBOX_APP_SECRET,
+        )
+        return dbx
+    except Exception:
+        return None
 
 
 def get_dropbox_auth_flow():
@@ -427,12 +462,39 @@ def analyze_card(data):
     }
 
 
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if session.get('logged_in'):
+        return redirect('/')
+    error = None
+    if request.method == 'POST':
+        if request.form.get('password') == PORTAL_PASSWORD:
+            session['logged_in'] = True
+            return redirect('/')
+        error = 'Nieprawidlowe haslo'
+    return render_template('login.html', error=error)
+
+
+@app.route('/logout')
+def logout():
+    session.pop('logged_in', None)
+    return redirect('/login')
+
+
 @app.route('/')
+@login_required
 def index():
+    return render_template('portal.html')
+
+
+@app.route('/reader')
+@login_required
+def reader():
     return render_template('index.html')
 
 
 @app.route('/upload', methods=['POST'])
+@login_required
 def upload():
     if 'file' not in request.files:
         return jsonify({'error': 'Brak pliku'}), 400
@@ -457,6 +519,7 @@ def upload():
 
 
 @app.route('/dropbox/auth')
+@login_required
 def dropbox_auth():
     """Start Dropbox OAuth2 flow."""
     flow = dropbox.DropboxOAuth2Flow(
@@ -472,6 +535,7 @@ def dropbox_auth():
 
 
 @app.route('/dropbox/callback')
+@login_required
 def dropbox_callback():
     """Handle Dropbox OAuth2 callback."""
     flow = dropbox.DropboxOAuth2Flow(
@@ -493,6 +557,7 @@ def dropbox_callback():
 
 
 @app.route('/dropbox/status')
+@login_required
 def dropbox_status():
     """Check if Dropbox is connected."""
     dbx = get_dropbox_client()
@@ -510,6 +575,7 @@ def dropbox_status():
 
 
 @app.route('/dropbox/disconnect')
+@login_required
 def dropbox_disconnect():
     """Disconnect Dropbox."""
     session.pop('dropbox_token', None)
@@ -518,6 +584,7 @@ def dropbox_disconnect():
 
 
 @app.route('/dropbox/browse')
+@login_required
 def dropbox_browse():
     """Browse Dropbox files and folders."""
     dbx = get_dropbox_client()
@@ -547,6 +614,7 @@ def dropbox_browse():
 
 
 @app.route('/dropbox/import', methods=['POST'])
+@login_required
 def dropbox_import():
     """Import a .ddd file from Dropbox and analyze it."""
     dbx = get_dropbox_client()
@@ -575,6 +643,7 @@ def dropbox_import():
 
 
 @app.route('/dropbox/export', methods=['POST'])
+@login_required
 def dropbox_export():
     """Export analysis results as CSV to Dropbox."""
     dbx = get_dropbox_client()
@@ -633,6 +702,7 @@ def samsara_headers():
 
 
 @app.route('/samsara/status')
+@login_required
 def samsara_status():
     """Check Samsara connection by listing drivers."""
     if not SAMSARA_API_TOKEN:
@@ -652,6 +722,7 @@ def samsara_status():
 
 
 @app.route('/samsara/drivers')
+@login_required
 def samsara_drivers():
     """List drivers with tachograph files available."""
     if not SAMSARA_API_TOKEN:
@@ -741,6 +812,7 @@ def samsara_drivers():
 
 
 @app.route('/samsara/import', methods=['POST'])
+@login_required
 def samsara_import():
     """Download a DDD file from Samsara and analyze it."""
     if not SAMSARA_API_TOKEN:
@@ -772,6 +844,7 @@ def samsara_import():
 
 
 @app.route('/samsara/export-to-dropbox', methods=['POST'])
+@login_required
 def samsara_export_to_dropbox():
     """Download DDD files from Samsara and upload them to Dropbox."""
     if not SAMSARA_API_TOKEN:
@@ -827,6 +900,162 @@ def samsara_export_to_dropbox():
         'folder': driver_folder,
         'details': results,
     })
+
+
+# ===== Portal API =====
+
+@app.route('/portal/drivers')
+@login_required
+def portal_drivers():
+    """List all drivers from Dropbox /Samsara-DDD/ folder with file metadata."""
+    dbx = get_server_dropbox_client()
+    if not dbx:
+        return jsonify({'error': 'Brak polaczenia z Dropbox (brak DROPBOX_REFRESH_TOKEN)'}), 500
+
+    sync_folder = os.environ.get('SYNC_DEST_FOLDER', '/Samsara-DDD')
+
+    try:
+        # List driver folders
+        result = dbx.files_list_folder(sync_folder)
+        all_entries = list(result.entries)
+        while result.has_more:
+            result = dbx.files_list_folder_continue(result.cursor)
+            all_entries.extend(result.entries)
+
+        drivers = []
+        for entry in all_entries:
+            if not isinstance(entry, dropbox.files.FolderMetadata):
+                continue
+            driver_name = entry.name
+            driver_path = entry.path_display
+
+            # List files in driver folder
+            try:
+                file_result = dbx.files_list_folder(driver_path)
+                file_entries = list(file_result.entries)
+                while file_result.has_more:
+                    file_result = dbx.files_list_folder_continue(file_result.cursor)
+                    file_entries.extend(file_result.entries)
+            except Exception:
+                file_entries = []
+
+            files = []
+            for f in file_entries:
+                if not isinstance(f, dropbox.files.FileMetadata):
+                    continue
+                # Parse card number and date from filename: cardnumber_date.ddd
+                fname = f.name
+                card_number = ''
+                file_date = ''
+                m = re.match(r'^(.+?)_(\d{4}-\d{2}-\d{2})\.ddd$', fname, re.IGNORECASE)
+                if m:
+                    card_number = m.group(1)
+                    file_date = m.group(2)
+
+                files.append({
+                    'name': fname,
+                    'path': f.path_display,
+                    'size': f.size,
+                    'modified': f.server_modified.isoformat() if f.server_modified else '',
+                    'card_number': card_number,
+                    'file_date': file_date,
+                })
+
+            # Sort files by date descending
+            files.sort(key=lambda x: x.get('file_date', ''), reverse=True)
+
+            # Calculate summary info
+            earliest_date = ''
+            latest_date = ''
+            latest_download = ''
+            card_number = ''
+            if files:
+                dates = [f['file_date'] for f in files if f['file_date']]
+                if dates:
+                    earliest_date = min(dates)
+                    latest_date = max(dates)
+                modified_dates = [f['modified'] for f in files if f['modified']]
+                if modified_dates:
+                    latest_download = max(modified_dates)
+                # Use card number from most recent file
+                for f in files:
+                    if f['card_number']:
+                        card_number = f['card_number']
+                        break
+
+            # Calculate days since last download
+            days_since = None
+            if latest_download:
+                try:
+                    last_dt = datetime.fromisoformat(latest_download.replace('Z', '+00:00'))
+                    days_since = (datetime.now(UTC) - last_dt).days
+                except Exception:
+                    pass
+
+            drivers.append({
+                'name': driver_name,
+                'path': driver_path,
+                'card_number': card_number,
+                'file_count': len(files),
+                'earliest_date': earliest_date,
+                'latest_date': latest_date,
+                'latest_download': latest_download,
+                'days_since': days_since,
+                'files': files,
+            })
+
+        drivers.sort(key=lambda d: d.get('latest_download', ''), reverse=True)
+        return jsonify({'drivers': drivers})
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/portal/download')
+@login_required
+def portal_download():
+    """Download a DDD file from Dropbox and analyze it."""
+    dbx = get_server_dropbox_client()
+    if not dbx:
+        return jsonify({'error': 'Brak polaczenia z Dropbox'}), 500
+
+    file_path = request.args.get('path')
+    if not file_path:
+        return jsonify({'error': 'Brak sciezki pliku'}), 400
+
+    try:
+        metadata, response = dbx.files_download(file_path)
+        with tempfile.NamedTemporaryFile(suffix='.ddd', delete=False) as tmp:
+            tmp.write(response.content)
+            tmp_path = tmp.name
+
+        data = parse_ddd_file(tmp_path)
+        result = analyze_card(data)
+        result['source_file'] = metadata.name
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if 'tmp_path' in locals():
+            os.unlink(tmp_path)
+
+
+@app.route('/portal/sync-status')
+@login_required
+def portal_sync_status():
+    """Get sync status from state file."""
+    state_file = os.environ.get('SYNC_STATE_FILE', '/opt/ddd-reader/samsara_sync_state.json')
+    try:
+        if os.path.exists(state_file):
+            with open(state_file) as f:
+                data = json.load(f)
+            return jsonify({
+                'last_sync': data.get('last_sync', ''),
+                'synced_count': len(data.get('synced_ids', [])),
+            })
+        return jsonify({'last_sync': '', 'synced_count': 0})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 if __name__ == '__main__':

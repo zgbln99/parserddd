@@ -28,8 +28,8 @@ SCP_CMD="scp -P $SSH_PORT"
 
 echo "=== [1/6] Przesylanie plikow na serwer ==="
 $SSH_CMD "mkdir -p $APP_DIR/templates"
-$SCP_CMD app.py requirements.txt setup.sh "$REMOTE:$APP_DIR/"
-$SCP_CMD templates/index.html "$REMOTE:$APP_DIR/templates/"
+$SCP_CMD app.py samsara_sync.py requirements.txt setup.sh "$REMOTE:$APP_DIR/"
+$SCP_CMD templates/index.html templates/login.html templates/portal.html "$REMOTE:$APP_DIR/templates/"
 
 echo "=== [2/6] Instalacja zaleznosci systemowych ==="
 $SSH_CMD "bash -s" <<'REMOTE_SCRIPT'
@@ -100,6 +100,8 @@ ExecStart=/opt/ddd-reader/venv/bin/gunicorn --bind 127.0.0.1:8000 --workers 2 --
 Environment=DDDPARSER_PATH=/usr/local/bin/dddparser
 Environment=FLASK_SECRET_KEY=$FLASK_SECRET
 Environment=SAMSARA_API_TOKEN=$SAMSARA_TOKEN
+Environment=DROPBOX_REFRESH_TOKEN=$DROPBOX_REFRESH_TOKEN
+Environment=PORTAL_PASSWORD=$PORTAL_PASSWORD
 Restart=always
 RestartSec=5
 
