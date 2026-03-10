@@ -1,9 +1,9 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import { useI18n } from '../i18n';
 import { formatDate } from '../lib/format';
 import { exportCsv, exportPdf } from '../lib/api';
 import { Badge } from '../components/Badge';
-import { Download, FileText } from 'lucide-react';
+import { Download, FileText, ClipboardCopy, Check } from 'lucide-react';
 import type { AnalysisResult, ShiftDetail } from '../types';
 
 function fmtNight(minutes: number, hm: string) {
@@ -231,6 +231,9 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
         <p className="py-8 text-center text-sm text-gray-400">{t('noData')}</p>
       )}
 
+      {/* Excel copy helper */}
+      {shifts.length > 0 && <ExcelCopyBlock summary={s} />}
+
       {/* Export */}
       <div className="flex justify-center gap-3 pt-2">
         <button
@@ -247,6 +250,70 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
           <FileText size={16} />
           {t('analysisExportPdf')}
         </button>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Excel copy-paste helper                                           */
+/* ------------------------------------------------------------------ */
+
+function ExcelCopyBlock({ summary }: { summary: ReturnType<typeof Object> & Record<string, unknown> }) {
+  const s = summary as Record<string, unknown>;
+  const [copied, setCopied] = useState(false);
+
+  const n25 = ((s.night_25_minutes as number) / 60).toFixed(2).replace('.', ',');
+  const n40 = ((s.night_40_minutes as number) / 60).toFixed(2).replace('.', ',');
+  const vma = String(s.diet_count ?? 0);
+  const az = ((s.total_work_minutes as number) / 60).toFixed(2).replace('.', ',');
+
+  const headers = ['25%', '40%', 'Ü', 'Ur', 'Kr', 'VMA', 'AZ'];
+  const values  = [n25,   n40,   '',  '',   '',   vma,   az];
+
+  const handleCopy = useCallback(() => {
+    const tsv = headers.join('\t') + '\n' + values.join('\t');
+    navigator.clipboard.writeText(tsv).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }, [n25, n40, vma, az]);
+
+  const cols = headers.map((h, i) => ({ header: h, value: values[i] }));
+
+  return (
+    <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/50">
+      <div className="mb-2 flex items-center justify-between">
+        <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Excel</p>
+        <button
+          onClick={handleCopy}
+          className="flex items-center gap-1.5 rounded-lg bg-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 transition hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
+        >
+          {copied ? <Check size={14} /> : <ClipboardCopy size={14} />}
+          {copied ? 'Skopiowano!' : 'Kopiuj'}
+        </button>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="min-w-0 border-collapse text-sm">
+          <thead>
+            <tr>
+              {cols.map((c) => (
+                <th key={c.header} className="border border-gray-300 bg-gray-100 px-3 py-1.5 text-center text-xs font-bold text-gray-600 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300">
+                  {c.header}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              {cols.map((c) => (
+                <td key={c.header} className="border border-gray-300 px-3 py-1.5 text-center font-mono text-sm dark:border-gray-600">
+                  {c.value || <span className="text-gray-300 dark:text-gray-600">&mdash;</span>}
+                </td>
+              ))}
+            </tr>
+          </tbody>
+        </table>
       </div>
     </div>
   );
