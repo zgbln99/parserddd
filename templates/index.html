@@ -155,41 +155,58 @@
         .driver-card .detail { opacity: 0.75; font-size: 0.78em; }
         .driver-card .driver-meta { text-align: right; opacity: 0.7; font-size: 0.76em; line-height: 1.7; }
 
-        /* Summary strip — always 1 row */
+        /* Summary strip — 4 big + 4 small */
         .summary-strip {
             display: grid;
-            grid-template-columns: repeat(8, 1fr);
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+        .summary-strip-small {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
             gap: 8px;
             margin-bottom: 12px;
         }
         .stat {
             background: var(--surface);
             border-radius: var(--radius-sm);
-            padding: 12px 8px;
+            padding: 18px 12px;
+            text-align: center;
+            box-shadow: var(--shadow);
+            border-left: 3px solid var(--accent, var(--border));
+        }
+        .stat-sm {
+            background: var(--surface);
+            border-radius: var(--radius-sm);
+            padding: 10px 8px;
             text-align: center;
             box-shadow: var(--shadow);
             border-left: 3px solid var(--accent, var(--border));
         }
         .stat-label {
-            font-size: 0.6em;
+            font-size: 0.65em;
             font-weight: 700;
             text-transform: uppercase;
             letter-spacing: 0.5px;
             color: var(--text-muted);
             margin-bottom: 4px;
         }
+        .stat-sm .stat-label { font-size: 0.6em; margin-bottom: 2px; }
         .stat-value {
-            font-size: 1.3em;
+            font-size: 1.6em;
             font-weight: 800;
             color: var(--accent, var(--text));
             line-height: 1.1;
             font-variant-numeric: tabular-nums;
         }
+        .stat-sm .stat-value { font-size: 1.1em; }
         .stat-sub {
-            font-size: 0.68em;
+            font-size: 0.72em;
             color: var(--text-muted);
-            margin-top: 1px;
+            margin-top: 2px;
         }
+        .stat-sm .stat-sub { font-size: 0.65em; margin-top: 1px; }
 
         /* Toolbar */
         .toolbar {
@@ -249,13 +266,13 @@
         .table-top h3 { font-size: 0.95em; font-weight: 700; }
         .table-scroll { overflow-x: auto; }
 
-        table { width: 100%; border-collapse: collapse; font-size: 0.8em; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.88em; }
         th {
-            padding: 8px 9px;
+            padding: 10px 10px;
             text-align: left;
             font-weight: 600;
             color: var(--text-muted);
-            font-size: 0.78em;
+            font-size: 0.82em;
             text-transform: uppercase;
             letter-spacing: 0.3px;
             border-bottom: 1px solid var(--border);
@@ -265,7 +282,7 @@
             top: 0;
         }
         td {
-            padding: 7px 9px;
+            padding: 9px 10px;
             border-bottom: 1px solid var(--border-light);
             white-space: nowrap;
             font-variant-numeric: tabular-nums;
@@ -343,7 +360,8 @@
 
         <div class="results" id="results">
             <div class="driver-card" id="driver-info"></div>
-            <div class="summary-strip" id="summary-grid"></div>
+            <div class="summary-strip" id="summary-big"></div>
+            <div class="summary-strip-small" id="summary-small"></div>
 
             <div class="toolbar">
                 <label>Zakres:</label>
@@ -479,19 +497,29 @@
             }
             const totNight = totN25 + totN40;
 
-            const stats = [
-                { l:'Zmian', v:details.length, s:'', a:'#475569' },
+            const bigStats = [
                 { l:'Czas pracy', v:hm(totWork), s:dec(totWork)+' h', a:'#1e40af' },
-                { l:'Jazda', v:hm(totDriving), s:dec(totDriving)+' h', a:'#0ea5e9' },
-                { l:'Przerwy', v:hm(totBreak), s:dec(totBreak)+' h', a:'#64748b' },
                 { l:'Nocne 25%', v:hm(totN25), s:dec(totN25)+' h', a:'#f97316' },
                 { l:'Nocne 40%', v:hm(totN40), s:dec(totN40)+' h', a:'#ef4444' },
-                { l:'Nocne razem', v:hm(totNight), s:dec(totNight)+' h', a:'#f59e0b' },
                 { l:'Diety', v:dietCount, s:'zmiana > 8h', a:'#22c55e' },
             ];
+            const smallStats = [
+                { l:'Zmian', v:details.length, s:'', a:'#475569' },
+                { l:'Jazda', v:hm(totDriving), s:dec(totDriving)+' h', a:'#0ea5e9' },
+                { l:'Przerwy', v:hm(totBreak), s:dec(totBreak)+' h', a:'#64748b' },
+                { l:'Nocne razem', v:hm(totNight), s:dec(totNight)+' h', a:'#f59e0b' },
+            ];
 
-            document.getElementById('summary-grid').innerHTML = stats.map(s => `
+            document.getElementById('summary-big').innerHTML = bigStats.map(s => `
                 <div class="stat" style="--accent:${s.a}">
+                    <div class="stat-label">${s.l}</div>
+                    <div class="stat-value">${s.v}</div>
+                    ${s.s ? `<div class="stat-sub">${s.s}</div>` : ''}
+                </div>
+            `).join('');
+
+            document.getElementById('summary-small').innerHTML = smallStats.map(s => `
+                <div class="stat-sm" style="--accent:${s.a}">
                     <div class="stat-label">${s.l}</div>
                     <div class="stat-value">${s.v}</div>
                     ${s.s ? `<div class="stat-sub">${s.s}</div>` : ''}
