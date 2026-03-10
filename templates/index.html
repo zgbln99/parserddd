@@ -446,6 +446,169 @@
         .shift-time .d { font-weight: 600; }
         .shift-time .t { color: var(--text-secondary); font-weight: 500; }
 
+        /* Monthly view */
+        .month-group { margin-bottom: 2px; }
+        .month-header {
+            background: linear-gradient(135deg, #1e3a5f, #1e40af);
+            color: white;
+            padding: 10px 18px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 0.88em;
+            font-weight: 600;
+            user-select: none;
+        }
+        .month-header:hover { opacity: 0.92; }
+        .month-header .arrow { transition: transform 0.2s; }
+        .month-header .arrow.collapsed { transform: rotate(-90deg); }
+        .month-stats {
+            display: flex; gap: 16px;
+            font-size: 0.85em; font-weight: 400; opacity: 0.85;
+        }
+        .month-body { display: block; }
+        .month-body.collapsed { display: none; }
+
+        /* Card tabs */
+        .card-tabs {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .card-tab {
+            padding: 6px 14px;
+            border-radius: 8px 8px 0 0;
+            border: 1.5px solid var(--border);
+            border-bottom: none;
+            background: var(--surface-hover);
+            font-size: 0.8em;
+            font-weight: 600;
+            cursor: pointer;
+            font-family: inherit;
+            color: var(--text-secondary);
+            position: relative;
+        }
+        .card-tab.active {
+            background: var(--surface);
+            color: var(--primary);
+            border-color: var(--primary);
+        }
+        .card-tab .tab-close {
+            margin-left: 6px;
+            opacity: 0.5;
+            font-size: 1.1em;
+        }
+        .card-tab .tab-close:hover { opacity: 1; }
+        .card-tab-compare {
+            padding: 6px 14px;
+            border-radius: 8px 8px 0 0;
+            border: 1.5px solid var(--amber);
+            border-bottom: none;
+            background: #fffbeb;
+            font-size: 0.8em;
+            font-weight: 600;
+            cursor: pointer;
+            font-family: inherit;
+            color: var(--amber);
+        }
+        .card-tab-compare.active { background: #fef3c7; }
+
+        /* Compare view */
+        .compare-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+            gap: 12px;
+            margin-bottom: 14px;
+        }
+        .compare-card {
+            background: var(--surface);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            overflow: hidden;
+        }
+        .compare-card-header {
+            background: linear-gradient(135deg, #1e3a5f, #1e40af);
+            color: white;
+            padding: 12px 16px;
+        }
+        .compare-card-header h3 { font-size: 0.95em; font-weight: 700; }
+        .compare-card-header .detail { opacity: 0.7; font-size: 0.75em; }
+        .compare-card-body { padding: 12px 16px; }
+        .compare-stat-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 0;
+            border-bottom: 1px solid var(--border-light);
+            font-size: 0.85em;
+        }
+        .compare-stat-row:last-child { border-bottom: none; }
+        .compare-stat-label { color: var(--text-secondary); }
+        .compare-stat-value { font-weight: 700; }
+
+        /* Card history */
+        .history-section {
+            margin-top: 18px;
+            display: none;
+        }
+        .history-section.visible { display: block; }
+        .history-title {
+            font-size: 0.82em;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+        }
+        .history-list { display: flex; flex-direction: column; gap: 6px; }
+        .history-item {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 10px 14px;
+            cursor: pointer;
+            transition: all 0.15s;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .history-item:hover { border-color: var(--primary); background: #eff4ff; }
+        .history-item .hi-name { font-weight: 600; font-size: 0.88em; }
+        .history-item .hi-meta { font-size: 0.75em; color: var(--text-muted); }
+        .history-item .hi-stats { font-size: 0.78em; color: var(--text-secondary); text-align: right; }
+        .history-item .hi-remove {
+            margin-left: 8px;
+            color: var(--text-muted);
+            font-size: 1.1em;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+        .history-item .hi-remove:hover { background: #fef2f2; color: var(--red); }
+
+        /* View toggle */
+        .view-toggle {
+            display: inline-flex;
+            border: 1.5px solid var(--border);
+            border-radius: 6px;
+            overflow: hidden;
+        }
+        .view-toggle button {
+            padding: 4px 10px;
+            border: none;
+            background: transparent;
+            font-size: 0.78em;
+            font-weight: 600;
+            cursor: pointer;
+            font-family: inherit;
+            color: var(--text-secondary);
+        }
+        .view-toggle button.active {
+            background: var(--primary);
+            color: white;
+        }
+
         tfoot td {
             font-weight: 700 !important;
             background: #f8f9fb !important;
@@ -490,6 +653,10 @@
             <p>Przeciagnij plik .ddd tutaj lub kliknij aby wybrac</p>
             <button class="btn" onclick="document.getElementById('file-input').click()">Wybierz plik</button>
             <input type="file" id="file-input" accept=".ddd,.DDD">
+            <div class="history-section" id="history-section">
+                <div class="history-title">Ostatnio wgrane karty</div>
+                <div class="history-list" id="history-list"></div>
+            </div>
         </div>
 
         <div class="loading" id="loading">
@@ -500,50 +667,63 @@
         <div class="error-msg" id="error-msg"></div>
 
         <div class="results" id="results">
-            <div class="driver-card" id="driver-info"></div>
-            <div class="summary-strip" id="summary-big"></div>
-            <div class="summary-strip-small" id="summary-small"></div>
+            <div class="card-tabs" id="card-tabs" style="display:none"></div>
+            <div id="single-view">
+                <div class="driver-card" id="driver-info"></div>
+                <div class="summary-strip" id="summary-big"></div>
+                <div class="summary-strip-small" id="summary-small"></div>
 
-            <div class="toolbar">
-                <label>Zakres:</label>
-                <input type="date" id="date-from">
-                <span class="sep">—</span>
-                <input type="date" id="date-to">
-                <button class="pill pill-primary" onclick="applyDateFilter()">Filtruj</button>
-                <button class="pill pill-ghost" onclick="resetDateFilter()">Reset</button>
-                <div class="toolbar-spacer"></div>
-                <button class="pill pill-upload" id="dbx-import-btn" onclick="openDropboxBrowser()" style="display:none;background:#eff4ff;color:#0061fe;border-color:#0061fe">Importuj z Dropbox</button>
-                <button class="pill pill-upload" id="dbx-export-btn" onclick="openExportModal()" style="display:none;background:#eff4ff;color:#16a34a;border-color:#16a34a">Eksportuj do Dropbox</button>
-                <button class="pill pill-upload" onclick="document.getElementById('file-input-toolbar').click()">Wgraj nowy plik</button>
-                <input type="file" id="file-input-toolbar" accept=".ddd,.DDD">
-            </div>
+                <div class="toolbar">
+                    <label>Zakres:</label>
+                    <input type="date" id="date-from">
+                    <span class="sep">—</span>
+                    <input type="date" id="date-to">
+                    <button class="pill pill-primary" onclick="applyDateFilter()">Filtruj</button>
+                    <button class="pill pill-ghost" onclick="resetDateFilter()">Reset</button>
+                    <div class="toolbar-spacer"></div>
+                    <div class="view-toggle" id="view-toggle">
+                        <button class="active" onclick="setView('list')">Lista</button>
+                        <button onclick="setView('month')">Miesiace</button>
+                    </div>
+                    <button class="pill pill-upload" onclick="downloadCSV()" style="background:#f0fdf4;color:#16a34a;border:1.5px solid #16a34a">Pobierz CSV</button>
+                    <button class="pill pill-upload" id="dbx-import-btn" onclick="openDropboxBrowser()" style="display:none;background:#eff4ff;color:#0061fe;border-color:#0061fe">Importuj z Dropbox</button>
+                    <button class="pill pill-upload" id="dbx-export-btn" onclick="openExportModal()" style="display:none;background:#eff4ff;color:#16a34a;border-color:#16a34a">Eksportuj do Dropbox</button>
+                    <button class="pill pill-upload" onclick="document.getElementById('file-input-toolbar').click()">Wgraj nowy plik</button>
+                    <input type="file" id="file-input-toolbar" accept=".ddd,.DDD">
+                </div>
 
-            <div class="table-card">
-                <div class="table-top">
-                    <h3 id="shifts-header">Zmiany</h3>
+                <div id="list-view">
+                    <div class="table-card">
+                        <div class="table-top">
+                            <h3 id="shifts-header">Zmiany</h3>
+                        </div>
+                        <div class="table-scroll">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Start</th>
+                                    <th>Koniec</th>
+                                    <th>Czas trwania</th>
+                                    <th>Pojazd</th>
+                                    <th>Jazda</th>
+                                    <th>Praca</th>
+                                    <th>Przerwy</th>
+                                    <th>Czas pracy</th>
+                                    <th>25% (dzies.)</th>
+                                    <th>40% (dzies.)</th>
+                                    <th>Dieta</th>
+                                </tr>
+                            </thead>
+                            <tbody id="daily-tbody"></tbody>
+                            <tfoot id="daily-tfoot"></tfoot>
+                        </table>
+                        </div>
+                    </div>
                 </div>
-                <div class="table-scroll">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Start</th>
-                            <th>Koniec</th>
-                            <th>Czas trwania</th>
-                            <th>Pojazd</th>
-                            <th>Jazda</th>
-                            <th>Praca</th>
-                            <th>Przerwy</th>
-                            <th>Czas pracy</th>
-                            <th>25% (dzies.)</th>
-                            <th>40% (dzies.)</th>
-                            <th>Dieta</th>
-                        </tr>
-                    </thead>
-                    <tbody id="daily-tbody"></tbody>
-                    <tfoot id="daily-tfoot"></tfoot>
-                </table>
-                </div>
+
+                <div id="month-view" style="display:none"></div>
             </div>
+            <div id="compare-view" style="display:none"></div>
         </div>
     </div>
 
@@ -635,7 +815,7 @@
                 .then(data => {
                     loading.style.display = 'none';
                     if (data.error) { showError(data.error); return; }
-                    renderResults(data);
+                    addCard(data);
                 })
                 .catch(err => { loading.style.display = 'none'; showError('Blad: ' + err.message); });
         }
@@ -646,18 +826,36 @@
             uploadArea.style.display = 'block';
         }
 
+        // ===== Multi-card state =====
+        let loadedCards = [];
+        let activeCardIndex = 0;
         let currentData = null;
+        let currentView = 'list'; // 'list' or 'month'
+        let compareMode = false;
+        let lastFilteredDetails = [];
 
-        function renderResults(data) {
+        function addCard(data) {
+            loadedCards.push(data);
+            activeCardIndex = loadedCards.length - 1;
             currentData = data;
+            saveToHistory(data);
+            showSingleView(data);
+            renderCardTabs();
+        }
+
+        function showSingleView(data) {
+            currentData = data;
+            compareMode = false;
             results.style.display = 'block';
             navUploadBtn.style.display = 'inline-block';
+            document.getElementById('single-view').style.display = '';
+            document.getElementById('compare-view').style.display = 'none';
 
             const di = data.driver_info || {};
             document.getElementById('driver-info').innerHTML = `
                 <div>
-                    <h2>${di.driver_name || 'Nieznany kierowca'}</h2>
-                    <div class="detail">Nr karty: ${di.card_number || '-'}</div>
+                    <h2>${esc(di.driver_name || 'Nieznany kierowca')}</h2>
+                    <div class="detail">Nr karty: ${esc(di.card_number || '-')}</div>
                 </div>
                 <div class="driver-meta">
                     ${di.card_issue_date ? `<div>Wydana: ${formatDate(di.card_issue_date)}</div>` : ''}
@@ -665,21 +863,95 @@
                 </div>
             `;
 
-            // Only set dates if inputs are empty (don't overwrite user's filter)
             const details = data.shift_details || [];
             const dateFrom = document.getElementById('date-from');
             const dateTo = document.getElementById('date-to');
-            if (!dateFrom.value && details.length > 0) {
-                dateFrom.value = details[0].shift_date;
-            }
-            if (!dateTo.value && details.length > 0) {
-                dateTo.value = details[details.length - 1].shift_date;
-            }
-
+            dateFrom.value = details.length > 0 ? details[0].shift_date : '';
+            dateTo.value = details.length > 0 ? details[details.length - 1].shift_date : '';
             applyDateFilter();
         }
 
+        function renderCardTabs() {
+            const tabsEl = document.getElementById('card-tabs');
+            if (loadedCards.length <= 1 && !compareMode) {
+                tabsEl.style.display = 'none';
+                return;
+            }
+            tabsEl.style.display = 'flex';
+            let html = '';
+            for (let i = 0; i < loadedCards.length; i++) {
+                const di = loadedCards[i].driver_info || {};
+                const name = di.driver_name || `Karta ${i + 1}`;
+                const active = !compareMode && i === activeCardIndex ? ' active' : '';
+                html += `<button class="card-tab${active}" onclick="switchCard(${i})">
+                    ${esc(name)}
+                    ${loadedCards.length > 1 ? `<span class="tab-close" onclick="event.stopPropagation();removeCard(${i})">&times;</span>` : ''}
+                </button>`;
+            }
+            if (loadedCards.length >= 2) {
+                html += `<button class="card-tab-compare${compareMode ? ' active' : ''}" onclick="showCompare()">Porownanie</button>`;
+            }
+            tabsEl.innerHTML = html;
+        }
+
+        function switchCard(index) {
+            activeCardIndex = index;
+            showSingleView(loadedCards[index]);
+            renderCardTabs();
+        }
+
+        function removeCard(index) {
+            loadedCards.splice(index, 1);
+            if (loadedCards.length === 0) {
+                results.style.display = 'none';
+                uploadArea.style.display = 'block';
+                document.getElementById('card-tabs').style.display = 'none';
+                return;
+            }
+            if (activeCardIndex >= loadedCards.length) activeCardIndex = loadedCards.length - 1;
+            showSingleView(loadedCards[activeCardIndex]);
+            renderCardTabs();
+        }
+
+        // ===== Compare view =====
+        function showCompare() {
+            compareMode = true;
+            renderCardTabs();
+            document.getElementById('single-view').style.display = 'none';
+            document.getElementById('compare-view').style.display = '';
+            results.style.display = 'block';
+
+            const hm = m => Math.floor(m/60) + ':' + String(m%60).padStart(2,'0');
+            const dec = m => (m/60).toFixed(2);
+
+            let html = '<div class="compare-grid">';
+            for (const card of loadedCards) {
+                const di = card.driver_info || {};
+                const s = card.summary || {};
+                html += `
+                <div class="compare-card">
+                    <div class="compare-card-header">
+                        <h3>${esc(di.driver_name || 'Nieznany')}</h3>
+                        <div class="detail">Nr: ${esc(di.card_number || '-')}</div>
+                    </div>
+                    <div class="compare-card-body">
+                        <div class="compare-stat-row"><span class="compare-stat-label">Zmian</span><span class="compare-stat-value">${s.total_shifts || 0}</span></div>
+                        <div class="compare-stat-row"><span class="compare-stat-label">Czas pracy</span><span class="compare-stat-value">${s.total_work_hm || '0:00'} <small>(${s.total_work_decimal || 0}h)</small></span></div>
+                        <div class="compare-stat-row"><span class="compare-stat-label">Jazda</span><span class="compare-stat-value">${s.total_driving_hm || '0:00'}</span></div>
+                        <div class="compare-stat-row"><span class="compare-stat-label">Przerwy</span><span class="compare-stat-value">${s.total_break_hm || '0:00'}</span></div>
+                        <div class="compare-stat-row" style="color:var(--orange)"><span class="compare-stat-label">Nocne 25%</span><span class="compare-stat-value">${s.night_25_decimal || 0} h</span></div>
+                        <div class="compare-stat-row" style="color:var(--red)"><span class="compare-stat-label">Nocne 40%</span><span class="compare-stat-value">${s.night_40_decimal || 0} h</span></div>
+                        <div class="compare-stat-row" style="color:var(--green)"><span class="compare-stat-label">Diety</span><span class="compare-stat-value">${s.diet_count || 0}</span></div>
+                    </div>
+                </div>`;
+            }
+            html += '</div>';
+            document.getElementById('compare-view').innerHTML = html;
+        }
+
+        // ===== Rendering =====
         function renderFiltered(details) {
+            lastFilteredDetails = details;
             const hm = m => Math.floor(m/60) + ':' + String(m%60).padStart(2,'0');
             const dec = m => (m/60).toFixed(2);
 
@@ -725,6 +997,7 @@
 
             document.getElementById('shifts-header').textContent = `Zmiany (${details.length})`;
 
+            // List view
             const tbody = document.getElementById('daily-tbody');
             tbody.innerHTML = '';
             for (const d of details) {
@@ -734,7 +1007,7 @@
                     <td class="shift-time">${fmtDt(d.shift_start)}</td>
                     <td class="shift-time">${fmtDt(d.shift_end)}</td>
                     <td class="c-muted">${d.duration_hm}</td>
-                    <td class="c-primary">${plates || '-'}</td>
+                    <td class="c-primary">${esc(plates) || '-'}</td>
                     <td class="c-blue">${d.driving_hm}</td>
                     <td>${d.work_only_hm}</td>
                     <td class="c-slate">${d.break_hm}</td>
@@ -758,8 +1031,227 @@
                     <td style="color:var(--green);font-weight:700">${dietCount}</td>
                 </tr>
             `;
+
+            // Monthly view
+            renderMonthlyView(details);
         }
 
+        // ===== Monthly archive =====
+        const MONTH_NAMES = ['Styczen','Luty','Marzec','Kwiecien','Maj','Czerwiec','Lipiec','Sierpien','Wrzesien','Pazdziernik','Listopad','Grudzien'];
+
+        function renderMonthlyView(details) {
+            const hm = m => Math.floor(m/60) + ':' + String(m%60).padStart(2,'0');
+            const dec = m => (m/60).toFixed(2);
+
+            const months = {};
+            for (const d of details) {
+                const key = d.shift_date.substring(0, 7);
+                if (!months[key]) months[key] = [];
+                months[key].push(d);
+            }
+
+            const sortedKeys = Object.keys(months).sort();
+            let html = '';
+            for (const key of sortedKeys) {
+                const shifts = months[key];
+                const [y, m] = key.split('-');
+                const label = `${MONTH_NAMES[parseInt(m)-1]} ${y}`;
+
+                let mWork=0, mDriving=0, mBreak=0, mN25=0, mN40=0, mDiet=0;
+                for (const d of shifts) {
+                    mWork += d.work_minutes;
+                    mDriving += d.driving_minutes;
+                    mBreak += d.break_minutes;
+                    mN25 += d.night_25_minutes;
+                    mN40 += d.night_40_minutes;
+                    if (d.has_diet) mDiet++;
+                }
+
+                html += `
+                <div class="month-group">
+                    <div class="month-header" onclick="toggleMonth(this)">
+                        <div>
+                            <span class="arrow">&#9660;</span> ${label} (${shifts.length} zmian)
+                        </div>
+                        <div class="month-stats">
+                            <span>Praca: ${hm(mWork)}</span>
+                            <span style="color:#fbbf24">25%: ${dec(mN25)}h</span>
+                            <span style="color:#f87171">40%: ${dec(mN40)}h</span>
+                            <span style="color:#4ade80">Diety: ${mDiet}</span>
+                        </div>
+                    </div>
+                    <div class="month-body">
+                        <div class="table-card" style="border-radius:0">
+                            <div class="table-scroll">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Start</th><th>Koniec</th><th>Czas trwania</th><th>Pojazd</th>
+                                        <th>Jazda</th><th>Praca</th><th>Przerwy</th><th>Czas pracy</th>
+                                        <th>25%</th><th>40%</th><th>Dieta</th>
+                                    </tr>
+                                </thead>
+                                <tbody>`;
+                for (const d of shifts) {
+                    const plates = (d.vehicles || []).join(', ');
+                    html += `<tr>
+                        <td class="shift-time">${fmtDt(d.shift_start)}</td>
+                        <td class="shift-time">${fmtDt(d.shift_end)}</td>
+                        <td class="c-muted">${d.duration_hm}</td>
+                        <td class="c-primary">${esc(plates) || '-'}</td>
+                        <td class="c-blue">${d.driving_hm}</td>
+                        <td>${d.work_only_hm}</td>
+                        <td class="c-slate">${d.break_hm}</td>
+                        <td class="c-bold">${d.work_hm}</td>
+                        <td class="c-orange">${d.night_25_minutes > 0 ? dec(d.night_25_minutes) : '-'}</td>
+                        <td class="c-red">${d.night_40_minutes > 0 ? dec(d.night_40_minutes) : '-'}</td>
+                        <td>${d.has_diet ? '<span class="diet-tag yes">TAK</span>' : '<span class="diet-tag no">-</span>'}</td>
+                    </tr>`;
+                }
+                html += `</tbody>
+                            <tfoot><tr>
+                                <td colspan="4" style="text-align:right;color:var(--text-muted)">SUMA</td>
+                                <td class="c-blue">${hm(mDriving)}</td><td></td>
+                                <td class="c-slate">${hm(mBreak)}</td>
+                                <td class="c-bold">${hm(mWork)}</td>
+                                <td class="c-orange">${dec(mN25)}</td>
+                                <td class="c-red">${dec(mN40)}</td>
+                                <td style="color:var(--green);font-weight:700">${mDiet}</td>
+                            </tr></tfoot>
+                            </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
+            }
+            document.getElementById('month-view').innerHTML = html;
+        }
+
+        function toggleMonth(header) {
+            const body = header.nextElementSibling;
+            const arrow = header.querySelector('.arrow');
+            body.classList.toggle('collapsed');
+            arrow.classList.toggle('collapsed');
+        }
+
+        function setView(view) {
+            currentView = view;
+            const btns = document.querySelectorAll('#view-toggle button');
+            btns.forEach(b => b.classList.remove('active'));
+            if (view === 'list') {
+                btns[0].classList.add('active');
+                document.getElementById('list-view').style.display = '';
+                document.getElementById('month-view').style.display = 'none';
+            } else {
+                btns[1].classList.add('active');
+                document.getElementById('list-view').style.display = 'none';
+                document.getElementById('month-view').style.display = '';
+            }
+        }
+
+        // ===== Local CSV export =====
+        function downloadCSV() {
+            if (!currentData || !lastFilteredDetails.length) return;
+            const di = currentData.driver_info || {};
+            const details = lastFilteredDetails;
+            const dec = m => (m/60).toFixed(2);
+
+            const rows = [['Start','Koniec','Czas trwania','Pojazd','Jazda','Praca','Przerwy','Czas pracy','Nocne 25%','Nocne 40%','Dieta']];
+            for (const d of details) {
+                rows.push([
+                    d.shift_start, d.shift_end, d.duration_hm,
+                    (d.vehicles || []).join(', '),
+                    d.driving_hm, d.work_only_hm, d.break_hm, d.work_hm,
+                    dec(d.night_25_minutes), dec(d.night_40_minutes),
+                    d.has_diet ? 'TAK' : 'NIE'
+                ]);
+            }
+            const csv = rows.map(r => r.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(';')).join('\r\n');
+            const bom = '\uFEFF';
+            const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            const safeName = (di.driver_name || 'kierowca').replace(/[^a-zA-Z0-9_ -]/g, '');
+            a.href = url;
+            a.download = `${safeName}_${new Date().toISOString().slice(0,10)}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        // ===== Card history (LocalStorage) =====
+        const HISTORY_KEY = 'ddd_card_history';
+        const MAX_HISTORY = 10;
+
+        function getHistory() {
+            try { return JSON.parse(localStorage.getItem(HISTORY_KEY)) || []; }
+            catch { return []; }
+        }
+
+        function saveToHistory(data) {
+            const di = data.driver_info || {};
+            const s = data.summary || {};
+            const details = data.shift_details || [];
+            const entry = {
+                id: Date.now(),
+                driver_name: di.driver_name || 'Nieznany',
+                card_number: di.card_number || '',
+                loaded_at: new Date().toISOString(),
+                date_range: details.length > 0 ? `${details[0].shift_date} - ${details[details.length-1].shift_date}` : '',
+                total_shifts: s.total_shifts || 0,
+                total_work_hm: s.total_work_hm || '0:00',
+                diet_count: s.diet_count || 0,
+                data: data
+            };
+            let history = getHistory();
+            // Deduplicate by card_number
+            if (entry.card_number) {
+                history = history.filter(h => h.card_number !== entry.card_number);
+            }
+            history.unshift(entry);
+            if (history.length > MAX_HISTORY) history = history.slice(0, MAX_HISTORY);
+            try { localStorage.setItem(HISTORY_KEY, JSON.stringify(history)); } catch {}
+            renderHistory();
+        }
+
+        function renderHistory() {
+            const history = getHistory();
+            const section = document.getElementById('history-section');
+            const list = document.getElementById('history-list');
+            if (history.length === 0) {
+                section.classList.remove('visible');
+                return;
+            }
+            section.classList.add('visible');
+            list.innerHTML = history.map((h, i) => `
+                <div class="history-item" onclick="loadFromHistory(${i})">
+                    <div>
+                        <div class="hi-name">${esc(h.driver_name)}</div>
+                        <div class="hi-meta">${esc(h.date_range)} | ${new Date(h.loaded_at).toLocaleDateString('pl-PL')}</div>
+                    </div>
+                    <div style="display:flex;align-items:center">
+                        <div class="hi-stats">
+                            ${h.total_shifts} zmian | ${h.total_work_hm} | ${h.diet_count} diet
+                        </div>
+                        <span class="hi-remove" onclick="event.stopPropagation();removeHistory(${i})">&times;</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function loadFromHistory(index) {
+            const history = getHistory();
+            if (!history[index] || !history[index].data) return;
+            addCard(history[index].data);
+        }
+
+        function removeHistory(index) {
+            let history = getHistory();
+            history.splice(index, 1);
+            try { localStorage.setItem(HISTORY_KEY, JSON.stringify(history)); } catch {}
+            renderHistory();
+        }
+
+        // ===== Filter & helpers =====
         function applyDateFilter() {
             if (!currentData) return;
             const from = document.getElementById('date-from').value;
@@ -793,6 +1285,12 @@
             return `<span class="d">${p[2]}.${p[1]}.${p[0]}</span> <span class="t">${time}</span>`;
         }
 
+        function esc(s) {
+            const d = document.createElement('div');
+            d.textContent = s || '';
+            return d.innerHTML;
+        }
+
         // ===== Dropbox Integration =====
         let dbxConnected = false;
         let dbxCurrentPath = '';
@@ -814,11 +1312,11 @@
             const exportBtn = document.getElementById('dbx-export-btn');
             if (data.connected) {
                 btn.className = 'dbx-btn dbx-btn-sm connected';
-                btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 43 40" fill="currentColor"><path d="M12.5 0L0 8.1l8.6 6.9 12.5-8.1L12.5 0zm17.9 0L18 8.1l12.5 8.1 8.6-6.9L30.4 0zM0 21.9l12.5 8.1 8.6-6.9-12.5-8.1L0 21.9zm30.4 1.2l-12.5 8.1 8.6 6.9 12.5-8.1-8.6-6.9zM12.5 33.1l8.6 6.9 8.6-6.9-8.6-5.7-8.6 5.7z"/></svg> ${data.name || 'Dropbox'}`;
+                btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 43 40" fill="currentColor"><path d="M12.5 0L0 8.1l8.6 6.9 12.5-8.1L12.5 0zm17.9 0L18 8.1l12.5 8.1 8.6-6.9L30.4 0zM0 21.9l12.5 8.1 8.6-6.9-12.5-8.1L0 21.9zm30.4 1.2l-12.5 8.1 8.6 6.9 12.5-8.1-8.6-6.9zM12.5 33.1l8.6 6.9 8.6-6.9-8.6-5.7-8.6 5.7z"/></svg> ${esc(data.name || 'Dropbox')}`;
                 btn.onclick = () => openModal('dbx-account-modal');
                 document.getElementById('dbx-account-info').innerHTML = `
-                    <div style="font-weight:700;font-size:1.05em">${data.name}</div>
-                    <div style="color:var(--text-muted);font-size:0.85em">${data.email}</div>
+                    <div style="font-weight:700;font-size:1.05em">${esc(data.name)}</div>
+                    <div style="color:var(--text-muted);font-size:0.85em">${esc(data.email)}</div>
                 `;
                 importBtn.style.display = '';
                 exportBtn.style.display = '';
@@ -871,7 +1369,7 @@
                 .then(r => r.json())
                 .then(data => {
                     if (data.error) {
-                        list.innerHTML = `<li class="file-list-empty">${data.error}</li>`;
+                        list.innerHTML = `<li class="file-list-empty">${esc(data.error)}</li>`;
                         return;
                     }
                     const items = data.items || [];
@@ -884,18 +1382,18 @@
                     for (const item of dddItems) {
                         const li = document.createElement('li');
                         if (item.type === 'folder') {
-                            li.innerHTML = `<span class="icon">&#128193;</span><span class="name">${item.name}</span>`;
+                            li.innerHTML = `<span class="icon">&#128193;</span><span class="name">${esc(item.name)}</span>`;
                             li.onclick = () => browsePath(item.path);
                         } else {
                             const size = item.size ? (item.size / 1024).toFixed(0) + ' KB' : '';
-                            li.innerHTML = `<span class="icon">&#128196;</span><span class="name">${item.name}</span><span class="meta">${size}</span>`;
+                            li.innerHTML = `<span class="icon">&#128196;</span><span class="name">${esc(item.name)}</span><span class="meta">${size}</span>`;
                             li.onclick = () => selectFile(li, item.path);
                         }
                         list.appendChild(li);
                     }
                 })
                 .catch(err => {
-                    list.innerHTML = `<li class="file-list-empty">Blad: ${err.message}</li>`;
+                    list.innerHTML = `<li class="file-list-empty">Blad: ${esc(err.message)}</li>`;
                 });
         }
 
@@ -907,7 +1405,7 @@
             for (const p of parts) {
                 curr += '/' + p;
                 const pathVal = curr;
-                html += ` <span>/</span> <a onclick="browsePath('${pathVal}')">${p}</a>`;
+                html += ` <span>/</span> <a onclick="browsePath('${pathVal}')">${esc(p)}</a>`;
             }
             bc.innerHTML = html;
         }
@@ -937,7 +1435,7 @@
                 .then(data => {
                     loading.style.display = 'none';
                     if (data.error) { showError(data.error); return; }
-                    renderResults(data);
+                    addCard(data);
                 })
                 .catch(err => { loading.style.display = 'none'; showError('Blad: ' + err.message); });
         }
@@ -994,8 +1492,9 @@
                 });
         }
 
-        // Check Dropbox status on load
+        // Init
         checkDropboxStatus();
+        renderHistory();
     </script>
 </body>
 </html>
