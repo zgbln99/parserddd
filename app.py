@@ -196,6 +196,20 @@ def analyze_card(data):
         if day_work_minutes > 8 * 60:
             diet_count += 1
 
+        # Find vehicle(s) used on this day
+        day_plates = []
+        for v in vehicles:
+            if v['first_use'] and v['last_use']:
+                if v['first_use'][:10] <= date_str <= v['last_use'][:10]:
+                    day_plates.append(v['plate'])
+        # Deduplicate while preserving order
+        seen_plates = set()
+        unique_plates = []
+        for p in day_plates:
+            if p not in seen_plates:
+                seen_plates.add(p)
+                unique_plates.append(p)
+
         daily_details.append({
             'date': date_str,
             'work_minutes': day_work_minutes,
@@ -206,6 +220,7 @@ def analyze_card(data):
             'night_40_minutes': night_40,
             'night_40_hm': minutes_to_hm(night_40),
             'has_diet': day_work_minutes > 8 * 60,
+            'vehicles': unique_plates,
         })
 
     # Sort by date

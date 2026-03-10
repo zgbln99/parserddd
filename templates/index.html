@@ -174,33 +174,10 @@
         .night25-val { color: #e65100; }
         .night40-val { color: #b71c1c; }
 
-        .vehicles-section {
-            background: white;
-            border-radius: 12px;
-            padding: 20px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-            margin-bottom: 25px;
-        }
-        .vehicles-section h3 {
-            margin-bottom: 15px;
-            color: #1a237e;
-        }
-        .vehicle-tag {
-            display: inline-block;
-            background: #e3f2fd;
+        .plate-cell {
             color: #1565c0;
-            padding: 6px 14px;
-            border-radius: 8px;
-            margin: 4px;
             font-weight: 600;
-            font-size: 0.95em;
-        }
-        .vehicle-dates {
-            font-size: 0.78em;
-            color: #666;
-            font-weight: 400;
-            display: block;
-            margin-top: 2px;
+            font-size: 0.88em;
         }
 
         .date-filter {
@@ -282,11 +259,6 @@
         <div class="results" id="results">
             <div class="driver-card" id="driver-info"></div>
 
-            <div class="vehicles-section" id="vehicles-section" style="display:none">
-                <h3>Pojazdy</h3>
-                <div id="vehicles-list"></div>
-            </div>
-
             <div class="summary-grid" id="summary-grid"></div>
 
             <div class="date-filter" id="date-filter">
@@ -304,6 +276,7 @@
                     <thead>
                         <tr>
                             <th>Data</th>
+                            <th>Pojazd</th>
                             <th>Czas pracy</th>
                             <th>Czas pracy (dzies.)</th>
                             <th>Nocne 25%</th>
@@ -394,22 +367,6 @@
                 ${di.card_expiry_date ? `<div class="detail">Data waznosci: ${formatDate(di.card_expiry_date)}</div>` : ''}
             `;
 
-            // Vehicles
-            const vehicles = data.vehicles || [];
-            const vSection = document.getElementById('vehicles-section');
-            const vList = document.getElementById('vehicles-list');
-            if (vehicles.length > 0) {
-                vSection.style.display = 'block';
-                vList.innerHTML = vehicles.map(v => `
-                    <span class="vehicle-tag">
-                        ${v.plate}
-                        <span class="vehicle-dates">${formatDate(v.first_use)} — ${formatDate(v.last_use)}</span>
-                    </span>
-                `).join('');
-            } else {
-                vSection.style.display = 'none';
-            }
-
             // Set date filter defaults
             if (data.daily_details.length > 0) {
                 document.getElementById('date-from').value = data.daily_details[0].date;
@@ -465,8 +422,10 @@
             tbody.innerHTML = '';
             for (const d of details) {
                 const tr = document.createElement('tr');
+                const plates = (d.vehicles || []).join(', ');
                 tr.innerHTML = `
                     <td>${formatDate(d.date)}</td>
+                    <td class="plate-cell">${plates || '-'}</td>
                     <td><strong>${d.work_hm}</strong> <span style="color:#888;font-size:0.85em">(${d.work_decimal}h)</span></td>
                     <td>${d.work_decimal} h</td>
                     <td class="night-cell night25-val">${d.night_25_hm}</td>
