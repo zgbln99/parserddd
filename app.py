@@ -751,5 +751,63 @@ def samsara_import():
             os.unlink(tmp_path)
 
 
+@app.route('/samsara/export-to-dropbox', methods=['POST'])
+def samsara_export_to_dropbox():
+    """Download DDD files from Samsara and upload them to Dropbox."""
+    if not SAMSARA_API_TOKEN:
+        return jsonify({'error': 'Brak tokenu Samsara'}), 401
+
+    dbx = get_dropbox_client()
+    if not dbx:
+        return jsonify({'error': 'Nie polaczono z Dropbox'}), 401
+
+    payload = request.json or {}
+    files = payload.get('files', [])
+    driver_name = payload.get('driver_name', 'kierowca')
+    dest_folder = payload.get('dest_folder', '/Samsara-DDD')
+
+    if not files:
+        return jsonify({'error': 'Brak plikow do eksportu'}), 400
+
+    safe_name = "".join(c for c in driver_name if c.isalnum() or c in ' _-').strip() or 'kierowca'
+    driver_folder = f"{dest_folder}/{safe_name}"
+
+    results = []
+    for f in files:
+        url = f.get('url', '')
+        card_number = f.get('card_number', '')
+        created_at = f.get('created_at', '')
+        if not url:
+            continue
+        try:
+            resp = http_requests.get(url, timeout=60)
+            if resp.status_code != 200:
+                results.append({'ok': False, 'error': f'HTTP {resp.status_code}'})
+                continue
+
+            # Build filename: cardnumber_date.ddd
+            date_part = created_at[:10] if created_at else datetime.utcnow().strftime('%Y-%m-%d')
+            fname = f"{card_number}_{date_part}.ddd" if card_number else f"{safe_name}_{date_part}.ddd"
+            dbx_path = f"{driver_folder}/{fname}"
+
+            dbx.files_upload(
+                resp.content,
+                dbx_path,
+                mode=dropbox.files.WriteMode.overwrite,
+            )
+            results.append({'ok': True, 'path': dbx_path})
+        except Exception as e:
+            results.append({'ok': False, 'error': str(e)})
+
+    ok_count = sum(1 for r in results if r.get('ok'))
+    return jsonify({
+        'ok': True,
+        'uploaded': ok_count,
+        'total': len(files),
+        'folder': driver_folder,
+        'details': results,
+    })
+
+
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=40110)

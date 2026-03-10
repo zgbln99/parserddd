@@ -776,57 +776,67 @@
         .samsara-btn:hover { background: #1557b0; }
         .samsara-btn.connected { background: #16a34a; }
         .samsara-btn.connected:hover { background: #15803d; }
+        .samsara-search {
+            width: 100%; padding: 10px 14px; border: 1.5px solid var(--border);
+            border-radius: 8px; font-family: inherit; font-size: 0.88em;
+            margin-bottom: 12px; outline: none; transition: border-color 0.15s;
+        }
+        .samsara-search:focus { border-color: var(--primary); }
         .samsara-driver-list { list-style: none; margin: 0; padding: 0; }
         .samsara-driver-item {
-            padding: 12px 20px;
+            padding: 10px 16px;
             border-bottom: 1px solid var(--border-light);
             cursor: pointer;
             transition: background 0.1s;
         }
         .samsara-driver-item:hover { background: var(--surface-hover); }
-        .samsara-driver-item.expanded { background: #f0f7ff; }
+        .samsara-driver-item.expanded { background: #f0f7ff; border-left: 3px solid var(--primary); }
+        .samsara-driver-top {
+            display: flex; align-items: center; justify-content: space-between;
+        }
         .samsara-driver-name {
-            font-weight: 600;
-            font-size: 0.92em;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
+            font-weight: 600; font-size: 0.9em;
+            display: flex; align-items: center; gap: 8px;
         }
         .samsara-driver-meta {
-            font-size: 0.76em;
-            color: var(--text-muted);
-            margin-top: 2px;
+            font-size: 0.74em; color: var(--text-muted); margin-top: 2px;
         }
         .samsara-file-count {
-            font-size: 0.72em;
-            background: var(--surface-hover);
-            padding: 2px 8px;
-            border-radius: 10px;
-            color: var(--text-secondary);
+            font-size: 0.7em; background: var(--surface-hover);
+            padding: 2px 8px; border-radius: 10px; color: var(--text-secondary);
         }
+        .samsara-driver-actions {
+            display: flex; gap: 6px; align-items: center;
+        }
+        .samsara-btn-sm {
+            padding: 4px 10px; border-radius: 5px;
+            font-size: 0.76em; font-weight: 600;
+            border: none; cursor: pointer; font-family: inherit;
+            transition: all 0.12s;
+        }
+        .samsara-btn-analyze { background: var(--primary); color: white; }
+        .samsara-btn-analyze:hover { background: var(--primary-dark); }
+        .samsara-btn-dbx { background: #0061fe; color: white; }
+        .samsara-btn-dbx:hover { background: #004dc7; }
+        .samsara-btn-sm:disabled { opacity: 0.5; cursor: default; }
         .samsara-files-list {
-            padding: 0 20px 12px 20px;
-            display: none;
+            padding: 0 16px 10px 16px;
+            display: none; background: #fafbfd;
         }
         .samsara-files-list.open { display: block; }
         .samsara-file-item {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 8px 12px;
-            background: white;
-            border: 1px solid var(--border-light);
-            border-radius: 6px;
-            margin-top: 6px;
-            font-size: 0.82em;
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 7px 12px; background: white;
+            border: 1px solid var(--border-light); border-radius: 6px;
+            margin-top: 5px; font-size: 0.8em;
         }
         .samsara-file-item:hover { border-color: var(--primary); }
         .samsara-file-date { font-weight: 500; }
-        .samsara-file-card { color: var(--text-muted); font-size: 0.9em; font-family: monospace; }
+        .samsara-file-card { color: var(--text-muted); font-size: 0.88em; font-family: monospace; }
         .samsara-import-btn {
             background: var(--primary); color: white;
-            border: none; padding: 4px 12px; border-radius: 5px;
-            font-size: 0.82em; font-weight: 600;
+            border: none; padding: 3px 10px; border-radius: 5px;
+            font-size: 0.8em; font-weight: 600;
             cursor: pointer; font-family: inherit;
         }
         .samsara-import-btn:hover { background: var(--primary-dark); }
@@ -835,6 +845,25 @@
             text-align: center; padding: 24px;
             color: var(--text-muted); font-size: 0.88em;
         }
+        .samsara-status-bar {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 8px 14px; background: #f0f7ff; border-radius: 8px;
+            margin-bottom: 10px; font-size: 0.8em; color: var(--text-secondary);
+        }
+        .samsara-badge-new {
+            background: #dcfce7; color: #166534; padding: 1px 7px;
+            border-radius: 8px; font-size: 0.72em; font-weight: 600;
+        }
+        .dbx-search-wrap {
+            padding: 10px 16px 4px; position: sticky; top: 0;
+            background: white; z-index: 1;
+        }
+        .dbx-search {
+            width: 100%; padding: 8px 12px; border: 1.5px solid var(--border);
+            border-radius: 8px; font-family: inherit; font-size: 0.86em;
+            outline: none; transition: border-color 0.15s;
+        }
+        .dbx-search:focus { border-color: var(--primary); }
 
         tfoot td {
             font-weight: 700 !important;
@@ -888,7 +917,7 @@
             <input type="file" id="file-input" accept=".ddd,.DDD">
             <div class="history-section" id="history-section">
                 <div class="history-header">
-                    <div class="history-title">Ostatnio wgrane karty</div>
+                    <div class="history-title">Ostatnio pobrane karty</div>
                     <button class="history-clear" onclick="event.stopPropagation();clearHistory()">Wyczysc wszystko</button>
                 </div>
                 <div class="history-grid" id="history-list"></div>
@@ -982,13 +1011,16 @@
 
     <!-- Dropbox Browser Modal -->
     <div class="modal-overlay" id="dbx-browser-modal">
-        <div class="modal">
+        <div class="modal" style="width:600px">
             <div class="modal-header">
                 <h3>Importuj z Dropbox</h3>
                 <button class="modal-close" onclick="closeModal('dbx-browser-modal')">&times;</button>
             </div>
+            <div class="dbx-search-wrap">
+                <input type="text" class="dbx-search" id="dbx-search" placeholder="Filtruj pliki i foldery..." oninput="filterDropboxFiles()">
+            </div>
             <div class="modal-breadcrumb" id="dbx-breadcrumb"></div>
-            <div class="modal-body">
+            <div class="modal-body" style="max-height:55vh;overflow-y:auto">
                 <ul class="file-list" id="dbx-file-list"></ul>
             </div>
             <div class="modal-footer">
@@ -1036,12 +1068,19 @@
 
     <!-- Samsara Modal -->
     <div class="modal-overlay" id="samsara-modal">
-        <div class="modal" style="width:600px">
+        <div class="modal" style="width:660px">
             <div class="modal-header">
                 <h3>Samsara - Karty kierowcow</h3>
                 <button class="modal-close" onclick="closeModal('samsara-modal')">&times;</button>
             </div>
-            <div class="modal-body" id="samsara-modal-body" style="max-height:65vh;overflow-y:auto">
+            <div style="padding:12px 16px 0">
+                <input type="text" class="samsara-search" id="samsara-search" placeholder="Szukaj kierowcy..." oninput="filterSamsaraDrivers()">
+                <div class="samsara-status-bar" id="samsara-status-bar" style="display:none">
+                    <span id="samsara-status-text"></span>
+                    <button class="samsara-btn-sm samsara-btn-dbx" id="samsara-export-all-btn" onclick="exportAllSamsaraToDropbox()" style="display:none">Wszystko do Dropbox</button>
+                </div>
+            </div>
+            <div class="modal-body" id="samsara-modal-body" style="max-height:58vh;overflow-y:auto">
                 <div class="samsara-loading">Ladowanie kierowcow...</div>
             </div>
             <div class="modal-footer">
@@ -2087,8 +2126,10 @@
                         return;
                     }
                     list.innerHTML = '';
+                    document.getElementById('dbx-search').value = '';
                     for (const item of dddItems) {
                         const li = document.createElement('li');
+                        li.setAttribute('data-name', item.name);
                         if (item.type === 'folder') {
                             li.innerHTML = `<span class="icon">&#128193;</span><span class="name">${esc(item.name)}</span>`;
                             li.onclick = () => browsePath(item.path);
@@ -2203,6 +2244,7 @@
         // ===== Samsara Integration =====
         let samsaraConnected = false;
         let samsaraDrivers = [];
+        let samsaraLastCheck = null;
 
         function checkSamsaraStatus() {
             fetch('/samsara/status')
@@ -2220,6 +2262,7 @@
         }
 
         function openSamsaraModal() {
+            document.getElementById('samsara-search').value = '';
             openModal('samsara-modal');
             loadSamsaraDrivers();
         }
@@ -2236,10 +2279,24 @@
                         return;
                     }
                     samsaraDrivers = data.drivers || [];
+                    samsaraLastCheck = new Date();
                     if (samsaraDrivers.length === 0) {
                         body.innerHTML = '<div class="samsara-loading">Brak plikow tachografu w Samsara (ostatnie 90 dni)</div>';
+                        document.getElementById('samsara-status-bar').style.display = 'none';
                         return;
                     }
+
+                    // Status bar
+                    const totalFiles = samsaraDrivers.reduce((s, d) => s + d.file_count, 0);
+                    const statusBar = document.getElementById('samsara-status-bar');
+                    statusBar.style.display = 'flex';
+                    document.getElementById('samsara-status-text').textContent =
+                        `${samsaraDrivers.length} kierowcow, ${totalFiles} plikow (90 dni)`;
+
+                    // Show "export all to Dropbox" if Dropbox is connected
+                    const exportAllBtn = document.getElementById('samsara-export-all-btn');
+                    exportAllBtn.style.display = dbxConnected ? 'inline-block' : 'none';
+
                     renderSamsaraDrivers(body);
                 })
                 .catch(err => {
@@ -2247,18 +2304,38 @@
                 });
         }
 
+        function filterSamsaraDrivers() {
+            const q = document.getElementById('samsara-search').value.toLowerCase().trim();
+            document.querySelectorAll('.samsara-driver-item').forEach((el, i) => {
+                const filesEl = document.getElementById(`samsara-files-${i}`);
+                const name = el.getAttribute('data-name') || '';
+                const match = !q || name.toLowerCase().includes(q);
+                el.style.display = match ? '' : 'none';
+                if (filesEl && !match) { filesEl.classList.remove('open'); el.classList.remove('expanded'); }
+            });
+        }
+
         function renderSamsaraDrivers(container) {
             let html = '<ul class="samsara-driver-list">';
             for (let di = 0; di < samsaraDrivers.length; di++) {
                 const d = samsaraDrivers[di];
                 const latestDate = d.latest_file ? new Date(d.latest_file).toLocaleDateString('pl-PL') : '';
+                const fileWord = d.file_count === 1 ? 'plik' : (d.file_count < 5 ? 'pliki' : 'plikow');
                 html += `
-                    <li class="samsara-driver-item" onclick="toggleSamsaraDriver(this, ${di})">
-                        <div class="samsara-driver-name">
-                            <span>${esc(d.name)}</span>
-                            <span class="samsara-file-count">${d.file_count} plikow</span>
+                    <li class="samsara-driver-item" data-name="${esc(d.name)}" onclick="toggleSamsaraDriver(this, ${di})">
+                        <div class="samsara-driver-top">
+                            <div>
+                                <div class="samsara-driver-name">
+                                    <span>${esc(d.name)}</span>
+                                    <span class="samsara-file-count">${d.file_count} ${fileWord}</span>
+                                </div>
+                                <div class="samsara-driver-meta">Ostatni: ${latestDate}</div>
+                            </div>
+                            <div class="samsara-driver-actions" onclick="event.stopPropagation()">
+                                <button class="samsara-btn-sm samsara-btn-analyze" onclick="importSamsaraLatest(${di})" title="Analizuj najnowszy plik">Analizuj</button>
+                                ${dbxConnected ? `<button class="samsara-btn-sm samsara-btn-dbx" onclick="exportDriverToDropbox(${di}, this)" title="Eksportuj pliki do Dropbox">Do Dropbox</button>` : ''}
+                            </div>
                         </div>
-                        <div class="samsara-driver-meta">Ostatni plik: ${latestDate}</div>
                     </li>
                     <div class="samsara-files-list" id="samsara-files-${di}"></div>
                 `;
@@ -2282,7 +2359,8 @@
 
             const driver = samsaraDrivers[driverIndex];
             let html = '';
-            for (const f of driver.files) {
+            for (let fi = 0; fi < driver.files.length; fi++) {
+                const f = driver.files[fi];
                 const created = f.created_at ? new Date(f.created_at) : null;
                 const dateStr = created ? created.toLocaleDateString('pl-PL') + ' ' + created.toLocaleTimeString('pl-PL', {hour:'2-digit',minute:'2-digit'}) : '?';
                 html += `
@@ -2291,17 +2369,29 @@
                             <div class="samsara-file-date">${dateStr}</div>
                             ${f.card_number ? `<div class="samsara-file-card">${esc(f.card_number)}</div>` : ''}
                         </div>
-                        <button class="samsara-import-btn" onclick="event.stopPropagation();importSamsaraFile(this, '${f.url.replace(/'/g, "\\'")}', '${esc(driver.name)}')">Importuj</button>
+                        <button class="samsara-import-btn" onclick="event.stopPropagation();importSamsaraFile(this, ${driverIndex}, ${fi})">Analizuj</button>
                     </div>
                 `;
             }
             filesList.innerHTML = html;
         }
 
-        function importSamsaraFile(btn, url, driverName) {
-            btn.disabled = true;
-            btn.textContent = 'Importowanie...';
+        function importSamsaraLatest(driverIndex) {
+            const driver = samsaraDrivers[driverIndex];
+            if (!driver || !driver.files.length) return;
+            const f = driver.files[0]; // latest
+            doSamsaraImport(f.url, driver.name);
+        }
 
+        function importSamsaraFile(btn, driverIndex, fileIndex) {
+            const driver = samsaraDrivers[driverIndex];
+            const f = driver.files[fileIndex];
+            btn.disabled = true;
+            btn.textContent = 'Ladowanie...';
+            doSamsaraImport(f.url, driver.name);
+        }
+
+        function doSamsaraImport(url, driverName) {
             closeModal('samsara-modal');
             uploadArea.style.display = 'none';
             loading.style.display = 'block';
@@ -2312,7 +2402,7 @@
             fetch('/samsara/import', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ url: url }),
+                body: JSON.stringify({ url }),
             })
                 .then(r => r.json())
                 .then(data => {
@@ -2324,6 +2414,89 @@
                     loading.style.display = 'none';
                     showError('Blad importu Samsara: ' + err.message);
                 });
+        }
+
+        function exportDriverToDropbox(driverIndex, btn) {
+            const driver = samsaraDrivers[driverIndex];
+            if (!driver) return;
+            btn.disabled = true;
+            const origText = btn.textContent;
+            btn.textContent = 'Eksport...';
+
+            fetch('/samsara/export-to-dropbox', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    driver_name: driver.name,
+                    files: driver.files,
+                    dest_folder: '/Samsara-DDD',
+                }),
+            })
+                .then(r => r.json())
+                .then(data => {
+                    btn.disabled = false;
+                    if (data.error) {
+                        btn.textContent = 'Blad!';
+                        setTimeout(() => { btn.textContent = origText; }, 2000);
+                        return;
+                    }
+                    btn.textContent = `${data.uploaded}/${data.total}`;
+                    btn.style.background = '#16a34a';
+                    setTimeout(() => { btn.textContent = origText; btn.style.background = ''; }, 3000);
+                })
+                .catch(() => {
+                    btn.disabled = false;
+                    btn.textContent = origText;
+                });
+        }
+
+        function exportAllSamsaraToDropbox() {
+            const btn = document.getElementById('samsara-export-all-btn');
+            btn.disabled = true;
+            btn.textContent = 'Eksportowanie...';
+
+            let completed = 0;
+            const total = samsaraDrivers.length;
+
+            const doNext = (i) => {
+                if (i >= total) {
+                    btn.textContent = 'Gotowe!';
+                    btn.style.background = '#16a34a';
+                    setTimeout(() => { btn.disabled = false; btn.textContent = 'Wszystko do Dropbox'; btn.style.background = ''; }, 3000);
+                    return;
+                }
+                const driver = samsaraDrivers[i];
+                fetch('/samsara/export-to-dropbox', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        driver_name: driver.name,
+                        files: driver.files,
+                        dest_folder: '/Samsara-DDD',
+                    }),
+                })
+                    .then(r => r.json())
+                    .then(() => {
+                        completed++;
+                        btn.textContent = `${completed}/${total} kierowcow...`;
+                        doNext(i + 1);
+                    })
+                    .catch(() => doNext(i + 1));
+            };
+            doNext(0);
+        }
+
+        // ===== Dropbox search filter =====
+        let dbxAllItems = [];
+
+        function filterDropboxFiles() {
+            const q = document.getElementById('dbx-search').value.toLowerCase().trim();
+            const list = document.getElementById('dbx-file-list');
+            const items = list.querySelectorAll('li');
+            items.forEach(li => {
+                const name = (li.getAttribute('data-name') || '').toLowerCase();
+                li.style.display = (!q || name.includes(q)) ? '' : 'none';
+            });
         }
 
         // Init
