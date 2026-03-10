@@ -202,9 +202,6 @@ def calculate_shift_night_hours(intervals, shift_start):
     night_40_sec = 0
 
     for start_dt, end_dt, work_type in intervals:
-        if work_type == 0:
-            continue
-
         current = start_dt
         while current < end_dt:
             day_base = current.replace(hour=0, minute=0, second=0, microsecond=0)
