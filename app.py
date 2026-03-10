@@ -115,7 +115,7 @@ def build_timeline(records):
         date_str = record.get('activity_record_date')
         if not date_str:
             continue
-        base_date = datetime.strptime(date_str, '%Y-%m-%d')
+        base_date = datetime.strptime(date_str[:10], '%Y-%m-%d')
         changes = record.get('activity_change_info', [])
         for i, change in enumerate(changes):
             start_min = change['minutes']
