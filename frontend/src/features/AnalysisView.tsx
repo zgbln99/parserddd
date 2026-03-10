@@ -150,11 +150,13 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
         </div>
         <div className="rounded-xl border border-violet-200 bg-violet-50 p-4 text-center dark:border-violet-800 dark:bg-violet-900/30">
           <p className="text-[0.65rem] font-bold uppercase tracking-wider text-violet-500 dark:text-violet-400">{t('analysisNight25')}</p>
-          <p className="mt-1 text-2xl font-extrabold text-violet-700 dark:text-violet-300">{fmtNight(s.night_25_minutes, s.night_25_hm)}</p>
+          <p className="mt-1 text-2xl font-extrabold text-violet-700 dark:text-violet-300">{(s.night_25_minutes / 60).toFixed(2)}</p>
+          <p className="mt-0.5 text-xs text-violet-500/70 dark:text-violet-400/70">{s.night_25_hm}</p>
         </div>
         <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-4 text-center dark:border-indigo-800 dark:bg-indigo-900/30">
           <p className="text-[0.65rem] font-bold uppercase tracking-wider text-indigo-500 dark:text-indigo-400">{t('analysisNight40')}</p>
-          <p className="mt-1 text-2xl font-extrabold text-indigo-700 dark:text-indigo-300">{fmtNight(s.night_40_minutes, s.night_40_hm)}</p>
+          <p className="mt-1 text-2xl font-extrabold text-indigo-700 dark:text-indigo-300">{(s.night_40_minutes / 60).toFixed(2)}</p>
+          <p className="mt-0.5 text-xs text-indigo-500/70 dark:text-indigo-400/70">{s.night_40_hm}</p>
         </div>
         <div className="rounded-xl border border-green-200 bg-green-50 p-4 text-center dark:border-green-800 dark:bg-green-900/30">
           <p className="text-[0.65rem] font-bold uppercase tracking-wider text-green-500 dark:text-green-400">{t('analysisDietCount')}</p>
