@@ -113,15 +113,13 @@ def is_working_at_midnight(intervals):
 
 
 def get_morning_continuation(intervals):
-    """Get work intervals from 00:00 until first break (max 06:00).
-    Returns the morning work intervals that are part of previous day's shift."""
+    """Get work intervals from 00:00 until first break on the next day.
+    Returns work intervals that are part of previous day's shift."""
     morning = []
     for start, end, work_type in intervals:
-        if start >= 360:  # past 06:00 - no more night hours
-            break
         if work_type == 0:  # break - shift ended
             break
-        morning.append((start, min(end, 360), work_type))
+        morning.append((start, end, work_type))
     return morning
 
 
@@ -167,13 +165,23 @@ def get_vehicle_records(data):
     return vehicles
 
 
+def parse_date_safe(date_str):
+    """Parse a date string safely, handling various formats."""
+    if not date_str:
+        return None
+    try:
+        return datetime.strptime(date_str[:10], '%Y-%m-%d').date()
+    except (ValueError, TypeError):
+        return None
+
+
 def analyze_card(data):
     """Analyze driver card data and return summary statistics.
 
-    Night hours logic: if a driver works through midnight (shift continues
-    from day N into day N+1), the morning hours (00:00-06:00) of day N+1
-    are attributed to day N's shift. This prevents splitting a single
-    night shift across two calendar days.
+    Shift-based logic: if a driver works through midnight (shift continues
+    from day N into day N+1), the morning continuation on day N+1 (until
+    first break) is attributed to day N's shift for both work time and
+    night hours.
     """
     driver_info = get_driver_info(data)
     records = get_activity_records(data)
@@ -197,8 +205,9 @@ def analyze_card(data):
 
     day_dates.sort()
 
-    # Track which days had their morning hours "borrowed" by previous day
-    morning_borrowed = set()
+    # Track morning data borrowed by previous day's shift
+    # morning_borrowed[date] = work_minutes borrowed
+    morning_borrowed = {}
 
     daily_details = []
     total_work_minutes = 0
@@ -209,10 +218,14 @@ def analyze_card(data):
     for i, date_str in enumerate(day_dates):
         intervals = day_intervals[date_str]
 
-        # Total work for the day (work_type 1, 2, 3)
+        # Base work for this calendar day (work_type 1, 2, 3)
         day_work_minutes = sum(
             end - start for start, end, wt in intervals if wt > 0
         )
+
+        # Subtract morning minutes that were borrowed by previous day
+        if date_str in morning_borrowed:
+            day_work_minutes -= morning_borrowed[date_str]
 
         # Night hours from THIS day's evening (22:00-00:00)
         night_25, _ = calc_night_overlap(intervals, NIGHT_25_EVENING, [])
@@ -220,17 +233,15 @@ def analyze_card(data):
         # Night hours from THIS day's morning (00:00-06:00)
         # Only count if NOT already borrowed by previous day's shift
         night_40 = 0
-        morning_n25 = 0
         if date_str not in morning_borrowed:
             morning_n25, night_40 = calc_night_overlap(
                 intervals, NIGHT_25_MORNING, NIGHT_40_RANGES
             )
             night_25 += morning_n25
 
-        # If work continues at midnight, borrow next day's morning hours
+        # If work continues at midnight, borrow next day's morning
         if is_working_at_midnight(intervals) and i + 1 < len(day_dates):
             next_date = day_dates[i + 1]
-            # Check next day is actually the next calendar day
             try:
                 curr = datetime.strptime(date_str, '%Y-%m-%d')
                 nxt = datetime.strptime(next_date, '%Y-%m-%d')
@@ -238,12 +249,23 @@ def analyze_card(data):
                     next_intervals = day_intervals[next_date]
                     morning = get_morning_continuation(next_intervals)
                     if morning:
+                        # Borrow work time
+                        borrowed_work = sum(
+                            end - start for start, end, wt in morning if wt > 0
+                        )
+                        day_work_minutes += borrowed_work
+                        morning_borrowed[next_date] = borrowed_work
+
+                        # Borrow night hours (only 00:00-06:00 portion)
+                        morning_night = [
+                            (s, min(e, 360), wt)
+                            for s, e, wt in morning if s < 360
+                        ]
                         mn25, mn40 = calc_night_overlap(
-                            morning, NIGHT_25_MORNING, NIGHT_40_RANGES
+                            morning_night, NIGHT_25_MORNING, NIGHT_40_RANGES
                         )
                         night_25 += mn25
                         night_40 += mn40
-                        morning_borrowed.add(next_date)
             except ValueError:
                 pass
 
@@ -255,10 +277,13 @@ def analyze_card(data):
             diet_count += 1
 
         # Find vehicle(s) used on this day
+        day_date = parse_date_safe(date_str)
         day_plates = []
         for v in vehicles:
-            if v['first_use'] and v['last_use']:
-                if v['first_use'][:10] <= date_str <= v['last_use'][:10]:
+            v_start = parse_date_safe(v.get('first_use', ''))
+            v_end = parse_date_safe(v.get('last_use', ''))
+            if v_start and v_end and day_date:
+                if v_start <= day_date <= v_end:
                     day_plates.append(v['plate'])
         seen_plates = set()
         unique_plates = []
