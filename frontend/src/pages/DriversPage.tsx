@@ -23,16 +23,18 @@ export function DriversPage() {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [page, setPage] = useState(1);
 
-  // Detail panel
+  // Driver files modal
   const [selectedDriver, setSelectedDriver] = useState<Driver | null>(null);
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
 
   // Analysis modal
   const [analysisOpen, setAnalysisOpen] = useState(false);
   const [analysisData, setAnalysisData] = useState<AnalysisResult | null>(null);
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [analysisTitle, setAnalysisTitle] = useState('');
+
+  // Date filter for analysis (shifts), not files
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
 
   const load = useCallback((refresh = false) => {
     setLoading(true);
@@ -79,24 +81,15 @@ export function DriversPage() {
 
   const openDriver = (d: Driver) => {
     setSelectedDriver(d);
-    setDateFrom(d.earliest_date || '');
-    setDateTo(d.latest_date || '');
   };
-
-  const filteredFiles = useMemo(() => {
-    if (!selectedDriver) return [];
-    return selectedDriver.files.filter((f) => {
-      if (dateFrom && f.file_date < dateFrom) return false;
-      if (dateTo && f.file_date > dateTo) return false;
-      return true;
-    });
-  }, [selectedDriver, dateFrom, dateTo]);
 
   const analyzeFile = async (f: DriverFile) => {
     setAnalysisTitle(f.name);
     setAnalysisData(null);
     setAnalysisLoading(true);
     setAnalysisOpen(true);
+    setDateFrom('');
+    setDateTo('');
     try {
       const result = await analyzeDropboxFile(f.path);
       setAnalysisData(result);
@@ -241,50 +234,14 @@ export function DriversPage() {
         </Card>
       )}
 
-      {/* Driver detail panel */}
-      {selectedDriver && (
-        <Card className="mt-4">
-          <div className="flex flex-wrap items-center gap-3 border-b border-gray-100 px-5 py-4 dark:border-gray-800">
-            <h3 className="text-sm font-bold">
-              {selectedDriver.name}
-              {selectedDriver.card_number && (
-                <span className="ml-2 font-mono text-xs text-gray-400">({selectedDriver.card_number})</span>
-              )}
-            </h3>
-            <div className="flex-1" />
-            <label className="text-xs text-gray-500 dark:text-gray-400">{t('detailFrom')}:</label>
-            <input
-              type="date"
-              value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-              className="rounded-lg border border-gray-200 px-2 py-1 text-xs dark:border-gray-700 dark:bg-gray-800"
-            />
-            <label className="text-xs text-gray-500 dark:text-gray-400">{t('detailTo')}:</label>
-            <input
-              type="date"
-              value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
-              className="rounded-lg border border-gray-200 px-2 py-1 text-xs dark:border-gray-700 dark:bg-gray-800"
-            />
-            <button
-              onClick={() => { setDateFrom(''); setDateTo(''); }}
-              className="text-xs text-gray-400 hover:text-gray-600"
-            >
-              {t('clear')}
-            </button>
-            <button
-              onClick={() => setSelectedDriver(null)}
-              className="rounded-lg border border-gray-200 px-3 py-1 text-xs font-medium hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
-            >
-              {t('close')}
-            </button>
-          </div>
-
-          <div className="max-h-[400px] divide-y divide-gray-50 overflow-y-auto dark:divide-gray-800">
-            {filteredFiles.length === 0 ? (
+      {/* Driver files modal - all files shown, no date filtering */}
+      <Modal open={!!selectedDriver} onClose={() => setSelectedDriver(null)} title={selectedDriver ? `${selectedDriver.name}${selectedDriver.card_number ? ` (${selectedDriver.card_number})` : ''}` : ''} wide>
+        {selectedDriver && (
+          <div className="max-h-[60vh] divide-y divide-gray-50 overflow-y-auto dark:divide-gray-800">
+            {selectedDriver.files.length === 0 ? (
               <p className="py-10 text-center text-sm text-gray-400">{t('detailNoFiles')}</p>
             ) : (
-              filteredFiles.map((f) => (
+              selectedDriver.files.map((f) => (
                 <div
                   key={f.path}
                   className="flex cursor-pointer items-center gap-3 px-5 py-3 text-sm transition hover:bg-gray-50 dark:hover:bg-gray-800/50"
@@ -304,10 +261,10 @@ export function DriversPage() {
               ))
             )}
           </div>
-        </Card>
-      )}
+        )}
+      </Modal>
 
-      {/* Analysis modal */}
+      {/* Analysis modal with date filter for shifts */}
       <Modal open={analysisOpen} onClose={() => setAnalysisOpen(false)} title={analysisTitle} wide>
         {analysisLoading && (
           <div className="flex flex-col items-center gap-3 py-12 text-gray-400">
@@ -319,7 +276,7 @@ export function DriversPage() {
           <p className="py-8 text-center text-red-500">{analysisData.error}</p>
         )}
         {!analysisLoading && analysisData && !analysisData.error && (
-          <AnalysisView data={analysisData} />
+          <AnalysisView data={analysisData} dateFrom={dateFrom} dateTo={dateTo} onDateFromChange={setDateFrom} onDateToChange={setDateTo} />
         )}
       </Modal>
     </div>

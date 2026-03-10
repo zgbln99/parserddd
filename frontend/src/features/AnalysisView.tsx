@@ -1,24 +1,98 @@
+import { useMemo } from 'react';
 import { useI18n } from '../i18n';
 import { formatDate } from '../lib/format';
 import { exportCsv } from '../lib/api';
 import { Badge } from '../components/Badge';
 import { Download } from 'lucide-react';
-import type { AnalysisResult } from '../types';
+import type { AnalysisResult, ShiftDetail } from '../types';
 
 function fmtNight(minutes: number, hm: string) {
   const decimal = (minutes / 60).toFixed(2);
   return `${decimal} (${hm})`;
 }
 
-export function AnalysisView({ data }: { data: AnalysisResult }) {
+function minutesToHm(minutes: number) {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return `${h}:${String(m).padStart(2, '0')}`;
+}
+
+function minutesToDecimal(minutes: number) {
+  return (minutes / 60).toFixed(2);
+}
+
+interface AnalysisViewProps {
+  data: AnalysisResult;
+  dateFrom?: string;
+  dateTo?: string;
+  onDateFromChange?: (v: string) => void;
+  onDateToChange?: (v: string) => void;
+}
+
+export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateToChange }: AnalysisViewProps) {
   const { t, locale } = useI18n();
   const di = data.driver_info;
-  const s = data.summary;
-  const shifts = data.shift_details;
+  const allShifts = data.shift_details;
+
+  // Filter shifts by date range
+  const shifts = useMemo(() => {
+    if (!dateFrom && !dateTo) return allShifts;
+    return allShifts.filter((sh) => {
+      const shiftDate = sh.shift_date; // YYYY-MM-DD
+      if (dateFrom && shiftDate < dateFrom) return false;
+      if (dateTo && shiftDate > dateTo) return false;
+      return true;
+    });
+  }, [allShifts, dateFrom, dateTo]);
+
+  // Recalculate summary based on filtered shifts
+  const s = useMemo(() => {
+    if (!dateFrom && !dateTo) return data.summary;
+
+    let totalWork = 0, totalDriving = 0, totalBreak = 0, totalAvail = 0;
+    let night25 = 0, night40 = 0, dietCount = 0;
+
+    for (const sh of shifts) {
+      totalWork += sh.work_minutes;
+      totalDriving += sh.driving_minutes;
+      totalBreak += sh.break_minutes;
+      totalAvail += sh.avail_minutes;
+      night25 += sh.night_25_minutes;
+      night40 += sh.night_40_minutes;
+      if (sh.has_diet) dietCount++;
+    }
+
+    const totalNight = night25 + night40;
+
+    return {
+      total_work_hm: minutesToHm(totalWork),
+      total_work_decimal: parseFloat(minutesToDecimal(totalWork)),
+      total_work_minutes: totalWork,
+      total_driving_hm: minutesToHm(totalDriving),
+      total_driving_minutes: totalDriving,
+      total_break_hm: minutesToHm(totalBreak),
+      total_break_minutes: totalBreak,
+      total_avail_hm: minutesToHm(totalAvail),
+      total_avail_minutes: totalAvail,
+      night_25_hm: minutesToHm(night25),
+      night_25_decimal: parseFloat(minutesToDecimal(night25)),
+      night_25_minutes: night25,
+      night_40_hm: minutesToHm(night40),
+      night_40_decimal: parseFloat(minutesToDecimal(night40)),
+      night_40_minutes: night40,
+      total_night_hm: minutesToHm(totalNight),
+      total_night_decimal: parseFloat(minutesToDecimal(totalNight)),
+      total_night_minutes: totalNight,
+      diet_count: dietCount,
+      total_shifts: shifts.length,
+    };
+  }, [data.summary, shifts, dateFrom, dateTo]);
 
   const handleExport = () => {
     exportCsv(di.driver_name || 'driver', shifts);
   };
+
+  const hasDateFilter = onDateFromChange && onDateToChange;
 
   return (
     <div className="space-y-5">
@@ -33,6 +107,35 @@ export function AnalysisView({ data }: { data: AnalysisResult }) {
           <div>{t('analysisValidUntil')}: {formatDate(di.card_expiry_date, locale)}</div>
         </div>
       </div>
+
+      {/* Date filter */}
+      {hasDateFilter && (
+        <div className="flex flex-wrap items-center gap-3 rounded-xl bg-gray-50 px-4 py-3 dark:bg-gray-800">
+          <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">{t('search')}:</span>
+          <label className="text-xs text-gray-500 dark:text-gray-400">{t('detailFrom')}:</label>
+          <input
+            type="date"
+            value={dateFrom || ''}
+            onChange={(e) => onDateFromChange(e.target.value)}
+            className="rounded-lg border border-gray-200 px-2 py-1 text-xs dark:border-gray-700 dark:bg-gray-900"
+          />
+          <label className="text-xs text-gray-500 dark:text-gray-400">{t('detailTo')}:</label>
+          <input
+            type="date"
+            value={dateTo || ''}
+            onChange={(e) => onDateToChange(e.target.value)}
+            className="rounded-lg border border-gray-200 px-2 py-1 text-xs dark:border-gray-700 dark:bg-gray-900"
+          />
+          {(dateFrom || dateTo) && (
+            <button
+              onClick={() => { onDateFromChange(''); onDateToChange(''); }}
+              className="text-xs text-gray-400 hover:text-gray-600"
+            >
+              {t('clear')}
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Summary grid */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -91,6 +194,10 @@ export function AnalysisView({ data }: { data: AnalysisResult }) {
             </tbody>
           </table>
         </div>
+      )}
+
+      {shifts.length === 0 && (
+        <p className="py-8 text-center text-sm text-gray-400">{t('noData')}</p>
       )}
 
       {/* Export */}
