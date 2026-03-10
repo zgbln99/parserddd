@@ -186,9 +186,9 @@ def detect_shifts(all_intervals, min_rest_hours=9):
 def calculate_shift_night_hours(intervals, shift_start):
     """Calculate night 25% and 40% hours for shift intervals.
 
-    Night ranges (only for work_type > 0):
-      - 20:00-06:00 is the full night window
-      - 20:00-24:00 => always 25%
+    Night ranges (all activity types including breaks):
+      - 22:00-06:00 is the full night window
+      - 22:00-24:00 => always 25%
       - 00:00-04:00 => 40% if shift started before midnight, else 25%
       - 04:00-06:00 => always 25%
       - A given minute is either 25% or 40%, never both
@@ -202,14 +202,17 @@ def calculate_shift_night_hours(intervals, shift_start):
     night_40_sec = 0
 
     for start_dt, end_dt, work_type in intervals:
+        if work_type == 0:
+            continue
+
         current = start_dt
         while current < end_dt:
             day_base = current.replace(hour=0, minute=0, second=0, microsecond=0)
             next_day = day_base + timedelta(days=1)
             chunk_end = min(end_dt, next_day)
 
-            # 20:00-00:00 => always 25%
-            nr_start = day_base + timedelta(hours=20)
+            # 22:00-00:00 => always 25%
+            nr_start = day_base + timedelta(hours=22)
             nr_end = day_base + timedelta(hours=24)
             o_start = max(current, nr_start)
             o_end = min(chunk_end, nr_end)
