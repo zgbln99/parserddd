@@ -92,6 +92,7 @@ export const de: Record<TranslationKey, string> = {
   analysisExportCsv: 'CSV-Export',
   analysisTotalShifts: 'Schichten gesamt',
   analysisDietCount: 'Verpflegungspauschalen',
+  analysisDateFilter: 'Schichten filtern',
 
   // Reader
   readerTitle: 'DDD-Kartenleser',

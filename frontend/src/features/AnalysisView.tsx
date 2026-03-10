@@ -111,7 +111,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
       {/* Date filter */}
       {hasDateFilter && (
         <div className="flex flex-wrap items-center gap-3 rounded-xl bg-gray-50 px-4 py-3 dark:bg-gray-800">
-          <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">{t('search')}:</span>
+          <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">{t('analysisDateFilter')}:</span>
           <label className="text-xs text-gray-500 dark:text-gray-400">{t('detailFrom')}:</label>
           <input
             type="date"

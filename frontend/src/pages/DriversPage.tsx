@@ -84,6 +84,8 @@ export function DriversPage() {
   };
 
   const analyzeFile = async (f: DriverFile) => {
+    // Close files modal first so analysis opens cleanly on top
+    setSelectedDriver(null);
     setAnalysisTitle(f.name);
     setAnalysisData(null);
     setAnalysisLoading(true);

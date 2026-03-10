@@ -90,6 +90,7 @@ export const pl = {
   analysisExportCsv: 'Eksport CSV',
   analysisTotalShifts: 'Łącznie zmian',
   analysisDietCount: 'Diety',
+  analysisDateFilter: 'Filtruj zmiany',
 
   // Reader
   readerTitle: 'Czytnik kart DDD',
