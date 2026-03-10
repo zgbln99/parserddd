@@ -175,13 +175,21 @@ def detect_shifts(all_intervals, min_rest_hours=9):
     return shifts
 
 
-def calculate_shift_night_hours(intervals):
-    """Calculate night 25% and 40% hours for shift intervals using actual clock times.
+def calculate_shift_night_hours(intervals, shift_start):
+    """Calculate night 25% and 40% hours for shift intervals.
 
-    Night 25%: 22:00-00:00 and 04:00-06:00
-    Night 40%: 00:00-04:00
-    Only counts work types > 0 (not breaks).
+    Night ranges (only for work_type > 0):
+      - 22:00-06:00 is the full night window
+      - 00:00-04:00 gets 40% ONLY if shift started before midnight
+      - Otherwise 00:00-04:00 gets 25%
+      - 22:00-00:00 and 04:00-06:00 always get 25%
+      - A given minute is either 25% or 40%, never both
+
+    Returns (night_25_minutes, night_40_minutes).
     """
+    # Determine if shift started before midnight (evening shift)
+    shift_started_before_midnight = shift_start.hour >= 12
+
     night_25_sec = 0
     night_40_sec = 0
 
@@ -195,22 +203,33 @@ def calculate_shift_night_hours(intervals):
             next_day = day_base + timedelta(days=1)
             chunk_end = min(end_dt, next_day)
 
-            # Night 25%: 22:00-00:00 and 04:00-06:00
-            for h_start, h_end in [(22, 24), (4, 6)]:
-                nr_start = day_base + timedelta(hours=h_start)
-                nr_end = day_base + timedelta(hours=h_end)
-                o_start = max(current, nr_start)
-                o_end = min(chunk_end, nr_end)
-                if o_end > o_start:
-                    night_25_sec += (o_end - o_start).total_seconds()
+            # 22:00-00:00 => always 25%
+            nr_start = day_base + timedelta(hours=22)
+            nr_end = day_base + timedelta(hours=24)
+            o_start = max(current, nr_start)
+            o_end = min(chunk_end, nr_end)
+            if o_end > o_start:
+                night_25_sec += (o_end - o_start).total_seconds()
 
-            # Night 40%: 00:00-04:00
+            # 00:00-04:00 => 40% if shift started before midnight, else 25%
             nr_start = day_base
             nr_end = day_base + timedelta(hours=4)
             o_start = max(current, nr_start)
             o_end = min(chunk_end, nr_end)
             if o_end > o_start:
-                night_40_sec += (o_end - o_start).total_seconds()
+                secs = (o_end - o_start).total_seconds()
+                if shift_started_before_midnight:
+                    night_40_sec += secs
+                else:
+                    night_25_sec += secs
+
+            # 04:00-06:00 => always 25%
+            nr_start = day_base + timedelta(hours=4)
+            nr_end = day_base + timedelta(hours=6)
+            o_start = max(current, nr_start)
+            o_end = min(chunk_end, nr_end)
+            if o_end > o_start:
+                night_25_sec += (o_end - o_start).total_seconds()
 
             current = next_day
 
@@ -254,14 +273,15 @@ def analyze_card(data):
         # Duration (start to end including breaks)
         duration_minutes = int(round((shift_end - shift_start).total_seconds() / 60))
 
-        # Night hours
-        night_25, night_40 = calculate_shift_night_hours(shift_intervals)
+        # Night hours (40% only if shift started before midnight)
+        night_25, night_40 = calculate_shift_night_hours(shift_intervals, shift_start)
 
         total_work_minutes += work_minutes
         total_night_25_minutes += night_25
         total_night_40_minutes += night_40
 
-        if work_minutes > 8 * 60:
+        # Diet based on shift DURATION (not work time)
+        if duration_minutes > 8 * 60:
             diet_count += 1
 
         # Find vehicles used during this shift
@@ -294,7 +314,7 @@ def analyze_card(data):
             'night_25_hm': minutes_to_hm(night_25),
             'night_40_minutes': night_40,
             'night_40_hm': minutes_to_hm(night_40),
-            'has_diet': work_minutes > 8 * 60,
+            'has_diet': duration_minutes > 8 * 60,
             'vehicles': unique_plates,
         })
 
