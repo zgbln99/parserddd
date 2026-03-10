@@ -2503,6 +2503,29 @@
         checkDropboxStatus();
         checkSamsaraStatus();
         renderHistory();
+
+        // Auto-import from Dropbox if dbx_path param is present (from portal)
+        (function() {
+            const params = new URLSearchParams(window.location.search);
+            const dbxPath = params.get('dbx_path');
+            if (dbxPath) {
+                uploadArea.style.display = 'none';
+                loading.style.display = 'block';
+                fetch('/portal/download?path=' + encodeURIComponent(dbxPath))
+                    .then(r => r.json())
+                    .then(data => {
+                        loading.style.display = 'none';
+                        if (data.error) { showError(data.error); return; }
+                        addCard(data);
+                    })
+                    .catch(err => {
+                        loading.style.display = 'none';
+                        showError('Blad importu: ' + err.message);
+                    });
+                // Clean URL
+                history.replaceState(null, '', '/reader');
+            }
+        })();
     </script>
 </body>
 </html>

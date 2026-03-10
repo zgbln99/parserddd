@@ -732,24 +732,7 @@
         }
 
         function analyzeFile(path, name) {
-            const modal = document.getElementById('analysis-modal');
-            const body = document.getElementById('analysis-body');
-            document.getElementById('analysis-title').textContent = 'Analiza: ' + name;
-            body.innerHTML = '<div class="loading-state"><div class="spinner"></div><div>Analizowanie pliku...</div></div>';
-            modal.classList.add('open');
-
-            fetch('/portal/download?path=' + encodeURIComponent(path))
-                .then(r => r.json())
-                .then(data => {
-                    if (data.error) {
-                        body.innerHTML = '<div style="color:#ef4444;padding:20px">' + escHtml(data.error) + '</div>';
-                        return;
-                    }
-                    renderAnalysis(body, data);
-                })
-                .catch(err => {
-                    body.innerHTML = '<div style="color:#ef4444;padding:20px">Blad: ' + escHtml(err.message) + '</div>';
-                });
+            window.location = '/reader?dbx_path=' + encodeURIComponent(path);
         }
 
         function renderAnalysis(container, data) {
