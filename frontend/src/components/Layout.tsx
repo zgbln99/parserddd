@@ -1,8 +1,9 @@
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, FileText, RefreshCw, Sun, Moon, Globe, LogOut } from 'lucide-react';
+import { LayoutDashboard, Users, FileText, RefreshCw, Sun, Moon, Globe, LogOut, Calendar, X } from 'lucide-react';
 import { useI18n, type Locale } from '../i18n';
 import { useTheme } from '../hooks/useTheme';
 import { useAuth } from '../hooks/useAuth';
+import { useDateFilter } from '../hooks/useDateFilter';
 import { clsx } from 'clsx';
 import type { ReactNode } from 'react';
 
@@ -17,6 +18,7 @@ export function Layout({ children }: { children: ReactNode }) {
   const { t, locale, setLocale } = useI18n();
   const { theme, toggle } = useTheme();
   const { logout } = useAuth();
+  const { dateFrom, dateTo, setDateFrom, setDateTo, clear } = useDateFilter();
   const navigate = useNavigate();
 
   const handleLogout = async () => {
@@ -113,6 +115,37 @@ export function Layout({ children }: { children: ReactNode }) {
           ))}
         </nav>
       </header>
+
+      {/* Global date filter bar */}
+      <div className="border-b border-gray-100 bg-gray-50/80 backdrop-blur-sm dark:border-gray-800 dark:bg-gray-900/80">
+        <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-2 sm:px-6">
+          <Calendar size={14} className="text-gray-400" />
+          <span className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('globalDateFilter')}:</span>
+          <label className="text-xs text-gray-500 dark:text-gray-400">{t('detailFrom')}:</label>
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+            className="rounded-lg border border-gray-200 px-2 py-1 text-xs outline-none transition focus:border-primary-400 focus:ring-1 focus:ring-primary-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:[color-scheme:dark]"
+          />
+          <label className="text-xs text-gray-500 dark:text-gray-400">{t('detailTo')}:</label>
+          <input
+            type="date"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+            className="rounded-lg border border-gray-200 px-2 py-1 text-xs outline-none transition focus:border-primary-400 focus:ring-1 focus:ring-primary-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:[color-scheme:dark]"
+          />
+          {(dateFrom || dateTo) && (
+            <button
+              onClick={clear}
+              className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-red-500 transition hover:bg-red-50 dark:hover:bg-red-900/20"
+            >
+              <X size={12} />
+              {t('clear')}
+            </button>
+          )}
+        </div>
+      </div>
 
       {/* Content */}
       <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6">{children}</main>
