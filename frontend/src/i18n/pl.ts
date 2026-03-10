@@ -17,6 +17,7 @@ export const pl = {
   file: 'plik',
   yes: 'TAK',
   no: 'NIE',
+  back: 'Wróć',
 
   // Auth
   login: 'Zaloguj się',

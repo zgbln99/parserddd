@@ -6,6 +6,7 @@ import { DashboardPage } from './pages/DashboardPage';
 import { DriversPage } from './pages/DriversPage';
 import { ReaderPage } from './pages/ReaderPage';
 import { SyncPage } from './pages/SyncPage';
+import { AnalysisPage } from './pages/AnalysisPage';
 import { Spinner } from './components/Spinner';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -34,6 +35,7 @@ export function App() {
       <Route path="/drivers" element={<ProtectedRoute><DriversPage /></ProtectedRoute>} />
       <Route path="/reader" element={<ProtectedRoute><ReaderPage /></ProtectedRoute>} />
       <Route path="/sync" element={<ProtectedRoute><SyncPage /></ProtectedRoute>} />
+      <Route path="/analysis" element={<ProtectedRoute><AnalysisPage /></ProtectedRoute>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

@@ -1,20 +1,21 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Search, RefreshCw, ChevronUp, ChevronDown, FileText, AlertCircle } from 'lucide-react';
 import { useI18n } from '../i18n';
-import { fetchDrivers, analyzeDropboxFile } from '../lib/api';
+import { fetchDrivers } from '../lib/api';
 import { formatDate, formatDateTime, daysLabel, daysColor, formatBytes } from '../lib/format';
 import { Card } from '../components/Card';
 import { Badge, StatusDot } from '../components/Badge';
 import { Spinner } from '../components/Spinner';
 import { Modal } from '../components/Modal';
-import { AnalysisView } from '../features/AnalysisView';
-import type { Driver, DriverFile, AnalysisResult } from '../types';
+import type { Driver, DriverFile } from '../types';
 
 const PAGE_SIZE = 20;
 type SortField = 'name' | 'card_number' | 'earliest_date' | 'latest_date' | 'latest_download' | 'days_since' | 'file_count';
 
 export function DriversPage() {
   const { t, locale } = useI18n();
+  const navigate = useNavigate();
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -25,16 +26,6 @@ export function DriversPage() {
 
   // Driver files modal
   const [selectedDriver, setSelectedDriver] = useState<Driver | null>(null);
-
-  // Analysis modal
-  const [analysisOpen, setAnalysisOpen] = useState(false);
-  const [analysisData, setAnalysisData] = useState<AnalysisResult | null>(null);
-  const [analysisLoading, setAnalysisLoading] = useState(false);
-  const [analysisTitle, setAnalysisTitle] = useState('');
-
-  // Date filter for analysis (shifts), not files
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
 
   const load = useCallback((refresh = false) => {
     setLoading(true);
@@ -83,23 +74,11 @@ export function DriversPage() {
     setSelectedDriver(d);
   };
 
-  const analyzeFile = async (f: DriverFile) => {
-    // Close files modal first so analysis opens cleanly on top
+  const analyzeFile = (f: DriverFile) => {
+    const driverName = selectedDriver?.name || '';
     setSelectedDriver(null);
-    setAnalysisTitle(f.name);
-    setAnalysisData(null);
-    setAnalysisLoading(true);
-    setAnalysisOpen(true);
-    setDateFrom('');
-    setDateTo('');
-    try {
-      const result = await analyzeDropboxFile(f.path);
-      setAnalysisData(result);
-    } catch (e: any) {
-      setAnalysisData({ error: e.message } as any);
-    } finally {
-      setAnalysisLoading(false);
-    }
+    const params = new URLSearchParams({ path: f.path, name: f.name, driver: driverName });
+    navigate(`/analysis?${params}`);
   };
 
   const SortIcon = ({ field }: { field: SortField }) => {
@@ -266,21 +245,6 @@ export function DriversPage() {
         )}
       </Modal>
 
-      {/* Analysis modal with date filter for shifts */}
-      <Modal open={analysisOpen} onClose={() => setAnalysisOpen(false)} title={analysisTitle} wide>
-        {analysisLoading && (
-          <div className="flex flex-col items-center gap-3 py-12 text-gray-400">
-            <Spinner size="lg" />
-            <p>{t('analysisLoading')}</p>
-          </div>
-        )}
-        {!analysisLoading && analysisData?.error && (
-          <p className="py-8 text-center text-red-500">{analysisData.error}</p>
-        )}
-        {!analysisLoading && analysisData && !analysisData.error && (
-          <AnalysisView data={analysisData} dateFrom={dateFrom} dateTo={dateTo} onDateFromChange={setDateFrom} onDateToChange={setDateTo} />
-        )}
-      </Modal>
     </div>
   );
 }

@@ -19,6 +19,7 @@ export const de: Record<TranslationKey, string> = {
   file: 'Datei',
   yes: 'JA',
   no: 'NEIN',
+  back: 'Zurück',
 
   // Auth
   login: 'Anmelden',
