@@ -1,0 +1,119 @@
+// ---------------------------------------------------------------------------
+// API response types
+// ---------------------------------------------------------------------------
+
+export interface Driver {
+  name: string;
+  path: string;
+  card_number: string;
+  file_count: number;
+  earliest_date: string;
+  latest_date: string;
+  latest_download: string;
+  days_since: number | null;
+  files: DriverFile[];
+}
+
+export interface DriverFile {
+  name: string;
+  path: string;
+  size: number;
+  modified: string;
+  card_number: string;
+  file_date: string;
+}
+
+export interface DriverInfo {
+  card_number: string;
+  card_issuing_authority: string;
+  card_issue_date: string;
+  card_expiry_date: string;
+  driver_name: string;
+  birth_date: string;
+}
+
+export interface ShiftDetail {
+  shift_start: string;
+  shift_end: string;
+  shift_date: string;
+  duration_minutes: number;
+  duration_hm: string;
+  work_minutes: number;
+  work_hm: string;
+  work_decimal: number;
+  driving_minutes: number;
+  driving_hm: string;
+  work_only_minutes: number;
+  work_only_hm: string;
+  avail_minutes: number;
+  avail_hm: string;
+  break_minutes: number;
+  break_hm: string;
+  night_25_minutes: number;
+  night_25_hm: string;
+  night_40_minutes: number;
+  night_40_hm: string;
+  has_diet: boolean;
+  vehicles: string[];
+}
+
+export interface AnalysisSummary {
+  total_work_hm: string;
+  total_work_decimal: number;
+  total_work_minutes: number;
+  total_driving_hm: string;
+  total_driving_minutes: number;
+  total_break_hm: string;
+  total_break_minutes: number;
+  total_avail_hm: string;
+  total_avail_minutes: number;
+  night_25_hm: string;
+  night_25_decimal: number;
+  night_25_minutes: number;
+  night_40_hm: string;
+  night_40_decimal: number;
+  night_40_minutes: number;
+  total_night_hm: string;
+  total_night_decimal: number;
+  total_night_minutes: number;
+  diet_count: number;
+  total_shifts: number;
+}
+
+export interface AnalysisResult {
+  driver_info: DriverInfo;
+  vehicles: { plate: string; first_use: string; last_use: string }[];
+  summary: AnalysisSummary;
+  shift_details: ShiftDetail[];
+  source_file?: string;
+  error?: string;
+}
+
+export interface SyncHistoryEntry {
+  timestamp: string;
+  status: 'ok' | 'partial' | 'error';
+  error?: string;
+  found: number;
+  uploaded: number;
+  errors: number;
+  files: SyncFileEntry[];
+}
+
+export interface SyncFileEntry {
+  driver: string;
+  file: string;
+  path: string;
+  size?: number;
+  status: 'ok' | 'error';
+  error?: string;
+}
+
+export interface DashboardData {
+  driver_count: number;
+  total_files: number;
+  last_sync: string;
+  synced_count: number;
+  last_sync_status: string;
+  last_sync_errors: number;
+  last_sync_uploaded: number;
+}

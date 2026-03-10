@@ -6,8 +6,8 @@
 # Przyklad:
 #   ./deploy.sh root@srv15.mikr.us 12345
 #
-# Aplikacja bedzie dostepna przez Cloudflare na ddd.ltslog.de
-# Nginx slucha na porcie 80, Cloudflare zapewnia SSL
+# Aplikacja dostepna przez Cloudflare na dd.ltslog.de
+# Nginx serwuje statyczny frontend + proxy API do Gunicorn
 # =============================================================================
 
 set -e
@@ -26,12 +26,31 @@ APP_DIR="/opt/ddd-reader"
 SSH_CMD="ssh -p $SSH_PORT $REMOTE"
 SCP_CMD="scp -P $SSH_PORT"
 
-echo "=== [1/6] Przesylanie plikow na serwer ==="
-$SSH_CMD "mkdir -p $APP_DIR/templates"
-$SCP_CMD app.py samsara_sync.py requirements.txt setup.sh "$REMOTE:$APP_DIR/"
-$SCP_CMD templates/index.html templates/login.html templates/portal.html "$REMOTE:$APP_DIR/templates/"
+# ---------------------------------------------------------------------------
+# [1/7] Build frontend locally
+# ---------------------------------------------------------------------------
+echo "=== [1/7] Budowanie frontendu ==="
+(cd frontend && npm ci --silent && npm run build)
+echo "Frontend zbudowany."
 
-echo "=== [2/6] Instalacja zaleznosci systemowych ==="
+# ---------------------------------------------------------------------------
+# [2/7] Upload files
+# ---------------------------------------------------------------------------
+echo "=== [2/7] Przesylanie plikow na serwer ==="
+$SSH_CMD "mkdir -p $APP_DIR/static"
+
+# Backend files
+$SCP_CMD backend/app.py backend/samsara_sync.py backend/requirements.txt "$REMOTE:$APP_DIR/"
+
+# Frontend build
+$SCP_CMD -r frontend/dist/* "$REMOTE:$APP_DIR/static/"
+
+echo "Pliki przeslane."
+
+# ---------------------------------------------------------------------------
+# [3/7] Install system dependencies
+# ---------------------------------------------------------------------------
+echo "=== [3/7] Instalacja zaleznosci systemowych ==="
 $SSH_CMD "bash -s" <<'REMOTE_SCRIPT'
 set -e
 export DEBIAN_FRONTEND=noninteractive
@@ -46,7 +65,10 @@ fi
 echo "Zaleznosci systemowe zainstalowane."
 REMOTE_SCRIPT
 
-echo "=== [3/6] Budowanie dddparser na serwerze ==="
+# ---------------------------------------------------------------------------
+# [4/7] Build dddparser
+# ---------------------------------------------------------------------------
+echo "=== [4/7] Budowanie dddparser na serwerze ==="
 $SSH_CMD "bash -s" <<'REMOTE_SCRIPT'
 set -e
 if [ -f /usr/local/bin/dddparser ]; then
@@ -65,7 +87,10 @@ else
 fi
 REMOTE_SCRIPT
 
-echo "=== [4/6] Konfiguracja srodowiska Python ==="
+# ---------------------------------------------------------------------------
+# [5/7] Python venv + deps
+# ---------------------------------------------------------------------------
+echo "=== [5/7] Konfiguracja srodowiska Python ==="
 $SSH_CMD "bash -s" <<REMOTE_SCRIPT
 set -e
 cd "$APP_DIR"
@@ -76,18 +101,21 @@ fi
 echo "Srodowisko Python gotowe."
 REMOTE_SCRIPT
 
-echo "=== [5/6] Konfiguracja systemd + nginx ==="
+# ---------------------------------------------------------------------------
+# [6/7] systemd + nginx
+# ---------------------------------------------------------------------------
+echo "=== [6/7] Konfiguracja systemd + nginx ==="
 $SSH_CMD "bash -s" <<'REMOTE_SCRIPT'
 set -e
 APP_DIR="/opt/ddd-reader"
 
-# Generowanie losowego klucza sesji Flask (jednorazowo)
+# Flask secret key (jednorazowo)
 if [ ! -f "$APP_DIR/.flask_secret" ]; then
     python3 -c "import secrets; print(secrets.token_hex(32))" > "$APP_DIR/.flask_secret"
 fi
 FLASK_SECRET=$(cat "$APP_DIR/.flask_secret")
 
-# Serwis systemd
+# Serwis systemd — Gunicorn serves API + SPA fallback
 cat > /etc/systemd/system/ddd-reader.service <<EOF
 [Unit]
 Description=DDD Driver Card Reader
@@ -102,6 +130,7 @@ Environment=FLASK_SECRET_KEY=$FLASK_SECRET
 Environment=SAMSARA_API_TOKEN=$SAMSARA_TOKEN
 Environment=DROPBOX_REFRESH_TOKEN=$DROPBOX_REFRESH_TOKEN
 Environment=PORTAL_PASSWORD=$PORTAL_PASSWORD
+Environment=FRONTEND_DIR=/opt/ddd-reader/static
 Restart=always
 RestartSec=5
 
@@ -109,16 +138,16 @@ RestartSec=5
 WantedBy=multi-user.target
 EOF
 
-# Konfiguracja nginx dla ddd.ltslog.de (Cloudflare proxy = SSL na Cloudflare)
+# Nginx — serwuje statyczny frontend + proxy API
 cat > /etc/nginx/sites-available/ddd-reader <<'NGINX_EOF'
 server {
     listen 80;
     listen [::]:80;
-    server_name ddd.ltslog.de;
+    server_name dd.ltslog.de;
 
     client_max_body_size 16M;
 
-    # Cloudflare real IP headers
+    # Cloudflare real IP
     set_real_ip_from 173.245.48.0/20;
     set_real_ip_from 103.21.244.0/22;
     set_real_ip_from 103.22.200.0/22;
@@ -136,7 +165,10 @@ server {
     set_real_ip_from 131.0.72.0/22;
     real_ip_header CF-Connecting-IP;
 
-    location / {
+    root /opt/ddd-reader/static;
+
+    # API i stare endpointy -> Flask
+    location /api/ {
         proxy_pass http://127.0.0.1:8000;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
@@ -144,15 +176,40 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_read_timeout 60s;
     }
+
+    # Backward compat: old portal/upload endpoints
+    location /portal/ {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location = /upload {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+
+    # Static assets (JS/CSS/images) — cache aggressively
+    location /assets/ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        try_files $uri =404;
+    }
+
+    # SPA fallback: all other routes serve index.html
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
 }
 NGINX_EOF
 
-# Wlacz konfiguracje nginx
 mkdir -p /etc/nginx/sites-enabled
 ln -sf /etc/nginx/sites-available/ddd-reader /etc/nginx/sites-enabled/ddd-reader
 rm -f /etc/nginx/sites-enabled/default
 
-# Reload/restart
 systemctl daemon-reload
 systemctl enable ddd-reader
 systemctl restart ddd-reader
@@ -161,7 +218,10 @@ nginx -t && systemctl restart nginx
 echo "Uslugi uruchomione pomyslnie."
 REMOTE_SCRIPT
 
-echo "=== [6/6] Weryfikacja ==="
+# ---------------------------------------------------------------------------
+# [7/7] Verify
+# ---------------------------------------------------------------------------
+echo "=== [7/7] Weryfikacja ==="
 $SSH_CMD "systemctl status ddd-reader --no-pager -l | head -15"
 
 echo ""
@@ -169,18 +229,7 @@ echo "=========================================="
 echo " Deployment zakonczony!"
 echo "=========================================="
 echo ""
-echo " Teraz skonfiguruj DNS w Cloudflare:"
-echo ""
-echo "   Typ:     A"
-echo "   Nazwa:   ddd"
-echo "   Adres:   <IP twojego serwera>"
-echo "   Proxy:   ON (pomaranczowa chmurka)"
-echo ""
-echo " SSL w Cloudflare > SSL/TLS:"
-echo "   Tryb: Flexible (lub Full jesli masz certyfikat)"
-echo ""
-echo " Po konfiguracji DNS:"
-echo "   https://ddd.ltslog.de"
+echo " https://dd.ltslog.de"
 echo ""
 echo " Komendy serwisowe (przez SSH):"
 echo "   systemctl status ddd-reader"
