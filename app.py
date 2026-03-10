@@ -36,13 +36,13 @@ def get_driver_info(data):
                 'card_identification_and_driver_card_holder_identification_2']:
         block = data.get(key)
         if block:
-            card_id = block.get('card_identification', {})
-            holder = block.get('driver_card_holder_identification', {})
+            card_id = block.get('card_identification') or {}
+            holder = block.get('driver_card_holder_identification') or {}
             info['card_number'] = card_id.get('card_number', '')
             info['card_issuing_authority'] = card_id.get('card_issuing_authority_name', '')
             info['card_issue_date'] = card_id.get('card_issue_date')
             info['card_expiry_date'] = card_id.get('card_expiry_date')
-            name = holder.get('card_holder_name', {})
+            name = holder.get('card_holder_name') or {}
             surname = name.get('holder_surname', '')
             first_name = name.get('holder_first_names', '')
             info['driver_name'] = f"{surname} {first_name}".strip()
@@ -56,8 +56,9 @@ def get_activity_records(data):
     records = []
     for key in ['card_driver_activity_1', 'card_driver_activity_2']:
         activity = data.get(key)
-        if activity and 'decoded_activity_daily_records' in activity:
-            records.extend(activity['decoded_activity_daily_records'])
+        if activity:
+            recs = activity.get('decoded_activity_daily_records') or []
+            records.extend(recs)
     return records
 
 
@@ -69,7 +70,7 @@ def get_vehicle_records(data):
         block = data.get(key)
         if not block:
             continue
-        for rec in block.get('card_vehicle_records', []):
+        for rec in (block.get('card_vehicle_records') or []):
             reg = rec.get('vehicle_registration', {})
             plate = reg.get('vehicle_registration_number', '').strip()
             if not plate:
