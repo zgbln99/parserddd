@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Users, FileText, RefreshCw, AlertCircle, ArrowRight, Upload } from 'lucide-react';
+import { Users, FileText, RefreshCw, AlertCircle, ArrowRight, Upload, Cloud, Truck } from 'lucide-react';
 import { useI18n } from '../i18n';
-import { fetchDashboard } from '../lib/api';
+import { fetchDashboard, fetchConnectionStatus } from '../lib/api';
 import { formatDateTime } from '../lib/format';
 import { StatCard, Card } from '../components/Card';
 import { Badge } from '../components/Badge';
@@ -13,11 +13,15 @@ export function DashboardPage() {
   const { t, locale } = useI18n();
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState('');
+  const [connections, setConnections] = useState<{ dropbox: boolean; samsara: boolean } | null>(null);
 
   useEffect(() => {
     fetchDashboard()
       .then(setData)
       .catch((e) => setError(e.message));
+    fetchConnectionStatus()
+      .then(setConnections)
+      .catch(() => {});
   }, []);
 
   if (error) {
@@ -100,7 +104,7 @@ export function DashboardPage() {
           </div>
         </Card>
 
-        {/* Quick actions */}
+        {/* Quick actions + connections */}
         <Card className="p-6">
           <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
             {t('dashQuickActions')}
@@ -122,6 +126,24 @@ export function DashboardPage() {
               </Link>
             ))}
           </div>
+
+          {/* Connection status */}
+          {connections && (
+            <div className="mt-4 border-t border-gray-100 pt-4 dark:border-gray-800">
+              <div className="space-y-2">
+                <div className="flex items-center gap-3 px-4 py-2">
+                  <Cloud size={18} className={connections.dropbox ? 'text-green-500' : 'text-red-400'} />
+                  <span className="flex-1 text-sm">{connections.dropbox ? t('dropboxConnected') : t('dropboxDisconnected')}</span>
+                  <span className={`h-2.5 w-2.5 rounded-full ${connections.dropbox ? 'bg-green-500' : 'bg-red-400'}`} />
+                </div>
+                <div className="flex items-center gap-3 px-4 py-2">
+                  <Truck size={18} className={connections.samsara ? 'text-green-500' : 'text-red-400'} />
+                  <span className="flex-1 text-sm">{connections.samsara ? t('samsaraConnected') : t('samsaraDisconnected')}</span>
+                  <span className={`h-2.5 w-2.5 rounded-full ${connections.samsara ? 'bg-green-500' : 'bg-red-400'}`} />
+                </div>
+              </div>
+            </div>
+          )}
         </Card>
       </div>
     </div>

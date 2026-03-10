@@ -137,17 +137,32 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
         </div>
       )}
 
-      {/* Summary grid */}
+      {/* Key metrics - highlighted */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="rounded-xl border border-primary-200 bg-primary-50 p-4 text-center dark:border-primary-800 dark:bg-primary-900/30">
+          <p className="text-[0.65rem] font-bold uppercase tracking-wider text-primary-500 dark:text-primary-400">{t('analysisWorkTime')}</p>
+          <p className="mt-1 text-2xl font-extrabold text-primary-700 dark:text-primary-300">{s.total_work_hm}</p>
+          <p className="mt-0.5 text-xs text-primary-500/70 dark:text-primary-400/70">{s.total_work_decimal}h</p>
+        </div>
+        <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-4 text-center dark:border-indigo-800 dark:bg-indigo-900/30">
+          <p className="text-[0.65rem] font-bold uppercase tracking-wider text-indigo-500 dark:text-indigo-400">{t('analysisNight25')} + {t('analysisNight40')}</p>
+          <p className="mt-1 text-2xl font-extrabold text-indigo-700 dark:text-indigo-300">{fmtNight(s.night_25_minutes + s.night_40_minutes, s.total_night_hm)}</p>
+          <p className="mt-0.5 text-xs text-indigo-500/70 dark:text-indigo-400/70">25%: {fmtNight(s.night_25_minutes, s.night_25_hm)} · 40%: {fmtNight(s.night_40_minutes, s.night_40_hm)}</p>
+        </div>
+        <div className="rounded-xl border border-green-200 bg-green-50 p-4 text-center dark:border-green-800 dark:bg-green-900/30">
+          <p className="text-[0.65rem] font-bold uppercase tracking-wider text-green-500 dark:text-green-400">{t('analysisDietCount')}</p>
+          <p className="mt-1 text-2xl font-extrabold text-green-700 dark:text-green-300">{s.diet_count}</p>
+          <p className="mt-0.5 text-xs text-green-500/70 dark:text-green-400/70">{t('analysisTotalShifts')}: {s.total_shifts}</p>
+        </div>
+      </div>
+
+      {/* Secondary metrics */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {[
-          { label: t('analysisWorkTime'), value: s.total_work_hm },
           { label: t('analysisDriving'), value: s.total_driving_hm },
-          { label: t('analysisNight25'), value: fmtNight(s.night_25_minutes, s.night_25_hm) },
-          { label: t('analysisNight40'), value: fmtNight(s.night_40_minutes, s.night_40_hm) },
           { label: t('analysisBreaks'), value: s.total_break_hm },
-          { label: t('analysisTotalShifts'), value: String(s.total_shifts) },
-          { label: t('analysisDietCount'), value: String(s.diet_count) },
           { label: t('analysisAvailability'), value: s.total_avail_hm },
+          { label: t('analysisTotalShifts'), value: String(s.total_shifts) },
         ].map(({ label, value }) => (
           <div key={label} className="rounded-xl bg-gray-50 p-3 text-center dark:bg-gray-800">
             <p className="text-[0.65rem] font-bold uppercase tracking-wider text-gray-400">{label}</p>

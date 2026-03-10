@@ -6,6 +6,7 @@ import { analyzeDropboxFile } from '../lib/api';
 import { Card } from '../components/Card';
 import { Spinner } from '../components/Spinner';
 import { AnalysisView } from '../features/AnalysisView';
+import { useDateFilter } from '../hooks/useDateFilter';
 import type { AnalysisResult } from '../types';
 
 export function AnalysisPage() {
@@ -15,12 +16,11 @@ export function AnalysisPage() {
   const filePath = params.get('path') || '';
   const fileName = params.get('name') || t('analysisTitle');
   const driverName = params.get('driver') || '';
+  const { dateFrom, dateTo, setDateFrom, setDateTo } = useDateFilter();
 
   const [data, setData] = useState<AnalysisResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
 
   useEffect(() => {
     if (!filePath) {

@@ -122,6 +122,13 @@ export const de: Record<TranslationKey, string> = {
   syncFilesFrom: 'Dateien vom',
   syncHourlyCron: 'Stündliche Synchronisierung',
 
+  // Connections
+  dropboxConnected: 'Dropbox verbunden',
+  dropboxDisconnected: 'Dropbox getrennt',
+  samsaraConnected: 'Samsara verbunden',
+  samsaraDisconnected: 'Samsara getrennt',
+  globalDateFilter: 'Datumsfilter',
+
   // Theme
   lightMode: 'Hell',
   darkMode: 'Dunkel',

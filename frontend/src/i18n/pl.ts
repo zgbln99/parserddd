@@ -120,6 +120,13 @@ export const pl = {
   syncFilesFrom: 'Pliki z',
   syncHourlyCron: 'Synchronizacja co godzinę',
 
+  // Connections
+  dropboxConnected: 'Dropbox połączony',
+  dropboxDisconnected: 'Dropbox rozłączony',
+  samsaraConnected: 'Samsara połączona',
+  samsaraDisconnected: 'Samsara rozłączona',
+  globalDateFilter: 'Filtr dat',
+
   // Theme
   lightMode: 'Jasny',
   darkMode: 'Ciemny',

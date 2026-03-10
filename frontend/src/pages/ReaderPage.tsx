@@ -5,24 +5,22 @@ import { analyzeUploadedFile } from '../lib/api';
 import { Spinner } from '../components/Spinner';
 import { Card } from '../components/Card';
 import { AnalysisView } from '../features/AnalysisView';
+import { useDateFilter } from '../hooks/useDateFilter';
 import type { AnalysisResult } from '../types';
 
 export function ReaderPage() {
   const { t } = useI18n();
+  const { dateFrom, dateTo, setDateFrom, setDateTo } = useDateFilter();
   const fileRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState<AnalysisResult | null>(null);
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
 
   const handleFile = useCallback(async (file: File) => {
     setLoading(true);
     setError('');
     setResult(null);
-    setDateFrom('');
-    setDateTo('');
     try {
       const data = await analyzeUploadedFile(file);
       setResult(data);

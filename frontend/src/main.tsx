@@ -5,6 +5,7 @@ import { BrowserRouter } from 'react-router-dom';
 import { AuthProvider } from './hooks/useAuth';
 import { I18nProvider } from './i18n';
 import { ThemeProvider } from './hooks/useTheme';
+import { DateFilterProvider } from './hooks/useDateFilter';
 import { App } from './App';
 
 createRoot(document.getElementById('root')!).render(
@@ -13,7 +14,9 @@ createRoot(document.getElementById('root')!).render(
       <ThemeProvider>
         <I18nProvider>
           <AuthProvider>
-            <App />
+            <DateFilterProvider>
+              <App />
+            </DateFilterProvider>
           </AuthProvider>
         </I18nProvider>
       </ThemeProvider>

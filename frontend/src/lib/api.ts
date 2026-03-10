@@ -64,6 +64,10 @@ export const analyzeUploadedFile = async (file: File) => {
   });
 };
 
+// Connection status
+export const fetchConnectionStatus = () =>
+  request<{ dropbox: boolean; samsara: boolean }>('/api/status/connections');
+
 // Sync
 export const fetchSyncStatus = () =>
   request<{ last_sync: string; synced_count: number }>('/api/sync/status');

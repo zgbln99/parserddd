@@ -732,6 +732,42 @@ def api_dashboard():
 
 
 # ---------------------------------------------------------------------------
+# Connection status API
+# ---------------------------------------------------------------------------
+
+
+@app.route('/api/status/connections')
+@login_required
+def api_connection_status():
+    """Check Dropbox and Samsara connectivity."""
+    result = {'dropbox': False, 'samsara': False}
+
+    # Check Dropbox
+    dbx = get_server_dropbox_client()
+    if dbx:
+        try:
+            dbx.users_get_current_account()
+            result['dropbox'] = True
+        except Exception:
+            pass
+
+    # Check Samsara
+    if SAMSARA_API_TOKEN:
+        try:
+            resp = http_requests.get(
+                f'{SAMSARA_API_BASE}/fleet/drivers',
+                headers={'Authorization': f'Bearer {SAMSARA_API_TOKEN}'},
+                params={'limit': 1},
+                timeout=5,
+            )
+            result['samsara'] = resp.status_code == 200
+        except Exception:
+            pass
+
+    return jsonify(result)
+
+
+# ---------------------------------------------------------------------------
 # Backward-compatible routes (keep old endpoints working)
 # ---------------------------------------------------------------------------
 
