@@ -4,232 +4,256 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Czytnik kart kierowców DDD</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: #f0f2f5;
-            color: #333;
+            font-family: 'Inter', 'Segoe UI', sans-serif;
+            background: #f4f6fb;
+            color: #1e293b;
             min-height: 100vh;
         }
-        .container { max-width: 1500px; margin: 0 auto; padding: 20px; }
+        .container { max-width: 1520px; margin: 0 auto; padding: 16px 20px; }
 
+        /* Header */
         header {
-            background: linear-gradient(135deg, #1a237e, #283593);
+            background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%);
             color: white;
-            padding: 24px 30px;
-            text-align: center;
-            border-radius: 12px;
-            margin-bottom: 24px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            padding: 20px 28px;
+            border-radius: 14px;
+            margin-bottom: 18px;
+            box-shadow: 0 8px 30px rgba(37,99,235,0.25);
+            display: flex;
+            align-items: center;
+            gap: 16px;
         }
-        header h1 { font-size: 1.6em; margin-bottom: 4px; }
-        header p { opacity: 0.85; font-size: 0.9em; }
+        header .logo { font-size: 2em; }
+        header h1 { font-size: 1.35em; font-weight: 700; }
+        header p { opacity: 0.8; font-size: 0.82em; font-weight: 400; }
 
+        /* Upload */
         .upload-area {
             background: white;
-            border: 3px dashed #ccc;
-            border-radius: 12px;
-            padding: 50px 30px;
+            border: 2px dashed #cbd5e1;
+            border-radius: 14px;
+            padding: 48px 30px;
             text-align: center;
             cursor: pointer;
-            transition: all 0.3s;
-            margin-bottom: 30px;
+            transition: all 0.2s;
+            margin-bottom: 24px;
         }
         .upload-area:hover, .upload-area.dragover {
-            border-color: #1a237e;
-            background: #f5f5ff;
+            border-color: #2563eb;
+            background: #f0f4ff;
+            box-shadow: 0 0 0 4px rgba(37,99,235,0.08);
         }
-        .upload-area .icon { font-size: 3em; margin-bottom: 15px; color: #666; }
-        .upload-area p { color: #666; margin-bottom: 10px; }
+        .upload-area .icon { font-size: 2.8em; margin-bottom: 12px; }
+        .upload-area p { color: #64748b; margin-bottom: 10px; font-size: 0.92em; }
         .upload-area .btn {
             display: inline-block;
-            background: #1a237e;
-            color: white;
-            padding: 12px 30px;
-            border-radius: 8px;
-            font-size: 1em;
-            border: none;
-            cursor: pointer;
-            margin-top: 10px;
+            background: #2563eb; color: white;
+            padding: 10px 28px; border-radius: 8px;
+            font-size: 0.92em; font-weight: 600;
+            border: none; cursor: pointer; margin-top: 8px;
+            transition: background 0.2s;
         }
-        .upload-area .btn:hover { background: #283593; }
+        .upload-area .btn:hover { background: #1d4ed8; }
         #file-input { display: none; }
 
         .loading { text-align: center; padding: 40px; display: none; }
         .loading .spinner {
-            width: 50px; height: 50px;
-            border: 4px solid #e0e0e0;
-            border-top: 4px solid #1a237e;
+            width: 44px; height: 44px;
+            border: 3px solid #e2e8f0;
+            border-top: 3px solid #2563eb;
             border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 15px;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 12px;
         }
         @keyframes spin { to { transform: rotate(360deg); } }
 
         .error-msg {
-            background: #ffebee; color: #c62828;
-            padding: 15px 20px; border-radius: 8px;
-            margin-bottom: 20px; display: none;
+            background: #fef2f2; color: #dc2626; border: 1px solid #fecaca;
+            padding: 12px 18px; border-radius: 10px;
+            margin-bottom: 16px; display: none; font-size: 0.9em;
         }
 
         .results { display: none; }
 
         /* Driver card */
         .driver-card {
-            background: linear-gradient(135deg, #1a237e, #0d47a1);
+            background: linear-gradient(135deg, #1e3a5f 0%, #1e40af 100%);
             color: white;
-            padding: 20px 28px;
-            border-radius: 12px;
-            margin-bottom: 20px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+            padding: 18px 24px;
+            border-radius: 14px;
+            margin-bottom: 14px;
+            box-shadow: 0 4px 20px rgba(30,58,95,0.2);
             display: flex;
             justify-content: space-between;
             align-items: center;
             flex-wrap: wrap;
-            gap: 12px;
+            gap: 10px;
         }
-        .driver-card .driver-main h2 { font-size: 1.4em; margin-bottom: 4px; }
-        .driver-card .detail { opacity: 0.85; font-size: 0.88em; }
-        .driver-card .driver-meta { text-align: right; opacity: 0.8; font-size: 0.85em; }
+        .driver-card .driver-main h2 { font-size: 1.25em; font-weight: 700; margin-bottom: 2px; }
+        .driver-card .detail { opacity: 0.8; font-size: 0.82em; font-weight: 400; }
+        .driver-card .driver-meta { text-align: right; opacity: 0.75; font-size: 0.8em; line-height: 1.6; }
 
-        /* Summary grid */
-        .summary-grid {
+        /* Summary — single row */
+        .summary-strip {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-            gap: 12px;
-            margin-bottom: 20px;
+            grid-template-columns: repeat(8, 1fr);
+            gap: 10px;
+            margin-bottom: 14px;
         }
-        .summary-card {
+        .stat-card {
             background: white;
-            border-radius: 10px;
-            padding: 16px 14px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            border-radius: 12px;
+            padding: 14px 10px;
             text-align: center;
-            border-top: 3px solid #e0e0e0;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+            position: relative;
+            overflow: hidden;
         }
-        .summary-card .label {
-            font-size: 0.75em;
-            color: #666;
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 3px;
+            background: var(--accent, #94a3b8);
+        }
+        .stat-card .stat-label {
+            font-size: 0.65em;
+            font-weight: 600;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
+            letter-spacing: 0.6px;
+            color: #94a3b8;
             margin-bottom: 6px;
         }
-        .summary-card .value { font-size: 1.5em; font-weight: 700; color: #1a237e; }
-        .summary-card .sub { font-size: 0.78em; color: #999; margin-top: 3px; }
+        .stat-card .stat-value {
+            font-size: 1.35em;
+            font-weight: 700;
+            color: var(--accent, #1e293b);
+            line-height: 1.2;
+        }
+        .stat-card .stat-sub {
+            font-size: 0.72em;
+            color: #94a3b8;
+            margin-top: 2px;
+            font-weight: 400;
+        }
 
-        .summary-card.work { border-top-color: #1a237e; }
-        .summary-card.driving { border-top-color: #0277bd; }
-        .summary-card.breaks { border-top-color: #78909c; }
-        .summary-card.avail { border-top-color: #6a1b9a; }
-        .summary-card.night25 { border-top-color: #e65100; }
-        .summary-card.night25 .value { color: #e65100; }
-        .summary-card.night40 { border-top-color: #b71c1c; }
-        .summary-card.night40 .value { color: #b71c1c; }
-        .summary-card.nighttotal { border-top-color: #ff6f00; }
-        .summary-card.nighttotal .value { color: #ff6f00; }
-        .summary-card.diet { border-top-color: #2e7d32; }
-        .summary-card.diet .value { color: #2e7d32; }
-        .summary-card.shifts { border-top-color: #37474f; }
-
-        /* Date filter */
+        /* Toolbar */
         .toolbar {
             background: white;
             border-radius: 10px;
-            padding: 14px 20px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-            margin-bottom: 16px;
+            padding: 10px 16px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+            margin-bottom: 12px;
             display: flex;
             align-items: center;
-            gap: 12px;
+            gap: 10px;
             flex-wrap: wrap;
+            font-size: 0.88em;
         }
-        .toolbar label { font-weight: 600; color: #1a237e; font-size: 0.88em; }
+        .toolbar label { font-weight: 600; color: #475569; }
         .toolbar input[type="date"] {
-            padding: 6px 10px;
-            border: 2px solid #e0e0e0;
+            padding: 5px 10px;
+            border: 1.5px solid #e2e8f0;
             border-radius: 6px;
             font-size: 0.88em;
+            font-family: inherit;
             outline: none;
+            color: #334155;
         }
-        .toolbar input[type="date"]:focus { border-color: #1a237e; }
-        .toolbar .tbtn {
-            background: #1a237e; color: white; border: none;
-            padding: 7px 16px; border-radius: 6px; cursor: pointer;
-            font-size: 0.85em;
+        .toolbar input[type="date"]:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
+        .tbtn {
+            padding: 6px 14px; border-radius: 6px; border: none;
+            font-size: 0.84em; font-weight: 600; cursor: pointer;
+            font-family: inherit; transition: all 0.15s;
         }
-        .toolbar .tbtn:hover { background: #283593; }
-        .toolbar .tbtn.reset { background: #78909c; }
-        .toolbar .tbtn.reset:hover { background: #546e7a; }
+        .tbtn.primary { background: #2563eb; color: white; }
+        .tbtn.primary:hover { background: #1d4ed8; }
+        .tbtn.secondary { background: #f1f5f9; color: #475569; }
+        .tbtn.secondary:hover { background: #e2e8f0; }
 
         /* Table */
         .table-wrapper {
             background: white;
-            border-radius: 12px;
-            padding: 16px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-            overflow-x: auto;
+            border-radius: 14px;
+            padding: 0;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+            overflow: hidden;
         }
-        .table-wrapper h3 { margin-bottom: 12px; color: #1a237e; font-size: 1.1em; }
-        table { width: 100%; border-collapse: collapse; font-size: 0.84em; }
+        .table-wrapper .table-header {
+            padding: 16px 20px 12px;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        .table-wrapper h3 { color: #1e293b; font-size: 1em; font-weight: 700; }
+        .table-scroll { overflow-x: auto; }
+
+        table { width: 100%; border-collapse: collapse; font-size: 0.82em; }
         th {
-            background: #f8f9fa;
-            padding: 10px 8px;
+            padding: 10px 10px;
             text-align: left;
             font-weight: 600;
-            color: #555;
-            border-bottom: 2px solid #e0e0e0;
+            color: #64748b;
+            font-size: 0.82em;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            border-bottom: 1px solid #e2e8f0;
             white-space: nowrap;
-            font-size: 0.88em;
+            background: #f8fafc;
         }
         td {
-            padding: 8px;
-            border-bottom: 1px solid #f0f0f0;
+            padding: 9px 10px;
+            border-bottom: 1px solid #f1f5f9;
             white-space: nowrap;
+            color: #334155;
         }
-        tr:hover td { background: #f8f9fb; }
-
-        /* Column group headers */
-        .col-group { text-align: center; font-size: 0.8em; color: #888; border-bottom: 1px solid #e0e0e0; }
-        .col-group th { background: white; padding: 4px 8px; font-weight: 500; }
+        tr:hover td { background: #f8fafc; }
+        tr:last-child td { border-bottom: none; }
 
         .diet-yes {
-            background: #e8f5e9; color: #2e7d32; font-weight: 600;
-            padding: 2px 10px; border-radius: 10px; font-size: 0.85em;
+            background: #dcfce7; color: #16a34a; font-weight: 600;
+            padding: 2px 10px; border-radius: 20px; font-size: 0.82em;
+            display: inline-block;
         }
-        .diet-no { color: #ccc; font-size: 0.85em; }
+        .diet-no { color: #d1d5db; font-size: 0.82em; }
 
-        .night25-val { color: #e65100; font-weight: 500; }
-        .night40-val { color: #b71c1c; font-weight: 500; }
+        .night25-val { color: #ea580c; font-weight: 600; }
+        .night40-val { color: #dc2626; font-weight: 600; }
+        .plate-cell { color: #2563eb; font-weight: 600; font-size: 0.84em; }
+        .shift-time { font-size: 0.84em; }
+        .shift-time .date-part { font-weight: 600; color: #1e293b; }
+        .shift-time .time-part { color: #64748b; font-weight: 500; }
+        .duration-cell { color: #64748b; }
+        .break-cell { color: #64748b; }
+        .driving-cell { color: #0369a1; font-weight: 500; }
+        .work-cell { font-weight: 600; color: #1e293b; }
 
-        .plate-cell { color: #1565c0; font-weight: 600; font-size: 0.85em; }
-        .shift-time { font-size: 0.85em; }
-        .shift-time .date-part { font-weight: 600; }
-        .shift-time .time-part { color: #555; }
-        .duration-cell { color: #666; font-size: 0.85em; }
-        .break-cell { color: #78909c; }
-        .avail-cell { color: #6a1b9a; }
-        .driving-cell { color: #0277bd; }
-
-        /* Footer totals row */
         .totals-row td {
-            font-weight: 700;
-            background: #f5f5f5;
-            border-top: 2px solid #e0e0e0;
-            padding: 10px 8px;
+            font-weight: 700 !important;
+            background: #f1f5f9 !important;
+            border-top: 2px solid #e2e8f0;
+            color: #1e293b;
+            padding: 11px 10px;
         }
 
         .reset-btn {
             display: inline-block;
-            background: #78909c; color: white;
-            padding: 10px 25px; border-radius: 8px; border: none;
-            cursor: pointer; font-size: 0.95em; margin-top: 16px;
+            background: #f1f5f9; color: #475569;
+            padding: 9px 22px; border-radius: 8px; border: 1.5px solid #e2e8f0;
+            cursor: pointer; font-size: 0.88em; font-weight: 600;
+            margin-top: 14px; font-family: inherit;
+            transition: all 0.15s;
         }
-        .reset-btn:hover { background: #546e7a; }
+        .reset-btn:hover { background: #e2e8f0; border-color: #cbd5e1; }
 
-        /* Responsive */
-        @media (max-width: 768px) {
-            .summary-grid { grid-template-columns: repeat(2, 1fr); }
+        @media (max-width: 1200px) {
+            .summary-strip { grid-template-columns: repeat(4, 1fr); }
+        }
+        @media (max-width: 640px) {
+            .summary-strip { grid-template-columns: repeat(2, 1fr); }
             .driver-card { flex-direction: column; text-align: center; }
             .driver-card .driver-meta { text-align: center; }
         }
@@ -238,12 +262,15 @@
 <body>
     <div class="container">
         <header>
-            <h1>Czytnik kart kierowców DDD</h1>
-            <p>Wgraj plik karty kierowcy (.ddd) aby zobaczyc podsumowanie czasu pracy</p>
+            <div class="logo">&#128179;</div>
+            <div>
+                <h1>Czytnik kart kierowców</h1>
+                <p>Analiza plików DDD z kart kierowców</p>
+            </div>
         </header>
 
         <div class="upload-area" id="upload-area">
-            <div class="icon">&#128179;</div>
+            <div class="icon">&#128194;</div>
             <p>Przeciagnij plik .ddd tutaj lub kliknij aby wybrac</p>
             <button class="btn" onclick="document.getElementById('file-input').click()">Wybierz plik</button>
             <input type="file" id="file-input" accept=".ddd,.DDD" multiple>
@@ -258,28 +285,24 @@
 
         <div class="results" id="results">
             <div class="driver-card" id="driver-info"></div>
-            <div class="summary-grid" id="summary-grid"></div>
+            <div class="summary-strip" id="summary-grid"></div>
 
             <div class="toolbar" id="date-filter">
                 <label>Zakres dat:</label>
                 <input type="date" id="date-from">
-                <span>—</span>
+                <span style="color:#94a3b8">—</span>
                 <input type="date" id="date-to">
-                <button class="tbtn" onclick="applyDateFilter()">Filtruj</button>
-                <button class="tbtn reset" onclick="resetDateFilter()">Resetuj</button>
+                <button class="tbtn primary" onclick="applyDateFilter()">Filtruj</button>
+                <button class="tbtn secondary" onclick="resetDateFilter()">Resetuj</button>
             </div>
 
             <div class="table-wrapper">
-                <h3 id="shifts-header">Zmiany</h3>
+                <div class="table-header">
+                    <h3 id="shifts-header">Zmiany</h3>
+                </div>
+                <div class="table-scroll">
                 <table>
                     <thead>
-                        <tr class="col-group">
-                            <th colspan="3">Zmiana</th>
-                            <th></th>
-                            <th colspan="4">Czas</th>
-                            <th colspan="2">Dodatki nocne</th>
-                            <th></th>
-                        </tr>
                         <tr>
                             <th>Start</th>
                             <th>Koniec</th>
@@ -289,14 +312,15 @@
                             <th>Praca</th>
                             <th>Przerwy</th>
                             <th>Czas pracy</th>
-                            <th>25%</th>
-                            <th>40%</th>
+                            <th>Nocne 25%</th>
+                            <th>Nocne 40%</th>
                             <th>Dieta</th>
                         </tr>
                     </thead>
                     <tbody id="daily-tbody"></tbody>
                     <tfoot id="daily-tfoot"></tfoot>
                 </table>
+                </div>
             </div>
 
             <button class="reset-btn" onclick="resetView()">Wgraj nowy plik</button>
@@ -310,29 +334,21 @@
         const errorMsg = document.getElementById('error-msg');
         const results = document.getElementById('results');
 
-        uploadArea.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            uploadArea.classList.add('dragover');
-        });
+        uploadArea.addEventListener('dragover', (e) => { e.preventDefault(); uploadArea.classList.add('dragover'); });
         uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('dragover'));
         uploadArea.addEventListener('drop', (e) => {
-            e.preventDefault();
-            uploadArea.classList.remove('dragover');
+            e.preventDefault(); uploadArea.classList.remove('dragover');
             if (e.dataTransfer.files.length > 0) processFile(e.dataTransfer.files[0]);
         });
-        fileInput.addEventListener('change', () => {
-            if (fileInput.files.length > 0) processFile(fileInput.files[0]);
-        });
+        fileInput.addEventListener('change', () => { if (fileInput.files.length > 0) processFile(fileInput.files[0]); });
 
         function processFile(file) {
             uploadArea.style.display = 'none';
             loading.style.display = 'block';
             errorMsg.style.display = 'none';
             results.style.display = 'none';
-
             const formData = new FormData();
             formData.append('file', file);
-
             fetch('/upload', { method: 'POST', body: formData })
                 .then(r => r.json())
                 .then(data => {
@@ -340,10 +356,7 @@
                     if (data.error) { showError(data.error); return; }
                     renderResults(data);
                 })
-                .catch(err => {
-                    loading.style.display = 'none';
-                    showError('Blad polaczenia: ' + err.message);
-                });
+                .catch(err => { loading.style.display = 'none'; showError('Blad: ' + err.message); });
         }
 
         function showError(msg) {
@@ -357,7 +370,6 @@
         function renderResults(data) {
             currentData = data;
             results.style.display = 'block';
-
             const di = data.driver_info || {};
             document.getElementById('driver-info').innerHTML = `
                 <div class="driver-main">
@@ -369,13 +381,11 @@
                     ${di.card_expiry_date ? `<div>Wazna do: ${formatDate(di.card_expiry_date)}</div>` : ''}
                 </div>
             `;
-
             const details = data.shift_details || [];
             if (details.length > 0) {
                 document.getElementById('date-from').value = details[0].shift_date;
                 document.getElementById('date-to').value = details[details.length - 1].shift_date;
             }
-
             renderFiltered(details);
         }
 
@@ -383,8 +393,7 @@
             const hm = m => Math.floor(m/60) + ':' + String(m%60).padStart(2,'0');
             const dec = m => (m/60).toFixed(2);
 
-            let totWork = 0, totDriving = 0, totBreak = 0, totAvail = 0;
-            let totN25 = 0, totN40 = 0, dietCount = 0;
+            let totWork=0, totDriving=0, totBreak=0, totAvail=0, totN25=0, totN40=0, dietCount=0;
             for (const d of details) {
                 totWork += d.work_minutes;
                 totDriving += d.driving_minutes;
@@ -396,47 +405,24 @@
             }
             const totNight = totN25 + totN40;
 
-            document.getElementById('summary-grid').innerHTML = `
-                <div class="summary-card shifts">
-                    <div class="label">Liczba zmian</div>
-                    <div class="value">${details.length}</div>
+            const stats = [
+                { label: 'Zmian', value: details.length, sub: '', accent: '#475569' },
+                { label: 'Czas pracy', value: hm(totWork), sub: dec(totWork)+' h', accent: '#1e40af' },
+                { label: 'Jazda', value: hm(totDriving), sub: dec(totDriving)+' h', accent: '#0369a1' },
+                { label: 'Przerwy', value: hm(totBreak), sub: dec(totBreak)+' h', accent: '#64748b' },
+                { label: 'Nocne 25%', value: hm(totN25), sub: dec(totN25)+' h', accent: '#ea580c' },
+                { label: 'Nocne 40%', value: hm(totN40), sub: dec(totN40)+' h', accent: '#dc2626' },
+                { label: 'Nocne razem', value: hm(totNight), sub: dec(totNight)+' h', accent: '#f59e0b' },
+                { label: 'Diety', value: dietCount, sub: 'zmiana > 8h', accent: '#16a34a' },
+            ];
+
+            document.getElementById('summary-grid').innerHTML = stats.map(s => `
+                <div class="stat-card" style="--accent:${s.accent}">
+                    <div class="stat-label">${s.label}</div>
+                    <div class="stat-value" style="color:${s.accent}">${s.value}</div>
+                    ${s.sub ? `<div class="stat-sub">${s.sub}</div>` : ''}
                 </div>
-                <div class="summary-card work">
-                    <div class="label">Czas pracy</div>
-                    <div class="value">${hm(totWork)}</div>
-                    <div class="sub">${dec(totWork)} h</div>
-                </div>
-                <div class="summary-card driving">
-                    <div class="label">Jazda</div>
-                    <div class="value">${hm(totDriving)}</div>
-                    <div class="sub">${dec(totDriving)} h</div>
-                </div>
-                <div class="summary-card breaks">
-                    <div class="label">Przerwy</div>
-                    <div class="value">${hm(totBreak)}</div>
-                    <div class="sub">${dec(totBreak)} h</div>
-                </div>
-                <div class="summary-card night25">
-                    <div class="label">Nocne 25%</div>
-                    <div class="value">${hm(totN25)}</div>
-                    <div class="sub">${dec(totN25)} h</div>
-                </div>
-                <div class="summary-card night40">
-                    <div class="label">Nocne 40%</div>
-                    <div class="value">${hm(totN40)}</div>
-                    <div class="sub">${dec(totN40)} h</div>
-                </div>
-                <div class="summary-card nighttotal">
-                    <div class="label">Nocne razem</div>
-                    <div class="value">${hm(totNight)}</div>
-                    <div class="sub">${dec(totNight)} h</div>
-                </div>
-                <div class="summary-card diet">
-                    <div class="label">Diety</div>
-                    <div class="value">${dietCount}</div>
-                    <div class="sub">zmiana > 8h</div>
-                </div>
-            `;
+            `).join('');
 
             document.getElementById('shifts-header').textContent = `Zmiany (${details.length})`;
 
@@ -453,7 +439,7 @@
                     <td class="driving-cell">${d.driving_hm}</td>
                     <td>${d.work_only_hm}</td>
                     <td class="break-cell">${d.break_hm}</td>
-                    <td><strong>${d.work_hm}</strong> <span style="color:#999;font-size:0.82em">(${d.work_decimal}h)</span></td>
+                    <td class="work-cell">${d.work_hm} <span style="color:#94a3b8;font-size:0.85em;font-weight:400">(${d.work_decimal}h)</span></td>
                     <td class="night25-val">${d.night_25_minutes > 0 ? d.night_25_hm : '-'}</td>
                     <td class="night40-val">${d.night_40_minutes > 0 ? d.night_40_hm : '-'}</td>
                     <td>${d.has_diet ? '<span class="diet-yes">TAK</span>' : '<span class="diet-no">-</span>'}</td>
@@ -461,17 +447,16 @@
                 tbody.appendChild(tr);
             }
 
-            // Totals footer
             document.getElementById('daily-tfoot').innerHTML = `
                 <tr class="totals-row">
-                    <td colspan="4" style="text-align:right">SUMA:</td>
+                    <td colspan="4" style="text-align:right;color:#64748b">SUMA</td>
                     <td class="driving-cell">${hm(totDriving)}</td>
                     <td></td>
                     <td class="break-cell">${hm(totBreak)}</td>
-                    <td><strong>${hm(totWork)}</strong> <span style="color:#999;font-size:0.82em">(${dec(totWork)}h)</span></td>
+                    <td class="work-cell">${hm(totWork)} <span style="color:#94a3b8;font-size:0.85em;font-weight:400">(${dec(totWork)}h)</span></td>
                     <td class="night25-val">${hm(totN25)}</td>
                     <td class="night40-val">${hm(totN40)}</td>
-                    <td style="color:#2e7d32;font-weight:700">${dietCount}</td>
+                    <td style="color:#16a34a">${dietCount}</td>
                 </tr>
             `;
         }
@@ -498,19 +483,17 @@
 
         function formatDate(dateStr) {
             if (!dateStr) return '-';
-            try {
-                const d = new Date(dateStr);
-                return d.toLocaleDateString('pl-PL');
-            } catch { return dateStr; }
+            try { return new Date(dateStr).toLocaleDateString('pl-PL'); }
+            catch { return dateStr; }
         }
 
         function formatShiftTime(dtStr) {
             if (!dtStr) return '-';
-            const parts = dtStr.split(' ');
-            if (parts.length < 2) return dtStr;
-            const dp = parts[0].split('-');
+            const [date, time] = dtStr.split(' ');
+            if (!time) return dtStr;
+            const dp = date.split('-');
             if (dp.length < 3) return dtStr;
-            return `<span class="date-part">${dp[2]}.${dp[1]}.${dp[0]}</span> <span class="time-part">${parts[1]}</span>`;
+            return `<span class="date-part">${dp[2]}.${dp[1]}.${dp[0]}</span> <span class="time-part">${time}</span>`;
         }
 
         function resetView() {
