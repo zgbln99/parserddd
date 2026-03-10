@@ -57,15 +57,9 @@
             align-items: center;
             gap: 12px;
         }
-        .top-bar .brand-icon {
-            width: 40px; height: 40px;
-            background: linear-gradient(135deg, #2563eb, #7c3aed);
-            border-radius: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.2em;
-            color: white;
+        .top-bar .brand-logo {
+            height: 36px;
+            object-fit: contain;
         }
         .top-bar h1 { font-size: 1.1em; font-weight: 700; color: var(--text); }
         .top-bar .subtitle { font-size: 0.75em; color: var(--text-muted); font-weight: 400; }
@@ -332,7 +326,7 @@
     <div class="container">
         <div class="top-bar">
             <div class="brand">
-                <div class="brand-icon">&#9951;</div>
+                <img src="https://ltslog.de/logo.png" alt="LTS" class="brand-logo">
                 <div>
                     <h1>Czytnik kart kierowców</h1>
                     <div class="subtitle">Analiza plików DDD</div>
@@ -391,8 +385,8 @@
                             <th>Praca</th>
                             <th>Przerwy</th>
                             <th>Czas pracy</th>
-                            <th>Nocne 25%</th>
-                            <th>Nocne 40%</th>
+                            <th>25% (dzies.)</th>
+                            <th>40% (dzies.)</th>
                             <th>Dieta</th>
                         </tr>
                     </thead>
@@ -499,15 +493,15 @@
 
             const bigStats = [
                 { l:'Czas pracy', v:hm(totWork), s:dec(totWork)+' h', a:'#1e40af' },
-                { l:'Nocne 25%', v:hm(totN25), s:dec(totN25)+' h', a:'#f97316' },
-                { l:'Nocne 40%', v:hm(totN40), s:dec(totN40)+' h', a:'#ef4444' },
+                { l:'Nocne 25%', v:dec(totN25)+' h', s:hm(totN25), a:'#f97316' },
+                { l:'Nocne 40%', v:dec(totN40)+' h', s:hm(totN40), a:'#ef4444' },
                 { l:'Diety', v:dietCount, s:'zmiana > 8h', a:'#22c55e' },
             ];
             const smallStats = [
                 { l:'Zmian', v:details.length, s:'', a:'#475569' },
                 { l:'Jazda', v:hm(totDriving), s:dec(totDriving)+' h', a:'#0ea5e9' },
                 { l:'Przerwy', v:hm(totBreak), s:dec(totBreak)+' h', a:'#64748b' },
-                { l:'Nocne razem', v:hm(totNight), s:dec(totNight)+' h', a:'#f59e0b' },
+                { l:'Nocne razem', v:dec(totNight)+' h', s:hm(totNight), a:'#f59e0b' },
             ];
 
             document.getElementById('summary-big').innerHTML = bigStats.map(s => `
@@ -542,8 +536,8 @@
                     <td>${d.work_only_hm}</td>
                     <td class="c-slate">${d.break_hm}</td>
                     <td class="c-bold">${d.work_hm} <span class="c-muted" style="font-size:0.85em;font-weight:400">(${d.work_decimal}h)</span></td>
-                    <td class="c-orange">${d.night_25_minutes > 0 ? d.night_25_hm : '-'}</td>
-                    <td class="c-red">${d.night_40_minutes > 0 ? d.night_40_hm : '-'}</td>
+                    <td class="c-orange">${d.night_25_minutes > 0 ? dec(d.night_25_minutes) : '-'}</td>
+                    <td class="c-red">${d.night_40_minutes > 0 ? dec(d.night_40_minutes) : '-'}</td>
                     <td>${d.has_diet ? '<span class="diet-tag yes">TAK</span>' : '<span class="diet-tag no">-</span>'}</td>
                 `;
                 tbody.appendChild(tr);
@@ -556,8 +550,8 @@
                     <td></td>
                     <td class="c-slate">${hm(totBreak)}</td>
                     <td class="c-bold">${hm(totWork)} <span class="c-muted" style="font-size:0.85em;font-weight:400">(${dec(totWork)}h)</span></td>
-                    <td class="c-orange">${hm(totN25)}</td>
-                    <td class="c-red">${hm(totN40)}</td>
+                    <td class="c-orange">${dec(totN25)}</td>
+                    <td class="c-red">${dec(totN40)}</td>
                     <td style="color:var(--green);font-weight:700">${dietCount}</td>
                 </tr>
             `;
