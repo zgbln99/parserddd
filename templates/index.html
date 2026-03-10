@@ -1411,24 +1411,29 @@
                 const d = details[i];
                 const shiftViolations = [];
 
-                // 1. Jazda ciagla > 4.5h (270 min) bez przerwy 45min
-                if (d.driving_minutes > 270) {
+                // 1. Jazda dzienna > 9h (540 min), max 10h 2x/tydzien (Rozp. WE 561/2006)
+                if (d.driving_minutes > 10 * 60) {
+                    shiftViolations.push({
+                        type: 'driving_critical',
+                        msg: `Jazda ${d.driving_hm} przekracza bezwzgledny limit dzienny 10:00`
+                    });
+                } else if (d.driving_minutes > 9 * 60) {
                     shiftViolations.push({
                         type: 'driving',
-                        msg: `Jazda ${d.driving_hm} przekracza limit 4:30 ciaglej jazdy`
+                        msg: `Jazda ${d.driving_hm} przekracza normalny limit dzienny 9:00 (max 10:00 dopuszczalne 2x/tydzien)`
                     });
                 }
 
-                // 2. Czas pracy > 10h (normalny limit) / > 13h (z wydluzeniem max 2x/tydz)
+                // 2. Czas pracy > 10h (limit dla pracy nocnej) / > 13h (bezwzgledny)
                 if (d.work_minutes > 13 * 60) {
                     shiftViolations.push({
                         type: 'work_critical',
                         msg: `Czas pracy ${d.work_hm} przekracza bezwzgledny limit 13:00`
                     });
-                } else if (d.work_minutes > 10 * 60) {
+                } else if (d.work_minutes > 12 * 60) {
                     shiftViolations.push({
                         type: 'work',
-                        msg: `Czas pracy ${d.work_hm} przekracza normalny limit 10:00 (dopuszczalne max 2x/tydzien do 13:00)`
+                        msg: `Czas pracy ${d.work_hm} przekracza 12:00 (sprawdz limit tygodniowy 60h)`
                     });
                 }
 
@@ -1440,7 +1445,7 @@
                     });
                 }
 
-                // 4. Odpoczynek miedzy zmianami < 9h (skrocony) / < 11h (normalny)
+                // 4. Odpoczynek miedzy zmianami < 9h (krytyczny) / < 11h (skrocony)
                 if (i > 0) {
                     const prev = details[i - 1];
                     const prevEnd = new Date(prev.shift_end.replace(' ', 'T'));
