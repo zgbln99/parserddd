@@ -2,7 +2,6 @@ import json
 import os
 import subprocess
 import tempfile
-from collections import defaultdict
 from datetime import datetime, timedelta
 
 from flask import Flask, render_template, request, jsonify
@@ -58,83 +57,6 @@ def get_activity_records(data):
     return records
 
 
-def calculate_work_minutes_for_day(activity_changes):
-    """Calculate work minutes from activity changes for a single day.
-
-    Returns a list of (start_minutes, end_minutes, work_type) intervals.
-    work_type: 0=break, 1=on duty, 2=work, 3=drive
-    """
-    if not activity_changes:
-        return []
-
-    intervals = []
-    for i in range(len(activity_changes)):
-        change = activity_changes[i]
-        start_min = change['minutes']
-        work_type = change['work_type']
-
-        if i + 1 < len(activity_changes):
-            end_min = activity_changes[i + 1]['minutes']
-        else:
-            end_min = 1440  # end of day
-
-        if end_min > start_min:
-            intervals.append((start_min, end_min, work_type))
-
-    return intervals
-
-
-def calc_night_overlap(intervals, night_25_ranges, night_40_ranges):
-    """Calculate night hour overlaps for given intervals and night ranges."""
-    night_25 = 0
-    night_40 = 0
-    for start, end, work_type in intervals:
-        if work_type == 0:
-            continue
-        for nr_start, nr_end in night_25_ranges:
-            o_start = max(start, nr_start)
-            o_end = min(end, nr_end)
-            if o_end > o_start:
-                night_25 += o_end - o_start
-        for nr_start, nr_end in night_40_ranges:
-            o_start = max(start, nr_start)
-            o_end = min(end, nr_end)
-            if o_end > o_start:
-                night_40 += o_end - o_start
-    return night_25, night_40
-
-
-def is_working_at_midnight(intervals):
-    """Check if work continues at midnight (end of day)."""
-    if not intervals:
-        return False
-    last_start, last_end, last_wt = intervals[-1]
-    return last_end >= 1440 and last_wt > 0
-
-
-def get_morning_continuation(intervals):
-    """Get work intervals from 00:00 until first break on the next day.
-    Returns work intervals that are part of previous day's shift."""
-    morning = []
-    for start, end, work_type in intervals:
-        if work_type == 0:  # break - shift ended
-            break
-        morning.append((start, end, work_type))
-    return morning
-
-
-def minutes_to_hm(minutes):
-    """Convert minutes to H:MM format."""
-    h = minutes // 60
-    m = minutes % 60
-    return f"{h}:{m:02d}"
-
-
-def minutes_to_decimal(minutes):
-    """Convert minutes to decimal hours."""
-    return round(minutes / 60, 2)
-
-
 def get_vehicle_records(data):
     """Extract vehicle usage records from parsed data."""
     vehicles = []
@@ -150,7 +72,6 @@ def get_vehicle_records(data):
                 continue
             first_use = rec.get('vehicle_first_use', '')
             last_use = rec.get('vehicle_last_use', '')
-            # Deduplicate by plate+dates
             dedup_key = (plate, first_use, last_use)
             if dedup_key in seen:
                 continue
@@ -160,7 +81,6 @@ def get_vehicle_records(data):
                 'first_use': first_use,
                 'last_use': last_use,
             })
-    # Sort by first_use date
     vehicles.sort(key=lambda v: v.get('first_use', ''))
     return vehicles
 
@@ -175,115 +95,184 @@ def parse_date_safe(date_str):
         return None
 
 
-def analyze_card(data):
-    """Analyze driver card data and return summary statistics.
+def minutes_to_hm(minutes):
+    """Convert minutes to H:MM format."""
+    h = minutes // 60
+    m = minutes % 60
+    return f"{h}:{m:02d}"
 
-    Shift-based logic: if a driver works through midnight (shift continues
-    from day N into day N+1), the morning continuation on day N+1 (until
-    first break) is attributed to day N's shift for both work time and
-    night hours.
+
+def minutes_to_decimal(minutes):
+    """Convert minutes to decimal hours."""
+    return round(minutes / 60, 2)
+
+
+def build_timeline(records):
+    """Build continuous timeline of (start_dt, end_dt, work_type) from daily records."""
+    all_intervals = []
+    sorted_records = sorted(records, key=lambda r: r.get('activity_record_date', ''))
+    for record in sorted_records:
+        date_str = record.get('activity_record_date')
+        if not date_str:
+            continue
+        base_date = datetime.strptime(date_str, '%Y-%m-%d')
+        changes = record.get('activity_change_info', [])
+        for i, change in enumerate(changes):
+            start_min = change['minutes']
+            work_type = change['work_type']
+            end_min = changes[i + 1]['minutes'] if i + 1 < len(changes) else 1440
+            if end_min > start_min:
+                start_dt = base_date + timedelta(minutes=start_min)
+                end_dt = base_date + timedelta(minutes=end_min)
+                all_intervals.append((start_dt, end_dt, work_type))
+    return all_intervals
+
+
+def merge_intervals(intervals):
+    """Merge consecutive intervals of same work_type."""
+    if not intervals:
+        return []
+    merged = [list(intervals[0])]
+    for start, end, wt in intervals[1:]:
+        prev = merged[-1]
+        if prev[2] == wt and abs((start - prev[1]).total_seconds()) < 60:
+            prev[1] = end
+        else:
+            merged.append([start, end, wt])
+    return [(s, e, w) for s, e, w in merged]
+
+
+def detect_shifts(all_intervals, min_rest_hours=9):
+    """Detect shifts from continuous timeline.
+
+    A shift is a group of activity intervals separated by rest >= min_rest_hours.
+    Short breaks within a shift are included in the shift.
+    """
+    if not all_intervals:
+        return []
+
+    merged = merge_intervals(all_intervals)
+    min_rest_sec = min_rest_hours * 3600
+
+    shifts = []
+    current = []
+
+    for start, end, wt in merged:
+        if wt == 0:
+            duration_sec = (end - start).total_seconds()
+            if duration_sec >= min_rest_sec:
+                # Daily rest boundary - end current shift
+                if current:
+                    shifts.append(current)
+                    current = []
+                continue
+        # Short break or work - part of current shift
+        current.append((start, end, wt))
+
+    if current:
+        shifts.append(current)
+
+    return shifts
+
+
+def calculate_shift_night_hours(intervals):
+    """Calculate night 25% and 40% hours for shift intervals using actual clock times.
+
+    Night 25%: 22:00-00:00 and 04:00-06:00
+    Night 40%: 00:00-04:00
+    Only counts work types > 0 (not breaks).
+    """
+    night_25_sec = 0
+    night_40_sec = 0
+
+    for start_dt, end_dt, work_type in intervals:
+        if work_type == 0:
+            continue
+
+        current = start_dt
+        while current < end_dt:
+            day_base = current.replace(hour=0, minute=0, second=0, microsecond=0)
+            next_day = day_base + timedelta(days=1)
+            chunk_end = min(end_dt, next_day)
+
+            # Night 25%: 22:00-00:00 and 04:00-06:00
+            for h_start, h_end in [(22, 24), (4, 6)]:
+                nr_start = day_base + timedelta(hours=h_start)
+                nr_end = day_base + timedelta(hours=h_end)
+                o_start = max(current, nr_start)
+                o_end = min(chunk_end, nr_end)
+                if o_end > o_start:
+                    night_25_sec += (o_end - o_start).total_seconds()
+
+            # Night 40%: 00:00-04:00
+            nr_start = day_base
+            nr_end = day_base + timedelta(hours=4)
+            o_start = max(current, nr_start)
+            o_end = min(chunk_end, nr_end)
+            if o_end > o_start:
+                night_40_sec += (o_end - o_start).total_seconds()
+
+            current = next_day
+
+    return int(round(night_25_sec / 60)), int(round(night_40_sec / 60))
+
+
+def analyze_card(data):
+    """Analyze driver card data using shift-based detection.
+
+    Builds a continuous timeline from all daily records, detects shifts
+    (separated by rest >= 9h), and calculates work time, night hours,
+    and vehicle usage per shift. Matches GloboFleet behavior.
     """
     driver_info = get_driver_info(data)
     records = get_activity_records(data)
     vehicles = get_vehicle_records(data)
 
-    NIGHT_25_EVENING = [(1320, 1440)]   # 22:00-00:00
-    NIGHT_25_MORNING = [(240, 360)]     # 04:00-06:00
-    NIGHT_40_RANGES = [(0, 240)]        # 00:00-04:00
+    timeline = build_timeline(records)
+    shifts = detect_shifts(timeline)
 
-    # Build date -> intervals map, sorted by date
-    day_intervals = {}
-    day_dates = []
-    for record in records:
-        date_str = record.get('activity_record_date')
-        if not date_str:
-            continue
-        changes = record.get('activity_change_info', [])
-        intervals = calculate_work_minutes_for_day(changes)
-        day_intervals[date_str] = intervals
-        day_dates.append(date_str)
-
-    day_dates.sort()
-
-    # Track morning data borrowed by previous day's shift
-    # morning_borrowed[date] = work_minutes borrowed
-    morning_borrowed = {}
-
-    daily_details = []
+    shift_details = []
     total_work_minutes = 0
     total_night_25_minutes = 0
     total_night_40_minutes = 0
     diet_count = 0
 
-    for i, date_str in enumerate(day_dates):
-        intervals = day_intervals[date_str]
+    for shift_intervals in shifts:
+        if not shift_intervals:
+            continue
 
-        # Base work for this calendar day (work_type 1, 2, 3)
-        day_work_minutes = sum(
-            end - start for start, end, wt in intervals if wt > 0
+        shift_start = shift_intervals[0][0]
+        shift_end = shift_intervals[-1][1]
+
+        # Work time = non-break intervals
+        work_sec = sum(
+            (end - start).total_seconds()
+            for start, end, wt in shift_intervals if wt > 0
         )
+        work_minutes = int(round(work_sec / 60))
 
-        # Subtract morning minutes that were borrowed by previous day
-        if date_str in morning_borrowed:
-            day_work_minutes -= morning_borrowed[date_str]
+        # Duration (start to end including breaks)
+        duration_minutes = int(round((shift_end - shift_start).total_seconds() / 60))
 
-        # Night hours from THIS day's evening (22:00-00:00)
-        night_25, _ = calc_night_overlap(intervals, NIGHT_25_EVENING, [])
+        # Night hours
+        night_25, night_40 = calculate_shift_night_hours(shift_intervals)
 
-        # Night hours from THIS day's morning (00:00-06:00)
-        # Only count if NOT already borrowed by previous day's shift
-        night_40 = 0
-        if date_str not in morning_borrowed:
-            morning_n25, night_40 = calc_night_overlap(
-                intervals, NIGHT_25_MORNING, NIGHT_40_RANGES
-            )
-            night_25 += morning_n25
-
-        # If work continues at midnight, borrow next day's morning
-        if is_working_at_midnight(intervals) and i + 1 < len(day_dates):
-            next_date = day_dates[i + 1]
-            try:
-                curr = datetime.strptime(date_str, '%Y-%m-%d')
-                nxt = datetime.strptime(next_date, '%Y-%m-%d')
-                if (nxt - curr).days == 1:
-                    next_intervals = day_intervals[next_date]
-                    morning = get_morning_continuation(next_intervals)
-                    if morning:
-                        # Borrow work time
-                        borrowed_work = sum(
-                            end - start for start, end, wt in morning if wt > 0
-                        )
-                        day_work_minutes += borrowed_work
-                        morning_borrowed[next_date] = borrowed_work
-
-                        # Borrow night hours (only 00:00-06:00 portion)
-                        morning_night = [
-                            (s, min(e, 360), wt)
-                            for s, e, wt in morning if s < 360
-                        ]
-                        mn25, mn40 = calc_night_overlap(
-                            morning_night, NIGHT_25_MORNING, NIGHT_40_RANGES
-                        )
-                        night_25 += mn25
-                        night_40 += mn40
-            except ValueError:
-                pass
-
-        total_work_minutes += day_work_minutes
+        total_work_minutes += work_minutes
         total_night_25_minutes += night_25
         total_night_40_minutes += night_40
 
-        if day_work_minutes > 8 * 60:
+        if work_minutes > 8 * 60:
             diet_count += 1
 
-        # Find vehicle(s) used on this day
-        day_date = parse_date_safe(date_str)
+        # Find vehicles used during this shift
+        shift_start_date = shift_start.date()
+        shift_end_date = shift_end.date()
         day_plates = []
         for v in vehicles:
             v_start = parse_date_safe(v.get('first_use', ''))
             v_end = parse_date_safe(v.get('last_use', ''))
-            if v_start and v_end and day_date:
-                if v_start <= day_date <= v_end:
+            if v_start and v_end:
+                if v_start <= shift_end_date and v_end >= shift_start_date:
                     day_plates.append(v['plate'])
         seen_plates = set()
         unique_plates = []
@@ -292,16 +281,20 @@ def analyze_card(data):
                 seen_plates.add(p)
                 unique_plates.append(p)
 
-        daily_details.append({
-            'date': date_str,
-            'work_minutes': day_work_minutes,
-            'work_hm': minutes_to_hm(day_work_minutes),
-            'work_decimal': minutes_to_decimal(day_work_minutes),
+        shift_details.append({
+            'shift_start': shift_start.strftime('%Y-%m-%d %H:%M'),
+            'shift_end': shift_end.strftime('%Y-%m-%d %H:%M'),
+            'shift_date': shift_start.strftime('%Y-%m-%d'),
+            'duration_minutes': duration_minutes,
+            'duration_hm': minutes_to_hm(duration_minutes),
+            'work_minutes': work_minutes,
+            'work_hm': minutes_to_hm(work_minutes),
+            'work_decimal': minutes_to_decimal(work_minutes),
             'night_25_minutes': night_25,
             'night_25_hm': minutes_to_hm(night_25),
             'night_40_minutes': night_40,
             'night_40_hm': minutes_to_hm(night_40),
-            'has_diet': day_work_minutes > 8 * 60,
+            'has_diet': work_minutes > 8 * 60,
             'vehicles': unique_plates,
         })
 
@@ -324,9 +317,9 @@ def analyze_card(data):
             'total_night_decimal': minutes_to_decimal(total_night_minutes),
             'total_night_minutes': total_night_minutes,
             'diet_count': diet_count,
-            'total_days': len(daily_details),
+            'total_shifts': len(shift_details),
         },
-        'daily_details': daily_details,
+        'shift_details': shift_details,
     }
 
 

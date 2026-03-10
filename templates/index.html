@@ -12,7 +12,7 @@
             color: #333;
             min-height: 100vh;
         }
-        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
 
         header {
             background: linear-gradient(135deg, #1a237e, #283593);
@@ -156,6 +156,7 @@
         td {
             padding: 10px;
             border-bottom: 1px solid #f0f0f0;
+            white-space: nowrap;
         }
         tr:hover td { background: #fafafa; }
         .diet-yes {
@@ -221,6 +222,21 @@
         }
         .date-filter .filter-btn.reset:hover { background: #546e7a; }
 
+        .shift-time {
+            font-size: 0.88em;
+        }
+        .shift-time .date-part {
+            font-weight: 600;
+        }
+        .shift-time .time-part {
+            color: #555;
+        }
+
+        .duration-cell {
+            color: #666;
+            font-size: 0.88em;
+        }
+
         .reset-btn {
             display: inline-block;
             background: #78909c;
@@ -271,11 +287,13 @@
             </div>
 
             <div class="daily-table-wrapper">
-                <h3>Szczegoly dzienne</h3>
+                <h3 id="shifts-header">Zmiany</h3>
                 <table>
                     <thead>
                         <tr>
-                            <th>Data</th>
+                            <th>Start</th>
+                            <th>Koniec</th>
+                            <th>Czas trwania</th>
                             <th>Pojazd</th>
                             <th>Czas pracy</th>
                             <th>Czas pracy (dzies.)</th>
@@ -368,12 +386,13 @@
             `;
 
             // Set date filter defaults
-            if (data.daily_details.length > 0) {
-                document.getElementById('date-from').value = data.daily_details[0].date;
-                document.getElementById('date-to').value = data.daily_details[data.daily_details.length - 1].date;
+            const details = data.shift_details || [];
+            if (details.length > 0) {
+                document.getElementById('date-from').value = details[0].shift_date;
+                document.getElementById('date-to').value = details[details.length - 1].shift_date;
             }
 
-            renderFiltered(data.daily_details);
+            renderFiltered(details);
         }
 
         function renderFiltered(details) {
@@ -398,33 +417,38 @@
                 <div class="summary-card night25">
                     <div class="label">Godziny nocne 25%</div>
                     <div class="value">${hm(totalN25)}</div>
-                    <div class="sub">${dec(totalN25)} h (dziesietnie) | 22:00-00:00 / 04:00-06:00</div>
+                    <div class="sub">${dec(totalN25)} h | 22:00-00:00 / 04:00-06:00</div>
                 </div>
                 <div class="summary-card night40">
                     <div class="label">Godziny nocne 40%</div>
                     <div class="value">${hm(totalN40)}</div>
-                    <div class="sub">${dec(totalN40)} h (dziesietnie) | 00:00-04:00</div>
+                    <div class="sub">${dec(totalN40)} h | 00:00-04:00</div>
                 </div>
                 <div class="summary-card">
                     <div class="label">Lacznie godziny nocne</div>
                     <div class="value">${hm(totalNight)}</div>
-                    <div class="sub">${dec(totalNight)} h (dziesietnie)</div>
+                    <div class="sub">${dec(totalNight)} h</div>
                 </div>
                 <div class="summary-card diet">
                     <div class="label">Liczba diet</div>
                     <div class="value">${dietCount}</div>
-                    <div class="sub">Dni z praca powyzej 8h (z ${details.length} dni)</div>
+                    <div class="sub">Zmiany z praca powyzej 8h (z ${details.length} zmian)</div>
                 </div>
             `;
 
-            // Daily table
+            // Shifts header
+            document.getElementById('shifts-header').textContent = `Zmiany (${details.length})`;
+
+            // Shifts table
             const tbody = document.getElementById('daily-tbody');
             tbody.innerHTML = '';
             for (const d of details) {
                 const tr = document.createElement('tr');
                 const plates = (d.vehicles || []).join(', ');
                 tr.innerHTML = `
-                    <td>${formatDate(d.date)}</td>
+                    <td class="shift-time">${formatShiftTime(d.shift_start)}</td>
+                    <td class="shift-time">${formatShiftTime(d.shift_end)}</td>
+                    <td class="duration-cell">${d.duration_hm}</td>
                     <td class="plate-cell">${plates || '-'}</td>
                     <td><strong>${d.work_hm}</strong> <span style="color:#888;font-size:0.85em">(${d.work_decimal}h)</span></td>
                     <td>${d.work_decimal} h</td>
@@ -440,18 +464,18 @@
             if (!currentData) return;
             const from = document.getElementById('date-from').value;
             const to = document.getElementById('date-to').value;
-            let filtered = currentData.daily_details;
-            if (from) filtered = filtered.filter(d => d.date >= from);
-            if (to) filtered = filtered.filter(d => d.date <= to);
+            let filtered = currentData.shift_details || [];
+            if (from) filtered = filtered.filter(d => d.shift_date >= from);
+            if (to) filtered = filtered.filter(d => d.shift_date <= to);
             renderFiltered(filtered);
         }
 
         function resetDateFilter() {
             if (!currentData) return;
-            const details = currentData.daily_details;
+            const details = currentData.shift_details || [];
             if (details.length > 0) {
-                document.getElementById('date-from').value = details[0].date;
-                document.getElementById('date-to').value = details[details.length - 1].date;
+                document.getElementById('date-from').value = details[0].shift_date;
+                document.getElementById('date-to').value = details[details.length - 1].shift_date;
             }
             renderFiltered(details);
         }
@@ -464,6 +488,17 @@
             } catch {
                 return dateStr;
             }
+        }
+
+        function formatShiftTime(dtStr) {
+            // dtStr = "YYYY-MM-DD HH:MM"
+            if (!dtStr) return '-';
+            const parts = dtStr.split(' ');
+            if (parts.length < 2) return dtStr;
+            const dateParts = parts[0].split('-');
+            if (dateParts.length < 3) return dtStr;
+            const dateFormatted = `${dateParts[2]}.${dateParts[1]}.${dateParts[0]}`;
+            return `<span class="date-part">${dateFormatted}</span> <span class="time-part">${parts[1]}</span>`;
         }
 
         function resetView() {
