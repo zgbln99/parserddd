@@ -374,10 +374,12 @@ def analyze_card(data):
                 day_plates.append(v['plate'])
         unique_plates = list(dict.fromkeys(day_plates))
 
+        weekday_names = ['Pn', 'Wt', 'Śr', 'Cz', 'Pt', 'So', 'Nd']
         shift_details.append({
             'shift_start': shift_start.strftime('%Y-%m-%d %H:%M'),
             'shift_end': shift_end.strftime('%Y-%m-%d %H:%M'),
             'shift_date': shift_start.strftime('%Y-%m-%d'),
+            'weekday': weekday_names[shift_start.weekday()],
             'duration_minutes': duration_minutes,
             'duration_hm': minutes_to_hm(duration_minutes),
             'work_minutes': work_minutes,
@@ -638,11 +640,12 @@ def api_export_csv():
     output = io.StringIO()
     writer = csv.writer(output, delimiter=';')
     writer.writerow([
-        'Start', 'Koniec', 'Czas trwania', 'Pojazd', 'Jazda', 'Praca',
+        'Dzień', 'Start', 'Koniec', 'Czas trwania', 'Pojazd', 'Jazda', 'Praca',
         'Przerwy', 'Czas pracy', 'Nocne 25%', 'Nocne 40%', 'Dieta',
     ])
     for s in shifts:
         writer.writerow([
+            s.get('weekday', ''),
             s.get('shift_start', ''),
             s.get('shift_end', ''),
             s.get('duration_hm', ''),
@@ -713,17 +716,21 @@ def api_export_pdf():
         '</div>',
         '<h2>Zmiany</h2>',
         '<table><thead><tr>',
-        '<th>Start</th><th>Koniec</th><th>Czas</th><th>Pojazd</th>',
+        '<th>Dzień</th><th>Start</th><th>Koniec</th><th>Czas</th><th>Pojazd</th>',
         '<th>Jazda</th><th>Praca</th><th>Przerwy</th>',
         '<th>Nocne 25%</th><th>Nocne 40%</th><th>Dieta</th>',
         '</tr></thead><tbody>',
     ]
+    weekend_style = ' style="background:#fef2f2;"'
     for s in shifts:
         n25 = f"{s.get('night_25_minutes', 0) / 60:.2f}"
         n40 = f"{s.get('night_40_minutes', 0) / 60:.2f}"
         diet = '<span class="diet-yes">TAK</span>' if s.get('has_diet') else 'NIE'
+        wd = s.get('weekday', '')
+        is_weekend = wd in ('So', 'Nd', 'Sa', 'Su')
+        row_style = weekend_style if is_weekend else ''
         html_parts.append(
-            f'<tr><td>{s.get("shift_start","")}</td><td>{s.get("shift_end","")}</td>'
+            f'<tr{row_style}><td><b>{wd}</b></td><td>{s.get("shift_start","")}</td><td>{s.get("shift_end","")}</td>'
             f'<td><b>{s.get("duration_hm","")}</b></td><td>{", ".join(s.get("vehicles",[]))}</td>'
             f'<td>{s.get("driving_hm","")}</td><td>{s.get("work_only_hm","")}</td>'
             f'<td>{s.get("break_hm","")}</td><td>{n25}</td><td>{n40}</td><td>{diet}</td></tr>'

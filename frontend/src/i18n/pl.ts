@@ -92,6 +92,7 @@ export const pl = {
   analysisTotalShifts: 'Łącznie zmian',
   analysisDietCount: 'Diety',
   analysisDateFilter: 'Filtruj zmiany',
+  analysisWeekday: 'Dzień',
 
   // Reader
   readerTitle: 'Czytnik kart DDD',

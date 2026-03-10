@@ -94,6 +94,7 @@ export const de: Record<TranslationKey, string> = {
   analysisTotalShifts: 'Schichten gesamt',
   analysisDietCount: 'Verpflegungspauschalen',
   analysisDateFilter: 'Schichten filtern',
+  analysisWeekday: 'Tag',
 
   // Reader
   readerTitle: 'DDD-Kartenleser',

@@ -186,7 +186,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
           <table className="w-full min-w-[900px] text-sm">
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800">
-                {[t('analysisStart'), t('analysisEnd'), t('analysisTime'), t('analysisVehicle'),
+                {[t('analysisWeekday'), t('analysisStart'), t('analysisEnd'), t('analysisTime'), t('analysisVehicle'),
                   t('analysisDriving'), t('analysisWork'), t('analysisBreaks'),
                   t('analysisNight25'), t('analysisNight40'), t('analysisDiet'),
                 ].map((h) => (
@@ -197,8 +197,11 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-              {shifts.map((sh, i) => (
-                <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+              {shifts.map((sh, i) => {
+                const isWeekend = sh.weekday === 'So' || sh.weekday === 'Nd';
+                return (
+                <tr key={i} className={`hover:bg-gray-50 dark:hover:bg-gray-800/50 ${isWeekend ? 'bg-red-50/40 dark:bg-red-900/10' : ''}`}>
+                  <td className={`whitespace-nowrap px-3 py-2 font-bold ${isWeekend ? 'text-red-500' : ''}`}>{sh.weekday}</td>
                   <td className="whitespace-nowrap px-3 py-2 font-medium">{sh.shift_start}</td>
                   <td className="whitespace-nowrap px-3 py-2 text-gray-500 dark:text-gray-400">{sh.shift_end}</td>
                   <td className="whitespace-nowrap px-3 py-2 font-bold">{sh.duration_hm}</td>
@@ -214,7 +217,8 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
                       : <span className="text-gray-300 dark:text-gray-600">{t('no')}</span>}
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
           </div>
