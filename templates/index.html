@@ -969,8 +969,11 @@
             const details = data.shift_details || [];
             const dateFrom = document.getElementById('date-from');
             const dateTo = document.getElementById('date-to');
-            dateFrom.value = details.length > 0 ? details[0].shift_date : '';
-            dateTo.value = details.length > 0 ? details[details.length - 1].shift_date : '';
+            // Only set dates if they are empty (first load) - keep sticky for switching drivers
+            if (!dateFrom.value && !dateTo.value) {
+                dateFrom.value = details.length > 0 ? details[0].shift_date : '';
+                dateTo.value = details.length > 0 ? details[details.length - 1].shift_date : '';
+            }
             applyDateFilter();
         }
 
@@ -1009,6 +1012,8 @@
                 results.style.display = 'none';
                 uploadArea.style.display = 'block';
                 document.getElementById('card-tabs').style.display = 'none';
+                document.getElementById('date-from').value = '';
+                document.getElementById('date-to').value = '';
                 return;
             }
             if (activeCardIndex >= loadedCards.length) activeCardIndex = loadedCards.length - 1;
