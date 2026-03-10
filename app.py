@@ -691,26 +691,46 @@ def samsara_drivers():
             after = pagination.get('endCursor')
             has_next = pagination.get('hasNextPage', False)
 
-        # Build driver list with file counts
-        drivers = []
+        # Merge entries by driver ID (API returns separate entries per period)
+        driver_map = {}
         for entry in all_data:
             driver = entry.get('driver', {})
+            did = driver.get('id', '')
             files = entry.get('tachographFiles', entry.get('files', []))
             if not files:
                 continue
-            # Sort files by date descending
-            files.sort(key=lambda f: f.get('createdAtTime', ''), reverse=True)
-            drivers.append({
-                'id': driver.get('id', ''),
-                'name': driver.get('name', 'Nieznany'),
-                'file_count': len(files),
-                'latest_file': files[0].get('createdAtTime', ''),
-                'files': [{
+            if did not in driver_map:
+                driver_map[did] = {
+                    'id': did,
+                    'name': driver.get('name', 'Nieznany'),
+                    'files': [],
+                }
+            for f in files:
+                driver_map[did]['files'].append({
                     'id': f.get('id', ''),
                     'card_number': f.get('cardNumber', ''),
                     'created_at': f.get('createdAtTime', ''),
                     'url': f.get('url', ''),
-                } for f in files],
+                })
+
+        # Deduplicate files by ID and sort
+        drivers = []
+        for d in driver_map.values():
+            seen = set()
+            unique = []
+            for f in d['files']:
+                fid = f['id']
+                if fid and fid in seen:
+                    continue
+                seen.add(fid)
+                unique.append(f)
+            unique.sort(key=lambda f: f.get('created_at', ''), reverse=True)
+            drivers.append({
+                'id': d['id'],
+                'name': d['name'],
+                'file_count': len(unique),
+                'latest_file': unique[0]['created_at'] if unique else '',
+                'files': unique,
             })
 
         drivers.sort(key=lambda d: d.get('name', ''))
