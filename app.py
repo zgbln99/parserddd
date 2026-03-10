@@ -1,10 +1,14 @@
+import csv
+import io
 import json
 import os
 import subprocess
 import tempfile
 from datetime import datetime, timedelta
 
-from flask import Flask, render_template, request, jsonify
+import dropbox
+from dropbox.exceptions import AuthError
+from flask import Flask, render_template, request, jsonify, redirect, session, url_for
 from zoneinfo import ZoneInfo
 
 UTC = ZoneInfo('UTC')
@@ -12,8 +16,38 @@ CET = ZoneInfo('Europe/Berlin')
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max
+app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'ddd-parser-secret-key-change-me')
 
 DDDPARSER_PATH = os.environ.get('DDDPARSER_PATH', 'dddparser')
+
+# Dropbox OAuth2 config
+DROPBOX_APP_KEY = os.environ.get('DROPBOX_APP_KEY', 'j9ntkihedd9495i')
+DROPBOX_APP_SECRET = os.environ.get('DROPBOX_APP_SECRET', 'd3hr43reha9kky8')
+
+
+def get_dropbox_auth_flow():
+    """Create a Dropbox OAuth2 flow."""
+    return dropbox.DropboxOAuth2Flow(
+        consumer_key=DROPBOX_APP_KEY,
+        consumer_secret=DROPBOX_APP_SECRET,
+        redirect_uri=None,  # Will be set dynamically
+        session=session,
+        csrf_token_session_key='dropbox-csrf-token',
+    )
+
+
+def get_dropbox_client():
+    """Get an authenticated Dropbox client from session token."""
+    token = session.get('dropbox_token')
+    if not token:
+        return None
+    try:
+        dbx = dropbox.Dropbox(token)
+        dbx.users_get_current_account()
+        return dbx
+    except AuthError:
+        session.pop('dropbox_token', None)
+        return None
 
 
 def parse_ddd_file(file_path):
@@ -416,6 +450,178 @@ def upload():
     finally:
         if 'tmp_path' in locals():
             os.unlink(tmp_path)
+
+
+@app.route('/dropbox/auth')
+def dropbox_auth():
+    """Start Dropbox OAuth2 flow."""
+    redirect_uri = request.host_url.rstrip('/') + '/dropbox/callback'
+    flow = dropbox.DropboxOAuth2Flow(
+        consumer_key=DROPBOX_APP_KEY,
+        consumer_secret=DROPBOX_APP_SECRET,
+        redirect_uri=redirect_uri,
+        session=session,
+        csrf_token_session_key='dropbox-csrf-token',
+        token_access_type='offline',
+    )
+    authorize_url = flow.start()
+    return redirect(authorize_url)
+
+
+@app.route('/dropbox/callback')
+def dropbox_callback():
+    """Handle Dropbox OAuth2 callback."""
+    redirect_uri = request.host_url.rstrip('/') + '/dropbox/callback'
+    flow = dropbox.DropboxOAuth2Flow(
+        consumer_key=DROPBOX_APP_KEY,
+        consumer_secret=DROPBOX_APP_SECRET,
+        redirect_uri=redirect_uri,
+        session=session,
+        csrf_token_session_key='dropbox-csrf-token',
+        token_access_type='offline',
+    )
+    try:
+        result = flow.finish(request.args)
+        session['dropbox_token'] = result.access_token
+        if result.refresh_token:
+            session['dropbox_refresh_token'] = result.refresh_token
+        return redirect('/')
+    except Exception as e:
+        return f"Blad autoryzacji Dropbox: {e}", 400
+
+
+@app.route('/dropbox/status')
+def dropbox_status():
+    """Check if Dropbox is connected."""
+    dbx = get_dropbox_client()
+    if dbx:
+        try:
+            account = dbx.users_get_current_account()
+            return jsonify({
+                'connected': True,
+                'name': account.name.display_name,
+                'email': account.email,
+            })
+        except Exception:
+            pass
+    return jsonify({'connected': False})
+
+
+@app.route('/dropbox/disconnect')
+def dropbox_disconnect():
+    """Disconnect Dropbox."""
+    session.pop('dropbox_token', None)
+    session.pop('dropbox_refresh_token', None)
+    return jsonify({'ok': True})
+
+
+@app.route('/dropbox/browse')
+def dropbox_browse():
+    """Browse Dropbox files and folders."""
+    dbx = get_dropbox_client()
+    if not dbx:
+        return jsonify({'error': 'Nie polaczono z Dropbox'}), 401
+
+    path = request.args.get('path', '')
+    try:
+        result = dbx.files_list_folder(path)
+        items = []
+        for entry in result.entries:
+            item = {
+                'name': entry.name,
+                'path': entry.path_display,
+            }
+            if isinstance(entry, dropbox.files.FolderMetadata):
+                item['type'] = 'folder'
+            elif isinstance(entry, dropbox.files.FileMetadata):
+                item['type'] = 'file'
+                item['size'] = entry.size
+                item['modified'] = entry.server_modified.isoformat() if entry.server_modified else ''
+            items.append(item)
+        items.sort(key=lambda x: (0 if x['type'] == 'folder' else 1, x['name'].lower()))
+        return jsonify({'items': items, 'path': path})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/dropbox/import', methods=['POST'])
+def dropbox_import():
+    """Import a .ddd file from Dropbox and analyze it."""
+    dbx = get_dropbox_client()
+    if not dbx:
+        return jsonify({'error': 'Nie polaczono z Dropbox'}), 401
+
+    file_path = request.json.get('path')
+    if not file_path:
+        return jsonify({'error': 'Brak sciezki pliku'}), 400
+
+    try:
+        metadata, response = dbx.files_download(file_path)
+        with tempfile.NamedTemporaryFile(suffix='.ddd', delete=False) as tmp:
+            tmp.write(response.content)
+            tmp_path = tmp.name
+
+        data = parse_ddd_file(tmp_path)
+        result = analyze_card(data)
+        result['source_file'] = metadata.name
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if 'tmp_path' in locals():
+            os.unlink(tmp_path)
+
+
+@app.route('/dropbox/export', methods=['POST'])
+def dropbox_export():
+    """Export analysis results as CSV to Dropbox."""
+    dbx = get_dropbox_client()
+    if not dbx:
+        return jsonify({'error': 'Nie polaczono z Dropbox'}), 401
+
+    payload = request.json or {}
+    driver_name = payload.get('driver_name', 'kierowca')
+    shifts = payload.get('shifts', [])
+    dest_path = payload.get('path', '/DDD-Wyniki')
+
+    safe_name = "".join(c for c in driver_name if c.isalnum() or c in ' _-').strip()
+    if not safe_name:
+        safe_name = 'kierowca'
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    filename = f"{safe_name}_{timestamp}.csv"
+    full_path = f"{dest_path}/{filename}"
+
+    output = io.StringIO()
+    writer = csv.writer(output, delimiter=';')
+    writer.writerow([
+        'Start', 'Koniec', 'Czas trwania', 'Pojazd', 'Jazda', 'Praca',
+        'Przerwy', 'Czas pracy', 'Nocne 25%', 'Nocne 40%', 'Dieta'
+    ])
+    for s in shifts:
+        writer.writerow([
+            s.get('shift_start', ''),
+            s.get('shift_end', ''),
+            s.get('duration_hm', ''),
+            ', '.join(s.get('vehicles', [])),
+            s.get('driving_hm', ''),
+            s.get('work_only_hm', ''),
+            s.get('break_hm', ''),
+            s.get('work_hm', ''),
+            f"{s.get('night_25_minutes', 0) / 60:.2f}",
+            f"{s.get('night_40_minutes', 0) / 60:.2f}",
+            'TAK' if s.get('has_diet') else 'NIE',
+        ])
+
+    csv_bytes = output.getvalue().encode('utf-8-sig')
+    try:
+        dbx.files_upload(
+            csv_bytes,
+            full_path,
+            mode=dropbox.files.WriteMode.overwrite,
+        )
+        return jsonify({'ok': True, 'path': full_path, 'filename': filename})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 if __name__ == '__main__':

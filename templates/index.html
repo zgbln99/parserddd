@@ -301,6 +301,147 @@
         .c-slate { color: var(--slate); }
         .c-bold { font-weight: 700; color: var(--text); }
 
+        /* Dropbox */
+        .dbx-btn {
+            background: #0061fe; color: white;
+            padding: 7px 14px; border-radius: 8px;
+            font-size: 0.8em; font-weight: 600;
+            border: none; cursor: pointer;
+            font-family: inherit;
+            transition: all 0.15s;
+            display: inline-flex; align-items: center; gap: 6px;
+        }
+        .dbx-btn:hover { background: #004fd4; }
+        .dbx-btn.connected { background: #16a34a; }
+        .dbx-btn.connected:hover { background: #15803d; }
+        .dbx-btn-sm { padding: 5px 12px; font-size: 0.78em; }
+        .dbx-btn-outline {
+            background: transparent; color: #0061fe;
+            border: 1.5px solid #0061fe;
+        }
+        .dbx-btn-outline:hover { background: #eff4ff; }
+        .dbx-btn-danger {
+            background: transparent; color: var(--red);
+            border: 1.5px solid var(--red);
+            padding: 5px 12px; border-radius: 6px;
+            font-size: 0.78em; font-weight: 600;
+            cursor: pointer; font-family: inherit;
+        }
+        .dbx-btn-danger:hover { background: #fef2f2; }
+
+        /* Modal */
+        .modal-overlay {
+            display: none;
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,0.45);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-overlay.open { display: flex; }
+        .modal {
+            background: var(--surface);
+            border-radius: var(--radius);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+            width: 520px;
+            max-width: 94vw;
+            max-height: 80vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .modal-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .modal-header h3 { font-size: 1em; font-weight: 700; }
+        .modal-close {
+            background: none; border: none;
+            font-size: 1.3em; cursor: pointer;
+            color: var(--text-muted);
+            padding: 4px;
+        }
+        .modal-close:hover { color: var(--text); }
+        .modal-breadcrumb {
+            padding: 8px 20px;
+            font-size: 0.78em;
+            color: var(--text-secondary);
+            border-bottom: 1px solid var(--border-light);
+            display: flex; align-items: center; gap: 4px;
+            flex-wrap: wrap;
+        }
+        .modal-breadcrumb a {
+            color: var(--primary);
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .modal-breadcrumb a:hover { text-decoration: underline; }
+        .modal-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0;
+        }
+        .modal-footer {
+            padding: 12px 20px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+        }
+        .file-list { list-style: none; margin: 0; padding: 0; }
+        .file-list li {
+            padding: 10px 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+            border-bottom: 1px solid var(--border-light);
+            font-size: 0.88em;
+            transition: background 0.1s;
+        }
+        .file-list li:hover { background: var(--surface-hover); }
+        .file-list li.selected { background: #eff4ff; }
+        .file-list .icon { font-size: 1.2em; flex-shrink: 0; }
+        .file-list .name { flex: 1; font-weight: 500; }
+        .file-list .meta { font-size: 0.78em; color: var(--text-muted); }
+        .file-list-empty {
+            padding: 30px 20px;
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 0.88em;
+        }
+
+        /* Export modal path input */
+        .export-input-group {
+            padding: 16px 20px;
+        }
+        .export-input-group label {
+            display: block;
+            font-size: 0.82em;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-bottom: 6px;
+        }
+        .export-input-group input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1.5px solid var(--border);
+            border-radius: 8px;
+            font-size: 0.88em;
+            font-family: inherit;
+            outline: none;
+        }
+        .export-input-group input:focus { border-color: var(--primary); }
+        .export-msg {
+            padding: 12px 20px;
+            font-size: 0.85em;
+            color: var(--green);
+            font-weight: 600;
+            display: none;
+        }
+
         .shift-time { font-size: 0.82em; }
         .shift-time .d { font-weight: 600; }
         .shift-time .t { color: var(--text-secondary); font-weight: 500; }
@@ -332,9 +473,15 @@
                     <div class="subtitle">Analiza plików DDD</div>
                 </div>
             </div>
-            <button class="upload-btn" id="nav-upload-btn" onclick="document.getElementById('file-input-nav').click()">
-                Wgraj nowy plik
-            </button>
+            <div style="display:flex;align-items:center;gap:8px">
+                <button class="dbx-btn dbx-btn-sm" id="dbx-connect-btn" onclick="dropboxConnect()">
+                    <svg width="16" height="16" viewBox="0 0 43 40" fill="currentColor"><path d="M12.5 0L0 8.1l8.6 6.9 12.5-8.1L12.5 0zm17.9 0L18 8.1l12.5 8.1 8.6-6.9L30.4 0zM0 21.9l12.5 8.1 8.6-6.9-12.5-8.1L0 21.9zm30.4 1.2l-12.5 8.1 8.6 6.9 12.5-8.1-8.6-6.9zM12.5 33.1l8.6 6.9 8.6-6.9-8.6-5.7-8.6 5.7z"/></svg>
+                    Dropbox
+                </button>
+                <button class="upload-btn" id="nav-upload-btn" onclick="document.getElementById('file-input-nav').click()">
+                    Wgraj nowy plik
+                </button>
+            </div>
             <input type="file" id="file-input-nav" accept=".ddd,.DDD">
         </div>
 
@@ -365,6 +512,8 @@
                 <button class="pill pill-primary" onclick="applyDateFilter()">Filtruj</button>
                 <button class="pill pill-ghost" onclick="resetDateFilter()">Reset</button>
                 <div class="toolbar-spacer"></div>
+                <button class="pill pill-upload" id="dbx-import-btn" onclick="openDropboxBrowser()" style="display:none;background:#eff4ff;color:#0061fe;border-color:#0061fe">Importuj z Dropbox</button>
+                <button class="pill pill-upload" id="dbx-export-btn" onclick="openExportModal()" style="display:none;background:#eff4ff;color:#16a34a;border-color:#16a34a">Eksportuj do Dropbox</button>
                 <button class="pill pill-upload" onclick="document.getElementById('file-input-toolbar').click()">Wgraj nowy plik</button>
                 <input type="file" id="file-input-toolbar" accept=".ddd,.DDD">
             </div>
@@ -394,6 +543,60 @@
                     <tfoot id="daily-tfoot"></tfoot>
                 </table>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dropbox Browser Modal -->
+    <div class="modal-overlay" id="dbx-browser-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Importuj z Dropbox</h3>
+                <button class="modal-close" onclick="closeModal('dbx-browser-modal')">&times;</button>
+            </div>
+            <div class="modal-breadcrumb" id="dbx-breadcrumb"></div>
+            <div class="modal-body">
+                <ul class="file-list" id="dbx-file-list"></ul>
+            </div>
+            <div class="modal-footer">
+                <button class="pill pill-ghost" onclick="closeModal('dbx-browser-modal')">Anuluj</button>
+                <button class="dbx-btn dbx-btn-sm" id="dbx-import-confirm" onclick="importSelectedFile()" disabled>Importuj</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Export Modal -->
+    <div class="modal-overlay" id="dbx-export-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Eksportuj do Dropbox</h3>
+                <button class="modal-close" onclick="closeModal('dbx-export-modal')">&times;</button>
+            </div>
+            <div class="export-input-group">
+                <label>Folder docelowy na Dropbox:</label>
+                <input type="text" id="export-path" value="/DDD-Wyniki" placeholder="/DDD-Wyniki">
+            </div>
+            <div class="export-msg" id="export-msg"></div>
+            <div class="modal-footer">
+                <button class="pill pill-ghost" onclick="closeModal('dbx-export-modal')">Anuluj</button>
+                <button class="dbx-btn dbx-btn-sm" id="dbx-export-confirm" onclick="exportToDropbox()" style="background:#16a34a">Eksportuj CSV</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dropbox Account Modal -->
+    <div class="modal-overlay" id="dbx-account-modal">
+        <div class="modal" style="width:360px">
+            <div class="modal-header">
+                <h3>Dropbox</h3>
+                <button class="modal-close" onclick="closeModal('dbx-account-modal')">&times;</button>
+            </div>
+            <div style="padding:20px;text-align:center">
+                <div style="font-size:2em;margin-bottom:8px">
+                    <svg width="40" height="40" viewBox="0 0 43 40" fill="#0061fe"><path d="M12.5 0L0 8.1l8.6 6.9 12.5-8.1L12.5 0zm17.9 0L18 8.1l12.5 8.1 8.6-6.9L30.4 0zM0 21.9l12.5 8.1 8.6-6.9-12.5-8.1L0 21.9zm30.4 1.2l-12.5 8.1 8.6 6.9 12.5-8.1-8.6-6.9zM12.5 33.1l8.6 6.9 8.6-6.9-8.6-5.7-8.6 5.7z"/></svg>
+                </div>
+                <div id="dbx-account-info" style="margin-bottom:16px"></div>
+                <button class="dbx-btn-danger" onclick="dropboxDisconnect()">Rozlacz Dropbox</button>
             </div>
         </div>
     </div>
@@ -589,6 +792,210 @@
             const p = date.split('-');
             return `<span class="d">${p[2]}.${p[1]}.${p[0]}</span> <span class="t">${time}</span>`;
         }
+
+        // ===== Dropbox Integration =====
+        let dbxConnected = false;
+        let dbxCurrentPath = '';
+        let dbxSelectedFile = null;
+
+        function checkDropboxStatus() {
+            fetch('/dropbox/status')
+                .then(r => r.json())
+                .then(data => {
+                    dbxConnected = data.connected;
+                    updateDropboxUI(data);
+                })
+                .catch(() => {});
+        }
+
+        function updateDropboxUI(data) {
+            const btn = document.getElementById('dbx-connect-btn');
+            const importBtn = document.getElementById('dbx-import-btn');
+            const exportBtn = document.getElementById('dbx-export-btn');
+            if (data.connected) {
+                btn.className = 'dbx-btn dbx-btn-sm connected';
+                btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 43 40" fill="currentColor"><path d="M12.5 0L0 8.1l8.6 6.9 12.5-8.1L12.5 0zm17.9 0L18 8.1l12.5 8.1 8.6-6.9L30.4 0zM0 21.9l12.5 8.1 8.6-6.9-12.5-8.1L0 21.9zm30.4 1.2l-12.5 8.1 8.6 6.9 12.5-8.1-8.6-6.9zM12.5 33.1l8.6 6.9 8.6-6.9-8.6-5.7-8.6 5.7z"/></svg> ${data.name || 'Dropbox'}`;
+                btn.onclick = () => openModal('dbx-account-modal');
+                document.getElementById('dbx-account-info').innerHTML = `
+                    <div style="font-weight:700;font-size:1.05em">${data.name}</div>
+                    <div style="color:var(--text-muted);font-size:0.85em">${data.email}</div>
+                `;
+                importBtn.style.display = '';
+                exportBtn.style.display = '';
+            } else {
+                btn.className = 'dbx-btn dbx-btn-sm';
+                btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 43 40" fill="currentColor"><path d="M12.5 0L0 8.1l8.6 6.9 12.5-8.1L12.5 0zm17.9 0L18 8.1l12.5 8.1 8.6-6.9L30.4 0zM0 21.9l12.5 8.1 8.6-6.9-12.5-8.1L0 21.9zm30.4 1.2l-12.5 8.1 8.6 6.9 12.5-8.1-8.6-6.9zM12.5 33.1l8.6 6.9 8.6-6.9-8.6-5.7-8.6 5.7z"/></svg> Dropbox`;
+                btn.onclick = dropboxConnect;
+                importBtn.style.display = 'none';
+                exportBtn.style.display = 'none';
+            }
+        }
+
+        function dropboxConnect() {
+            window.location.href = '/dropbox/auth';
+        }
+
+        function dropboxDisconnect() {
+            fetch('/dropbox/disconnect')
+                .then(() => {
+                    dbxConnected = false;
+                    closeModal('dbx-account-modal');
+                    checkDropboxStatus();
+                });
+        }
+
+        function openModal(id) {
+            document.getElementById(id).classList.add('open');
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.remove('open');
+        }
+
+        function openDropboxBrowser() {
+            dbxSelectedFile = null;
+            document.getElementById('dbx-import-confirm').disabled = true;
+            openModal('dbx-browser-modal');
+            browsePath('');
+        }
+
+        function browsePath(path) {
+            dbxCurrentPath = path;
+            dbxSelectedFile = null;
+            document.getElementById('dbx-import-confirm').disabled = true;
+            const list = document.getElementById('dbx-file-list');
+            list.innerHTML = '<li class="file-list-empty">Ladowanie...</li>';
+            updateBreadcrumb(path);
+
+            fetch('/dropbox/browse?path=' + encodeURIComponent(path))
+                .then(r => r.json())
+                .then(data => {
+                    if (data.error) {
+                        list.innerHTML = `<li class="file-list-empty">${data.error}</li>`;
+                        return;
+                    }
+                    const items = data.items || [];
+                    const dddItems = items.filter(i => i.type === 'folder' || i.name.toLowerCase().endsWith('.ddd'));
+                    if (dddItems.length === 0) {
+                        list.innerHTML = '<li class="file-list-empty">Brak plikow .ddd w tym folderze</li>';
+                        return;
+                    }
+                    list.innerHTML = '';
+                    for (const item of dddItems) {
+                        const li = document.createElement('li');
+                        if (item.type === 'folder') {
+                            li.innerHTML = `<span class="icon">&#128193;</span><span class="name">${item.name}</span>`;
+                            li.onclick = () => browsePath(item.path);
+                        } else {
+                            const size = item.size ? (item.size / 1024).toFixed(0) + ' KB' : '';
+                            li.innerHTML = `<span class="icon">&#128196;</span><span class="name">${item.name}</span><span class="meta">${size}</span>`;
+                            li.onclick = () => selectFile(li, item.path);
+                        }
+                        list.appendChild(li);
+                    }
+                })
+                .catch(err => {
+                    list.innerHTML = `<li class="file-list-empty">Blad: ${err.message}</li>`;
+                });
+        }
+
+        function updateBreadcrumb(path) {
+            const bc = document.getElementById('dbx-breadcrumb');
+            const parts = path.split('/').filter(Boolean);
+            let html = '<a onclick="browsePath(\'\')">Dropbox</a>';
+            let curr = '';
+            for (const p of parts) {
+                curr += '/' + p;
+                const pathVal = curr;
+                html += ` <span>/</span> <a onclick="browsePath('${pathVal}')">${p}</a>`;
+            }
+            bc.innerHTML = html;
+        }
+
+        function selectFile(li, path) {
+            document.querySelectorAll('#dbx-file-list li').forEach(el => el.classList.remove('selected'));
+            li.classList.add('selected');
+            dbxSelectedFile = path;
+            document.getElementById('dbx-import-confirm').disabled = false;
+        }
+
+        function importSelectedFile() {
+            if (!dbxSelectedFile) return;
+            closeModal('dbx-browser-modal');
+            uploadArea.style.display = 'none';
+            loading.style.display = 'block';
+            errorMsg.style.display = 'none';
+            results.style.display = 'none';
+            navUploadBtn.style.display = 'none';
+
+            fetch('/dropbox/import', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ path: dbxSelectedFile }),
+            })
+                .then(r => r.json())
+                .then(data => {
+                    loading.style.display = 'none';
+                    if (data.error) { showError(data.error); return; }
+                    renderResults(data);
+                })
+                .catch(err => { loading.style.display = 'none'; showError('Blad: ' + err.message); });
+        }
+
+        function openExportModal() {
+            if (!currentData) return;
+            document.getElementById('export-msg').style.display = 'none';
+            openModal('dbx-export-modal');
+        }
+
+        function exportToDropbox() {
+            if (!currentData) return;
+            const btn = document.getElementById('dbx-export-confirm');
+            const msg = document.getElementById('export-msg');
+            btn.disabled = true;
+            btn.textContent = 'Eksportowanie...';
+            msg.style.display = 'none';
+
+            const from = document.getElementById('date-from').value;
+            const to = document.getElementById('date-to').value;
+            let filtered = currentData.shift_details || [];
+            if (from) filtered = filtered.filter(d => d.shift_date >= from);
+            if (to) filtered = filtered.filter(d => d.shift_date <= to);
+
+            fetch('/dropbox/export', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    driver_name: (currentData.driver_info || {}).driver_name || 'kierowca',
+                    shifts: filtered,
+                    path: document.getElementById('export-path').value || '/DDD-Wyniki',
+                }),
+            })
+                .then(r => r.json())
+                .then(data => {
+                    btn.disabled = false;
+                    btn.textContent = 'Eksportuj CSV';
+                    if (data.error) {
+                        msg.style.color = 'var(--red)';
+                        msg.textContent = 'Blad: ' + data.error;
+                        msg.style.display = 'block';
+                    } else {
+                        msg.style.color = 'var(--green)';
+                        msg.textContent = 'Zapisano: ' + data.path;
+                        msg.style.display = 'block';
+                    }
+                })
+                .catch(err => {
+                    btn.disabled = false;
+                    btn.textContent = 'Eksportuj CSV';
+                    msg.style.color = 'var(--red)';
+                    msg.textContent = 'Blad: ' + err.message;
+                    msg.style.display = 'block';
+                });
+        }
+
+        // Check Dropbox status on load
+        checkDropboxStatus();
     </script>
 </body>
 </html>
