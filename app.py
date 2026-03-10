@@ -130,10 +130,41 @@ def minutes_to_decimal(minutes):
     return round(minutes / 60, 2)
 
 
+def get_vehicle_records(data):
+    """Extract vehicle usage records from parsed data."""
+    vehicles = []
+    seen = set()
+    for key in ['card_vehicles_used_1', 'card_vehicles_used_2']:
+        block = data.get(key)
+        if not block:
+            continue
+        for rec in block.get('card_vehicle_records', []):
+            reg = rec.get('vehicle_registration', {})
+            plate = reg.get('vehicle_registration_number', '').strip()
+            if not plate:
+                continue
+            first_use = rec.get('vehicle_first_use', '')
+            last_use = rec.get('vehicle_last_use', '')
+            # Deduplicate by plate+dates
+            dedup_key = (plate, first_use, last_use)
+            if dedup_key in seen:
+                continue
+            seen.add(dedup_key)
+            vehicles.append({
+                'plate': plate,
+                'first_use': first_use,
+                'last_use': last_use,
+            })
+    # Sort by first_use date
+    vehicles.sort(key=lambda v: v.get('first_use', ''))
+    return vehicles
+
+
 def analyze_card(data):
     """Analyze driver card data and return summary statistics."""
     driver_info = get_driver_info(data)
     records = get_activity_records(data)
+    vehicles = get_vehicle_records(data)
 
     daily_details = []
     total_work_minutes = 0
@@ -183,6 +214,7 @@ def analyze_card(data):
 
     return {
         'driver_info': driver_info,
+        'vehicles': vehicles,
         'summary': {
             'total_work_hm': minutes_to_hm(total_work_minutes),
             'total_work_decimal': minutes_to_decimal(total_work_minutes),

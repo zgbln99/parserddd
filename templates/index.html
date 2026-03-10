@@ -174,6 +174,76 @@
         .night25-val { color: #e65100; }
         .night40-val { color: #b71c1c; }
 
+        .vehicles-section {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            margin-bottom: 25px;
+        }
+        .vehicles-section h3 {
+            margin-bottom: 15px;
+            color: #1a237e;
+        }
+        .vehicle-tag {
+            display: inline-block;
+            background: #e3f2fd;
+            color: #1565c0;
+            padding: 6px 14px;
+            border-radius: 8px;
+            margin: 4px;
+            font-weight: 600;
+            font-size: 0.95em;
+        }
+        .vehicle-dates {
+            font-size: 0.78em;
+            color: #666;
+            font-weight: 400;
+            display: block;
+            margin-top: 2px;
+        }
+
+        .date-filter {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            margin-bottom: 25px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+        .date-filter label {
+            font-weight: 600;
+            color: #1a237e;
+            font-size: 0.95em;
+        }
+        .date-filter input[type="date"] {
+            padding: 8px 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 0.9em;
+            outline: none;
+        }
+        .date-filter input[type="date"]:focus {
+            border-color: #1a237e;
+        }
+        .date-filter .filter-btn {
+            background: #1a237e;
+            color: white;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.9em;
+        }
+        .date-filter .filter-btn:hover { background: #283593; }
+        .date-filter .filter-btn.reset {
+            background: #78909c;
+        }
+        .date-filter .filter-btn.reset:hover { background: #546e7a; }
+
         .reset-btn {
             display: inline-block;
             background: #78909c;
@@ -212,7 +282,21 @@
         <div class="results" id="results">
             <div class="driver-card" id="driver-info"></div>
 
+            <div class="vehicles-section" id="vehicles-section" style="display:none">
+                <h3>Pojazdy</h3>
+                <div id="vehicles-list"></div>
+            </div>
+
             <div class="summary-grid" id="summary-grid"></div>
+
+            <div class="date-filter" id="date-filter">
+                <label>Zakres dat:</label>
+                <input type="date" id="date-from">
+                <span>—</span>
+                <input type="date" id="date-to">
+                <button class="filter-btn" onclick="applyDateFilter()">Filtruj</button>
+                <button class="filter-btn reset" onclick="resetDateFilter()">Resetuj</button>
+            </div>
 
             <div class="daily-table-wrapper">
                 <h3>Szczegoly dzienne</h3>
@@ -295,7 +379,10 @@
             uploadArea.style.display = 'block';
         }
 
+        let currentData = null;
+
         function renderResults(data) {
+            currentData = data;
             results.style.display = 'block';
 
             // Driver info
@@ -307,40 +394,76 @@
                 ${di.card_expiry_date ? `<div class="detail">Data waznosci: ${formatDate(di.card_expiry_date)}</div>` : ''}
             `;
 
+            // Vehicles
+            const vehicles = data.vehicles || [];
+            const vSection = document.getElementById('vehicles-section');
+            const vList = document.getElementById('vehicles-list');
+            if (vehicles.length > 0) {
+                vSection.style.display = 'block';
+                vList.innerHTML = vehicles.map(v => `
+                    <span class="vehicle-tag">
+                        ${v.plate}
+                        <span class="vehicle-dates">${formatDate(v.first_use)} — ${formatDate(v.last_use)}</span>
+                    </span>
+                `).join('');
+            } else {
+                vSection.style.display = 'none';
+            }
+
+            // Set date filter defaults
+            if (data.daily_details.length > 0) {
+                document.getElementById('date-from').value = data.daily_details[0].date;
+                document.getElementById('date-to').value = data.daily_details[data.daily_details.length - 1].date;
+            }
+
+            renderFiltered(data.daily_details);
+        }
+
+        function renderFiltered(details) {
             // Summary
-            const s = data.summary;
+            let totalWork = 0, totalN25 = 0, totalN40 = 0, dietCount = 0;
+            for (const d of details) {
+                totalWork += d.work_minutes;
+                totalN25 += d.night_25_minutes;
+                totalN40 += d.night_40_minutes;
+                if (d.has_diet) dietCount++;
+            }
+            const totalNight = totalN25 + totalN40;
+            const hm = m => Math.floor(m/60) + ':' + String(m%60).padStart(2,'0');
+            const dec = m => (m/60).toFixed(2);
+
             document.getElementById('summary-grid').innerHTML = `
                 <div class="summary-card">
                     <div class="label">Laczny czas pracy</div>
-                    <div class="value">${s.total_work_hm}</div>
-                    <div class="sub">${s.total_work_decimal} h (dziesietnie)</div>
+                    <div class="value">${hm(totalWork)}</div>
+                    <div class="sub">${dec(totalWork)} h (dziesietnie)</div>
                 </div>
                 <div class="summary-card night25">
                     <div class="label">Godziny nocne 25%</div>
-                    <div class="value">${s.night_25_hm}</div>
-                    <div class="sub">${s.night_25_decimal} h (dziesietnie) | 22:00-00:00 / 04:00-06:00</div>
+                    <div class="value">${hm(totalN25)}</div>
+                    <div class="sub">${dec(totalN25)} h (dziesietnie) | 22:00-00:00 / 04:00-06:00</div>
                 </div>
                 <div class="summary-card night40">
                     <div class="label">Godziny nocne 40%</div>
-                    <div class="value">${s.night_40_hm}</div>
-                    <div class="sub">${s.night_40_decimal} h (dziesietnie) | 00:00-04:00</div>
+                    <div class="value">${hm(totalN40)}</div>
+                    <div class="sub">${dec(totalN40)} h (dziesietnie) | 00:00-04:00</div>
                 </div>
                 <div class="summary-card">
                     <div class="label">Lacznie godziny nocne</div>
-                    <div class="value">${s.total_night_hm}</div>
-                    <div class="sub">${s.total_night_decimal} h (dziesietnie)</div>
+                    <div class="value">${hm(totalNight)}</div>
+                    <div class="sub">${dec(totalNight)} h (dziesietnie)</div>
                 </div>
                 <div class="summary-card diet">
                     <div class="label">Liczba diet</div>
-                    <div class="value">${s.diet_count}</div>
-                    <div class="sub">Dni z praca powyzej 8h (z ${s.total_days} dni)</div>
+                    <div class="value">${dietCount}</div>
+                    <div class="sub">Dni z praca powyzej 8h (z ${details.length} dni)</div>
                 </div>
             `;
 
             // Daily table
             const tbody = document.getElementById('daily-tbody');
             tbody.innerHTML = '';
-            for (const d of data.daily_details) {
+            for (const d of details) {
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
                     <td>${formatDate(d.date)}</td>
@@ -352,6 +475,26 @@
                 `;
                 tbody.appendChild(tr);
             }
+        }
+
+        function applyDateFilter() {
+            if (!currentData) return;
+            const from = document.getElementById('date-from').value;
+            const to = document.getElementById('date-to').value;
+            let filtered = currentData.daily_details;
+            if (from) filtered = filtered.filter(d => d.date >= from);
+            if (to) filtered = filtered.filter(d => d.date <= to);
+            renderFiltered(filtered);
+        }
+
+        function resetDateFilter() {
+            if (!currentData) return;
+            const details = currentData.daily_details;
+            if (details.length > 0) {
+                document.getElementById('date-from').value = details[0].date;
+                document.getElementById('date-to').value = details[details.length - 1].date;
+            }
+            renderFiltered(details);
         }
 
         function formatDate(dateStr) {
