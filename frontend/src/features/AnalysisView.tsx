@@ -1,9 +1,10 @@
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useState, useCallback, useRef } from 'react';
 import { useI18n } from '../i18n';
 import { formatDate } from '../lib/format';
 import { exportCsv, exportPdf } from '../lib/api';
 import { Badge } from '../components/Badge';
-import { Download, FileText, ClipboardCopy, Check } from 'lucide-react';
+import { BarChart } from '../components/BarChart';
+import { Download, FileText, ClipboardCopy, Check, Printer, BarChart3 } from 'lucide-react';
 import type { AnalysisResult, ShiftDetail } from '../types';
 
 function fmtNight(minutes: number, hm: string) {
@@ -96,10 +97,88 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
     exportPdf(di.driver_name || 'driver', di.card_number || '', s, shifts);
   };
 
+  const [showChart, setShowChart] = useState(false);
+  const printRef = useRef<HTMLDivElement>(null);
+
+  // Chart data: per-shift stacked bars
+  const chartBars = useMemo(() => {
+    return shifts.map((sh) => ({
+      label: sh.shift_date.slice(5), // MM-DD
+      segments: [
+        { value: sh.driving_minutes / 60, color: '#3b82f6', name: t('analysisDriving') },
+        { value: sh.work_only_minutes / 60, color: '#8b5cf6', name: t('analysisWork') },
+        { value: sh.break_minutes / 60, color: '#6b7280', name: t('analysisBreaks') },
+        { value: sh.night_25_minutes / 60, color: '#a78bfa', name: t('analysisNight25') },
+        { value: sh.night_40_minutes / 60, color: '#6366f1', name: t('analysisNight40') },
+      ],
+    }));
+  }, [shifts, t]);
+
+  const handlePrint = useCallback(() => {
+    if (!printRef.current) return;
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    const rows = shifts.map((sh) => `
+      <tr>
+        <td>${sh.weekday}</td>
+        <td>${sh.shift_start}</td>
+        <td>${sh.shift_end}</td>
+        <td><b>${sh.duration_hm}</b></td>
+        <td>${sh.vehicles.join(', ')}</td>
+        <td>${sh.driving_hm}</td>
+        <td>${sh.work_only_hm}</td>
+        <td>${sh.break_hm}</td>
+        <td>${fmtNight(sh.night_25_minutes, sh.night_25_hm)}</td>
+        <td>${fmtNight(sh.night_40_minutes, sh.night_40_hm)}</td>
+        <td>${sh.has_diet ? t('yes') : t('no')}</td>
+      </tr>`).join('');
+
+    printWindow.document.write(`<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>${di.driver_name} — ${t('analysisTitle')}</title>
+<style>
+  body { font-family: Arial, sans-serif; margin: 20px; color: #111; font-size: 11px; }
+  h1 { font-size: 18px; margin-bottom: 4px; }
+  .meta { color: #666; margin-bottom: 16px; }
+  .summary { display: flex; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; }
+  .summary .box { border: 1px solid #ccc; border-radius: 6px; padding: 8px 14px; text-align: center; }
+  .summary .box .label { font-size: 9px; text-transform: uppercase; color: #888; font-weight: bold; letter-spacing: 0.5px; }
+  .summary .box .val { font-size: 18px; font-weight: bold; margin-top: 2px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+  th, td { border: 1px solid #ccc; padding: 4px 6px; text-align: left; white-space: nowrap; }
+  th { background: #f5f5f5; font-size: 10px; text-transform: uppercase; }
+  @media print { body { margin: 10px; } }
+</style></head><body>
+  <h1>${di.driver_name}</h1>
+  <div class="meta">${di.card_number} &mdash; ${t('analysisIssued')}: ${formatDate(di.card_issue_date, locale)} &mdash; ${t('analysisValidUntil')}: ${formatDate(di.card_expiry_date, locale)}</div>
+  <div class="summary">
+    <div class="box"><div class="label">${t('analysisWorkTime')}</div><div class="val">${s.total_work_hm}</div></div>
+    <div class="box"><div class="label">${t('analysisNight25')}</div><div class="val">${(s.night_25_minutes / 60).toFixed(2)}</div></div>
+    <div class="box"><div class="label">${t('analysisNight40')}</div><div class="val">${(s.night_40_minutes / 60).toFixed(2)}</div></div>
+    <div class="box"><div class="label">${t('analysisDietCount')}</div><div class="val">${s.diet_count}</div></div>
+    <div class="box"><div class="label">${t('analysisDriving')}</div><div class="val">${s.total_driving_hm}</div></div>
+    <div class="box"><div class="label">${t('analysisBreaks')}</div><div class="val">${s.total_break_hm}</div></div>
+    <div class="box"><div class="label">${t('analysisTotalShifts')}</div><div class="val">${s.total_shifts}</div></div>
+  </div>
+  <table>
+    <thead><tr>
+      <th>${t('analysisWeekday')}</th><th>${t('analysisStart')}</th><th>${t('analysisEnd')}</th>
+      <th>${t('analysisTime')}</th><th>${t('analysisVehicle')}</th><th>${t('analysisDriving')}</th>
+      <th>${t('analysisWork')}</th><th>${t('analysisBreaks')}</th><th>${t('analysisNight25')}</th>
+      <th>${t('analysisNight40')}</th><th>${t('analysisDiet')}</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>
+</body></html>`);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+  }, [shifts, di, s, t, locale]);
+
   const hasDateFilter = onDateFromChange && onDateToChange;
 
   return (
-    <div className="space-y-5">
+    <div ref={printRef} className="space-y-5">
       {/* Driver card */}
       <div className="flex items-center justify-between rounded-2xl bg-gradient-to-r from-gray-900 to-primary-800 p-5 text-white">
         <div>
@@ -187,6 +266,45 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
         ))}
       </div>
 
+      {/* Chart toggle + chart */}
+      {shifts.length > 1 && (
+        <div className="rounded-xl bg-gray-50 dark:bg-gray-800">
+          <button
+            onClick={() => setShowChart(!showChart)}
+            className="flex w-full items-center gap-2 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500 transition hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+          >
+            <BarChart3 size={14} />
+            {t('analysisChart')}
+            <span className="ml-auto text-[10px] font-normal normal-case text-gray-400">
+              {showChart ? '▲' : '▼'}
+            </span>
+          </button>
+          {showChart && (
+            <div className="px-4 pb-4">
+              <div className="flex flex-wrap gap-3 pb-2 text-[10px]">
+                {[
+                  { color: '#3b82f6', name: t('analysisDriving') },
+                  { color: '#8b5cf6', name: t('analysisWork') },
+                  { color: '#6b7280', name: t('analysisBreaks') },
+                  { color: '#a78bfa', name: t('analysisNight25') },
+                  { color: '#6366f1', name: t('analysisNight40') },
+                ].map((item) => (
+                  <span key={item.name} className="flex items-center gap-1 text-gray-500 dark:text-gray-400">
+                    <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: item.color }} />
+                    {item.name}
+                  </span>
+                ))}
+              </div>
+              <BarChart
+                bars={chartBars}
+                height={220}
+                formatValue={(v) => v.toFixed(1)}
+              />
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Shifts table */}
       {shifts.length > 0 && (
         <div className="-mx-6 overflow-x-auto px-6">
@@ -252,6 +370,13 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
         >
           <FileText size={16} />
           {t('analysisExportPdf')}
+        </button>
+        <button
+          onClick={handlePrint}
+          className="flex items-center gap-2 rounded-xl border border-gray-200 px-5 py-2.5 text-sm font-semibold text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-800"
+        >
+          <Printer size={16} />
+          {t('analysisPrint')}
         </button>
       </div>
     </div>

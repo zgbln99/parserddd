@@ -95,6 +95,8 @@ export const de: Record<TranslationKey, string> = {
   analysisDietCount: 'Verpflegungspauschalen',
   analysisDateFilter: 'Schichten filtern',
   analysisWeekday: 'Tag',
+  analysisChart: 'Stundendiagramm',
+  analysisPrint: 'Drucken',
 
   // Reader
   readerTitle: 'DDD-Kartenleser',

@@ -93,6 +93,8 @@ export const pl = {
   analysisDietCount: 'Diety',
   analysisDateFilter: 'Filtruj zmiany',
   analysisWeekday: 'Dzień',
+  analysisChart: 'Wykres godzin',
+  analysisPrint: 'Drukuj',
 
   // Reader
   readerTitle: 'Czytnik kart DDD',
