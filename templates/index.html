@@ -5,249 +5,301 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Czytnik kart kierowców DDD</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
+        :root {
+            --bg: #f0f2f7;
+            --surface: #ffffff;
+            --surface-hover: #f8f9fb;
+            --border: #e5e7eb;
+            --border-light: #f1f3f5;
+            --text: #111827;
+            --text-secondary: #6b7280;
+            --text-muted: #9ca3af;
+            --primary: #2563eb;
+            --primary-dark: #1d4ed8;
+            --blue: #0ea5e9;
+            --orange: #f97316;
+            --red: #ef4444;
+            --amber: #f59e0b;
+            --green: #22c55e;
+            --slate: #64748b;
+            --radius: 16px;
+            --radius-sm: 10px;
+            --shadow: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.06);
+            --shadow-lg: 0 4px 24px rgba(0,0,0,0.06);
+        }
+
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: 'Inter', 'Segoe UI', sans-serif;
-            background: #f4f6fb;
-            color: #1e293b;
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background: var(--bg);
+            color: var(--text);
             min-height: 100vh;
+            -webkit-font-smoothing: antialiased;
         }
-        .container { max-width: 1520px; margin: 0 auto; padding: 16px 20px; }
+        .container { max-width: 1560px; margin: 0 auto; padding: 14px 18px; }
 
         /* Header */
-        header {
-            background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%);
-            color: white;
-            padding: 20px 28px;
-            border-radius: 14px;
-            margin-bottom: 18px;
-            box-shadow: 0 8px 30px rgba(37,99,235,0.25);
+        .top-bar {
+            background: var(--surface);
+            border-radius: var(--radius);
+            padding: 14px 22px;
+            margin-bottom: 14px;
+            box-shadow: var(--shadow);
             display: flex;
             align-items: center;
+            justify-content: space-between;
             gap: 16px;
         }
-        header .logo { font-size: 2em; }
-        header h1 { font-size: 1.35em; font-weight: 700; }
-        header p { opacity: 0.8; font-size: 0.82em; font-weight: 400; }
+        .top-bar .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .top-bar .brand-icon {
+            width: 40px; height: 40px;
+            background: linear-gradient(135deg, #2563eb, #7c3aed);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2em;
+            color: white;
+        }
+        .top-bar h1 { font-size: 1.1em; font-weight: 700; color: var(--text); }
+        .top-bar .subtitle { font-size: 0.75em; color: var(--text-muted); font-weight: 400; }
+        .top-bar .upload-btn {
+            background: var(--primary); color: white;
+            padding: 8px 18px; border-radius: 8px;
+            font-size: 0.82em; font-weight: 600;
+            border: none; cursor: pointer;
+            font-family: inherit;
+            transition: all 0.15s;
+            display: none;
+        }
+        .top-bar .upload-btn:hover { background: var(--primary-dark); }
+        #file-input-nav { display: none; }
 
-        /* Upload */
+        /* Upload area */
         .upload-area {
-            background: white;
-            border: 2px dashed #cbd5e1;
-            border-radius: 14px;
-            padding: 48px 30px;
+            background: var(--surface);
+            border: 2px dashed var(--border);
+            border-radius: var(--radius);
+            padding: 56px 30px;
             text-align: center;
             cursor: pointer;
             transition: all 0.2s;
-            margin-bottom: 24px;
         }
         .upload-area:hover, .upload-area.dragover {
-            border-color: #2563eb;
-            background: #f0f4ff;
-            box-shadow: 0 0 0 4px rgba(37,99,235,0.08);
+            border-color: var(--primary);
+            background: #eff4ff;
         }
-        .upload-area .icon { font-size: 2.8em; margin-bottom: 12px; }
-        .upload-area p { color: #64748b; margin-bottom: 10px; font-size: 0.92em; }
+        .upload-icon {
+            width: 56px; height: 56px;
+            background: #eff4ff;
+            border-radius: 14px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.6em;
+            margin-bottom: 14px;
+        }
+        .upload-area p { color: var(--text-secondary); font-size: 0.9em; margin-bottom: 14px; }
         .upload-area .btn {
             display: inline-block;
-            background: #2563eb; color: white;
+            background: var(--primary); color: white;
             padding: 10px 28px; border-radius: 8px;
-            font-size: 0.92em; font-weight: 600;
-            border: none; cursor: pointer; margin-top: 8px;
-            transition: background 0.2s;
+            font-size: 0.88em; font-weight: 600;
+            border: none; cursor: pointer;
+            font-family: inherit;
+            transition: background 0.15s;
         }
-        .upload-area .btn:hover { background: #1d4ed8; }
+        .upload-area .btn:hover { background: var(--primary-dark); }
         #file-input { display: none; }
 
-        .loading { text-align: center; padding: 40px; display: none; }
+        .loading { text-align: center; padding: 48px; display: none; }
         .loading .spinner {
-            width: 44px; height: 44px;
-            border: 3px solid #e2e8f0;
-            border-top: 3px solid #2563eb;
+            width: 40px; height: 40px;
+            border: 3px solid var(--border);
+            border-top-color: var(--primary);
             border-radius: 50%;
-            animation: spin 0.8s linear infinite;
+            animation: spin 0.7s linear infinite;
             margin: 0 auto 12px;
         }
+        .loading p { color: var(--text-secondary); font-size: 0.88em; }
         @keyframes spin { to { transform: rotate(360deg); } }
 
         .error-msg {
             background: #fef2f2; color: #dc2626; border: 1px solid #fecaca;
-            padding: 12px 18px; border-radius: 10px;
-            margin-bottom: 16px; display: none; font-size: 0.9em;
+            padding: 12px 18px; border-radius: var(--radius-sm);
+            margin-bottom: 14px; display: none; font-size: 0.88em;
         }
 
         .results { display: none; }
 
         /* Driver card */
         .driver-card {
-            background: linear-gradient(135deg, #1e3a5f 0%, #1e40af 100%);
+            background: linear-gradient(135deg, #1e3a5f, #1e40af);
             color: white;
-            padding: 18px 24px;
-            border-radius: 14px;
-            margin-bottom: 14px;
-            box-shadow: 0 4px 20px rgba(30,58,95,0.2);
+            padding: 16px 22px;
+            border-radius: var(--radius);
+            margin-bottom: 12px;
             display: flex;
             justify-content: space-between;
             align-items: center;
             flex-wrap: wrap;
-            gap: 10px;
+            gap: 8px;
         }
-        .driver-card .driver-main h2 { font-size: 1.25em; font-weight: 700; margin-bottom: 2px; }
-        .driver-card .detail { opacity: 0.8; font-size: 0.82em; font-weight: 400; }
-        .driver-card .driver-meta { text-align: right; opacity: 0.75; font-size: 0.8em; line-height: 1.6; }
+        .driver-card h2 { font-size: 1.15em; font-weight: 700; }
+        .driver-card .detail { opacity: 0.75; font-size: 0.78em; }
+        .driver-card .driver-meta { text-align: right; opacity: 0.7; font-size: 0.76em; line-height: 1.7; }
 
-        /* Summary — single row */
+        /* Summary strip — always 1 row */
         .summary-strip {
             display: grid;
             grid-template-columns: repeat(8, 1fr);
-            gap: 10px;
-            margin-bottom: 14px;
+            gap: 8px;
+            margin-bottom: 12px;
         }
-        .stat-card {
-            background: white;
-            border-radius: 12px;
-            padding: 14px 10px;
+        .stat {
+            background: var(--surface);
+            border-radius: var(--radius-sm);
+            padding: 12px 8px;
             text-align: center;
-            box-shadow: 0 1px 4px rgba(0,0,0,0.05);
-            position: relative;
-            overflow: hidden;
+            box-shadow: var(--shadow);
+            border-left: 3px solid var(--accent, var(--border));
         }
-        .stat-card::before {
-            content: '';
-            position: absolute;
-            top: 0; left: 0; right: 0;
-            height: 3px;
-            background: var(--accent, #94a3b8);
-        }
-        .stat-card .stat-label {
-            font-size: 0.65em;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.6px;
-            color: #94a3b8;
-            margin-bottom: 6px;
-        }
-        .stat-card .stat-value {
-            font-size: 1.35em;
+        .stat-label {
+            font-size: 0.6em;
             font-weight: 700;
-            color: var(--accent, #1e293b);
-            line-height: 1.2;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-muted);
+            margin-bottom: 4px;
         }
-        .stat-card .stat-sub {
-            font-size: 0.72em;
-            color: #94a3b8;
-            margin-top: 2px;
-            font-weight: 400;
+        .stat-value {
+            font-size: 1.3em;
+            font-weight: 800;
+            color: var(--accent, var(--text));
+            line-height: 1.1;
+            font-variant-numeric: tabular-nums;
+        }
+        .stat-sub {
+            font-size: 0.68em;
+            color: var(--text-muted);
+            margin-top: 1px;
         }
 
         /* Toolbar */
         .toolbar {
-            background: white;
-            border-radius: 10px;
-            padding: 10px 16px;
-            box-shadow: 0 1px 4px rgba(0,0,0,0.05);
-            margin-bottom: 12px;
+            background: var(--surface);
+            border-radius: var(--radius-sm);
+            padding: 8px 14px;
+            box-shadow: var(--shadow);
+            margin-bottom: 10px;
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 8px;
             flex-wrap: wrap;
-            font-size: 0.88em;
+            font-size: 0.84em;
         }
-        .toolbar label { font-weight: 600; color: #475569; }
+        .toolbar label { font-weight: 600; color: var(--text-secondary); font-size: 0.88em; }
         .toolbar input[type="date"] {
-            padding: 5px 10px;
-            border: 1.5px solid #e2e8f0;
+            padding: 5px 8px;
+            border: 1.5px solid var(--border);
             border-radius: 6px;
-            font-size: 0.88em;
+            font-size: 0.86em;
             font-family: inherit;
             outline: none;
-            color: #334155;
+            color: var(--text);
         }
-        .toolbar input[type="date"]:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
-        .tbtn {
-            padding: 6px 14px; border-radius: 6px; border: none;
-            font-size: 0.84em; font-weight: 600; cursor: pointer;
-            font-family: inherit; transition: all 0.15s;
+        .toolbar input[type="date"]:focus { border-color: var(--primary); }
+        .toolbar .sep { color: var(--text-muted); }
+        .pill {
+            padding: 5px 12px; border-radius: 6px; border: none;
+            font-size: 0.82em; font-weight: 600; cursor: pointer;
+            font-family: inherit; transition: all 0.12s;
         }
-        .tbtn.primary { background: #2563eb; color: white; }
-        .tbtn.primary:hover { background: #1d4ed8; }
-        .tbtn.secondary { background: #f1f5f9; color: #475569; }
-        .tbtn.secondary:hover { background: #e2e8f0; }
+        .pill-primary { background: var(--primary); color: white; }
+        .pill-primary:hover { background: var(--primary-dark); }
+        .pill-ghost { background: transparent; color: var(--text-secondary); }
+        .pill-ghost:hover { background: var(--surface-hover); }
+        .toolbar-spacer { flex: 1; }
+        .pill-upload {
+            background: var(--surface-hover); color: var(--text-secondary);
+            border: 1.5px solid var(--border);
+        }
+        .pill-upload:hover { background: var(--border); }
+        #file-input-toolbar { display: none; }
 
         /* Table */
-        .table-wrapper {
-            background: white;
-            border-radius: 14px;
-            padding: 0;
-            box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+        .table-card {
+            background: var(--surface);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
             overflow: hidden;
         }
-        .table-wrapper .table-header {
-            padding: 16px 20px 12px;
-            border-bottom: 1px solid #f1f5f9;
+        .table-top {
+            padding: 14px 18px 10px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
         }
-        .table-wrapper h3 { color: #1e293b; font-size: 1em; font-weight: 700; }
+        .table-top h3 { font-size: 0.95em; font-weight: 700; }
         .table-scroll { overflow-x: auto; }
 
-        table { width: 100%; border-collapse: collapse; font-size: 0.82em; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.8em; }
         th {
-            padding: 10px 10px;
+            padding: 8px 9px;
             text-align: left;
             font-weight: 600;
-            color: #64748b;
-            font-size: 0.82em;
+            color: var(--text-muted);
+            font-size: 0.78em;
             text-transform: uppercase;
             letter-spacing: 0.3px;
-            border-bottom: 1px solid #e2e8f0;
+            border-bottom: 1px solid var(--border);
             white-space: nowrap;
-            background: #f8fafc;
+            background: var(--surface);
+            position: sticky;
+            top: 0;
         }
         td {
-            padding: 9px 10px;
-            border-bottom: 1px solid #f1f5f9;
+            padding: 7px 9px;
+            border-bottom: 1px solid var(--border-light);
             white-space: nowrap;
-            color: #334155;
+            font-variant-numeric: tabular-nums;
         }
-        tr:hover td { background: #f8fafc; }
-        tr:last-child td { border-bottom: none; }
+        tbody tr:hover td { background: var(--surface-hover); }
 
-        .diet-yes {
-            background: #dcfce7; color: #16a34a; font-weight: 600;
-            padding: 2px 10px; border-radius: 20px; font-size: 0.82em;
+        .diet-tag {
             display: inline-block;
+            padding: 1px 8px;
+            border-radius: 20px;
+            font-size: 0.78em;
+            font-weight: 600;
         }
-        .diet-no { color: #d1d5db; font-size: 0.82em; }
+        .diet-tag.yes { background: #dcfce7; color: #16a34a; }
+        .diet-tag.no { background: var(--surface-hover); color: var(--text-muted); }
 
-        .night25-val { color: #ea580c; font-weight: 600; }
-        .night40-val { color: #dc2626; font-weight: 600; }
-        .plate-cell { color: #2563eb; font-weight: 600; font-size: 0.84em; }
-        .shift-time { font-size: 0.84em; }
-        .shift-time .date-part { font-weight: 600; color: #1e293b; }
-        .shift-time .time-part { color: #64748b; font-weight: 500; }
-        .duration-cell { color: #64748b; }
-        .break-cell { color: #64748b; }
-        .driving-cell { color: #0369a1; font-weight: 500; }
-        .work-cell { font-weight: 600; color: #1e293b; }
+        .c-orange { color: var(--orange); font-weight: 600; }
+        .c-red { color: var(--red); font-weight: 600; }
+        .c-blue { color: var(--blue); font-weight: 600; }
+        .c-primary { color: var(--primary); font-weight: 600; }
+        .c-muted { color: var(--text-muted); }
+        .c-slate { color: var(--slate); }
+        .c-bold { font-weight: 700; color: var(--text); }
 
-        .totals-row td {
+        .shift-time { font-size: 0.82em; }
+        .shift-time .d { font-weight: 600; }
+        .shift-time .t { color: var(--text-secondary); font-weight: 500; }
+
+        tfoot td {
             font-weight: 700 !important;
-            background: #f1f5f9 !important;
-            border-top: 2px solid #e2e8f0;
-            color: #1e293b;
-            padding: 11px 10px;
+            background: #f8f9fb !important;
+            border-top: 2px solid var(--border);
+            padding: 9px 9px;
         }
-
-        .reset-btn {
-            display: inline-block;
-            background: #f1f5f9; color: #475569;
-            padding: 9px 22px; border-radius: 8px; border: 1.5px solid #e2e8f0;
-            cursor: pointer; font-size: 0.88em; font-weight: 600;
-            margin-top: 14px; font-family: inherit;
-            transition: all 0.15s;
-        }
-        .reset-btn:hover { background: #e2e8f0; border-color: #cbd5e1; }
 
         @media (max-width: 1200px) {
             .summary-strip { grid-template-columns: repeat(4, 1fr); }
@@ -261,19 +313,25 @@
 </head>
 <body>
     <div class="container">
-        <header>
-            <div class="logo">&#128179;</div>
-            <div>
-                <h1>Czytnik kart kierowców</h1>
-                <p>Analiza plików DDD z kart kierowców</p>
+        <div class="top-bar">
+            <div class="brand">
+                <div class="brand-icon">&#9951;</div>
+                <div>
+                    <h1>Czytnik kart kierowców</h1>
+                    <div class="subtitle">Analiza plików DDD</div>
+                </div>
             </div>
-        </header>
+            <button class="upload-btn" id="nav-upload-btn" onclick="document.getElementById('file-input-nav').click()">
+                Wgraj nowy plik
+            </button>
+            <input type="file" id="file-input-nav" accept=".ddd,.DDD">
+        </div>
 
         <div class="upload-area" id="upload-area">
-            <div class="icon">&#128194;</div>
+            <div class="upload-icon">&#128194;</div>
             <p>Przeciagnij plik .ddd tutaj lub kliknij aby wybrac</p>
             <button class="btn" onclick="document.getElementById('file-input').click()">Wybierz plik</button>
-            <input type="file" id="file-input" accept=".ddd,.DDD" multiple>
+            <input type="file" id="file-input" accept=".ddd,.DDD">
         </div>
 
         <div class="loading" id="loading">
@@ -287,17 +345,20 @@
             <div class="driver-card" id="driver-info"></div>
             <div class="summary-strip" id="summary-grid"></div>
 
-            <div class="toolbar" id="date-filter">
-                <label>Zakres dat:</label>
+            <div class="toolbar">
+                <label>Zakres:</label>
                 <input type="date" id="date-from">
-                <span style="color:#94a3b8">—</span>
+                <span class="sep">—</span>
                 <input type="date" id="date-to">
-                <button class="tbtn primary" onclick="applyDateFilter()">Filtruj</button>
-                <button class="tbtn secondary" onclick="resetDateFilter()">Resetuj</button>
+                <button class="pill pill-primary" onclick="applyDateFilter()">Filtruj</button>
+                <button class="pill pill-ghost" onclick="resetDateFilter()">Reset</button>
+                <div class="toolbar-spacer"></div>
+                <button class="pill pill-upload" onclick="document.getElementById('file-input-toolbar').click()">Wgraj nowy plik</button>
+                <input type="file" id="file-input-toolbar" accept=".ddd,.DDD">
             </div>
 
-            <div class="table-wrapper">
-                <div class="table-header">
+            <div class="table-card">
+                <div class="table-top">
                     <h3 id="shifts-header">Zmiany</h3>
                 </div>
                 <div class="table-scroll">
@@ -322,17 +383,18 @@
                 </table>
                 </div>
             </div>
-
-            <button class="reset-btn" onclick="resetView()">Wgraj nowy plik</button>
         </div>
     </div>
 
     <script>
         const uploadArea = document.getElementById('upload-area');
         const fileInput = document.getElementById('file-input');
+        const fileInputNav = document.getElementById('file-input-nav');
+        const fileInputToolbar = document.getElementById('file-input-toolbar');
         const loading = document.getElementById('loading');
         const errorMsg = document.getElementById('error-msg');
         const results = document.getElementById('results');
+        const navUploadBtn = document.getElementById('nav-upload-btn');
 
         uploadArea.addEventListener('dragover', (e) => { e.preventDefault(); uploadArea.classList.add('dragover'); });
         uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('dragover'));
@@ -340,13 +402,17 @@
             e.preventDefault(); uploadArea.classList.remove('dragover');
             if (e.dataTransfer.files.length > 0) processFile(e.dataTransfer.files[0]);
         });
+
         fileInput.addEventListener('change', () => { if (fileInput.files.length > 0) processFile(fileInput.files[0]); });
+        fileInputNav.addEventListener('change', () => { if (fileInputNav.files.length > 0) processFile(fileInputNav.files[0]); });
+        fileInputToolbar.addEventListener('change', () => { if (fileInputToolbar.files.length > 0) processFile(fileInputToolbar.files[0]); });
 
         function processFile(file) {
             uploadArea.style.display = 'none';
             loading.style.display = 'block';
             errorMsg.style.display = 'none';
             results.style.display = 'none';
+            navUploadBtn.style.display = 'none';
             const formData = new FormData();
             formData.append('file', file);
             fetch('/upload', { method: 'POST', body: formData })
@@ -370,9 +436,11 @@
         function renderResults(data) {
             currentData = data;
             results.style.display = 'block';
+            navUploadBtn.style.display = 'inline-block';
+
             const di = data.driver_info || {};
             document.getElementById('driver-info').innerHTML = `
-                <div class="driver-main">
+                <div>
                     <h2>${di.driver_name || 'Nieznany kierowca'}</h2>
                     <div class="detail">Nr karty: ${di.card_number || '-'}</div>
                 </div>
@@ -381,24 +449,30 @@
                     ${di.card_expiry_date ? `<div>Wazna do: ${formatDate(di.card_expiry_date)}</div>` : ''}
                 </div>
             `;
+
+            // Only set dates if inputs are empty (don't overwrite user's filter)
             const details = data.shift_details || [];
-            if (details.length > 0) {
-                document.getElementById('date-from').value = details[0].shift_date;
-                document.getElementById('date-to').value = details[details.length - 1].shift_date;
+            const dateFrom = document.getElementById('date-from');
+            const dateTo = document.getElementById('date-to');
+            if (!dateFrom.value && details.length > 0) {
+                dateFrom.value = details[0].shift_date;
             }
-            renderFiltered(details);
+            if (!dateTo.value && details.length > 0) {
+                dateTo.value = details[details.length - 1].shift_date;
+            }
+
+            applyDateFilter();
         }
 
         function renderFiltered(details) {
             const hm = m => Math.floor(m/60) + ':' + String(m%60).padStart(2,'0');
             const dec = m => (m/60).toFixed(2);
 
-            let totWork=0, totDriving=0, totBreak=0, totAvail=0, totN25=0, totN40=0, dietCount=0;
+            let totWork=0, totDriving=0, totBreak=0, totN25=0, totN40=0, dietCount=0;
             for (const d of details) {
                 totWork += d.work_minutes;
                 totDriving += d.driving_minutes;
                 totBreak += d.break_minutes;
-                totAvail += d.avail_minutes;
                 totN25 += d.night_25_minutes;
                 totN40 += d.night_40_minutes;
                 if (d.has_diet) dietCount++;
@@ -406,21 +480,21 @@
             const totNight = totN25 + totN40;
 
             const stats = [
-                { label: 'Zmian', value: details.length, sub: '', accent: '#475569' },
-                { label: 'Czas pracy', value: hm(totWork), sub: dec(totWork)+' h', accent: '#1e40af' },
-                { label: 'Jazda', value: hm(totDriving), sub: dec(totDriving)+' h', accent: '#0369a1' },
-                { label: 'Przerwy', value: hm(totBreak), sub: dec(totBreak)+' h', accent: '#64748b' },
-                { label: 'Nocne 25%', value: hm(totN25), sub: dec(totN25)+' h', accent: '#ea580c' },
-                { label: 'Nocne 40%', value: hm(totN40), sub: dec(totN40)+' h', accent: '#dc2626' },
-                { label: 'Nocne razem', value: hm(totNight), sub: dec(totNight)+' h', accent: '#f59e0b' },
-                { label: 'Diety', value: dietCount, sub: 'zmiana > 8h', accent: '#16a34a' },
+                { l:'Zmian', v:details.length, s:'', a:'#475569' },
+                { l:'Czas pracy', v:hm(totWork), s:dec(totWork)+' h', a:'#1e40af' },
+                { l:'Jazda', v:hm(totDriving), s:dec(totDriving)+' h', a:'#0ea5e9' },
+                { l:'Przerwy', v:hm(totBreak), s:dec(totBreak)+' h', a:'#64748b' },
+                { l:'Nocne 25%', v:hm(totN25), s:dec(totN25)+' h', a:'#f97316' },
+                { l:'Nocne 40%', v:hm(totN40), s:dec(totN40)+' h', a:'#ef4444' },
+                { l:'Nocne razem', v:hm(totNight), s:dec(totNight)+' h', a:'#f59e0b' },
+                { l:'Diety', v:dietCount, s:'zmiana > 8h', a:'#22c55e' },
             ];
 
             document.getElementById('summary-grid').innerHTML = stats.map(s => `
-                <div class="stat-card" style="--accent:${s.accent}">
-                    <div class="stat-label">${s.label}</div>
-                    <div class="stat-value" style="color:${s.accent}">${s.value}</div>
-                    ${s.sub ? `<div class="stat-sub">${s.sub}</div>` : ''}
+                <div class="stat" style="--accent:${s.a}">
+                    <div class="stat-label">${s.l}</div>
+                    <div class="stat-value">${s.v}</div>
+                    ${s.s ? `<div class="stat-sub">${s.s}</div>` : ''}
                 </div>
             `).join('');
 
@@ -432,31 +506,31 @@
                 const tr = document.createElement('tr');
                 const plates = (d.vehicles || []).join(', ');
                 tr.innerHTML = `
-                    <td class="shift-time">${formatShiftTime(d.shift_start)}</td>
-                    <td class="shift-time">${formatShiftTime(d.shift_end)}</td>
-                    <td class="duration-cell">${d.duration_hm}</td>
-                    <td class="plate-cell">${plates || '-'}</td>
-                    <td class="driving-cell">${d.driving_hm}</td>
+                    <td class="shift-time">${fmtDt(d.shift_start)}</td>
+                    <td class="shift-time">${fmtDt(d.shift_end)}</td>
+                    <td class="c-muted">${d.duration_hm}</td>
+                    <td class="c-primary">${plates || '-'}</td>
+                    <td class="c-blue">${d.driving_hm}</td>
                     <td>${d.work_only_hm}</td>
-                    <td class="break-cell">${d.break_hm}</td>
-                    <td class="work-cell">${d.work_hm} <span style="color:#94a3b8;font-size:0.85em;font-weight:400">(${d.work_decimal}h)</span></td>
-                    <td class="night25-val">${d.night_25_minutes > 0 ? d.night_25_hm : '-'}</td>
-                    <td class="night40-val">${d.night_40_minutes > 0 ? d.night_40_hm : '-'}</td>
-                    <td>${d.has_diet ? '<span class="diet-yes">TAK</span>' : '<span class="diet-no">-</span>'}</td>
+                    <td class="c-slate">${d.break_hm}</td>
+                    <td class="c-bold">${d.work_hm} <span class="c-muted" style="font-size:0.85em;font-weight:400">(${d.work_decimal}h)</span></td>
+                    <td class="c-orange">${d.night_25_minutes > 0 ? d.night_25_hm : '-'}</td>
+                    <td class="c-red">${d.night_40_minutes > 0 ? d.night_40_hm : '-'}</td>
+                    <td>${d.has_diet ? '<span class="diet-tag yes">TAK</span>' : '<span class="diet-tag no">-</span>'}</td>
                 `;
                 tbody.appendChild(tr);
             }
 
             document.getElementById('daily-tfoot').innerHTML = `
-                <tr class="totals-row">
-                    <td colspan="4" style="text-align:right;color:#64748b">SUMA</td>
-                    <td class="driving-cell">${hm(totDriving)}</td>
+                <tr>
+                    <td colspan="4" style="text-align:right;color:var(--text-muted)">SUMA</td>
+                    <td class="c-blue">${hm(totDriving)}</td>
                     <td></td>
-                    <td class="break-cell">${hm(totBreak)}</td>
-                    <td class="work-cell">${hm(totWork)} <span style="color:#94a3b8;font-size:0.85em;font-weight:400">(${dec(totWork)}h)</span></td>
-                    <td class="night25-val">${hm(totN25)}</td>
-                    <td class="night40-val">${hm(totN40)}</td>
-                    <td style="color:#16a34a">${dietCount}</td>
+                    <td class="c-slate">${hm(totBreak)}</td>
+                    <td class="c-bold">${hm(totWork)} <span class="c-muted" style="font-size:0.85em;font-weight:400">(${dec(totWork)}h)</span></td>
+                    <td class="c-orange">${hm(totN25)}</td>
+                    <td class="c-red">${hm(totN40)}</td>
+                    <td style="color:var(--green);font-weight:700">${dietCount}</td>
                 </tr>
             `;
         }
@@ -481,25 +555,17 @@
             renderFiltered(details);
         }
 
-        function formatDate(dateStr) {
-            if (!dateStr) return '-';
-            try { return new Date(dateStr).toLocaleDateString('pl-PL'); }
-            catch { return dateStr; }
+        function formatDate(s) {
+            if (!s) return '-';
+            try { return new Date(s).toLocaleDateString('pl-PL'); } catch { return s; }
         }
 
-        function formatShiftTime(dtStr) {
-            if (!dtStr) return '-';
-            const [date, time] = dtStr.split(' ');
-            if (!time) return dtStr;
-            const dp = date.split('-');
-            if (dp.length < 3) return dtStr;
-            return `<span class="date-part">${dp[2]}.${dp[1]}.${dp[0]}</span> <span class="time-part">${time}</span>`;
-        }
-
-        function resetView() {
-            results.style.display = 'none';
-            uploadArea.style.display = 'block';
-            fileInput.value = '';
+        function fmtDt(s) {
+            if (!s) return '-';
+            const [date, time] = s.split(' ');
+            if (!time) return s;
+            const p = date.split('-');
+            return `<span class="d">${p[2]}.${p[1]}.${p[0]}</span> <span class="t">${time}</span>`;
         }
     </script>
 </body>
