@@ -1111,5 +1111,22 @@ def portal_sync_status():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/portal/sync-log')
+@login_required
+def portal_sync_log():
+    """Get sync history log."""
+    history_file = os.environ.get('SYNC_HISTORY_FILE', '/opt/ddd-reader/samsara_sync_history.json')
+    try:
+        if os.path.exists(history_file):
+            with open(history_file) as f:
+                history = json.load(f)
+            # Return newest first
+            history.reverse()
+            return jsonify({'history': history})
+        return jsonify({'history': []})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=40110)

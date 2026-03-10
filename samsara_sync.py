@@ -36,8 +36,10 @@ DROPBOX_REFRESH_TOKEN = os.environ.get('DROPBOX_REFRESH_TOKEN', '')
 DROPBOX_APP_KEY = os.environ.get('DROPBOX_APP_KEY', 'j9ntkihedd9495i')
 DROPBOX_APP_SECRET = os.environ.get('DROPBOX_APP_SECRET', 'd3hr43reha9kky8')
 STATE_FILE = os.environ.get('SYNC_STATE_FILE', '/opt/ddd-reader/samsara_sync_state.json')
+SYNC_HISTORY_FILE = os.environ.get('SYNC_HISTORY_FILE', '/opt/ddd-reader/samsara_sync_history.json')
 DEST_FOLDER = os.environ.get('SYNC_DEST_FOLDER', '/Samsara-DDD')
 DAYS_BACK = int(os.environ.get('SYNC_DAYS_BACK', '30'))
+MAX_HISTORY_ENTRIES = 100
 
 
 def log(msg):
@@ -64,6 +66,21 @@ def save_state(synced_ids):
             'synced_ids': list(synced_ids),
             'last_sync': datetime.now(tz=timezone.utc).isoformat() + 'Z',
         }, f, indent=2)
+
+
+def save_sync_history(entry):
+    """Append a sync run entry to history file (keep last MAX_HISTORY_ENTRIES)."""
+    history = []
+    if os.path.exists(SYNC_HISTORY_FILE):
+        try:
+            with open(SYNC_HISTORY_FILE) as f:
+                history = json.load(f)
+        except (json.JSONDecodeError, IOError):
+            pass
+    history.append(entry)
+    history = history[-MAX_HISTORY_ENTRIES:]
+    with open(SYNC_HISTORY_FILE, 'w') as f:
+        json.dump(history, f, indent=2)
 
 
 def fetch_samsara_files():
@@ -129,6 +146,15 @@ def main():
     # Fetch from Samsara
     data = fetch_samsara_files()
     if data is None:
+        save_sync_history({
+            'timestamp': datetime.now(tz=timezone.utc).isoformat() + 'Z',
+            'status': 'error',
+            'error': 'Samsara API error',
+            'found': 0,
+            'uploaded': 0,
+            'errors': 0,
+            'files': [],
+        })
         sys.exit(1)
 
     # Collect new files
@@ -153,6 +179,14 @@ def main():
     if not new_files:
         log('No new files found.')
         save_state(synced_ids)
+        save_sync_history({
+            'timestamp': datetime.now(tz=timezone.utc).isoformat() + 'Z',
+            'status': 'ok',
+            'found': 0,
+            'uploaded': 0,
+            'errors': 0,
+            'files': [],
+        })
         return
 
     log(f'Found {len(new_files)} new files to sync.')
@@ -168,11 +202,21 @@ def main():
         log(f'Dropbox connected: {acct.name.display_name}')
     except Exception as e:
         log(f'ERROR: Dropbox connection failed: {e}')
+        save_sync_history({
+            'timestamp': datetime.now(tz=timezone.utc).isoformat() + 'Z',
+            'status': 'error',
+            'error': f'Dropbox connection failed: {e}',
+            'found': len(new_files),
+            'uploaded': 0,
+            'errors': 0,
+            'files': [],
+        })
         sys.exit(1)
 
     # Download and upload each file
     uploaded = 0
     errors = 0
+    uploaded_files = []
     for f in new_files:
         url = f['url']
         if not url:
@@ -190,19 +234,50 @@ def main():
             if resp.status_code != 200:
                 log(f'  SKIP {fname}: HTTP {resp.status_code}')
                 errors += 1
+                uploaded_files.append({
+                    'driver': driver_name,
+                    'file': fname,
+                    'path': dbx_path,
+                    'status': 'error',
+                    'error': f'HTTP {resp.status_code}',
+                })
                 continue
 
             upload_to_dropbox(dbx, resp.content, dbx_path)
             synced_ids.add(f['id'])
             uploaded += 1
             log(f'  OK {dbx_path} ({len(resp.content)} bytes)')
+            uploaded_files.append({
+                'driver': driver_name,
+                'file': fname,
+                'path': dbx_path,
+                'size': len(resp.content),
+                'status': 'ok',
+            })
 
         except Exception as e:
             log(f'  ERROR {fname}: {e}')
             errors += 1
+            uploaded_files.append({
+                'driver': driver_name,
+                'file': fname,
+                'path': dbx_path,
+                'status': 'error',
+                'error': str(e),
+            })
 
     # Save state
     save_state(synced_ids)
+
+    # Save sync history
+    save_sync_history({
+        'timestamp': datetime.now(tz=timezone.utc).isoformat() + 'Z',
+        'status': 'ok' if errors == 0 else 'partial',
+        'found': len(new_files),
+        'uploaded': uploaded,
+        'errors': errors,
+        'files': uploaded_files,
+    })
 
     # Invalidate portal cache so next page load fetches fresh data
     cache_file = os.environ.get('PORTAL_CACHE_FILE', '/opt/ddd-reader/portal_cache.json')

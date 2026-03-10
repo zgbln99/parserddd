@@ -413,6 +413,7 @@
             .search-box { max-width: none; }
             .pagination { justify-content: center; }
             .a-summary { grid-template-columns: repeat(2, 1fr); }
+            #sync-summary { grid-template-columns: repeat(2, 1fr) !important; }
         }
     </style>
 </head>
@@ -458,6 +459,9 @@
             <div class="tab active" id="tab-drivers" onclick="switchTab('drivers')">
                 Kierowcy <span class="count" id="drivers-count">0</span>
             </div>
+            <div class="tab" id="tab-sync" onclick="switchTab('sync')">
+                Monitor sync
+            </div>
         </div>
 
         <!-- Toolbar -->
@@ -498,6 +502,47 @@
 
             <div class="empty-state" id="empty-state" style="display:none">
                 Brak danych. Upewnij sie, ze synchronizacja Samsara-Dropbox dziala poprawnie.
+            </div>
+        </div>
+
+        <!-- Sync Monitor Panel -->
+        <div id="sync-panel" style="display:none">
+            <div class="loading-state" id="sync-loading">
+                <div class="spinner"></div>
+                <div>Ladowanie historii synchronizacji...</div>
+            </div>
+            <div id="sync-content" style="display:none">
+                <!-- Summary cards -->
+                <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:10px; margin-bottom:16px;" id="sync-summary"></div>
+                <!-- History table -->
+                <div class="table-card">
+                    <div class="table-scroll">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Data</th>
+                                    <th>Status</th>
+                                    <th>Znalezione</th>
+                                    <th>Pobrane</th>
+                                    <th>Bledy</th>
+                                    <th>Pliki</th>
+                                </tr>
+                            </thead>
+                            <tbody id="sync-tbody"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <!-- Expanded file details -->
+                <div class="detail-panel" id="sync-detail-panel">
+                    <div class="detail-header">
+                        <h3 id="sync-detail-title">Pobrane pliki</h3>
+                        <button class="btn btn-ghost" onclick="closeSyncDetail()">Zamknij</button>
+                    </div>
+                    <div class="detail-files" id="sync-detail-files"></div>
+                </div>
+            </div>
+            <div class="empty-state" id="sync-empty" style="display:none">
+                Brak historii synchronizacji. Cron jeszcze nie uruchomil synchronizacji.
             </div>
         </div>
 
@@ -854,6 +899,136 @@
 
         function escAttr(s) {
             return String(s || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+        }
+
+        // ===== Tab switching =====
+        let currentTab = 'drivers';
+        function switchTab(tab) {
+            currentTab = tab;
+            document.getElementById('tab-drivers').classList.toggle('active', tab === 'drivers');
+            document.getElementById('tab-sync').classList.toggle('active', tab === 'sync');
+
+            // Drivers content
+            document.getElementById('main-content').style.display = tab === 'drivers' ? '' : 'none';
+            document.querySelector('.toolbar').style.display = tab === 'drivers' ? '' : 'none';
+            document.getElementById('detail-panel').style.display = tab === 'drivers' && selectedDriverIndex >= 0 ? '' : 'none';
+
+            // Sync panel
+            document.getElementById('sync-panel').style.display = tab === 'sync' ? '' : 'none';
+            if (tab === 'sync') loadSyncLog();
+        }
+
+        // ===== Sync Monitor =====
+        let syncHistory = [];
+
+        function loadSyncLog() {
+            document.getElementById('sync-loading').style.display = '';
+            document.getElementById('sync-content').style.display = 'none';
+            document.getElementById('sync-empty').style.display = 'none';
+
+            fetch('/portal/sync-log')
+                .then(r => {
+                    if (r.status === 401) { window.location = '/login'; return null; }
+                    return r.json();
+                })
+                .then(data => {
+                    if (!data) return;
+                    document.getElementById('sync-loading').style.display = 'none';
+                    syncHistory = data.history || [];
+                    if (syncHistory.length === 0) {
+                        document.getElementById('sync-empty').style.display = '';
+                        return;
+                    }
+                    document.getElementById('sync-content').style.display = '';
+                    renderSyncSummary();
+                    renderSyncTable();
+                })
+                .catch(err => {
+                    document.getElementById('sync-loading').innerHTML =
+                        '<div style="color:#ef4444">Blad: ' + escHtml(err.message) + '</div>';
+                });
+        }
+
+        function renderSyncSummary() {
+            const last = syncHistory[0] || {};
+            const totalUploaded = syncHistory.reduce((s, h) => s + (h.uploaded || 0), 0);
+            const totalErrors = syncHistory.reduce((s, h) => s + (h.errors || 0), 0);
+            const totalRuns = syncHistory.length;
+
+            const statusLabel = last.status === 'ok' ? 'OK' : last.status === 'partial' ? 'Czesciowy' : last.status === 'error' ? 'Blad' : '-';
+            const statusColor = last.status === 'ok' ? 'var(--green)' : last.status === 'error' ? 'var(--red)' : 'var(--orange)';
+
+            document.getElementById('sync-summary').innerHTML = `
+                <div class="a-stat">
+                    <div class="a-stat-label">Ostatni status</div>
+                    <div class="a-stat-value" style="color:${statusColor}">${statusLabel}</div>
+                </div>
+                <div class="a-stat">
+                    <div class="a-stat-label">Ostatnia sync</div>
+                    <div class="a-stat-value" style="font-size:0.85em">${formatDateTimePl(last.timestamp)}</div>
+                </div>
+                <div class="a-stat">
+                    <div class="a-stat-label">Laczna pobranych</div>
+                    <div class="a-stat-value">${totalUploaded}</div>
+                </div>
+                <div class="a-stat">
+                    <div class="a-stat-label">Uruchomien</div>
+                    <div class="a-stat-value">${totalRuns}</div>
+                </div>
+            `;
+        }
+
+        function renderSyncTable() {
+            const tbody = document.getElementById('sync-tbody');
+            tbody.innerHTML = syncHistory.map((h, i) => {
+                const statusBadge = getSyncStatusBadge(h.status);
+                const hasFiles = (h.files || []).length > 0;
+                return `<tr onclick="openSyncDetail(${i})" style="cursor:${hasFiles ? 'pointer' : 'default'}">
+                    <td class="date-cell">${formatDateTimePl(h.timestamp)}</td>
+                    <td>${statusBadge}</td>
+                    <td>${h.found || 0}</td>
+                    <td style="font-weight:600">${h.uploaded || 0}</td>
+                    <td style="color:${h.errors ? 'var(--red)' : 'var(--text-muted)'}">${h.errors || 0}</td>
+                    <td>${hasFiles ? '<span class="file-count-badge">' + h.files.length + '</span>' : '-'}</td>
+                </tr>`;
+            }).join('');
+        }
+
+        function getSyncStatusBadge(status) {
+            if (status === 'ok') return '<span class="days-badge"><span class="days-dot green"></span> OK</span>';
+            if (status === 'partial') return '<span class="days-badge"><span class="days-dot orange"></span> Czesciowy</span>';
+            if (status === 'error') return '<span class="days-badge"><span class="days-dot red"></span> Blad</span>';
+            return '<span class="days-badge">-</span>';
+        }
+
+        function openSyncDetail(idx) {
+            const h = syncHistory[idx];
+            if (!h || !h.files || h.files.length === 0) return;
+
+            const panel = document.getElementById('sync-detail-panel');
+            document.getElementById('sync-detail-title').textContent =
+                'Pliki z ' + formatDateTimePl(h.timestamp) + (h.error ? ' - ' + h.error : '');
+
+            const filesDiv = document.getElementById('sync-detail-files');
+            filesDiv.innerHTML = h.files.map(f => {
+                const sizeKB = f.size ? Math.round(f.size / 1024) : '?';
+                const statusIcon = f.status === 'ok' ? '&#9989;' : '&#10060;';
+                const errorInfo = f.error ? `<span style="color:var(--red);font-size:0.82em"> ${escHtml(f.error)}</span>` : '';
+                return `<div class="file-row" style="cursor:default">
+                    <span class="file-icon">${statusIcon}</span>
+                    <span style="font-weight:500;color:var(--text-secondary);min-width:140px">${escHtml(f.driver || '')}</span>
+                    <span class="file-name">${escHtml(f.file)}</span>
+                    <span class="file-size">${f.status === 'ok' ? sizeKB + ' KB' : ''}</span>
+                    ${errorInfo}
+                </div>`;
+            }).join('');
+
+            panel.classList.add('open');
+            panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        function closeSyncDetail() {
+            document.getElementById('sync-detail-panel').classList.remove('open');
         }
 
         // Click outside modal to close
