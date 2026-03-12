@@ -22,6 +22,14 @@ function minutesToDecimal(minutes: number) {
   return (minutes / 60).toFixed(2);
 }
 
+const weekdayMap: Record<string, Record<string, string>> = {
+  de: { Pn: 'Mo', Wt: 'Di', Śr: 'Mi', Cz: 'Do', Pt: 'Fr', So: 'Sa', Nd: 'So' },
+};
+
+function localizeWeekday(wd: string, locale: string): string {
+  return weekdayMap[locale]?.[wd] ?? wd;
+}
+
 interface AnalysisViewProps {
   data: AnalysisResult;
   dateFrom?: string;
@@ -121,7 +129,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
 
     const rows = shifts.map((sh) => `
       <tr>
-        <td>${sh.weekday}</td>
+        <td>${localizeWeekday(sh.weekday, locale)}</td>
         <td>${sh.shift_start}</td>
         <td>${sh.shift_end}</td>
         <td><b>${sh.duration_hm}</b></td>
@@ -325,9 +333,10 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
               {shifts.map((sh, i) => {
                 const isWeekend = sh.weekday === 'So' || sh.weekday === 'Nd';
+                const wd = localizeWeekday(sh.weekday, locale);
                 return (
                 <tr key={i} className={`hover:bg-gray-50 dark:hover:bg-gray-800/50 ${isWeekend ? 'bg-red-50/40 dark:bg-red-900/10' : ''}`}>
-                  <td className={`whitespace-nowrap px-3 py-2 font-bold ${isWeekend ? 'text-red-500' : ''}`}>{sh.weekday}</td>
+                  <td className={`whitespace-nowrap px-3 py-2 font-bold ${isWeekend ? 'text-red-500' : ''}`}>{wd}</td>
                   <td className="whitespace-nowrap px-3 py-2 font-medium">{sh.shift_start}</td>
                   <td className="whitespace-nowrap px-3 py-2 text-gray-500 dark:text-gray-400">{sh.shift_end}</td>
                   <td className="whitespace-nowrap px-3 py-2 font-bold">{sh.duration_hm}</td>
