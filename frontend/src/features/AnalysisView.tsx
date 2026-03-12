@@ -4,7 +4,7 @@ import { formatDate } from '../lib/format';
 import { exportCsv, exportPdf } from '../lib/api';
 import { Badge } from '../components/Badge';
 import { BarChart } from '../components/BarChart';
-import { Download, FileText, ClipboardCopy, Check, Printer, BarChart3 } from 'lucide-react';
+import { Download, FileText, ClipboardCopy, Check, Printer, BarChart3, UtensilsCrossed } from 'lucide-react';
 import type { AnalysisResult, ShiftDetail } from '../types';
 
 function fmtNight(minutes: number, hm: string) {
@@ -106,6 +106,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
   };
 
   const [showChart, setShowChart] = useState(false);
+  const [showDietReport, setShowDietReport] = useState(false);
   const printRef = useRef<HTMLDivElement>(null);
 
   // Chart data: per-shift stacked bars
@@ -181,6 +182,52 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
     printWindow.document.close();
     printWindow.focus();
     printWindow.print();
+  }, [shifts, di, s, t, locale]);
+
+  const handlePrintDietReport = useCallback(() => {
+    const pw = window.open('', '_blank');
+    if (!pw) return;
+
+    const dietRows = shifts.map((sh) => {
+      const wd = localizeWeekday(sh.weekday, locale);
+      const isWeekend = sh.weekday === 'So' || sh.weekday === 'Nd';
+      return `<tr${isWeekend ? ' style="color:#999"' : ''}>
+        <td>${sh.shift_date}</td>
+        <td>${wd}</td>
+        <td>${sh.duration_hm}</td>
+        <td style="text-align:center;font-weight:bold;${sh.has_diet ? 'color:#16a34a' : 'color:#ccc'}">${sh.has_diet ? t('yes') : t('no')}</td>
+      </tr>`;
+    }).join('');
+
+    pw.document.write(`<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>${di.driver_name} — ${t('dietReport')}</title>
+<style>
+  body { font-family: Arial, sans-serif; margin: 20px; color: #111; font-size: 12px; }
+  h1 { font-size: 18px; margin-bottom: 2px; }
+  .meta { color: #666; margin-bottom: 12px; font-size: 11px; }
+  .summary { margin-bottom: 16px; font-size: 14px; }
+  .summary b { font-size: 20px; color: #16a34a; }
+  table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+  th, td { border: 1px solid #ccc; padding: 5px 10px; text-align: left; }
+  th { background: #f5f5f5; font-size: 10px; text-transform: uppercase; }
+  @media print { body { margin: 10px; } }
+</style></head><body>
+  <h1>${t('dietReport')}</h1>
+  <div class="meta">${di.driver_name} &mdash; ${di.card_number}</div>
+  <div class="summary">${t('analysisDietCount')}: <b>${s.diet_count}</b> / ${s.total_shifts} ${t('analysisShifts').toLowerCase()}</div>
+  <table>
+    <thead><tr>
+      <th>${t('syncDate')}</th>
+      <th>${t('analysisWeekday')}</th>
+      <th>${t('analysisDuration')}</th>
+      <th>${t('analysisDiet')}</th>
+    </tr></thead>
+    <tbody>${dietRows}</tbody>
+  </table>
+</body></html>`);
+    pw.document.close();
+    pw.focus();
+    pw.print();
   }, [shifts, di, s, t, locale]);
 
   const hasDateFilter = onDateFromChange && onDateToChange;
@@ -308,6 +355,65 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
                 height={220}
                 formatValue={(v) => v.toFixed(1)}
               />
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Diet report toggle */}
+      {shifts.length > 0 && (
+        <div className="rounded-xl bg-gray-50 dark:bg-gray-800">
+          <button
+            onClick={() => setShowDietReport(!showDietReport)}
+            className="flex w-full items-center gap-2 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500 transition hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+          >
+            <UtensilsCrossed size={14} />
+            {t('dietReport')}
+            <span className="ml-1 rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-bold text-green-700 dark:bg-green-900/40 dark:text-green-400">
+              {s.diet_count}/{s.total_shifts}
+            </span>
+            <span className="ml-auto text-[10px] font-normal normal-case text-gray-400">
+              {showDietReport ? '▲' : '▼'}
+            </span>
+          </button>
+          {showDietReport && (
+            <div className="px-4 pb-4">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-200 dark:border-gray-700">
+                    <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 dark:text-gray-400">{t('syncDate')}</th>
+                    <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 dark:text-gray-400">{t('analysisWeekday')}</th>
+                    <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 dark:text-gray-400">{t('analysisDuration')}</th>
+                    <th className="px-3 py-2 text-center text-xs font-semibold text-gray-500 dark:text-gray-400">{t('analysisDiet')}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                  {shifts.map((sh, i) => {
+                    const isWeekend = sh.weekday === 'So' || sh.weekday === 'Nd';
+                    return (
+                      <tr key={i} className={isWeekend ? 'text-gray-400 dark:text-gray-600' : ''}>
+                        <td className="whitespace-nowrap px-3 py-1.5 font-medium">{sh.shift_date}</td>
+                        <td className={`whitespace-nowrap px-3 py-1.5 font-bold ${isWeekend ? 'text-red-400' : ''}`}>{localizeWeekday(sh.weekday, locale)}</td>
+                        <td className="whitespace-nowrap px-3 py-1.5">{sh.duration_hm}</td>
+                        <td className="whitespace-nowrap px-3 py-1.5 text-center">
+                          {sh.has_diet
+                            ? <Badge variant="green">{t('yes')}</Badge>
+                            : <span className="text-gray-300 dark:text-gray-600">{t('no')}</span>}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              <div className="mt-3 flex justify-end">
+                <button
+                  onClick={handlePrintDietReport}
+                  className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-700"
+                >
+                  <Printer size={13} />
+                  {t('analysisPrint')}
+                </button>
+              </div>
             </div>
           )}
         </div>

@@ -95,6 +95,7 @@ export const pl = {
   analysisWeekday: 'Dzień',
   analysisChart: 'Wykres godzin',
   analysisPrint: 'Drukuj',
+  dietReport: 'Raport diet',
 
   // Reader
   readerTitle: 'Czytnik kart DDD',

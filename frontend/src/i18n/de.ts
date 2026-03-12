@@ -97,6 +97,7 @@ export const de: Record<TranslationKey, string> = {
   analysisWeekday: 'Tag',
   analysisChart: 'Stundendiagramm',
   analysisPrint: 'Drucken',
+  dietReport: 'Verpflegungsbericht',
 
   // Reader
   readerTitle: 'DDD-Kartenleser',
