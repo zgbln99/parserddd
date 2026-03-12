@@ -386,7 +386,7 @@ def analyze_card(data):
         total_night_40_minutes += night_40
 
         # Diet based on shift DURATION (not work time)
-        if duration_minutes > 8 * 60:
+        if duration_minutes >= 8 * 60:
             diet_count += 1
 
         # Find vehicles used during this shift
@@ -427,7 +427,7 @@ def analyze_card(data):
             'night_25_hm': minutes_to_hm(night_25),
             'night_40_minutes': night_40,
             'night_40_hm': minutes_to_hm(night_40),
-            'has_diet': duration_minutes > 8 * 60,
+            'has_diet': duration_minutes >= 8 * 60,
             'vehicles': unique_plates,
         })
 

@@ -360,7 +360,7 @@ def analyze_card(data):
         total_n40 += night_40
         # Diet only on weekdays (Mon=0..Fri=4), not on weekends
         is_weekday = shift_start.weekday() < 5
-        has_diet = duration_minutes > 8 * 60 and is_weekday
+        has_diet = duration_minutes >= 8 * 60 and is_weekday
         if has_diet:
             diet_count += 1
 
