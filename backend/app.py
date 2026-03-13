@@ -16,6 +16,7 @@ import sqlite3
 import subprocess
 import tempfile
 import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
 from functools import wraps
 
@@ -1010,122 +1011,123 @@ def api_settlement():
     parses it, and filters shifts to the requested month.
     Uses ThreadPoolExecutor for parallel Dropbox downloads.
     """
-    from concurrent.futures import ThreadPoolExecutor, as_completed
+    try:
+        payload = request.get_json(silent=True) or {}
+        period = payload.get('period', '')
+        if not period or not re.match(r'^\d{4}-\d{2}$', period):
+            return jsonify({'error': 'period (YYYY-MM) required'}), 400
 
-    payload = request.get_json(silent=True) or {}
-    period = payload.get('period', '')
-    if not period or not re.match(r'^\d{4}-\d{2}$', period):
-        return jsonify({'error': 'period (YYYY-MM) required'}), 400
+        # Load drivers from cache or Dropbox
+        cached = load_portal_cache()
+        if cached:
+            drivers_data = cached
+        else:
+            dbx = get_server_dropbox_client()
+            if not dbx:
+                return jsonify({'error': 'Brak połączenia z Dropbox'}), 500
+            sync_folder = os.environ.get('SYNC_DEST_FOLDER', '/Samsara-DDD')
+            drivers_data = build_drivers_data(dbx, sync_folder)
 
-    # Load drivers from cache or Dropbox
-    cached = load_portal_cache()
-    if cached:
-        drivers_data = cached
-    else:
-        dbx = get_server_dropbox_client()
-        if not dbx:
-            return jsonify({'error': 'Brak połączenia z Dropbox'}), 500
-        sync_folder = os.environ.get('SYNC_DEST_FOLDER', '/Samsara-DDD')
-        drivers_data = build_drivers_data(dbx, sync_folder)
+        # Load all driver configs for personal_nr / diet settings
+        conn = _get_db()
+        all_configs = {}
+        for row in conn.execute('SELECT * FROM driver_config').fetchall():
+            all_configs[row['card_number']] = dict(row)
+        conn.close()
 
-    # Load all driver configs for personal_nr / diet settings
-    conn = _get_db()
-    all_configs = {}
-    for row in conn.execute('SELECT * FROM driver_config').fetchall():
-        all_configs[row['card_number']] = dict(row)
-    conn.close()
+        # Build list of drivers that have files to analyze
+        tasks = []
+        for driver in drivers_data:
+            files = driver.get('files', [])
+            if not files:
+                continue
+            file_path = files[0].get('path', '')
+            if not file_path:
+                continue
+            tasks.append({
+                'driver_name': driver.get('name', ''),
+                'card_number': driver.get('card_number', ''),
+                'file_path': file_path,
+            })
 
-    # Build list of drivers that have files to analyze
-    tasks = []
-    for driver in drivers_data:
-        files = driver.get('files', [])
-        if not files:
-            continue
-        file_path = files[0].get('path', '')
-        if not file_path:
-            continue
-        tasks.append({
-            'driver_name': driver.get('name', ''),
-            'card_number': driver.get('card_number', ''),
-            'file_path': file_path,
-        })
+        def process_driver(task):
+            """Download + parse + filter one driver. Each thread gets its own Dropbox client."""
+            dbx_thread = get_server_dropbox_client()
+            if not dbx_thread:
+                return None
+            driver_name = task['driver_name']
+            card_number = task['card_number']
+            file_path = task['file_path']
+            try:
+                _metadata, response = dbx_thread.files_download(file_path)
+                with tempfile.NamedTemporaryFile(suffix='.ddd', delete=False) as tmp:
+                    tmp.write(response.content)
+                    tmp_path = tmp.name
+                data = parse_ddd_file(tmp_path)
+                analysis = analyze_card(data)
+                os.unlink(tmp_path)
 
-    def process_driver(task):
-        """Download + parse + filter one driver. Each thread gets its own Dropbox client."""
-        dbx_thread = get_server_dropbox_client()
-        if not dbx_thread:
-            return None
-        driver_name = task['driver_name']
-        card_number = task['card_number']
-        file_path = task['file_path']
-        try:
-            _metadata, response = dbx_thread.files_download(file_path)
-            with tempfile.NamedTemporaryFile(suffix='.ddd', delete=False) as tmp:
-                tmp.write(response.content)
-                tmp_path = tmp.name
-            data = parse_ddd_file(tmp_path)
-            analysis = analyze_card(data)
-            os.unlink(tmp_path)
+                month_shifts = [sh for sh in analysis.get('shift_details', [])
+                               if sh.get('shift_date', '')[:7] == period]
+                if not month_shifts:
+                    return None
 
-            month_shifts = [sh for sh in analysis.get('shift_details', [])
-                           if sh.get('shift_date', '')[:7] == period]
-            if not month_shifts:
+                total_work = sum(s.get('work_minutes', 0) for s in month_shifts)
+                total_driving = sum(s.get('driving_minutes', 0) for s in month_shifts)
+                total_break = sum(s.get('break_minutes', 0) for s in month_shifts)
+                total_avail = sum(s.get('avail_minutes', 0) for s in month_shifts)
+                total_n25 = sum(s.get('night_25_minutes', 0) for s in month_shifts)
+                total_n40 = sum(s.get('night_40_minutes', 0) for s in month_shifts)
+                diet_count = sum(1 for s in month_shifts if s.get('has_diet'))
+
+                dcfg = all_configs.get(card_number, {})
+                personal_nr = dcfg.get('personal_nr', '') or card_number
+                double_diet = bool(dcfg.get('double_diet', 0))
+                diet_rate = float(dcfg.get('diet_rate', 14.0))
+                effective_diet = diet_count * (2 if double_diet else 1)
+
+                return {
+                    'driver_name': driver_name,
+                    'card_number': card_number,
+                    'personal_nr': personal_nr,
+                    'double_diet': double_diet,
+                    'diet_rate': diet_rate,
+                    'summary': {
+                        'total_work_minutes': total_work,
+                        'total_work_hm': minutes_to_hm(total_work),
+                        'total_driving_minutes': total_driving,
+                        'total_driving_hm': minutes_to_hm(total_driving),
+                        'total_break_minutes': total_break,
+                        'total_break_hm': minutes_to_hm(total_break),
+                        'total_avail_minutes': total_avail,
+                        'night_25_minutes': total_n25,
+                        'night_25_hm': minutes_to_hm(total_n25),
+                        'night_40_minutes': total_n40,
+                        'night_40_hm': minutes_to_hm(total_n40),
+                        'diet_count': diet_count,
+                        'effective_diet_count': effective_diet,
+                        'vma_amount': effective_diet * diet_rate,
+                        'total_shifts': len(month_shifts),
+                    },
+                    'shifts': month_shifts,
+                }
+            except Exception:
                 return None
 
-            total_work = sum(s.get('work_minutes', 0) for s in month_shifts)
-            total_driving = sum(s.get('driving_minutes', 0) for s in month_shifts)
-            total_break = sum(s.get('break_minutes', 0) for s in month_shifts)
-            total_avail = sum(s.get('avail_minutes', 0) for s in month_shifts)
-            total_n25 = sum(s.get('night_25_minutes', 0) for s in month_shifts)
-            total_n40 = sum(s.get('night_40_minutes', 0) for s in month_shifts)
-            diet_count = sum(1 for s in month_shifts if s.get('has_diet'))
+        # Process drivers in parallel (up to 8 concurrent Dropbox downloads)
+        results = []
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            futures = {executor.submit(process_driver, t): t for t in tasks}
+            for future in as_completed(futures):
+                result = future.result()
+                if result:
+                    results.append(result)
 
-            dcfg = all_configs.get(card_number, {})
-            personal_nr = dcfg.get('personal_nr', '') or card_number
-            double_diet = bool(dcfg.get('double_diet', 0))
-            diet_rate = float(dcfg.get('diet_rate', 14.0))
-            effective_diet = diet_count * (2 if double_diet else 1)
-
-            return {
-                'driver_name': driver_name,
-                'card_number': card_number,
-                'personal_nr': personal_nr,
-                'double_diet': double_diet,
-                'diet_rate': diet_rate,
-                'summary': {
-                    'total_work_minutes': total_work,
-                    'total_work_hm': minutes_to_hm(total_work),
-                    'total_driving_minutes': total_driving,
-                    'total_driving_hm': minutes_to_hm(total_driving),
-                    'total_break_minutes': total_break,
-                    'total_break_hm': minutes_to_hm(total_break),
-                    'total_avail_minutes': total_avail,
-                    'night_25_minutes': total_n25,
-                    'night_25_hm': minutes_to_hm(total_n25),
-                    'night_40_minutes': total_n40,
-                    'night_40_hm': minutes_to_hm(total_n40),
-                    'diet_count': diet_count,
-                    'effective_diet_count': effective_diet,
-                    'vma_amount': effective_diet * diet_rate,
-                    'total_shifts': len(month_shifts),
-                },
-                'shifts': month_shifts,
-            }
-        except Exception:
-            return None
-
-    # Process drivers in parallel (up to 8 concurrent Dropbox downloads)
-    results = []
-    with ThreadPoolExecutor(max_workers=8) as executor:
-        futures = {executor.submit(process_driver, t): t for t in tasks}
-        for future in as_completed(futures):
-            result = future.result()
-            if result:
-                results.append(result)
-
-    results.sort(key=lambda r: r['driver_name'])
-    _log_activity('settlement', f"{period} – {len(results)} drivers")
-    return jsonify({'period': period, 'drivers': results})
+        results.sort(key=lambda r: r['driver_name'])
+        _log_activity('settlement', f"{period} – {len(results)} drivers")
+        return jsonify({'period': period, 'drivers': results})
+    except Exception as exc:
+        return jsonify({'error': f'Settlement error: {str(exc)}'}), 500
 
 
 @app.route('/api/export/datev-batch', methods=['POST'])

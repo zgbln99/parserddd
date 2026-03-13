@@ -12,7 +12,13 @@ async function request<T>(url: string, opts?: RequestInit): Promise<T> {
     window.location.href = '/login';
     throw new Error('Unauthorized');
   }
-  const data = await res.json();
+  const text = await res.text();
+  let data: any;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error(`HTTP ${res.status}: Server error`);
+  }
   if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
   return data as T;
 }
