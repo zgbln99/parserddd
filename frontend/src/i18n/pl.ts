@@ -121,6 +121,8 @@ export const pl = {
   // Monthly grid
   monthlyGrid: 'Siatka miesięczna',
   adminCopyGrid: 'Kopiuj siatkę',
+  absenceCalendarHint: 'Ur/Kr — zaznacz dni w siatce miesięcznej powyżej (kliknij puste pole)',
+  absenceClickHint: 'Kliknij puste pole, aby zaznaczyć nieobecność',
 
   // DATEV
   analysisExportDatev: 'Eksport DATEV',

@@ -79,6 +79,7 @@ export interface MonthlyDays {
   sick_days: number;
   overtime_hm: string;
   notes: string;
+  absence_days: Record<string, 'Ur' | 'Kr'>;
 }
 
 export const fetchMonthlyDays = (cardNumber: string, period: string) =>

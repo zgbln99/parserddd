@@ -151,6 +151,15 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
     });
   }, []);
 
+  const handleAbsenceChange = useCallback((absenceDays: Record<string, 'Ur' | 'Kr'>) => {
+    setMonthlyDays((prev) => {
+      if (!prev) return prev;
+      const vacCount = Object.values(absenceDays).filter((v) => v === 'Ur').length;
+      const sickCount = Object.values(absenceDays).filter((v) => v === 'Kr').length;
+      return { ...prev, absence_days: absenceDays, vacation_days: vacCount, sick_days: sickCount };
+    });
+  }, []);
+
   const handleMonthlySave = useCallback(async () => {
     if (!di.card_number || !period || !monthlyDays) return;
     setSavingMonthly(true);
@@ -159,6 +168,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
         vacation_days: monthlyDays.vacation_days,
         sick_days: monthlyDays.sick_days,
         overtime_hm: monthlyDays.overtime_hm,
+        absence_days: monthlyDays.absence_days,
       });
     } catch {
       // ignore
@@ -415,6 +425,9 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
             dateFrom={dateFrom}
             locale={locale}
             monthlyDays={monthlyDays}
+            onAbsenceChange={handleAbsenceChange}
+            onSave={handleMonthlySave}
+            savingMonthly={savingMonthly}
           />
         </div>
       )}
@@ -528,29 +541,15 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
           <div className="flex flex-wrap items-end gap-4">
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">{t('monthlyVacation')}</label>
-              <input
-                type="number"
-                min="0"
-                max="31"
-                step="0.5"
-                value={monthlyDays.vacation_days || ''}
-                onChange={(e) => handleMonthlyChange('vacation_days', e.target.value)}
-                className="w-20 rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm tabular-nums outline-none transition focus:border-primary-400 focus:ring-1 focus:ring-primary-200 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-                placeholder="0"
-              />
+              <div className="flex h-[34px] w-20 items-center justify-center rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-sm font-bold tabular-nums text-blue-700 dark:border-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
+                {monthlyDays.vacation_days || 0}
+              </div>
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">{t('monthlySick')}</label>
-              <input
-                type="number"
-                min="0"
-                max="31"
-                step="0.5"
-                value={monthlyDays.sick_days || ''}
-                onChange={(e) => handleMonthlyChange('sick_days', e.target.value)}
-                className="w-20 rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm tabular-nums outline-none transition focus:border-primary-400 focus:ring-1 focus:ring-primary-200 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-                placeholder="0"
-              />
+              <div className="flex h-[34px] w-20 items-center justify-center rounded-lg border border-orange-200 bg-orange-50 px-2.5 py-1.5 text-sm font-bold tabular-nums text-orange-700 dark:border-orange-800 dark:bg-orange-900/30 dark:text-orange-300">
+                {monthlyDays.sick_days || 0}
+              </div>
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">{t('monthlyOvertime')}</label>
@@ -571,6 +570,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
               {savingMonthly ? t('loading') : t('monthlySave')}
             </button>
           </div>
+          <p className="mt-2 text-[10px] text-gray-400 dark:text-gray-500">{t('absenceCalendarHint')}</p>
         </div>
       )}
 
@@ -765,15 +765,22 @@ function MonthlyGridCopy({
   dateFrom,
   locale,
   monthlyDays,
+  onAbsenceChange,
+  onSave,
+  savingMonthly,
 }: {
   shifts: ShiftDetail[];
   summary: Record<string, unknown>;
   dateFrom: string;
   locale: string;
   monthlyDays?: MonthlyDays | null;
+  onAbsenceChange?: (absenceDays: Record<string, 'Ur' | 'Kr'>) => void;
+  onSave?: () => void;
+  savingMonthly?: boolean;
 }) {
   const { t } = useI18n();
   const [copied, setCopied] = useState(false);
+  const [popoverDay, setPopoverDay] = useState<number | null>(null);
 
   // Determine month from dateFrom (YYYY-MM-DD) or first shift
   const refDate = dateFrom || (shifts[0]?.shift_date ?? '');
@@ -793,17 +800,8 @@ function MonthlyGridCopy({
     return map;
   }, [shifts]);
 
-  // Build a map: day number -> "Kr" marker (sick days) - currently unused, always empty
-  const dayDietMap = useMemo(() => {
-    const map: Record<number, boolean> = {};
-    for (const sh of shifts) {
-      const d = parseInt(sh.shift_date.slice(8, 10), 10);
-      if (!isNaN(d) && sh.has_diet) {
-        map[d] = true;
-      }
-    }
-    return map;
-  }, [shifts]);
+  // Absence days from monthlyDays
+  const absenceDays = monthlyDays?.absence_days || {};
 
   // Generate weekday names for each day
   const wdNames = locale === 'de' ? weekdayDeShort : weekdayPlShort;
@@ -837,16 +835,54 @@ function MonthlyGridCopy({
     return `${h}:${String(m).padStart(2, '0')}`;
   };
 
+  const handleCellClick = useCallback((day: number) => {
+    const work = dayWorkMap[day] || 0;
+    const hasAbsence = !!absenceDays[String(day)];
+    if (work > 0 && !hasAbsence) return; // can't mark absence on a work day
+    if (!onAbsenceChange) return;
+    setPopoverDay((prev) => prev === day ? null : day);
+  }, [dayWorkMap, absenceDays, onAbsenceChange]);
+
+  const handleAbsenceSelect = useCallback((day: number, type: 'Ur' | 'Kr' | null) => {
+    if (!onAbsenceChange) return;
+    const next = { ...absenceDays };
+    const key = String(day);
+    if (type === null) {
+      delete next[key];
+    } else {
+      next[key] = type;
+    }
+    onAbsenceChange(next);
+    setPopoverDay(null);
+  }, [absenceDays, onAbsenceChange]);
+
+  // Close popover on outside click
+  useEffect(() => {
+    if (popoverDay === null) return;
+    const handler = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('[data-absence-popover]') && !target.closest('[data-absence-cell]')) {
+        setPopoverDay(null);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [popoverDay]);
+
   const handleCopy = useCallback(() => {
     // Copy only content (no headers): work hours per day + summary values
-    const row3Values = dayNumbers.map((d) => fmtWork(dayWorkMap[d] || 0));
+    const row3Values = dayNumbers.map((d) => {
+      const absence = absenceDays[String(d)];
+      if (absence) return absence;
+      return fmtWork(dayWorkMap[d] || 0);
+    });
     const tsv = [...row3Values, '', ...summaryValues].join('\t');
 
     navigator.clipboard.writeText(tsv).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
-  }, [dayNumbers, dayWorkMap, summaryValues]);
+  }, [dayNumbers, dayWorkMap, absenceDays, summaryValues]);
 
   const thCls = 'border border-gray-300 bg-gray-200/60 px-1.5 py-0.5 text-center text-[10px] font-bold text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-400';
   const tdCls = 'border border-gray-300 bg-white px-1.5 py-0.5 text-center font-mono text-[10px] dark:border-gray-600 dark:bg-gray-900';
@@ -864,6 +900,16 @@ function MonthlyGridCopy({
           {copied ? <Check size={13} /> : <ClipboardCopy size={13} />}
           {copied ? 'OK!' : t('adminCopyGrid')}
         </button>
+        {onSave && (
+          <button
+            onClick={onSave}
+            disabled={savingMonthly}
+            className="flex items-center gap-1 rounded-lg bg-primary-600 px-2.5 py-1 text-xs font-semibold text-white transition hover:bg-primary-700 disabled:opacity-50 dark:bg-primary-500"
+          >
+            {savingMonthly ? <Spinner size="sm" /> : <Check size={13} />}
+            {savingMonthly ? t('loading') : t('monthlySave')}
+          </button>
+        )}
       </div>
       <div className="overflow-x-auto">
         <table className="border-collapse">
@@ -893,13 +939,74 @@ function MonthlyGridCopy({
             </tr>
           </thead>
           <tbody>
-            {/* Work hours row */}
+            {/* Work hours / absence row */}
             <tr>
               {dayNumbers.map((d) => {
                 const work = dayWorkMap[d] || 0;
+                const absence = absenceDays[String(d)] as 'Ur' | 'Kr' | undefined;
+                const isClickable = work === 0 && !!onAbsenceChange;
+                const isWeekendDay = (() => {
+                  const wd = weekdays[d - 1];
+                  return wd === 'So' || wd === 'Sa' || wd === 'Nd';
+                })();
+
+                let cellContent: React.ReactNode = '';
+                let cellClass = tdCls;
+
+                if (absence === 'Ur') {
+                  cellContent = 'Ur';
+                  cellClass = `${tdCls} !bg-blue-100 !text-blue-700 font-bold cursor-pointer dark:!bg-blue-900/40 dark:!text-blue-300`;
+                } else if (absence === 'Kr') {
+                  cellContent = 'Kr';
+                  cellClass = `${tdCls} !bg-orange-100 !text-orange-700 font-bold cursor-pointer dark:!bg-orange-900/40 dark:!text-orange-300`;
+                } else if (work) {
+                  cellContent = fmtWork(work);
+                  cellClass = `${tdCls} font-semibold text-gray-800 dark:text-gray-200`;
+                } else if (isClickable) {
+                  cellClass = `${tdCls} cursor-pointer hover:!bg-gray-100 dark:hover:!bg-gray-800 ${isWeekendDay ? '!bg-red-50/50 dark:!bg-red-900/10' : ''}`;
+                }
+
                 return (
-                  <td key={d} className={`${tdCls} ${work ? 'font-semibold text-gray-800 dark:text-gray-200' : 'text-gray-300 dark:text-gray-700'}`}>
-                    {work ? fmtWork(work) : ''}
+                  <td
+                    key={d}
+                    data-absence-cell
+                    className={`${cellClass} relative select-none`}
+                    onClick={(isClickable || absence) ? () => handleCellClick(d) : undefined}
+                    style={{ minWidth: 32 }}
+                  >
+                    {cellContent}
+                    {/* Popover */}
+                    {popoverDay === d && (
+                      <div
+                        data-absence-popover
+                        className="absolute left-1/2 top-full z-50 mt-1 -translate-x-1/2 rounded-lg border border-gray-200 bg-white p-1 shadow-lg dark:border-gray-600 dark:bg-gray-800"
+                        style={{ minWidth: 90 }}
+                      >
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleAbsenceSelect(d, 'Ur'); }}
+                          className="flex w-full items-center gap-1.5 rounded px-2 py-1 text-[11px] font-semibold text-blue-700 transition hover:bg-blue-50 dark:text-blue-300 dark:hover:bg-blue-900/30"
+                        >
+                          <span className="inline-block h-2.5 w-2.5 rounded-sm bg-blue-500" />
+                          {t('monthlyVacation')}
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleAbsenceSelect(d, 'Kr'); }}
+                          className="flex w-full items-center gap-1.5 rounded px-2 py-1 text-[11px] font-semibold text-orange-700 transition hover:bg-orange-50 dark:text-orange-300 dark:hover:bg-orange-900/30"
+                        >
+                          <span className="inline-block h-2.5 w-2.5 rounded-sm bg-orange-500" />
+                          {t('monthlySick')}
+                        </button>
+                        {absence && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleAbsenceSelect(d, null); }}
+                            className="flex w-full items-center gap-1.5 rounded px-2 py-1 text-[11px] font-semibold text-gray-500 transition hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700"
+                          >
+                            <span className="inline-block h-2.5 w-2.5 rounded-sm bg-gray-300 dark:bg-gray-600" />
+                            {t('clear')}
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </td>
                 );
               })}
@@ -913,6 +1020,17 @@ function MonthlyGridCopy({
           </tbody>
         </table>
       </div>
+      {onAbsenceChange && (
+        <div className="flex items-center gap-3 text-[10px] text-gray-400 dark:text-gray-500">
+          <span className="flex items-center gap-1">
+            <span className="inline-block h-2.5 w-2.5 rounded-sm bg-blue-500" /> Ur = {t('monthlyVacation')}
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="inline-block h-2.5 w-2.5 rounded-sm bg-orange-500" /> Kr = {t('monthlySick')}
+          </span>
+          <span>{t('absenceClickHint')}</span>
+        </div>
+      )}
     </div>
   );
 }

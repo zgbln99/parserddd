@@ -123,6 +123,8 @@ export const de: Record<TranslationKey, string> = {
   // Monthly grid
   monthlyGrid: 'Monatsraster',
   adminCopyGrid: 'Raster kopieren',
+  absenceCalendarHint: 'Ur/Kr — Tage im Monatsraster oben markieren (leeres Feld klicken)',
+  absenceClickHint: 'Leeres Feld klicken, um Abwesenheit zu markieren',
 
   // DATEV
   analysisExportDatev: 'DATEV-Export',

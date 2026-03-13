@@ -127,10 +127,17 @@ def _init_db():
             sick_days     REAL NOT NULL DEFAULT 0,
             overtime_hm   TEXT NOT NULL DEFAULT '',
             notes         TEXT NOT NULL DEFAULT '',
+            absence_days  TEXT NOT NULL DEFAULT '{}',
             updated_at    TEXT NOT NULL,
             UNIQUE(card_number, period)
         );
     ''')
+    # Add absence_days column if missing (migration)
+    try:
+        conn.execute("SELECT absence_days FROM driver_monthly_days LIMIT 1")
+    except Exception:
+        conn.execute("ALTER TABLE driver_monthly_days ADD COLUMN absence_days TEXT NOT NULL DEFAULT '{}'")
+        conn.commit()
     conn.commit()
     conn.close()
 
@@ -1634,11 +1641,16 @@ def api_get_monthly_days(card_number, period):
     """Get vacation/sick days for a driver in a given month (period=YYYY-MM)."""
     conn = _get_db()
     row = conn.execute(
-        "SELECT vacation_days, sick_days, overtime_hm, notes FROM driver_monthly_days WHERE card_number = ? AND period = ?",
+        "SELECT vacation_days, sick_days, overtime_hm, notes, absence_days FROM driver_monthly_days WHERE card_number = ? AND period = ?",
         (card_number, period),
     ).fetchone()
     conn.close()
     if row:
+        import json as _json
+        try:
+            absence = _json.loads(row[4]) if row[4] else {}
+        except Exception:
+            absence = {}
         return jsonify({
             'card_number': card_number,
             'period': period,
@@ -1646,6 +1658,7 @@ def api_get_monthly_days(card_number, period):
             'sick_days': row[1],
             'overtime_hm': row[2],
             'notes': row[3],
+            'absence_days': absence,
         })
     return jsonify({
         'card_number': card_number,
@@ -1654,6 +1667,7 @@ def api_get_monthly_days(card_number, period):
         'sick_days': 0,
         'overtime_hm': '',
         'notes': '',
+        'absence_days': {},
     })
 
 
@@ -1661,24 +1675,28 @@ def api_get_monthly_days(card_number, period):
 @login_required
 def api_set_monthly_days(card_number, period):
     """Set vacation/sick days for a driver in a given month."""
+    import json as _json
     body = request.get_json(force=True)
     vacation = float(body.get('vacation_days', 0))
     sick = float(body.get('sick_days', 0))
     overtime = body.get('overtime_hm', '')
     notes = body.get('notes', '')
+    absence = body.get('absence_days', {})
+    absence_str = _json.dumps(absence) if isinstance(absence, dict) else str(absence or '{}')
     now = datetime.utcnow().isoformat()
 
     conn = _get_db()
     conn.execute('''
-        INSERT INTO driver_monthly_days (card_number, period, vacation_days, sick_days, overtime_hm, notes, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO driver_monthly_days (card_number, period, vacation_days, sick_days, overtime_hm, notes, absence_days, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(card_number, period) DO UPDATE SET
             vacation_days = excluded.vacation_days,
             sick_days = excluded.sick_days,
             overtime_hm = excluded.overtime_hm,
             notes = excluded.notes,
+            absence_days = excluded.absence_days,
             updated_at = excluded.updated_at
-    ''', (card_number, period, vacation, sick, overtime, notes, now))
+    ''', (card_number, period, vacation, sick, overtime, notes, absence_str, now))
     conn.commit()
     conn.close()
 
