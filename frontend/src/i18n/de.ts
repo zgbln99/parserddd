@@ -242,6 +242,18 @@ export const de: Record<TranslationKey, string> = {
   comparePrint: 'Bericht drucken',
   compareExportPdf: 'PDF-Export',
 
+  // Settlement
+  navSettlement: 'Abrechnung',
+  settlementTitle: 'Monatsabrechnung',
+  settlementPeriod: 'Abrechnungszeitraum',
+  settlementGenerate: 'Abrechnung erstellen',
+  settlementExportDatev: 'DATEV-Export (alle)',
+  settlementLoading: 'Fahrer werden analysiert...',
+  settlementNoData: 'Monat auswählen und Erstellen klicken',
+  settlementDrivers: 'Fahrer',
+  settlementPersonalNr: 'Personalnr.',
+  settlementTotal: 'GESAMT',
+
   // Time
   timeAgo: 'her',
   timeJustNow: 'gerade eben',

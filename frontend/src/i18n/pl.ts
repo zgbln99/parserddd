@@ -240,6 +240,18 @@ export const pl = {
   comparePrint: 'Drukuj raport',
   compareExportPdf: 'Eksport PDF',
 
+  // Settlement
+  navSettlement: 'Rozliczenie',
+  settlementTitle: 'Rozliczenie miesięczne',
+  settlementPeriod: 'Okres rozliczeniowy',
+  settlementGenerate: 'Generuj rozliczenie',
+  settlementExportDatev: 'Eksport DATEV (wszyscy)',
+  settlementLoading: 'Analizowanie kierowców...',
+  settlementNoData: 'Wybierz miesiąc i kliknij Generuj',
+  settlementDrivers: 'Kierowców',
+  settlementPersonalNr: 'Nr personalny',
+  settlementTotal: 'RAZEM',
+
   // Time
   timeAgo: 'temu',
   timeJustNow: 'przed chwilą',

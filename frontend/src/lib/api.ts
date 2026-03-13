@@ -262,6 +262,60 @@ export async function exportDatev(driverName: string, cardNumber: string, summar
   URL.revokeObjectURL(url);
 }
 
+// Settlement (monthly batch analysis)
+export interface SettlementDriverSummary {
+  total_work_minutes: number;
+  total_work_hm: string;
+  total_driving_minutes: number;
+  total_driving_hm: string;
+  total_break_minutes: number;
+  total_break_hm: string;
+  total_avail_minutes: number;
+  night_25_minutes: number;
+  night_25_hm: string;
+  night_40_minutes: number;
+  night_40_hm: string;
+  diet_count: number;
+  effective_diet_count: number;
+  vma_amount: number;
+  total_shifts: number;
+}
+
+export interface SettlementDriver {
+  driver_name: string;
+  card_number: string;
+  personal_nr: string;
+  double_diet: boolean;
+  diet_rate: number;
+  summary: SettlementDriverSummary;
+  shifts: unknown[];
+}
+
+export const fetchSettlement = (period: string) =>
+  request<{ period: string; drivers: SettlementDriver[] }>('/api/settlement', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ period }),
+  });
+
+// DATEV batch export (returns blob)
+export async function exportDatevBatch(period: string, drivers: SettlementDriver[]) {
+  const res = await fetch('/api/export/datev-batch', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ period, drivers }),
+  });
+  if (!res.ok) throw new Error('DATEV batch export failed');
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = res.headers.get('Content-Disposition')?.split('filename=')[1]?.replace(/"/g, '') || `DATEV_Alle_${period}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 // PDF export (returns blob)
 export async function exportPdf(driverName: string, cardNumber: string, summary: unknown, shifts: unknown[]) {
   const res = await fetch('/api/export/pdf', {

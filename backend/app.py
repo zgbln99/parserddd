@@ -1001,6 +1001,241 @@ def api_compare_drivers():
     return jsonify({'drivers': results})
 
 
+@app.route('/api/settlement', methods=['POST'])
+@login_required
+def api_settlement():
+    """Analyze all drivers for a given month. Returns full analysis per driver.
+
+    Accepts {period: "YYYY-MM"} – downloads latest DDD file per driver from Dropbox,
+    parses it, and filters shifts to the requested month.
+    """
+    payload = request.get_json(silent=True) or {}
+    period = payload.get('period', '')
+    if not period or not re.match(r'^\d{4}-\d{2}$', period):
+        return jsonify({'error': 'period (YYYY-MM) required'}), 400
+
+    year, month = int(period[:4]), int(period[5:7])
+
+    # Load drivers from cache or Dropbox
+    cached = load_portal_cache()
+    if cached:
+        drivers_data = cached
+    else:
+        dbx = get_server_dropbox_client()
+        if not dbx:
+            return jsonify({'error': 'Brak połączenia z Dropbox'}), 500
+        sync_folder = os.environ.get('SYNC_DEST_FOLDER', SYNC_DEST_FOLDER)
+        drivers_data = build_drivers_data(dbx, sync_folder)
+
+    dbx = get_server_dropbox_client()
+    if not dbx:
+        return jsonify({'error': 'Brak połączenia z Dropbox'}), 500
+
+    # Load all driver configs for personal_nr / diet settings
+    conn = _get_db()
+    all_configs = {}
+    for row in conn.execute('SELECT * FROM driver_config').fetchall():
+        all_configs[row['card_number']] = dict(row)
+    conn.close()
+
+    results = []
+    for driver in drivers_data:
+        driver_name = driver.get('name', '')
+        card_number = driver.get('card_number', '')
+        files = driver.get('files', [])
+        if not files:
+            continue
+
+        # Find the latest file (files already sorted desc by file_date)
+        latest_file = files[0]
+        file_path = latest_file.get('path', '')
+        if not file_path:
+            continue
+
+        try:
+            metadata, response = dbx.files_download(file_path)
+            with tempfile.NamedTemporaryFile(suffix='.ddd', delete=False) as tmp:
+                tmp.write(response.content)
+                tmp_path = tmp.name
+            data = parse_ddd_file(tmp_path)
+            analysis = analyze_card(data)
+            os.unlink(tmp_path)
+
+            # Filter shifts to the requested month
+            month_shifts = []
+            for sh in analysis.get('shift_details', []):
+                sd = sh.get('shift_date', '')
+                if sd and sd[:7] == period:
+                    month_shifts.append(sh)
+
+            if not month_shifts:
+                continue
+
+            # Recalculate summary for filtered shifts
+            total_work = sum(s.get('work_minutes', 0) for s in month_shifts)
+            total_driving = sum(s.get('driving_minutes', 0) for s in month_shifts)
+            total_break = sum(s.get('break_minutes', 0) for s in month_shifts)
+            total_avail = sum(s.get('avail_minutes', 0) for s in month_shifts)
+            total_n25 = sum(s.get('night_25_minutes', 0) for s in month_shifts)
+            total_n40 = sum(s.get('night_40_minutes', 0) for s in month_shifts)
+            diet_count = sum(1 for s in month_shifts if s.get('has_diet'))
+
+            dcfg = all_configs.get(card_number, {})
+            personal_nr = dcfg.get('personal_nr', '') or card_number
+            double_diet = bool(dcfg.get('double_diet', 0))
+            diet_rate = float(dcfg.get('diet_rate', 14.0))
+            effective_diet = diet_count * (2 if double_diet else 1)
+
+            summary = {
+                'total_work_minutes': total_work,
+                'total_work_hm': minutes_to_hm(total_work),
+                'total_driving_minutes': total_driving,
+                'total_driving_hm': minutes_to_hm(total_driving),
+                'total_break_minutes': total_break,
+                'total_break_hm': minutes_to_hm(total_break),
+                'total_avail_minutes': total_avail,
+                'night_25_minutes': total_n25,
+                'night_25_hm': minutes_to_hm(total_n25),
+                'night_40_minutes': total_n40,
+                'night_40_hm': minutes_to_hm(total_n40),
+                'diet_count': diet_count,
+                'effective_diet_count': effective_diet,
+                'vma_amount': effective_diet * diet_rate,
+                'total_shifts': len(month_shifts),
+            }
+
+            results.append({
+                'driver_name': driver_name,
+                'card_number': card_number,
+                'personal_nr': personal_nr,
+                'double_diet': double_diet,
+                'diet_rate': diet_rate,
+                'summary': summary,
+                'shifts': month_shifts,
+            })
+        except Exception:
+            continue
+
+    results.sort(key=lambda r: r['driver_name'])
+    _log_activity('settlement', f"{period} – {len(results)} drivers")
+    return jsonify({'period': period, 'drivers': results})
+
+
+@app.route('/api/export/datev-batch', methods=['POST'])
+@login_required
+def api_export_datev_batch():
+    """Generate a combined DATEV CSV for multiple drivers at once.
+
+    Accepts {period: "YYYY-MM", drivers: [{driver_name, card_number, summary, shifts}, ...]}
+    Returns a single CSV file with all drivers.
+    """
+    payload = request.json or {}
+    period = payload.get('period', '')
+    driver_list = payload.get('drivers', [])
+    if not driver_list:
+        return jsonify({'error': 'No drivers data'}), 400
+
+    year_str = period[:4] if len(period) >= 4 else ''
+    month_str = period[5:7] if len(period) >= 7 else ''
+
+    conn = _get_db()
+
+    def fmt_de(val):
+        return f"{val:.2f}".replace('.', ',')
+
+    output = io.StringIO()
+    writer = csv.writer(output, delimiter=';', quoting=csv.QUOTE_ALL)
+
+    # Summary header
+    writer.writerow([
+        'Personalnr', 'Name', 'Monat', 'Jahr',
+        'Arbeitsstunden', 'Nacht 25%', 'Nacht 40%',
+        'Überstunden', 'Urlaub', 'Krank',
+        'VMA Tage', 'VMA Betrag (EUR)',
+        'Schichten gesamt',
+    ])
+
+    for drv in driver_list:
+        driver_name = drv.get('driver_name', '')
+        card_number = drv.get('card_number', '')
+        summary = drv.get('summary', {})
+
+        dcfg = conn.execute('SELECT * FROM driver_config WHERE card_number = ?', (card_number,)).fetchone()
+        dcfg = dict(dcfg) if dcfg else {}
+
+        personal_nr = dcfg.get('personal_nr', '') or card_number
+        double_diet = bool(dcfg.get('double_diet', 0))
+        VMA_RATE = float(dcfg.get('diet_rate', 14.0))
+
+        total_work_h = summary.get('total_work_minutes', 0) / 60
+        n25_h = summary.get('night_25_minutes', 0) / 60
+        n40_h = summary.get('night_40_minutes', 0) / 60
+        diet_count = summary.get('diet_count', 0)
+        effective_diet_count = diet_count * (2 if double_diet else 1)
+        vma_amount = effective_diet_count * VMA_RATE
+
+        writer.writerow([
+            personal_nr,
+            driver_name,
+            month_str,
+            year_str,
+            fmt_de(total_work_h),
+            fmt_de(n25_h),
+            fmt_de(n40_h),
+            '',  # Überstunden
+            '',  # Urlaub
+            '',  # Krank
+            str(effective_diet_count),
+            fmt_de(vma_amount),
+            str(summary.get('total_shifts', 0)),
+        ])
+
+    # Blank line separator
+    writer.writerow([])
+
+    # Detail section for each driver
+    for drv in driver_list:
+        driver_name = drv.get('driver_name', '')
+        shifts = drv.get('shifts', [])
+        if not shifts:
+            continue
+
+        writer.writerow([f'--- {driver_name} ---'])
+        writer.writerow([
+            'Datum', 'Wochentag', 'Start', 'Ende',
+            'Arbeitszeit', 'Fahrzeit', 'Pause',
+            'Nacht 25%', 'Nacht 40%', 'VMA', 'Fahrzeug',
+        ])
+        for s in shifts:
+            n25 = fmt_de(s.get('night_25_minutes', 0) / 60)
+            n40 = fmt_de(s.get('night_40_minutes', 0) / 60)
+            writer.writerow([
+                s.get('shift_date', ''),
+                s.get('weekday', ''),
+                s.get('shift_start', '').split(' ')[-1] if ' ' in s.get('shift_start', '') else s.get('shift_start', ''),
+                s.get('shift_end', '').split(' ')[-1] if ' ' in s.get('shift_end', '') else s.get('shift_end', ''),
+                s.get('work_hm', ''),
+                s.get('driving_hm', ''),
+                s.get('break_hm', ''),
+                n25,
+                n40,
+                'JA' if s.get('has_diet') else '',
+                ', '.join(s.get('vehicles', [])),
+            ])
+        writer.writerow([])
+
+    conn.close()
+    csv_bytes = output.getvalue().encode('utf-8-sig')
+    filename = f"DATEV_Alle_{period or datetime.now().strftime('%Y-%m')}.csv"
+    _log_activity('export_datev_batch', f"{period} – {len(driver_list)} drivers")
+    from flask import Response
+    return Response(
+        csv_bytes,
+        mimetype='text/csv',
+        headers={'Content-Disposition': f'attachment; filename="{filename}"'},
+    )
+
+
 @app.route('/api/export/csv', methods=['POST'])
 @login_required
 def api_export_csv():
