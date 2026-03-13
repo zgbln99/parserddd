@@ -66,6 +66,31 @@ export const fetchDashboard = () =>
     expiring_cards: ExpiringCard[];
   }>('/api/dashboard');
 
+export const scanCardExpiry = () =>
+  request<{ scanned: number; results: { driver: string; card_number: string; card_expiry_date: string }[] }>(
+    '/api/dashboard/scan-expiry',
+    { method: 'POST' },
+  );
+
+export interface MonthlyDays {
+  card_number: string;
+  period: string;
+  vacation_days: number;
+  sick_days: number;
+  overtime_hm: string;
+  notes: string;
+}
+
+export const fetchMonthlyDays = (cardNumber: string, period: string) =>
+  request<MonthlyDays>(`/api/driver-monthly/${encodeURIComponent(cardNumber)}/${encodeURIComponent(period)}`);
+
+export const saveMonthlyDays = (cardNumber: string, period: string, data: Partial<MonthlyDays>) =>
+  request<{ ok: boolean }>(`/api/driver-monthly/${encodeURIComponent(cardNumber)}/${encodeURIComponent(period)}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+
 // Drivers
 export const fetchDrivers = (refresh = false) =>
   request<{ drivers: import('../types').Driver[]; cached?: boolean }>(

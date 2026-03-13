@@ -59,6 +59,16 @@ export const de: Record<TranslationKey, string> = {
   dashNoExpiring: 'Keine ablaufenden Karten (Dateien analysieren zum Aktualisieren)',
   dashShowAll: 'Alle anzeigen',
   dashCardExpiry: 'Kartenablauf',
+  dashScanCards: 'Karten scannen',
+
+  // Monthly days
+  monthlyDays: 'Urlaub / Krankheit',
+  monthlyVacation: 'Urlaub (Ur)',
+  monthlySick: 'Krankheit (Kr)',
+  monthlyOvertime: 'Überstunden (Ü)',
+  monthlySave: 'Speichern',
+  monthlySaved: 'Gespeichert',
+  monthlyDaysUnit: 'Tage',
 
   // Drivers
   driversTitle: 'Fahrer',

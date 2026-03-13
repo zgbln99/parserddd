@@ -116,6 +116,21 @@ def _init_db():
     except Exception:
         conn.execute("ALTER TABLE driver_config ADD COLUMN card_expiry_date TEXT NOT NULL DEFAULT ''")
         conn.commit()
+
+    # Monthly days table (vacation/sick per driver per month)
+    conn.executescript('''
+        CREATE TABLE IF NOT EXISTS driver_monthly_days (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            card_number   TEXT NOT NULL,
+            period        TEXT NOT NULL,
+            vacation_days REAL NOT NULL DEFAULT 0,
+            sick_days     REAL NOT NULL DEFAULT 0,
+            overtime_hm   TEXT NOT NULL DEFAULT '',
+            notes         TEXT NOT NULL DEFAULT '',
+            updated_at    TEXT NOT NULL,
+            UNIQUE(card_number, period)
+        );
+    ''')
     conn.commit()
     conn.close()
 
@@ -1558,6 +1573,116 @@ def api_dashboard():
         'stale_drivers': stale_drivers,
         'expiring_cards': expiring_cards,
     })
+
+
+@app.route('/api/dashboard/scan-expiry', methods=['POST'])
+@login_required
+def api_scan_card_expiry():
+    """Bulk scan all drivers' latest DDD files to cache card expiry dates."""
+    dbx = get_server_dropbox_client()
+    if not dbx:
+        return jsonify({'error': 'Brak połączenia z Dropbox'}), 500
+
+    cached = load_portal_cache()
+    if not cached:
+        return jsonify({'error': 'Brak danych kierowców'}), 400
+
+    results = []
+    for driver in cached:
+        files = driver.get('files', [])
+        if not files:
+            continue
+        # Use the latest file
+        latest = files[0]
+        fpath = latest.get('path', '')
+        if not fpath:
+            continue
+        try:
+            _, response = dbx.files_download(fpath)
+            with tempfile.NamedTemporaryFile(suffix='.ddd', delete=False) as tmp:
+                tmp.write(response.content)
+                tmp_path = tmp.name
+            data = parse_ddd_file(tmp_path)
+            info = get_driver_info(data)
+            os.unlink(tmp_path)
+            if info.get('card_number') and info.get('card_expiry_date'):
+                _cache_card_expiry(info['card_number'], info['card_expiry_date'], info.get('driver_name', ''))
+                results.append({
+                    'driver': driver.get('name', ''),
+                    'card_number': info['card_number'],
+                    'card_expiry_date': info['card_expiry_date'],
+                })
+        except Exception:
+            if 'tmp_path' in locals():
+                try:
+                    os.unlink(tmp_path)
+                except Exception:
+                    pass
+            continue
+
+    return jsonify({'scanned': len(results), 'results': results})
+
+
+# ---------------------------------------------------------------------------
+# Monthly days API (vacation / sick per driver per month)
+# ---------------------------------------------------------------------------
+
+
+@app.route('/api/driver-monthly/<card_number>/<period>')
+@login_required
+def api_get_monthly_days(card_number, period):
+    """Get vacation/sick days for a driver in a given month (period=YYYY-MM)."""
+    conn = _get_db()
+    row = conn.execute(
+        "SELECT vacation_days, sick_days, overtime_hm, notes FROM driver_monthly_days WHERE card_number = ? AND period = ?",
+        (card_number, period),
+    ).fetchone()
+    conn.close()
+    if row:
+        return jsonify({
+            'card_number': card_number,
+            'period': period,
+            'vacation_days': row[0],
+            'sick_days': row[1],
+            'overtime_hm': row[2],
+            'notes': row[3],
+        })
+    return jsonify({
+        'card_number': card_number,
+        'period': period,
+        'vacation_days': 0,
+        'sick_days': 0,
+        'overtime_hm': '',
+        'notes': '',
+    })
+
+
+@app.route('/api/driver-monthly/<card_number>/<period>', methods=['POST'])
+@login_required
+def api_set_monthly_days(card_number, period):
+    """Set vacation/sick days for a driver in a given month."""
+    body = request.get_json(force=True)
+    vacation = float(body.get('vacation_days', 0))
+    sick = float(body.get('sick_days', 0))
+    overtime = body.get('overtime_hm', '')
+    notes = body.get('notes', '')
+    now = datetime.utcnow().isoformat()
+
+    conn = _get_db()
+    conn.execute('''
+        INSERT INTO driver_monthly_days (card_number, period, vacation_days, sick_days, overtime_hm, notes, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(card_number, period) DO UPDATE SET
+            vacation_days = excluded.vacation_days,
+            sick_days = excluded.sick_days,
+            overtime_hm = excluded.overtime_hm,
+            notes = excluded.notes,
+            updated_at = excluded.updated_at
+    ''', (card_number, period, vacation, sick, overtime, notes, now))
+    conn.commit()
+    conn.close()
+
+    return jsonify({'ok': True})
 
 
 # ---------------------------------------------------------------------------

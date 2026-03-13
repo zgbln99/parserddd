@@ -5,7 +5,7 @@ import {
   Cloud, Truck, Clock, CreditCard, AlertTriangle,
 } from 'lucide-react';
 import { useI18n } from '../i18n';
-import { fetchDashboard, fetchConnectionStatus } from '../lib/api';
+import { fetchDashboard, fetchConnectionStatus, scanCardExpiry } from '../lib/api';
 import type { StaleDriver, ExpiringCard } from '../lib/api';
 import { formatDateTime, formatDate } from '../lib/format';
 import { StatCard, Card } from '../components/Card';
@@ -62,15 +62,32 @@ export function DashboardPage() {
   const [connections, setConnections] = useState<{ dropbox: boolean; samsara: boolean } | null>(null);
   const [showAllStale, setShowAllStale] = useState(false);
   const [showAllExpiring, setShowAllExpiring] = useState(false);
+  const [scanning, setScanning] = useState(false);
 
-  useEffect(() => {
+  const loadDashboard = () => {
     fetchDashboard()
       .then(setData)
       .catch((e) => setError(e.message));
+  };
+
+  useEffect(() => {
+    loadDashboard();
     fetchConnectionStatus()
       .then(setConnections)
       .catch(() => {});
   }, []);
+
+  const handleScanExpiry = async () => {
+    setScanning(true);
+    try {
+      await scanCardExpiry();
+      loadDashboard();
+    } catch {
+      // ignore
+    } finally {
+      setScanning(false);
+    }
+  };
 
   if (error) {
     return (
@@ -201,15 +218,25 @@ export function DashboardPage() {
         <Card className="p-0">
           <div className="flex items-center gap-2 border-b border-gray-100 px-5 py-4 dark:border-gray-800">
             <CreditCard size={18} className="text-red-500" />
-            <h3 className="text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+            <h3 className="flex-1 text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
               {t('dashExpiringCards')}
             </h3>
             {expiringCritical > 0 && (
               <Badge variant="red">{expiringCritical}</Badge>
             )}
+            <button
+              onClick={handleScanExpiry}
+              disabled={scanning}
+              className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-800"
+            >
+              {scanning ? <Spinner size="sm" /> : <RefreshCw size={12} />}
+              {scanning ? t('loading') : t('dashScanCards')}
+            </button>
           </div>
           {expiringCards.length === 0 ? (
-            <p className="px-5 py-8 text-center text-sm text-gray-400">{t('dashNoExpiring')}</p>
+            <div className="px-5 py-8 text-center">
+              <p className="text-sm text-gray-400">{t('dashNoExpiring')}</p>
+            </div>
           ) : (
             <div>
               <div className="divide-y divide-gray-50 dark:divide-gray-800/50">

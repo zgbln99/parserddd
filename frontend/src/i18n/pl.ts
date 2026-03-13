@@ -57,6 +57,16 @@ export const pl = {
   dashNoExpiring: 'Brak wygasających kart (analizuj pliki, aby zaktualizować)',
   dashShowAll: 'Pokaż wszystkich',
   dashCardExpiry: 'Ważność karty',
+  dashScanCards: 'Skanuj karty',
+
+  // Monthly days
+  monthlyDays: 'Urlop / Choroba',
+  monthlyVacation: 'Urlop (Ur)',
+  monthlySick: 'Choroba (Kr)',
+  monthlyOvertime: 'Nadgodziny (Ü)',
+  monthlySave: 'Zapisz',
+  monthlySaved: 'Zapisano',
+  monthlyDaysUnit: 'dni',
 
   // Drivers
   driversTitle: 'Kierowcy',

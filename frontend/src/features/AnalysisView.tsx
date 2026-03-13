@@ -1,11 +1,12 @@
 import { useMemo, useState, useCallback, useRef, useEffect } from 'react';
 import { useI18n } from '../i18n';
 import { formatDate } from '../lib/format';
-import { exportCsv, exportPdf, exportDatev, fetchDriverConfig } from '../lib/api';
-import type { DriverConfig } from '../lib/api';
+import { exportCsv, exportPdf, exportDatev, fetchDriverConfig, fetchMonthlyDays, saveMonthlyDays } from '../lib/api';
+import type { DriverConfig, MonthlyDays } from '../lib/api';
 import { Badge } from '../components/Badge';
+import { Spinner } from '../components/Spinner';
 import { BarChart } from '../components/BarChart';
-import { Download, FileText, ClipboardCopy, Check, Printer, BarChart3, UtensilsCrossed, Table2, Settings } from 'lucide-react';
+import { Download, FileText, ClipboardCopy, Check, Printer, BarChart3, UtensilsCrossed, Table2, Settings, CalendarDays } from 'lucide-react';
 import type { AnalysisResult, ShiftDetail } from '../types';
 import { DriverConfigEditor } from './DriverConfigEditor';
 import { useAuth } from '../hooks/useAuth';
@@ -123,6 +124,48 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
       doubleDiet,
     };
   }, [s.diet_count, driverConfig]);
+
+  // Monthly days (vacation/sick) - determine period from dateFrom or first shift
+  const period = useMemo(() => {
+    if (dateFrom && dateFrom.length >= 7) return dateFrom.slice(0, 7);
+    if (shifts.length > 0 && shifts[0].shift_date) return shifts[0].shift_date.slice(0, 7);
+    return '';
+  }, [dateFrom, shifts]);
+
+  const [monthlyDays, setMonthlyDays] = useState<MonthlyDays | null>(null);
+  const [savingMonthly, setSavingMonthly] = useState(false);
+
+  useEffect(() => {
+    if (di.card_number && period) {
+      fetchMonthlyDays(di.card_number, period)
+        .then(setMonthlyDays)
+        .catch(() => setMonthlyDays(null));
+    }
+  }, [di.card_number, period]);
+
+  const handleMonthlyChange = useCallback((field: 'vacation_days' | 'sick_days' | 'overtime_hm', value: string) => {
+    setMonthlyDays((prev) => {
+      if (!prev) return prev;
+      const numVal = field === 'overtime_hm' ? value : parseFloat(value) || 0;
+      return { ...prev, [field]: numVal };
+    });
+  }, []);
+
+  const handleMonthlySave = useCallback(async () => {
+    if (!di.card_number || !period || !monthlyDays) return;
+    setSavingMonthly(true);
+    try {
+      await saveMonthlyDays(di.card_number, period, {
+        vacation_days: monthlyDays.vacation_days,
+        sick_days: monthlyDays.sick_days,
+        overtime_hm: monthlyDays.overtime_hm,
+      });
+    } catch {
+      // ignore
+    } finally {
+      setSavingMonthly(false);
+    }
+  }, [di.card_number, period, monthlyDays]);
 
   const handleExport = () => {
     exportCsv(di.driver_name || 'driver', shifts);
@@ -314,7 +357,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
           {/* Excel copy – inline */}
           {shifts.length > 0 && (
             <div className="ml-auto">
-              <ExcelCopyBlock summary={s} />
+              <ExcelCopyBlock summary={s} monthlyDays={monthlyDays} />
             </div>
           )}
         </div>
@@ -371,6 +414,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
             summary={s as unknown as Record<string, unknown>}
             dateFrom={dateFrom}
             locale={locale}
+            monthlyDays={monthlyDays}
           />
         </div>
       )}
@@ -469,6 +513,64 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Monthly days (vacation/sick) */}
+      {di.card_number && period && monthlyDays && (
+        <div className="rounded-xl bg-gray-50 p-4 dark:bg-gray-800">
+          <div className="mb-3 flex items-center gap-2">
+            <CalendarDays size={14} className="text-gray-500" />
+            <span className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+              {t('monthlyDays')} — {period}
+            </span>
+          </div>
+          <div className="flex flex-wrap items-end gap-4">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">{t('monthlyVacation')}</label>
+              <input
+                type="number"
+                min="0"
+                max="31"
+                step="0.5"
+                value={monthlyDays.vacation_days || ''}
+                onChange={(e) => handleMonthlyChange('vacation_days', e.target.value)}
+                className="w-20 rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm tabular-nums outline-none transition focus:border-primary-400 focus:ring-1 focus:ring-primary-200 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                placeholder="0"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">{t('monthlySick')}</label>
+              <input
+                type="number"
+                min="0"
+                max="31"
+                step="0.5"
+                value={monthlyDays.sick_days || ''}
+                onChange={(e) => handleMonthlyChange('sick_days', e.target.value)}
+                className="w-20 rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm tabular-nums outline-none transition focus:border-primary-400 focus:ring-1 focus:ring-primary-200 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                placeholder="0"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">{t('monthlyOvertime')}</label>
+              <input
+                type="text"
+                value={monthlyDays.overtime_hm}
+                onChange={(e) => handleMonthlyChange('overtime_hm', e.target.value)}
+                className="w-20 rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm tabular-nums outline-none transition focus:border-primary-400 focus:ring-1 focus:ring-primary-200 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                placeholder="0:00"
+              />
+            </div>
+            <button
+              onClick={handleMonthlySave}
+              disabled={savingMonthly}
+              className="flex items-center gap-1.5 rounded-lg bg-primary-600 px-4 py-1.5 text-sm font-semibold text-white transition hover:bg-primary-700 disabled:opacity-50 dark:bg-primary-500"
+            >
+              {savingMonthly ? <Spinner size="sm" /> : <Check size={14} />}
+              {savingMonthly ? t('loading') : t('monthlySave')}
+            </button>
+          </div>
         </div>
       )}
 
@@ -586,7 +688,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
 /*  Excel copy-paste helper                                           */
 /* ------------------------------------------------------------------ */
 
-function ExcelCopyBlock({ summary }: { summary: ReturnType<typeof Object> & Record<string, unknown> }) {
+function ExcelCopyBlock({ summary, monthlyDays }: { summary: ReturnType<typeof Object> & Record<string, unknown>; monthlyDays?: MonthlyDays | null }) {
   const s = summary as Record<string, unknown>;
   const [copied, setCopied] = useState(false);
 
@@ -596,8 +698,12 @@ function ExcelCopyBlock({ summary }: { summary: ReturnType<typeof Object> & Reco
   const azMin = s.total_work_minutes as number;
   const az = `${Math.floor(azMin / 60)}:${String(azMin % 60).padStart(2, '0')}`;
 
+  const urVal = monthlyDays?.vacation_days ? String(monthlyDays.vacation_days) : '';
+  const krVal = monthlyDays?.sick_days ? String(monthlyDays.sick_days) : '';
+  const ueVal = monthlyDays?.overtime_hm || '';
+
   const headers = ['25%', '40%', 'Ü', 'Ur', 'Kr', 'VMA', 'AZ'];
-  const values  = [n25,   n40,   '',  '',   '',   vma,   az];
+  const values  = [n25,   n40,   ueVal, urVal, krVal, vma, az];
 
   const handleCopy = useCallback(() => {
     const tsv = values.join('\t');
@@ -658,11 +764,13 @@ function MonthlyGridCopy({
   summary,
   dateFrom,
   locale,
+  monthlyDays,
 }: {
   shifts: ShiftDetail[];
   summary: Record<string, unknown>;
   dateFrom: string;
   locale: string;
+  monthlyDays?: MonthlyDays | null;
 }) {
   const { t } = useI18n();
   const [copied, setCopied] = useState(false);
@@ -714,8 +822,12 @@ function MonthlyGridCopy({
   const azMin = s.total_work_minutes as number;
   const az = `${Math.floor(azMin / 60)}:${String(azMin % 60).padStart(2, '0')}`;
 
+  const urVal = monthlyDays?.vacation_days ? String(monthlyDays.vacation_days) : '';
+  const krVal = monthlyDays?.sick_days ? String(monthlyDays.sick_days) : '';
+  const ueVal = monthlyDays?.overtime_hm || '';
+
   const summaryHeaders = ['25%', '40%', 'Ü', 'Ur', 'Kr', 'VMA', 'AZ'];
-  const summaryValues = [n25, n40, '', '', '', vma, az];
+  const summaryValues = [n25, n40, ueVal, urVal, krVal, vma, az];
 
   // Format work minutes as H:MM
   const fmtWork = (mins: number) => {
