@@ -780,8 +780,6 @@ function MonthlyGridCopy({
 }) {
   const { t } = useI18n();
   const [copied, setCopied] = useState(false);
-  const [popoverDay, setPopoverDay] = useState<number | null>(null);
-
   // Determine month from dateFrom (YYYY-MM-DD) or first shift
   const refDate = dateFrom || (shifts[0]?.shift_date ?? '');
   const year = parseInt(refDate.slice(0, 4), 10) || new Date().getFullYear();
@@ -835,39 +833,23 @@ function MonthlyGridCopy({
     return `${h}:${String(m).padStart(2, '0')}`;
   };
 
+  // Cycle: empty → Ur → Kr → empty
   const handleCellClick = useCallback((day: number) => {
     const work = dayWorkMap[day] || 0;
-    const hasAbsence = !!absenceDays[String(day)];
-    if (work > 0 && !hasAbsence) return; // can't mark absence on a work day
-    if (!onAbsenceChange) return;
-    setPopoverDay((prev) => prev === day ? null : day);
-  }, [dayWorkMap, absenceDays, onAbsenceChange]);
-
-  const handleAbsenceSelect = useCallback((day: number, type: 'Ur' | 'Kr' | null) => {
+    const current = absenceDays[String(day)];
+    if (work > 0 && !current) return;
     if (!onAbsenceChange) return;
     const next = { ...absenceDays };
     const key = String(day);
-    if (type === null) {
-      delete next[key];
+    if (!current) {
+      next[key] = 'Ur';
+    } else if (current === 'Ur') {
+      next[key] = 'Kr';
     } else {
-      next[key] = type;
+      delete next[key];
     }
     onAbsenceChange(next);
-    setPopoverDay(null);
-  }, [absenceDays, onAbsenceChange]);
-
-  // Close popover on outside click
-  useEffect(() => {
-    if (popoverDay === null) return;
-    const handler = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      if (!target.closest('[data-absence-popover]') && !target.closest('[data-absence-cell]')) {
-        setPopoverDay(null);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [popoverDay]);
+  }, [dayWorkMap, absenceDays, onAbsenceChange]);
 
   const handleCopy = useCallback(() => {
     // Copy only content (no headers): work hours per day + summary values
@@ -975,42 +957,10 @@ function MonthlyGridCopy({
                 return (
                   <td
                     key={d}
-                    data-absence-cell
-                    className={`${cellClass} relative select-none`}
+                    className={`${cellClass} select-none`}
                     onClick={(isClickable || absence) ? () => handleCellClick(d) : undefined}
                   >
                     {cellContent}
-                    {popoverDay === d && (
-                      <div
-                        data-absence-popover
-                        className="absolute left-1/2 bottom-full z-50 mb-1 -translate-x-1/2 rounded-lg border border-gray-200 bg-white p-1 shadow-lg dark:border-gray-600 dark:bg-gray-800"
-                        style={{ minWidth: 90 }}
-                      >
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleAbsenceSelect(d, 'Ur'); }}
-                          className="flex w-full items-center gap-1.5 rounded px-2 py-1 text-[11px] font-semibold text-blue-700 transition hover:bg-blue-50 dark:text-blue-300 dark:hover:bg-blue-900/30"
-                        >
-                          <span className="inline-block h-2.5 w-2.5 rounded-sm bg-blue-500" />
-                          Ur
-                        </button>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleAbsenceSelect(d, 'Kr'); }}
-                          className="flex w-full items-center gap-1.5 rounded px-2 py-1 text-[11px] font-semibold text-orange-700 transition hover:bg-orange-50 dark:text-orange-300 dark:hover:bg-orange-900/30"
-                        >
-                          <span className="inline-block h-2.5 w-2.5 rounded-sm bg-orange-500" />
-                          Kr
-                        </button>
-                        {absence && (
-                          <button
-                            onClick={(e) => { e.stopPropagation(); handleAbsenceSelect(d, null); }}
-                            className="flex w-full items-center gap-1.5 rounded px-2 py-1 text-[11px] font-semibold text-gray-500 transition hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700"
-                          >
-                            <span className="inline-block h-2.5 w-2.5 rounded-sm bg-gray-300 dark:bg-gray-600" />
-                            ✕
-                          </button>
-                        )}
-                      </div>
-                    )}
                   </td>
                 );
               })}
