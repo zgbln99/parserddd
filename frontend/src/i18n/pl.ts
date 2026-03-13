@@ -101,12 +101,34 @@ export const pl = {
   monthlyGrid: 'Siatka miesięczna',
   adminCopyGrid: 'Kopiuj siatkę',
 
+  // DATEV
+  analysisExportDatev: 'Eksport DATEV',
+
   // Admin
   navAdmin: 'Admin',
   adminTitle: 'Panel administracyjny',
   adminLoginHistory: 'Historia logowań',
   adminRole: 'Rola',
   adminBrowser: 'Przeglądarka',
+  adminActivityLog: 'Dziennik aktywności',
+  adminUser: 'Użytkownik',
+  adminAction: 'Akcja',
+  adminDetail: 'Szczegóły',
+  adminUsers: 'Zarządzanie użytkownikami',
+  adminAddUser: 'Dodaj użytkownika',
+  adminUserName: 'Nazwa',
+  adminDeleteUser: 'Usuń użytkownika',
+  adminNoUsers: 'Brak dodatkowych użytkowników',
+  adminChangePassword: 'Zmiana hasła',
+  adminPasswordTarget: 'Hasło dla',
+  adminPortalPassword: 'Hasło portalu (user)',
+  adminAdminPassword: 'Hasło admina',
+  adminNewPassword: 'Nowe hasło',
+  adminSyncConfig: 'Konfiguracja synchronizacji',
+  adminConfigSet: 'Ustawiony',
+  adminConfigNotSet: 'Nie ustawiony',
+  adminNewToken: 'Nowy token...',
+  adminSyncFolder: 'Folder Dropbox',
 
   // Reader
   readerTitle: 'Czytnik kart DDD',

@@ -7,12 +7,14 @@ or Flask's send_from_directory during development.
 """
 
 import csv
+import hashlib
 import io
 import json
 import os
 import re
 import subprocess
 import tempfile
+import threading
 from datetime import datetime, timedelta
 from functools import wraps
 
@@ -49,6 +51,10 @@ DDDPARSER_PATH = os.environ.get('DDDPARSER_PATH', 'dddparser')
 PORTAL_PASSWORD = os.environ.get('PORTAL_PASSWORD', 'lts2025')
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'Marek2211.!')
 LOGIN_HISTORY_FILE = os.environ.get('LOGIN_HISTORY_FILE', '/opt/ddd-reader/login_history.json')
+USERS_FILE = os.environ.get('USERS_FILE', '/opt/ddd-reader/users.json')
+ACTIVITY_LOG_FILE = os.environ.get('ACTIVITY_LOG_FILE', '/opt/ddd-reader/activity_log.json')
+CONFIG_FILE = os.environ.get('CONFIG_FILE', '/opt/ddd-reader/config.json')
+_activity_lock = threading.Lock()
 DROPBOX_APP_KEY = os.environ.get('DROPBOX_APP_KEY', 'j9ntkihedd9495i')
 DROPBOX_APP_SECRET = os.environ.get('DROPBOX_APP_SECRET', 'd3hr43reha9kky8')
 DROPBOX_REFRESH_TOKEN = os.environ.get('DROPBOX_REFRESH_TOKEN', '')
@@ -111,6 +117,66 @@ def _record_login(role: str):
         pass  # non-critical
 
 
+def _hash_password(password: str) -> str:
+    return hashlib.sha256(password.encode()).hexdigest()
+
+
+def _load_users() -> list:
+    try:
+        if os.path.exists(USERS_FILE):
+            with open(USERS_FILE) as f:
+                return json.load(f)
+    except Exception:
+        pass
+    return []
+
+
+def _save_users(users: list):
+    os.makedirs(os.path.dirname(USERS_FILE), exist_ok=True)
+    with open(USERS_FILE, 'w') as f:
+        json.dump(users, f, indent=2)
+
+
+def _log_activity(action: str, detail: str = ''):
+    entry = {
+        'timestamp': datetime.now(UTC).isoformat(),
+        'role': session.get('role', ''),
+        'username': session.get('username', ''),
+        'ip': request.remote_addr or '',
+        'action': action,
+        'detail': detail[:500],
+    }
+    try:
+        with _activity_lock:
+            log = []
+            if os.path.exists(ACTIVITY_LOG_FILE):
+                with open(ACTIVITY_LOG_FILE) as f:
+                    log = json.load(f)
+            log.append(entry)
+            log = log[-1000:]
+            os.makedirs(os.path.dirname(ACTIVITY_LOG_FILE), exist_ok=True)
+            with open(ACTIVITY_LOG_FILE, 'w') as f:
+                json.dump(log, f, indent=2)
+    except Exception:
+        pass
+
+
+def _load_config() -> dict:
+    try:
+        if os.path.exists(CONFIG_FILE):
+            with open(CONFIG_FILE) as f:
+                return json.load(f)
+    except Exception:
+        pass
+    return {}
+
+
+def _save_config(cfg: dict):
+    os.makedirs(os.path.dirname(CONFIG_FILE), exist_ok=True)
+    with open(CONFIG_FILE, 'w') as f:
+        json.dump(cfg, f, indent=2)
+
+
 # ---------------------------------------------------------------------------
 # Auth API
 # ---------------------------------------------------------------------------
@@ -120,16 +186,30 @@ def _record_login(role: str):
 def api_login():
     data = request.get_json(silent=True) or {}
     password = data.get('password', '')
+    # Check hardcoded admin password
     if password == ADMIN_PASSWORD:
         session['logged_in'] = True
         session['role'] = 'admin'
+        session['username'] = 'admin'
         _record_login('admin')
-        return jsonify({'ok': True, 'role': 'admin'})
+        return jsonify({'ok': True, 'role': 'admin', 'username': 'admin'})
+    # Check hardcoded portal password
     if password == PORTAL_PASSWORD:
         session['logged_in'] = True
         session['role'] = 'user'
+        session['username'] = 'user'
         _record_login('user')
-        return jsonify({'ok': True, 'role': 'user'})
+        return jsonify({'ok': True, 'role': 'user', 'username': 'user'})
+    # Check users from JSON file
+    pw_hash = _hash_password(password)
+    for u in _load_users():
+        if u.get('password_hash') == pw_hash:
+            role = u.get('role', 'user')
+            session['logged_in'] = True
+            session['role'] = role
+            session['username'] = u.get('name', '')
+            _record_login(role)
+            return jsonify({'ok': True, 'role': role, 'username': u.get('name', '')})
     return jsonify({'error': 'Nieprawidłowe hasło'}), 401
 
 
@@ -137,6 +217,7 @@ def api_login():
 def api_logout():
     session.pop('logged_in', None)
     session.pop('role', None)
+    session.pop('username', None)
     return jsonify({'ok': True})
 
 
@@ -145,6 +226,7 @@ def api_auth_status():
     return jsonify({
         'logged_in': bool(session.get('logged_in')),
         'role': session.get('role', 'user'),
+        'username': session.get('username', ''),
     })
 
 
@@ -642,6 +724,7 @@ def api_analyze_upload():
             tmp_path = tmp.name
         data = parse_ddd_file(tmp_path)
         result = analyze_card(data)
+        _log_activity('analyze_upload', result.get('driver_info', {}).get('driver_name', ''))
         return jsonify(result)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -668,6 +751,7 @@ def api_analyze_dropbox():
         data = parse_ddd_file(tmp_path)
         result = analyze_card(data)
         result['source_file'] = metadata.name
+        _log_activity('analyze_dropbox', f"{result.get('driver_info', {}).get('driver_name', '')} — {metadata.name}")
         return jsonify(result)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -951,12 +1035,255 @@ def api_login_history():
         if os.path.exists(LOGIN_HISTORY_FILE):
             with open(LOGIN_HISTORY_FILE) as f:
                 history = json.load(f)
-            # Return newest first
             history.reverse()
             return jsonify({'history': history})
         return jsonify({'history': []})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/admin/activity-log')
+@admin_required
+def api_activity_log():
+    """Return API activity log."""
+    try:
+        if os.path.exists(ACTIVITY_LOG_FILE):
+            with open(ACTIVITY_LOG_FILE) as f:
+                log = json.load(f)
+            log.reverse()
+            return jsonify({'log': log})
+        return jsonify({'log': []})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# --- User management ---
+
+@app.route('/api/admin/users')
+@admin_required
+def api_list_users():
+    users = _load_users()
+    # Strip password hashes
+    safe = [{'id': u.get('id'), 'name': u.get('name'), 'role': u.get('role', 'user'),
+             'created': u.get('created', '')} for u in users]
+    return jsonify({'users': safe})
+
+
+@app.route('/api/admin/users', methods=['POST'])
+@admin_required
+def api_create_user():
+    data = request.get_json(silent=True) or {}
+    name = data.get('name', '').strip()
+    password = data.get('password', '')
+    role = data.get('role', 'user')
+    if not name or not password:
+        return jsonify({'error': 'Name and password required'}), 400
+    if role not in ('user', 'admin'):
+        role = 'user'
+    users = _load_users()
+    new_id = max((u.get('id', 0) for u in users), default=0) + 1
+    users.append({
+        'id': new_id,
+        'name': name,
+        'password_hash': _hash_password(password),
+        'role': role,
+        'created': datetime.now(UTC).isoformat(),
+    })
+    _save_users(users)
+    _log_activity('create_user', f"{name} ({role})")
+    return jsonify({'ok': True, 'id': new_id})
+
+
+@app.route('/api/admin/users/<int:user_id>', methods=['DELETE'])
+@admin_required
+def api_delete_user(user_id):
+    users = _load_users()
+    before = len(users)
+    users = [u for u in users if u.get('id') != user_id]
+    if len(users) == before:
+        return jsonify({'error': 'User not found'}), 404
+    _save_users(users)
+    _log_activity('delete_user', f"id={user_id}")
+    return jsonify({'ok': True})
+
+
+# --- Password change ---
+
+@app.route('/api/admin/change-password', methods=['POST'])
+@admin_required
+def api_change_password():
+    """Change portal or admin password (writes to config file, not env)."""
+    data = request.get_json(silent=True) or {}
+    target = data.get('target', '')  # 'portal' or 'admin'
+    new_password = data.get('new_password', '')
+    if target not in ('portal', 'admin') or not new_password:
+        return jsonify({'error': 'Invalid target or empty password'}), 400
+    cfg = _load_config()
+    cfg[f'{target}_password'] = new_password
+    _save_config(cfg)
+    # Update in-memory variable
+    global PORTAL_PASSWORD, ADMIN_PASSWORD
+    if target == 'portal':
+        PORTAL_PASSWORD = new_password
+    else:
+        ADMIN_PASSWORD = new_password
+    _log_activity('change_password', target)
+    return jsonify({'ok': True})
+
+
+# --- Sync config ---
+
+@app.route('/api/admin/config')
+@admin_required
+def api_get_config():
+    cfg = _load_config()
+    return jsonify({
+        'samsara_api_token': cfg.get('samsara_api_token', SAMSARA_API_TOKEN[:8] + '...' if SAMSARA_API_TOKEN else ''),
+        'samsara_api_token_set': bool(SAMSARA_API_TOKEN or cfg.get('samsara_api_token')),
+        'dropbox_refresh_token_set': bool(DROPBOX_REFRESH_TOKEN or cfg.get('dropbox_refresh_token')),
+        'sync_dest_folder': cfg.get('sync_dest_folder', os.environ.get('SYNC_DEST_FOLDER', '/Samsara-DDD')),
+    })
+
+
+@app.route('/api/admin/config', methods=['POST'])
+@admin_required
+def api_update_config():
+    data = request.get_json(silent=True) or {}
+    cfg = _load_config()
+    for key in ('samsara_api_token', 'dropbox_refresh_token', 'sync_dest_folder'):
+        if key in data and data[key]:
+            cfg[key] = data[key]
+    _save_config(cfg)
+    # Update in-memory
+    global SAMSARA_API_TOKEN, DROPBOX_REFRESH_TOKEN
+    if 'samsara_api_token' in data and data['samsara_api_token']:
+        SAMSARA_API_TOKEN = data['samsara_api_token']
+    if 'dropbox_refresh_token' in data and data['dropbox_refresh_token']:
+        DROPBOX_REFRESH_TOKEN = data['dropbox_refresh_token']
+    _log_activity('update_config', ', '.join(data.keys()))
+    return jsonify({'ok': True})
+
+
+# --- DATEV export ---
+
+@app.route('/api/export/datev', methods=['POST'])
+@login_required
+def api_export_datev():
+    """Generate DATEV-compatible CSV from shift analysis data."""
+    payload = request.json or {}
+    driver_name = payload.get('driver_name', 'Fahrer')
+    card_number = payload.get('card_number', '')
+    summary = payload.get('summary', {})
+    shifts = payload.get('shifts', [])
+    period = payload.get('period', '')  # YYYY-MM
+
+    # VMA daily rate (Germany, 8-24h absence)
+    VMA_RATE = 14.0
+
+    output = io.StringIO()
+    writer = csv.writer(output, delimiter=';', quoting=csv.QUOTE_ALL)
+
+    # DATEV-compatible header
+    writer.writerow([
+        'Personalnr', 'Name', 'Monat', 'Jahr',
+        'Arbeitsstunden', 'Nacht 25%', 'Nacht 40%',
+        'Überstunden', 'Urlaub', 'Krank',
+        'VMA Tage', 'VMA Betrag (EUR)',
+        'Schichten gesamt',
+    ])
+
+    # Determine period
+    year_str = ''
+    month_str = ''
+    if period:
+        parts = period.split('-')
+        year_str = parts[0] if len(parts) > 0 else ''
+        month_str = parts[1] if len(parts) > 1 else ''
+    elif shifts:
+        first_date = shifts[0].get('shift_date', '')
+        if len(first_date) >= 7:
+            year_str = first_date[:4]
+            month_str = first_date[5:7]
+
+    # Format numbers German style
+    def fmt_de(val):
+        return f"{val:.2f}".replace('.', ',')
+
+    total_work_h = summary.get('total_work_minutes', 0) / 60
+    n25_h = summary.get('night_25_minutes', 0) / 60
+    n40_h = summary.get('night_40_minutes', 0) / 60
+    diet_count = summary.get('diet_count', 0)
+    vma_amount = diet_count * VMA_RATE
+
+    writer.writerow([
+        card_number,
+        driver_name,
+        month_str,
+        year_str,
+        fmt_de(total_work_h),
+        fmt_de(n25_h),
+        fmt_de(n40_h),
+        '',  # Überstunden
+        '',  # Urlaub
+        '',  # Krank
+        str(diet_count),
+        fmt_de(vma_amount),
+        str(summary.get('total_shifts', 0)),
+    ])
+
+    # Detail rows per shift
+    writer.writerow([])
+    writer.writerow([
+        'Datum', 'Wochentag', 'Start', 'Ende',
+        'Arbeitszeit', 'Fahrzeit', 'Pause',
+        'Nacht 25%', 'Nacht 40%', 'VMA', 'Fahrzeug',
+    ])
+    for s in shifts:
+        n25 = fmt_de(s.get('night_25_minutes', 0) / 60)
+        n40 = fmt_de(s.get('night_40_minutes', 0) / 60)
+        writer.writerow([
+            s.get('shift_date', ''),
+            s.get('weekday', ''),
+            s.get('shift_start', ''),
+            s.get('shift_end', ''),
+            s.get('work_hm', ''),
+            s.get('driving_hm', ''),
+            s.get('break_hm', ''),
+            n25,
+            n40,
+            'JA' if s.get('has_diet') else '',
+            ', '.join(s.get('vehicles', [])),
+        ])
+
+    csv_bytes = output.getvalue().encode('utf-8-sig')
+    safe_name = "".join(c for c in driver_name if c.isalnum() or c in ' _-').strip() or 'fahrer'
+    filename = f"DATEV_{safe_name}_{period or datetime.now().strftime('%Y-%m')}.csv"
+    _log_activity('export_datev', f"{driver_name} {period}")
+    from flask import Response
+    return Response(
+        csv_bytes,
+        mimetype='text/csv',
+        headers={'Content-Disposition': f'attachment; filename="{filename}"'},
+    )
+
+
+# --- Load persisted config on startup ---
+
+def _apply_persisted_config():
+    """Load config from JSON file and override env-based defaults."""
+    global PORTAL_PASSWORD, ADMIN_PASSWORD, SAMSARA_API_TOKEN, DROPBOX_REFRESH_TOKEN
+    cfg = _load_config()
+    if cfg.get('portal_password'):
+        PORTAL_PASSWORD = cfg['portal_password']
+    if cfg.get('admin_password'):
+        ADMIN_PASSWORD = cfg['admin_password']
+    if cfg.get('samsara_api_token'):
+        SAMSARA_API_TOKEN = cfg['samsara_api_token']
+    if cfg.get('dropbox_refresh_token'):
+        DROPBOX_REFRESH_TOKEN = cfg['dropbox_refresh_token']
+
+
+_apply_persisted_config()
 
 
 # ---------------------------------------------------------------------------

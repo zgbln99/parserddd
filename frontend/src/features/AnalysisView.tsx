@@ -1,7 +1,7 @@
 import { useMemo, useState, useCallback, useRef } from 'react';
 import { useI18n } from '../i18n';
 import { formatDate } from '../lib/format';
-import { exportCsv, exportPdf } from '../lib/api';
+import { exportCsv, exportPdf, exportDatev } from '../lib/api';
 import { Badge } from '../components/Badge';
 import { BarChart } from '../components/BarChart';
 import { Download, FileText, ClipboardCopy, Check, Printer, BarChart3, UtensilsCrossed, Table2 } from 'lucide-react';
@@ -103,6 +103,17 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
 
   const handlePdfExport = () => {
     exportPdf(di.driver_name || 'driver', di.card_number || '', s, shifts);
+  };
+
+  const handleDatevExport = () => {
+    // Determine period from dateFrom or first shift
+    let period = '';
+    if (dateFrom && dateFrom.length >= 7) {
+      period = dateFrom.slice(0, 7);
+    } else if (shifts.length > 0 && shifts[0].shift_date) {
+      period = shifts[0].shift_date.slice(0, 7);
+    }
+    exportDatev(di.driver_name || 'Fahrer', di.card_number || '', s, shifts, period);
   };
 
   const [showChart, setShowChart] = useState(false);
@@ -497,6 +508,13 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
         >
           <FileText size={16} />
           {t('analysisExportPdf')}
+        </button>
+        <button
+          onClick={handleDatevExport}
+          className="flex items-center gap-2 rounded-xl border border-green-200 bg-green-50 px-5 py-2.5 text-sm font-semibold text-green-700 transition hover:bg-green-100 dark:border-green-800 dark:bg-green-900/20 dark:text-green-400 dark:hover:bg-green-900/30"
+        >
+          <Table2 size={16} />
+          {t('analysisExportDatev')}
         </button>
         <button
           onClick={handlePrint}

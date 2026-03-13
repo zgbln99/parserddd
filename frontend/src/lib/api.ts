@@ -86,6 +86,66 @@ export interface LoginHistoryEntry {
 export const fetchLoginHistory = () =>
   request<{ history: LoginHistoryEntry[] }>('/api/admin/login-history');
 
+// Activity log
+export interface ActivityLogEntry {
+  timestamp: string;
+  role: string;
+  username: string;
+  ip: string;
+  action: string;
+  detail: string;
+}
+
+export const fetchActivityLog = () =>
+  request<{ log: ActivityLogEntry[] }>('/api/admin/activity-log');
+
+// User management
+export interface UserEntry {
+  id: number;
+  name: string;
+  role: string;
+  created: string;
+}
+
+export const fetchUsers = () =>
+  request<{ users: UserEntry[] }>('/api/admin/users');
+
+export const createUser = (name: string, password: string, role: string) =>
+  request<{ ok: boolean; id: number }>('/api/admin/users', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, password, role }),
+  });
+
+export const deleteUser = (id: number) =>
+  request<{ ok: boolean }>(`/api/admin/users/${id}`, { method: 'DELETE' });
+
+// Password change
+export const changePassword = (target: 'portal' | 'admin', newPassword: string) =>
+  request<{ ok: boolean }>('/api/admin/change-password', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ target, new_password: newPassword }),
+  });
+
+// Sync config
+export interface SyncConfig {
+  samsara_api_token: string;
+  samsara_api_token_set: boolean;
+  dropbox_refresh_token_set: boolean;
+  sync_dest_folder: string;
+}
+
+export const fetchConfig = () =>
+  request<SyncConfig>('/api/admin/config');
+
+export const updateConfig = (data: Record<string, string>) =>
+  request<{ ok: boolean }>('/api/admin/config', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+
 // CSV export (returns blob)
 export async function exportCsv(driverName: string, shifts: unknown[]) {
   const res = await fetch('/api/export/csv', {
@@ -100,6 +160,24 @@ export async function exportCsv(driverName: string, shifts: unknown[]) {
   const a = document.createElement('a');
   a.href = url;
   a.download = res.headers.get('Content-Disposition')?.split('filename=')[1]?.replace(/"/g, '') || 'export.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// DATEV export (returns blob)
+export async function exportDatev(driverName: string, cardNumber: string, summary: unknown, shifts: unknown[], period: string) {
+  const res = await fetch('/api/export/datev', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ driver_name: driverName, card_number: cardNumber, summary, shifts, period }),
+  });
+  if (!res.ok) throw new Error('DATEV export failed');
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = res.headers.get('Content-Disposition')?.split('filename=')[1]?.replace(/"/g, '') || 'DATEV_export.csv';
   a.click();
   URL.revokeObjectURL(url);
 }

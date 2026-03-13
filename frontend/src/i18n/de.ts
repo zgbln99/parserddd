@@ -103,12 +103,34 @@ export const de: Record<TranslationKey, string> = {
   monthlyGrid: 'Monatsraster',
   adminCopyGrid: 'Raster kopieren',
 
+  // DATEV
+  analysisExportDatev: 'DATEV-Export',
+
   // Admin
   navAdmin: 'Admin',
   adminTitle: 'Administrationsbereich',
   adminLoginHistory: 'Anmeldeverlauf',
   adminRole: 'Rolle',
   adminBrowser: 'Browser',
+  adminActivityLog: 'Aktivitätsprotokoll',
+  adminUser: 'Benutzer',
+  adminAction: 'Aktion',
+  adminDetail: 'Details',
+  adminUsers: 'Benutzerverwaltung',
+  adminAddUser: 'Benutzer hinzufügen',
+  adminUserName: 'Name',
+  adminDeleteUser: 'Benutzer löschen',
+  adminNoUsers: 'Keine zusätzlichen Benutzer',
+  adminChangePassword: 'Passwort ändern',
+  adminPasswordTarget: 'Passwort für',
+  adminPortalPassword: 'Portal-Passwort (User)',
+  adminAdminPassword: 'Admin-Passwort',
+  adminNewPassword: 'Neues Passwort',
+  adminSyncConfig: 'Synchronisierungskonfiguration',
+  adminConfigSet: 'Eingestellt',
+  adminConfigNotSet: 'Nicht eingestellt',
+  adminNewToken: 'Neuer Token...',
+  adminSyncFolder: 'Dropbox-Ordner',
 
   // Reader
   readerTitle: 'DDD-Kartenleser',
