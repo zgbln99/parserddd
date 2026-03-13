@@ -390,7 +390,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
           </button>
           {showChart && (
             <div className="px-4 pb-4">
-              <div className="flex flex-wrap gap-3 pb-2 text-[10px]">
+              <div className="mb-3 flex flex-wrap gap-3 text-[11px]">
                 {[
                   { color: '#3b82f6', name: t('analysisDriving') },
                   { color: '#8b5cf6', name: t('analysisWork') },
@@ -398,15 +398,14 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
                   { color: '#a78bfa', name: t('analysisNight25') },
                   { color: '#6366f1', name: t('analysisNight40') },
                 ].map((item) => (
-                  <span key={item.name} className="flex items-center gap-1 text-gray-500 dark:text-gray-400">
-                    <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: item.color }} />
+                  <span key={item.name} className="flex items-center gap-1.5 text-gray-600 dark:text-gray-400">
+                    <span className="inline-block h-3 w-3 rounded" style={{ background: item.color }} />
                     {item.name}
                   </span>
                 ))}
               </div>
               <BarChart
                 bars={chartBars}
-                height={220}
                 formatValue={(v) => v.toFixed(1)}
               />
             </div>
