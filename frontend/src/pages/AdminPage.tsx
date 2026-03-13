@@ -2,15 +2,13 @@ import { useEffect, useState, Fragment, useCallback } from 'react';
 import {
   AlertCircle, CheckCircle, XCircle, MinusCircle, ChevronDown, ChevronUp,
   Clock, Shield, History, Users, Key, Settings, Activity, Trash2, Plus,
-  ChevronLeft, ChevronRight, Truck, Radio, Search, MapPin, RefreshCw, Navigation,
+  ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import { useI18n } from '../i18n';
 import {
   fetchSyncLog, fetchLoginHistory, fetchActivityLog, fetchUsers,
   createUser, deleteUser, changePassword, fetchConfig, updateConfig,
-  fetchSamsaraVehicleStats, fetchSamsaraTachographActivity,
   type LoginHistoryEntry, type ActivityLogEntry, type UserEntry, type SyncConfig,
-  type SamsaraVehicleStat, type SamsaraDriverActivity,
 } from '../lib/api';
 import { formatDateTime, formatBytes } from '../lib/format';
 import { Card, StatCard } from '../components/Card';
@@ -602,345 +600,16 @@ function SyncMonitorSection() {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Samsara — Vehicle Stats                                            */
-/* ------------------------------------------------------------------ */
-
-function SamsaraVehicleStatsSection() {
-  const { t, locale } = useI18n();
-  const [vehicles, setVehicles] = useState<SamsaraVehicleStat[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [search, setSearch] = useState('');
-  const [refreshing, setRefreshing] = useState(false);
-
-  const load = useCallback(() => {
-    fetchSamsaraVehicleStats()
-      .then((data) => { setVehicles(data.vehicles); setLoading(false); setRefreshing(false); })
-      .catch((e) => { setError(e.message); setLoading(false); setRefreshing(false); });
-  }, []);
-
-  useEffect(() => { load(); }, [load]);
-
-  const handleRefresh = () => { setRefreshing(true); load(); };
-
-  const filtered = search.trim()
-    ? vehicles.filter((v) => v.name.toLowerCase().includes(search.toLowerCase()) || (v.location || '').toLowerCase().includes(search.toLowerCase()))
-    : vehicles;
-
-  if (loading) return <Spinner />;
-  if (error) return <p className="text-sm text-red-500">{error}</p>;
-
-  return (
-    <Card className="p-6">
-      <div className="mb-4 flex items-center gap-2">
-        <Truck size={18} className="text-blue-500" />
-        <h2 className="text-lg font-bold">{t('samsaraVehicleStats')}</h2>
-        <span className="ml-auto text-xs text-gray-400">{filtered.length} / {vehicles.length}</span>
-      </div>
-
-      {/* Search + Refresh */}
-      <div className="mb-4 flex items-center gap-3">
-        <div className="relative flex-1">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={t('samsaraSearchVehicle')}
-            className="w-full rounded-lg border border-gray-200 py-1.5 pl-9 pr-3 text-sm outline-none focus:border-primary-400 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-          />
-        </div>
-        <button
-          onClick={handleRefresh}
-          disabled={refreshing}
-          className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 transition hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-800"
-        >
-          <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
-          {t('samsaraRefresh')}
-        </button>
-      </div>
-
-      {filtered.length === 0 ? (
-        <p className="py-8 text-center text-sm text-gray-400">{search ? t('noData') : t('samsaraNoVehicles')}</p>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-100 bg-gray-50/80 dark:border-gray-800 dark:bg-gray-900/50">
-                <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('samsaraVehicle')}</th>
-                <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('samsaraLocation')}</th>
-                <th className="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('samsaraSpeed')}</th>
-                <th className="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('samsaraOdometer')}</th>
-                <th className="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('samsaraFuel')}</th>
-                <th className="px-3 py-2.5 text-center text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('samsaraEngine')}</th>
-                <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('samsaraLastUpdate')}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
-              {filtered.map((v) => (
-                <tr key={v.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
-                  <td className="whitespace-nowrap px-3 py-2">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">{v.name}</span>
-                      {v.engineState === 'On' && v.speedKmh != null && v.speedKmh > 0 && (
-                        <Navigation size={12} className="text-blue-500" style={{ transform: `rotate(${v.heading || 0}deg)` }} />
-                      )}
-                    </div>
-                  </td>
-                  <td className="max-w-[250px] px-3 py-2">
-                    {v.latitude != null ? (
-                      <div className="flex items-center gap-1.5">
-                        <MapPin size={12} className="flex-shrink-0 text-red-400" />
-                        <a
-                          href={`https://www.google.com/maps?q=${v.latitude},${v.longitude}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="truncate text-xs text-blue-600 underline decoration-blue-200 hover:decoration-blue-500 dark:text-blue-400"
-                          title={v.location || `${v.latitude}, ${v.longitude}`}
-                        >
-                          {v.location || `${v.latitude}, ${v.longitude}`}
-                        </a>
-                      </div>
-                    ) : (
-                      <span className="text-xs text-gray-300 dark:text-gray-600">-</span>
-                    )}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-2 text-right">
-                    {v.speedKmh != null ? (
-                      <span className={`font-mono text-xs ${v.speedKmh > 0 ? 'font-semibold text-blue-600' : 'text-gray-400'}`}>
-                        {v.speedKmh} km/h
-                      </span>
-                    ) : '-'}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-2 text-right font-mono text-sm">
-                    {v.odometerKm != null ? v.odometerKm.toLocaleString(locale === 'de' ? 'de-DE' : 'pl-PL') : '-'}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-2 text-right">
-                    {v.fuelPercent != null ? (
-                      <div className="flex items-center justify-end gap-1.5">
-                        <div className="h-1.5 w-12 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
-                          <div
-                            className={`h-full rounded-full ${v.fuelPercent < 20 ? 'bg-red-500' : v.fuelPercent < 40 ? 'bg-orange-500' : 'bg-green-500'}`}
-                            style={{ width: `${Math.min(100, v.fuelPercent)}%` }}
-                          />
-                        </div>
-                        <span className={`text-xs font-semibold ${v.fuelPercent < 20 ? 'text-red-500' : v.fuelPercent < 40 ? 'text-orange-500' : 'text-green-600'}`}>
-                          {v.fuelPercent}%
-                        </span>
-                      </div>
-                    ) : '-'}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-2 text-center">
-                    {v.engineState != null ? (
-                      <Badge variant={v.engineState === 'On' ? 'green' : 'gray'} dot>
-                        {v.engineState === 'On' ? t('samsaraEngineOn') : t('samsaraEngineOff')}
-                      </Badge>
-                    ) : '-'}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-2 text-xs text-gray-500">
-                    {formatDateTime(v.gpsTime || v.odometerTime || v.fuelTime || v.engineTime || '', locale)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </Card>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/*  Samsara — Tachograph Activity                                      */
-/* ------------------------------------------------------------------ */
-
-function formatMinutes(mins: number): string {
-  const h = Math.floor(mins / 60);
-  const m = Math.round(mins % 60);
-  return `${h}:${String(m).padStart(2, '0')}`;
-}
-
-function SamsaraTachographActivitySection() {
-  const { t, locale } = useI18n();
-  const [drivers, setDrivers] = useState<SamsaraDriverActivity[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [expandedDriver, setExpandedDriver] = useState<string | null>(null);
-
-  // Default: last 7 days
-  const today = new Date();
-  const weekAgo = new Date(today);
-  weekAgo.setDate(weekAgo.getDate() - 7);
-  const [startDate, setStartDate] = useState(weekAgo.toISOString().slice(0, 10));
-  const [endDate, setEndDate] = useState(today.toISOString().slice(0, 10));
-
-  const loadActivity = useCallback(() => {
-    setLoading(true);
-    setError('');
-    const startTime = `${startDate}T00:00:00Z`;
-    const endTime = `${endDate}T23:59:59Z`;
-    fetchSamsaraTachographActivity(startTime, endTime)
-      .then((data) => { setDrivers(data.drivers); setLoading(false); })
-      .catch((e) => { setError(e.message); setLoading(false); });
-  }, [startDate, endDate]);
-
-  const stateLabel = (state: string) => {
-    if (state === 'DRIVING') return t('samsaraDriving');
-    if (state === 'WORK') return t('samsaraWork');
-    if (state === 'BREAK/REST') return t('samsaraBreakRest');
-    if (state === 'AVAILABILITY') return t('samsaraAvailability');
-    return state;
-  };
-
-  const stateBadgeVariant = (state: string): 'blue' | 'green' | 'orange' | 'gray' | 'red' => {
-    if (state === 'DRIVING') return 'blue';
-    if (state === 'WORK') return 'green';
-    if (state === 'BREAK/REST') return 'orange';
-    if (state === 'AVAILABILITY') return 'gray';
-    return 'gray';
-  };
-
-  const driverSummary = (activities: SamsaraDriverActivity['activity']) => {
-    let driving = 0, work = 0, breakRest = 0;
-    for (const a of activities) {
-      if (!a.startTime || !a.endTime) continue;
-      const mins = (new Date(a.endTime).getTime() - new Date(a.startTime).getTime()) / 60000;
-      if (a.state === 'DRIVING') driving += mins;
-      else if (a.state === 'WORK') work += mins;
-      else if (a.state === 'BREAK/REST') breakRest += mins;
-    }
-    return { driving, work, breakRest };
-  };
-
-  return (
-    <Card className="p-6">
-      <div className="mb-4 flex items-center gap-2">
-        <Radio size={18} className="text-emerald-500" />
-        <h2 className="text-lg font-bold">{t('samsaraTachoActivity')}</h2>
-      </div>
-
-      {/* Date filters */}
-      <div className="mb-4 flex flex-wrap items-end gap-3">
-        <div>
-          <label className="mb-1 block text-xs font-semibold text-gray-500">{t('detailFrom')}</label>
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-primary-400 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-xs font-semibold text-gray-500">{t('detailTo')}</label>
-          <input
-            type="date"
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
-            className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-primary-400 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-          />
-        </div>
-        <button
-          onClick={loadActivity}
-          disabled={loading}
-          className="rounded-lg bg-emerald-600 px-4 py-1.5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50"
-        >
-          {loading ? '...' : t('samsaraLoadActivity')}
-        </button>
-      </div>
-
-      {error && <p className="mb-3 text-sm text-red-500">{error}</p>}
-
-      {loading ? (
-        <Spinner />
-      ) : drivers.length === 0 ? (
-        <p className="py-8 text-center text-sm text-gray-400">{t('samsaraNoActivity')}</p>
-      ) : (
-        <div className="space-y-3">
-          {drivers.map((d) => {
-            const summary = driverSummary(d.activity);
-            const isExpanded = expandedDriver === d.driverId;
-            return (
-              <div key={d.driverId} className="rounded-lg border border-gray-100 dark:border-gray-800">
-                {/* Driver header with summary */}
-                <button
-                  onClick={() => setExpandedDriver(isExpanded ? null : d.driverId)}
-                  className="flex w-full items-center gap-4 px-4 py-3 text-left transition hover:bg-gray-50 dark:hover:bg-gray-800/50"
-                >
-                  <span className="font-semibold">{d.driverName}</span>
-                  <span className="ml-auto flex items-center gap-4 text-xs">
-                    <span className="text-blue-600" title={t('samsaraTotalDriving')}>
-                      {t('samsaraDriving')}: <strong>{formatMinutes(summary.driving)}</strong>
-                    </span>
-                    <span className="text-green-600" title={t('samsaraTotalWork')}>
-                      {t('samsaraWork')}: <strong>{formatMinutes(summary.work)}</strong>
-                    </span>
-                    <span className="text-orange-500" title={t('samsaraTotalBreak')}>
-                      {t('samsaraBreakRest')}: <strong>{formatMinutes(summary.breakRest)}</strong>
-                    </span>
-                    <Badge variant="gray">{d.activity.length}</Badge>
-                    {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                  </span>
-                </button>
-
-                {/* Expanded activity list */}
-                {isExpanded && (
-                  <div className="border-t border-gray-100 dark:border-gray-800">
-                    <div className="max-h-[400px] overflow-y-auto">
-                      <table className="w-full text-xs">
-                        <thead>
-                          <tr className="bg-gray-50/80 dark:bg-gray-900/50">
-                            <th className="px-3 py-2 text-left font-semibold uppercase tracking-wider text-gray-500">{t('samsaraState')}</th>
-                            <th className="px-3 py-2 text-left font-semibold uppercase tracking-wider text-gray-500">{t('samsaraStart')}</th>
-                            <th className="px-3 py-2 text-left font-semibold uppercase tracking-wider text-gray-500">{t('samsaraEnd')}</th>
-                            <th className="px-3 py-2 text-right font-semibold uppercase tracking-wider text-gray-500">{t('samsaraDuration')}</th>
-                            <th className="px-3 py-2 text-center font-semibold uppercase tracking-wider text-gray-500">{t('samsaraManual')}</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
-                          {d.activity.map((a, i) => {
-                            const mins = a.startTime && a.endTime
-                              ? (new Date(a.endTime).getTime() - new Date(a.startTime).getTime()) / 60000
-                              : 0;
-                            return (
-                              <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
-                                <td className="whitespace-nowrap px-3 py-1.5">
-                                  <Badge variant={stateBadgeVariant(a.state)}>{stateLabel(a.state)}</Badge>
-                                </td>
-                                <td className="whitespace-nowrap px-3 py-1.5 text-gray-500">{formatDateTime(a.startTime, locale)}</td>
-                                <td className="whitespace-nowrap px-3 py-1.5 text-gray-500">{formatDateTime(a.endTime, locale)}</td>
-                                <td className="whitespace-nowrap px-3 py-1.5 text-right font-mono">{formatMinutes(mins)}</td>
-                                <td className="whitespace-nowrap px-3 py-1.5 text-center">
-                                  {a.isManualEntry && <Badge variant="orange">M</Badge>}
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </Card>
-  );
-}
-
-/* ------------------------------------------------------------------ */
 /*  Admin Page — tabbed layout                                         */
 /* ------------------------------------------------------------------ */
 
-type AdminTab = 'users' | 'security' | 'sync' | 'logs' | 'samsara';
+type AdminTab = 'users' | 'security' | 'sync' | 'logs';
 
 const tabs: { key: AdminTab; icon: typeof Users; labelKey: string; color: string }[] = [
   { key: 'users', icon: Users, labelKey: 'adminUsers', color: 'text-blue-500' },
   { key: 'security', icon: Key, labelKey: 'adminChangePassword', color: 'text-orange-500' },
   { key: 'sync', icon: Settings, labelKey: 'adminSyncConfig', color: 'text-gray-500' },
   { key: 'logs', icon: Activity, labelKey: 'adminActivityLog', color: 'text-violet-500' },
-  { key: 'samsara', icon: Truck, labelKey: 'samsaraTab', color: 'text-emerald-500' },
 ];
 
 export function AdminPage() {
@@ -998,12 +667,6 @@ export function AdminPage() {
           <div className="space-y-6">
             <ActivityLogSection />
             <LoginHistorySection />
-          </div>
-        )}
-        {activeTab === 'samsara' && (
-          <div className="space-y-6">
-            <SamsaraVehicleStatsSection />
-            <SamsaraTachographActivitySection />
           </div>
         )}
       </div>
