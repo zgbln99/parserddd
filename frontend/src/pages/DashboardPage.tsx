@@ -1,19 +1,67 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Users, FileText, RefreshCw, AlertCircle, ArrowRight, Upload, Cloud, Truck } from 'lucide-react';
+import {
+  Users, FileText, RefreshCw, AlertCircle, ArrowRight, Upload,
+  Cloud, Truck, Clock, CreditCard, AlertTriangle,
+} from 'lucide-react';
 import { useI18n } from '../i18n';
 import { fetchDashboard, fetchConnectionStatus } from '../lib/api';
-import { formatDateTime } from '../lib/format';
+import type { StaleDriver, ExpiringCard } from '../lib/api';
+import { formatDateTime, formatDate } from '../lib/format';
 import { StatCard, Card } from '../components/Card';
 import { Badge } from '../components/Badge';
 import { Spinner } from '../components/Spinner';
-import type { DashboardData } from '../types';
+
+const MAX_VISIBLE = 10;
+
+function daysColor(days: number | null): string {
+  if (days === null) return 'text-red-500';
+  if (days > 30) return 'text-red-500';
+  if (days > 14) return 'text-orange-500';
+  if (days > 7) return 'text-yellow-600 dark:text-yellow-400';
+  return 'text-green-600 dark:text-green-400';
+}
+
+function daysBg(days: number | null): string {
+  if (days === null) return 'bg-red-50 dark:bg-red-900/10';
+  if (days > 30) return 'bg-red-50 dark:bg-red-900/10';
+  if (days > 14) return 'bg-orange-50 dark:bg-orange-900/10';
+  return '';
+}
+
+function expiryColor(daysLeft: number): string {
+  if (daysLeft < 0) return 'text-red-600 dark:text-red-400';
+  if (daysLeft <= 30) return 'text-red-500';
+  if (daysLeft <= 90) return 'text-orange-500';
+  return 'text-green-600 dark:text-green-400';
+}
+
+function expiryBg(daysLeft: number): string {
+  if (daysLeft < 0) return 'bg-red-50 dark:bg-red-900/10';
+  if (daysLeft <= 30) return 'bg-red-50 dark:bg-red-900/10';
+  if (daysLeft <= 90) return 'bg-orange-50 dark:bg-orange-900/10';
+  return '';
+}
+
+interface DashboardData {
+  driver_count: number;
+  total_files: number;
+  last_sync: string;
+  synced_count: number;
+  last_sync_status: string;
+  last_sync_errors: number;
+  last_sync_uploaded: number;
+  stale_drivers: StaleDriver[];
+  expiring_cards: ExpiringCard[];
+}
 
 export function DashboardPage() {
   const { t, locale } = useI18n();
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState('');
   const [connections, setConnections] = useState<{ dropbox: boolean; samsara: boolean } | null>(null);
+  const [showAllStale, setShowAllStale] = useState(false);
+  const [showAllExpiring, setShowAllExpiring] = useState(false);
 
   useEffect(() => {
     fetchDashboard()
@@ -50,12 +98,21 @@ export function DashboardPage() {
     ? <Badge variant="orange" dot>{t('syncPartial')}</Badge>
     : <Badge variant="gray">-</Badge>;
 
+  const staleDrivers = data.stale_drivers || [];
+  const expiringCards = data.expiring_cards || [];
+  const visibleStale = showAllStale ? staleDrivers : staleDrivers.slice(0, MAX_VISIBLE);
+  const visibleExpiring = showAllExpiring ? expiringCards : expiringCards.slice(0, MAX_VISIBLE);
+
+  // Count critical alerts
+  const overdueCount = staleDrivers.filter(d => d.days_since === null || d.days_since > 28).length;
+  const expiringCritical = expiringCards.filter(c => c.days_left <= 90).length;
+
   return (
     <div>
       <h1 className="mb-6 text-2xl font-bold tracking-tight">{t('dashTitle')}</h1>
 
       {/* Stats */}
-      <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           label={t('dashDrivers')}
           value={data.driver_count}
@@ -82,7 +139,134 @@ export function DashboardPage() {
         />
       </div>
 
+      {/* Main content: 2 columns */}
       <div className="grid gap-6 lg:grid-cols-2">
+
+        {/* Stale drivers */}
+        <Card className="p-0">
+          <div className="flex items-center gap-2 border-b border-gray-100 px-5 py-4 dark:border-gray-800">
+            <Clock size={18} className="text-orange-500" />
+            <h3 className="text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+              {t('dashStaleDrivers')}
+            </h3>
+            {overdueCount > 0 && (
+              <Badge variant="red">{overdueCount}</Badge>
+            )}
+          </div>
+          {staleDrivers.length === 0 ? (
+            <p className="px-5 py-8 text-center text-sm text-gray-400">{t('dashNoStale')}</p>
+          ) : (
+            <div>
+              <div className="divide-y divide-gray-50 dark:divide-gray-800/50">
+                {visibleStale.map((d) => (
+                  <Link
+                    key={d.card_number || d.name}
+                    to="/drivers"
+                    className={`flex items-center gap-3 px-5 py-3 transition hover:bg-gray-50 dark:hover:bg-gray-800/50 ${daysBg(d.days_since)}`}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="truncate text-sm font-medium text-gray-800 dark:text-gray-200">{d.name}</p>
+                      {d.card_number && (
+                        <p className="truncate text-xs text-gray-400">{d.card_number}</p>
+                      )}
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <span className={`text-sm font-bold tabular-nums ${daysColor(d.days_since)}`}>
+                        {d.days_since === null ? '—' : d.days_since}
+                      </span>
+                      <p className="text-[10px] text-gray-400">{t('dashDaysSince')}</p>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+              {staleDrivers.length > MAX_VISIBLE && (
+                <div className="border-t border-gray-100 px-5 py-3 dark:border-gray-800">
+                  <button
+                    onClick={() => setShowAllStale(!showAllStale)}
+                    className="flex w-full items-center justify-center gap-1 text-xs font-medium text-primary-600 transition hover:text-primary-700 dark:text-primary-400"
+                  >
+                    {showAllStale
+                      ? t('close')
+                      : `${t('dashShowAll')} (${staleDrivers.length})`
+                    }
+                    <ArrowRight size={12} />
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </Card>
+
+        {/* Expiring cards */}
+        <Card className="p-0">
+          <div className="flex items-center gap-2 border-b border-gray-100 px-5 py-4 dark:border-gray-800">
+            <CreditCard size={18} className="text-red-500" />
+            <h3 className="text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+              {t('dashExpiringCards')}
+            </h3>
+            {expiringCritical > 0 && (
+              <Badge variant="red">{expiringCritical}</Badge>
+            )}
+          </div>
+          {expiringCards.length === 0 ? (
+            <p className="px-5 py-8 text-center text-sm text-gray-400">{t('dashNoExpiring')}</p>
+          ) : (
+            <div>
+              <div className="divide-y divide-gray-50 dark:divide-gray-800/50">
+                {visibleExpiring.map((c) => (
+                  <div
+                    key={c.card_number}
+                    className={`flex items-center gap-3 px-5 py-3 ${expiryBg(c.days_left)}`}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="truncate text-sm font-medium text-gray-800 dark:text-gray-200">
+                        {c.driver_name || c.card_number}
+                      </p>
+                      <p className="truncate text-xs text-gray-400">
+                        {t('dashCardExpiry')}: {formatDate(c.card_expiry_date, locale)}
+                      </p>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      {c.days_left < 0 ? (
+                        <div className="flex items-center gap-1">
+                          <AlertTriangle size={14} className="text-red-500" />
+                          <span className="text-sm font-bold text-red-600 dark:text-red-400">
+                            {t('dashExpired')}
+                          </span>
+                        </div>
+                      ) : (
+                        <>
+                          <span className={`text-sm font-bold tabular-nums ${expiryColor(c.days_left)}`}>
+                            {c.days_left}
+                          </span>
+                          <p className="text-[10px] text-gray-400">{t('dashDaysLeft')}</p>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {expiringCards.length > MAX_VISIBLE && (
+                <div className="border-t border-gray-100 px-5 py-3 dark:border-gray-800">
+                  <button
+                    onClick={() => setShowAllExpiring(!showAllExpiring)}
+                    className="flex w-full items-center justify-center gap-1 text-xs font-medium text-primary-600 transition hover:text-primary-700 dark:text-primary-400"
+                  >
+                    {showAllExpiring
+                      ? t('close')
+                      : `${t('dashShowAll')} (${expiringCards.length})`
+                    }
+                    <ArrowRight size={12} />
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </Card>
+      </div>
+
+      {/* Bottom row: sync + quick actions */}
+      <div className="mt-6 grid gap-6 lg:grid-cols-2">
         {/* Sync info */}
         <Card className="p-6">
           <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
@@ -102,9 +286,27 @@ export function DashboardPage() {
               <span className="text-sm font-medium">{data.synced_count}</span>
             </div>
           </div>
+
+          {/* Connection status */}
+          {connections && (
+            <div className="mt-4 border-t border-gray-100 pt-4 dark:border-gray-800">
+              <div className="space-y-2">
+                <div className="flex items-center gap-3 py-1">
+                  <Cloud size={18} className={connections.dropbox ? 'text-green-500' : 'text-red-400'} />
+                  <span className="flex-1 text-sm">{connections.dropbox ? t('dropboxConnected') : t('dropboxDisconnected')}</span>
+                  <span className={`h-2.5 w-2.5 rounded-full ${connections.dropbox ? 'bg-green-500' : 'bg-red-400'}`} />
+                </div>
+                <div className="flex items-center gap-3 py-1">
+                  <Truck size={18} className={connections.samsara ? 'text-green-500' : 'text-red-400'} />
+                  <span className="flex-1 text-sm">{connections.samsara ? t('samsaraConnected') : t('samsaraDisconnected')}</span>
+                  <span className={`h-2.5 w-2.5 rounded-full ${connections.samsara ? 'bg-green-500' : 'bg-red-400'}`} />
+                </div>
+              </div>
+            </div>
+          )}
         </Card>
 
-        {/* Quick actions + connections */}
+        {/* Quick actions */}
         <Card className="p-6">
           <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
             {t('dashQuickActions')}
@@ -126,24 +328,6 @@ export function DashboardPage() {
               </Link>
             ))}
           </div>
-
-          {/* Connection status */}
-          {connections && (
-            <div className="mt-4 border-t border-gray-100 pt-4 dark:border-gray-800">
-              <div className="space-y-2">
-                <div className="flex items-center gap-3 px-4 py-2">
-                  <Cloud size={18} className={connections.dropbox ? 'text-green-500' : 'text-red-400'} />
-                  <span className="flex-1 text-sm">{connections.dropbox ? t('dropboxConnected') : t('dropboxDisconnected')}</span>
-                  <span className={`h-2.5 w-2.5 rounded-full ${connections.dropbox ? 'bg-green-500' : 'bg-red-400'}`} />
-                </div>
-                <div className="flex items-center gap-3 px-4 py-2">
-                  <Truck size={18} className={connections.samsara ? 'text-green-500' : 'text-red-400'} />
-                  <span className="flex-1 text-sm">{connections.samsara ? t('samsaraConnected') : t('samsaraDisconnected')}</span>
-                  <span className={`h-2.5 w-2.5 rounded-full ${connections.samsara ? 'bg-green-500' : 'bg-red-400'}`} />
-                </div>
-              </div>
-            </div>
-          )}
         </Card>
       </div>
     </div>

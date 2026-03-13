@@ -48,6 +48,15 @@ export const pl = {
   dashViewDrivers: 'Przeglądaj kierowców',
   dashOpenReader: 'Otwórz czytnik kart',
   dashViewSync: 'Historia synchronizacji',
+  dashStaleDrivers: 'Nieaktualne dane kierowców',
+  dashExpiringCards: 'Wygasające karty kierowców',
+  dashDaysSince: 'dni od pobrania',
+  dashDaysLeft: 'dni do wygaśnięcia',
+  dashExpired: 'Wygasła',
+  dashNoStale: 'Wszyscy kierowcy mają aktualne dane',
+  dashNoExpiring: 'Brak wygasających kart (analizuj pliki, aby zaktualizować)',
+  dashShowAll: 'Pokaż wszystkich',
+  dashCardExpiry: 'Ważność karty',
 
   // Drivers
   driversTitle: 'Kierowcy',

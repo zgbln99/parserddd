@@ -38,6 +38,21 @@ export const authStatus = () =>
   request<{ logged_in: boolean; role: string }>('/api/auth/status');
 
 // Dashboard
+export interface StaleDriver {
+  name: string;
+  card_number: string;
+  days_since: number | null;
+  latest_download: string;
+  file_count: number;
+}
+
+export interface ExpiringCard {
+  card_number: string;
+  driver_name: string;
+  card_expiry_date: string;
+  days_left: number;
+}
+
 export const fetchDashboard = () =>
   request<{
     driver_count: number;
@@ -47,6 +62,8 @@ export const fetchDashboard = () =>
     last_sync_status: string;
     last_sync_errors: number;
     last_sync_uploaded: number;
+    stale_drivers: StaleDriver[];
+    expiring_cards: ExpiringCard[];
   }>('/api/dashboard');
 
 // Drivers

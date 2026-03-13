@@ -50,6 +50,15 @@ export const de: Record<TranslationKey, string> = {
   dashViewDrivers: 'Fahrer anzeigen',
   dashOpenReader: 'Kartenleser öffnen',
   dashViewSync: 'Synchronisierungsverlauf',
+  dashStaleDrivers: 'Veraltete Fahrerdaten',
+  dashExpiringCards: 'Ablaufende Fahrerkarten',
+  dashDaysSince: 'Tage seit Download',
+  dashDaysLeft: 'Tage bis Ablauf',
+  dashExpired: 'Abgelaufen',
+  dashNoStale: 'Alle Fahrer haben aktuelle Daten',
+  dashNoExpiring: 'Keine ablaufenden Karten (Dateien analysieren zum Aktualisieren)',
+  dashShowAll: 'Alle anzeigen',
+  dashCardExpiry: 'Kartenablauf',
 
   // Drivers
   driversTitle: 'Fahrer',

@@ -110,11 +110,44 @@ def _init_db():
             updated_at    TEXT NOT NULL
         );
     ''')
+    # Add card_expiry_date column if missing (migration)
+    try:
+        conn.execute("SELECT card_expiry_date FROM driver_config LIMIT 1")
+    except Exception:
+        conn.execute("ALTER TABLE driver_config ADD COLUMN card_expiry_date TEXT NOT NULL DEFAULT ''")
+        conn.commit()
     conn.commit()
     conn.close()
 
 
 _init_db()
+
+
+def _cache_card_expiry(card_number, card_expiry_date, driver_name=''):
+    """Cache card_expiry_date in driver_config (upsert)."""
+    if not card_number or not card_expiry_date:
+        return
+    now = datetime.utcnow().isoformat()
+    conn = _get_db()
+    try:
+        existing = conn.execute(
+            "SELECT id FROM driver_config WHERE card_number = ?", (card_number,)
+        ).fetchone()
+        if existing:
+            conn.execute(
+                "UPDATE driver_config SET card_expiry_date = ?, updated_at = ? WHERE card_number = ?",
+                (card_expiry_date, now, card_number),
+            )
+        else:
+            conn.execute(
+                "INSERT INTO driver_config (card_number, driver_name, card_expiry_date, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+                (card_number, driver_name, card_expiry_date, now, now),
+            )
+        conn.commit()
+    except Exception:
+        pass
+    finally:
+        conn.close()
 
 
 # ---------------------------------------------------------------------------
@@ -907,6 +940,8 @@ def api_analyze_upload():
         data = parse_ddd_file(tmp_path)
         result = analyze_card(data)
         _log_activity('analyze_upload', result.get('driver_info', {}).get('driver_name', ''))
+        di = result.get('driver_info', {})
+        _cache_card_expiry(di.get('card_number'), di.get('card_expiry_date'), di.get('driver_name', ''))
         return jsonify(result)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -934,6 +969,8 @@ def api_analyze_dropbox():
         result = analyze_card(data)
         result['source_file'] = metadata.name
         _log_activity('analyze_dropbox', f"{result.get('driver_info', {}).get('driver_name', '')} — {metadata.name}")
+        di = result.get('driver_info', {})
+        _cache_card_expiry(di.get('card_number'), di.get('card_expiry_date'), di.get('driver_name', ''))
         return jsonify(result)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -1460,6 +1497,56 @@ def api_dashboard():
     except Exception:
         pass
 
+    # Stale drivers (sorted by days_since descending, those with data issues first)
+    stale_drivers = []
+    if cached:
+        now = datetime.utcnow()
+        for d in cached:
+            ld = d.get('latest_download', '')
+            days = None
+            if ld:
+                try:
+                    cleaned = ld.replace('Z', '+00:00') if ld.endswith('Z') else ld
+                    dt = datetime.fromisoformat(cleaned.replace('+00:00', ''))
+                    days = (now - dt).days
+                except Exception:
+                    pass
+            stale_drivers.append({
+                'name': d.get('name', ''),
+                'card_number': d.get('card_number', ''),
+                'days_since': days,
+                'latest_download': ld,
+                'file_count': d.get('file_count', 0),
+            })
+        # Sort: null days first (no data), then highest days_since
+        stale_drivers.sort(key=lambda x: (0 if x['days_since'] is None else 1, -(x['days_since'] or 9999)))
+
+    # Expiring cards from driver_config cache
+    expiring_cards = []
+    try:
+        conn = _get_db()
+        rows = conn.execute(
+            "SELECT card_number, driver_name, card_expiry_date FROM driver_config WHERE card_expiry_date != ''"
+        ).fetchall()
+        conn.close()
+        today = datetime.utcnow().date()
+        for row in rows:
+            try:
+                expiry = datetime.strptime(row[2], '%Y-%m-%d').date() if row[2] else None
+                if expiry:
+                    days_left = (expiry - today).days
+                    expiring_cards.append({
+                        'card_number': row[0],
+                        'driver_name': row[1],
+                        'card_expiry_date': row[2],
+                        'days_left': days_left,
+                    })
+            except Exception:
+                pass
+        expiring_cards.sort(key=lambda x: x['days_left'])
+    except Exception:
+        pass
+
     return jsonify({
         'driver_count': driver_count,
         'total_files': total_files,
@@ -1468,6 +1555,8 @@ def api_dashboard():
         'last_sync_status': last_sync_status,
         'last_sync_errors': last_sync_errors,
         'last_sync_uploaded': last_sync_uploaded,
+        'stale_drivers': stale_drivers,
+        'expiring_cards': expiring_cards,
     })
 
 
