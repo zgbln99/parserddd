@@ -2178,6 +2178,117 @@ _apply_persisted_config()
 
 
 # ---------------------------------------------------------------------------
+# Samsara API proxy
+# ---------------------------------------------------------------------------
+
+
+def _samsara_headers():
+    token = SAMSARA_API_TOKEN or _load_config().get('samsara_api_token', '')
+    return {'Authorization': f'Bearer {token}'}
+
+
+@app.route('/api/samsara/vehicles/stats')
+@admin_required
+def api_samsara_vehicle_stats():
+    """Proxy: get latest vehicle stats from Samsara."""
+    if not SAMSARA_API_TOKEN:
+        return jsonify({'error': 'Samsara API token not configured'}), 400
+    try:
+        types = request.args.get('types', 'obdOdometerMeters,gpsOdometerMeters,fuelPercents,engineStates')
+        resp = http_requests.get(
+            f'{SAMSARA_API_BASE}/fleet/vehicles/stats',
+            headers=_samsara_headers(),
+            params={'types': types},
+            timeout=15,
+        )
+        if resp.status_code != 200:
+            return jsonify({'error': f'Samsara API: {resp.status_code}'}), 502
+        body = resp.json()
+        vehicles = []
+        for v in body.get('data', []):
+            entry = {
+                'id': v.get('id', ''),
+                'name': v.get('name', ''),
+            }
+            # Odometer (prefer OBD, fallback GPS)
+            obd_odo = v.get('obdOdometerMeters', {})
+            gps_odo = v.get('gpsOdometerMeters', {})
+            if obd_odo and obd_odo.get('value') is not None:
+                entry['odometerKm'] = round(obd_odo['value'] / 1000, 1)
+                entry['odometerTime'] = obd_odo.get('time', '')
+            elif gps_odo and gps_odo.get('value') is not None:
+                entry['odometerKm'] = round(gps_odo['value'] / 1000, 1)
+                entry['odometerTime'] = gps_odo.get('time', '')
+            # Fuel
+            fuel = v.get('fuelPercents', {})
+            if fuel and fuel.get('value') is not None:
+                entry['fuelPercent'] = round(fuel['value'], 1)
+                entry['fuelTime'] = fuel.get('time', '')
+            # Engine state
+            eng = v.get('engineStates', {})
+            if eng and eng.get('value') is not None:
+                entry['engineState'] = eng['value']
+                entry['engineTime'] = eng.get('time', '')
+            vehicles.append(entry)
+        return jsonify({'vehicles': vehicles})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/samsara/tachograph-activity')
+@admin_required
+def api_samsara_tachograph_activity():
+    """Proxy: get parsed driver tachograph activity from Samsara."""
+    if not SAMSARA_API_TOKEN:
+        return jsonify({'error': 'Samsara API token not configured'}), 400
+    start_time = request.args.get('startTime', '')
+    end_time = request.args.get('endTime', '')
+    if not start_time or not end_time:
+        return jsonify({'error': 'startTime and endTime required'}), 400
+    try:
+        all_data = []
+        has_next = True
+        after = None
+        while has_next:
+            params = {'startTime': start_time, 'endTime': end_time}
+            if after:
+                params['after'] = after
+            resp = http_requests.get(
+                f'{SAMSARA_API_BASE}/fleet/drivers/tachograph-activity/history',
+                headers=_samsara_headers(),
+                params=params,
+                timeout=30,
+            )
+            if resp.status_code != 200:
+                return jsonify({'error': f'Samsara API: {resp.status_code}'}), 502
+            body = resp.json()
+            all_data.extend(body.get('data', []))
+            pagination = body.get('pagination', {})
+            after = pagination.get('endCursor')
+            has_next = pagination.get('hasNextPage', False)
+        # Flatten to a simpler format
+        drivers = []
+        for item in all_data:
+            driver = item.get('driver', {})
+            activities = []
+            for a in item.get('activity', []):
+                activities.append({
+                    'startTime': a.get('startTime', ''),
+                    'endTime': a.get('endTime', ''),
+                    'state': a.get('state', ''),
+                    'isManualEntry': a.get('isManualEntry', False),
+                })
+            drivers.append({
+                'driverId': driver.get('id', ''),
+                'driverName': driver.get('name', ''),
+                'activity': activities,
+            })
+        return jsonify({'drivers': drivers})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
 # Backward-compatible routes (keep old endpoints working)
 # ---------------------------------------------------------------------------
 

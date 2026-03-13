@@ -383,3 +383,36 @@ export async function exportPdf(driverName: string, cardNumber: string, summary:
   a.click();
   URL.revokeObjectURL(url);
 }
+
+// Samsara API proxy
+export interface SamsaraVehicleStat {
+  id: string;
+  name: string;
+  odometerKm?: number;
+  odometerTime?: string;
+  fuelPercent?: number;
+  fuelTime?: string;
+  engineState?: string;
+  engineTime?: string;
+}
+
+export const fetchSamsaraVehicleStats = () =>
+  request<{ vehicles: SamsaraVehicleStat[] }>('/api/samsara/vehicles/stats');
+
+export interface SamsaraActivity {
+  startTime: string;
+  endTime: string;
+  state: string;
+  isManualEntry: boolean;
+}
+
+export interface SamsaraDriverActivity {
+  driverId: string;
+  driverName: string;
+  activity: SamsaraActivity[];
+}
+
+export const fetchSamsaraTachographActivity = (startTime: string, endTime: string) =>
+  request<{ drivers: SamsaraDriverActivity[] }>(
+    `/api/samsara/tachograph-activity?startTime=${encodeURIComponent(startTime)}&endTime=${encodeURIComponent(endTime)}`,
+  );
