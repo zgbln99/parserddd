@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, FileText, RefreshCw, Sun, Moon, Globe, LogOut, Calendar, X } from 'lucide-react';
+import { LayoutDashboard, Users, FileText, RefreshCw, Sun, Moon, Globe, LogOut, Calendar, X, Shield } from 'lucide-react';
 import { useI18n, type Locale } from '../i18n';
 import { useTheme } from '../hooks/useTheme';
 import { useAuth } from '../hooks/useAuth';
@@ -7,19 +7,26 @@ import { useDateFilter } from '../hooks/useDateFilter';
 import { clsx } from 'clsx';
 import type { ReactNode } from 'react';
 
-const navItems = [
+const baseNavItems = [
   { to: '/', icon: LayoutDashboard, labelKey: 'navDashboard' as const },
   { to: '/drivers', icon: Users, labelKey: 'navDrivers' as const },
   { to: '/reader', icon: FileText, labelKey: 'navReader' as const },
-  { to: '/sync', icon: RefreshCw, labelKey: 'navSync' as const },
 ];
 
 export function Layout({ children }: { children: ReactNode }) {
   const { t, locale, setLocale } = useI18n();
   const { theme, toggle } = useTheme();
-  const { logout } = useAuth();
+  const { logout, isAdmin } = useAuth();
   const { dateFrom, dateTo, setDateFrom, setDateTo, clear } = useDateFilter();
   const navigate = useNavigate();
+
+  const navItems = [
+    ...baseNavItems,
+    ...(isAdmin
+      ? [{ to: '/admin', icon: Shield, labelKey: 'navAdmin' as const }]
+      : [{ to: '/sync', icon: RefreshCw, labelKey: 'navSync' as const }]
+    ),
+  ];
 
   const handleLogout = async () => {
     await logout();
@@ -63,6 +70,13 @@ export function Layout({ children }: { children: ReactNode }) {
 
           {/* Controls */}
           <div className="flex items-center gap-1">
+            {/* Role indicator for admin */}
+            {isAdmin && (
+              <span className="mr-1 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold uppercase text-red-600 dark:bg-red-900/30 dark:text-red-400">
+                Admin
+              </span>
+            )}
+
             {/* Language toggle */}
             <button
               onClick={() => setLocale(locale === 'pl' ? 'de' : 'pl' as Locale)}

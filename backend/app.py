@@ -47,6 +47,8 @@ CORS(app, supports_credentials=True, origins=[
 
 DDDPARSER_PATH = os.environ.get('DDDPARSER_PATH', 'dddparser')
 PORTAL_PASSWORD = os.environ.get('PORTAL_PASSWORD', 'lts2025')
+ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'admin2025')
+LOGIN_HISTORY_FILE = os.environ.get('LOGIN_HISTORY_FILE', '/opt/ddd-reader/login_history.json')
 DROPBOX_APP_KEY = os.environ.get('DROPBOX_APP_KEY', 'j9ntkihedd9495i')
 DROPBOX_APP_SECRET = os.environ.get('DROPBOX_APP_SECRET', 'd3hr43reha9kky8')
 DROPBOX_REFRESH_TOKEN = os.environ.get('DROPBOX_REFRESH_TOKEN', '')
@@ -75,6 +77,40 @@ def login_required(f):
     return decorated
 
 
+def admin_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not session.get('logged_in'):
+            return jsonify({'error': 'Unauthorized'}), 401
+        if session.get('role') != 'admin':
+            return jsonify({'error': 'Admin access required'}), 403
+        return f(*args, **kwargs)
+    return decorated
+
+
+def _record_login(role: str):
+    """Append a login event to the history file."""
+    entry = {
+        'timestamp': datetime.now(UTC).isoformat(),
+        'role': role,
+        'ip': request.remote_addr or '',
+        'user_agent': request.headers.get('User-Agent', '')[:200],
+    }
+    try:
+        history = []
+        if os.path.exists(LOGIN_HISTORY_FILE):
+            with open(LOGIN_HISTORY_FILE) as f:
+                history = json.load(f)
+        history.append(entry)
+        # Keep last 500 entries
+        history = history[-500:]
+        os.makedirs(os.path.dirname(LOGIN_HISTORY_FILE), exist_ok=True)
+        with open(LOGIN_HISTORY_FILE, 'w') as f:
+            json.dump(history, f, indent=2)
+    except Exception:
+        pass  # non-critical
+
+
 # ---------------------------------------------------------------------------
 # Auth API
 # ---------------------------------------------------------------------------
@@ -84,21 +120,32 @@ def login_required(f):
 def api_login():
     data = request.get_json(silent=True) or {}
     password = data.get('password', '')
+    if password == ADMIN_PASSWORD:
+        session['logged_in'] = True
+        session['role'] = 'admin'
+        _record_login('admin')
+        return jsonify({'ok': True, 'role': 'admin'})
     if password == PORTAL_PASSWORD:
         session['logged_in'] = True
-        return jsonify({'ok': True})
+        session['role'] = 'user'
+        _record_login('user')
+        return jsonify({'ok': True, 'role': 'user'})
     return jsonify({'error': 'Nieprawidłowe hasło'}), 401
 
 
 @app.route('/api/auth/logout', methods=['POST'])
 def api_logout():
     session.pop('logged_in', None)
+    session.pop('role', None)
     return jsonify({'ok': True})
 
 
 @app.route('/api/auth/status')
 def api_auth_status():
-    return jsonify({'logged_in': bool(session.get('logged_in'))})
+    return jsonify({
+        'logged_in': bool(session.get('logged_in')),
+        'role': session.get('role', 'user'),
+    })
 
 
 # ---------------------------------------------------------------------------
@@ -889,6 +936,27 @@ def api_connection_status():
             pass
 
     return jsonify(result)
+
+
+# ---------------------------------------------------------------------------
+# Admin API
+# ---------------------------------------------------------------------------
+
+
+@app.route('/api/admin/login-history')
+@admin_required
+def api_login_history():
+    """Return login history (admin only)."""
+    try:
+        if os.path.exists(LOGIN_HISTORY_FILE):
+            with open(LOGIN_HISTORY_FILE) as f:
+                history = json.load(f)
+            # Return newest first
+            history.reverse()
+            return jsonify({'history': history})
+        return jsonify({'history': []})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 # ---------------------------------------------------------------------------

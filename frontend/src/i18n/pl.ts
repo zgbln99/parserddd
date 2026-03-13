@@ -97,6 +97,17 @@ export const pl = {
   analysisPrint: 'Drukuj',
   dietReport: 'Raport diet',
 
+  // Monthly grid
+  monthlyGrid: 'Siatka miesięczna',
+  adminCopyGrid: 'Kopiuj siatkę',
+
+  // Admin
+  navAdmin: 'Admin',
+  adminTitle: 'Panel administracyjny',
+  adminLoginHistory: 'Historia logowań',
+  adminRole: 'Rola',
+  adminBrowser: 'Przeglądarka',
+
   // Reader
   readerTitle: 'Czytnik kart DDD',
   readerUpload: 'Przeciągnij plik .ddd lub kliknij, aby wybrać',

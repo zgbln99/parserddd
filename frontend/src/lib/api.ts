@@ -19,7 +19,7 @@ async function request<T>(url: string, opts?: RequestInit): Promise<T> {
 
 // Auth
 export const authLogin = (password: string) =>
-  request<{ ok: boolean }>('/api/auth/login', {
+  request<{ ok: boolean; role: string }>('/api/auth/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ password }),
@@ -29,7 +29,7 @@ export const authLogout = () =>
   request<{ ok: boolean }>('/api/auth/logout', { method: 'POST' });
 
 export const authStatus = () =>
-  request<{ logged_in: boolean }>('/api/auth/status');
+  request<{ logged_in: boolean; role: string }>('/api/auth/status');
 
 // Dashboard
 export const fetchDashboard = () =>
@@ -74,6 +74,17 @@ export const fetchSyncStatus = () =>
 
 export const fetchSyncLog = () =>
   request<{ history: import('../types').SyncHistoryEntry[] }>('/api/sync/log');
+
+// Admin
+export interface LoginHistoryEntry {
+  timestamp: string;
+  role: string;
+  ip: string;
+  user_agent: string;
+}
+
+export const fetchLoginHistory = () =>
+  request<{ history: LoginHistoryEntry[] }>('/api/admin/login-history');
 
 // CSV export (returns blob)
 export async function exportCsv(driverName: string, shifts: unknown[]) {

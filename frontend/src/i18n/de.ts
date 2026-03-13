@@ -99,6 +99,17 @@ export const de: Record<TranslationKey, string> = {
   analysisPrint: 'Drucken',
   dietReport: 'Verpflegungsbericht',
 
+  // Monthly grid
+  monthlyGrid: 'Monatsraster',
+  adminCopyGrid: 'Raster kopieren',
+
+  // Admin
+  navAdmin: 'Admin',
+  adminTitle: 'Administrationsbereich',
+  adminLoginHistory: 'Anmeldeverlauf',
+  adminRole: 'Rolle',
+  adminBrowser: 'Browser',
+
   // Reader
   readerTitle: 'DDD-Kartenleser',
   readerUpload: '.ddd-Datei hierher ziehen oder klicken, um auszuwählen',

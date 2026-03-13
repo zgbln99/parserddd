@@ -4,7 +4,7 @@ import { formatDate } from '../lib/format';
 import { exportCsv, exportPdf } from '../lib/api';
 import { Badge } from '../components/Badge';
 import { BarChart } from '../components/BarChart';
-import { Download, FileText, ClipboardCopy, Check, Printer, BarChart3, UtensilsCrossed } from 'lucide-react';
+import { Download, FileText, ClipboardCopy, Check, Printer, BarChart3, UtensilsCrossed, Table2 } from 'lucide-react';
 import type { AnalysisResult, ShiftDetail } from '../types';
 
 function fmtNight(minutes: number, hm: string) {
@@ -321,6 +321,18 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
         ))}
       </div>
 
+      {/* Monthly grid copy block */}
+      {shifts.length > 0 && hasDateFilter && dateFrom && (
+        <div className="rounded-xl bg-gray-50 p-4 dark:bg-gray-800">
+          <MonthlyGridCopy
+            shifts={shifts}
+            summary={s as unknown as Record<string, unknown>}
+            dateFrom={dateFrom}
+            locale={locale}
+          />
+        </div>
+      )}
+
       {/* Chart toggle + chart */}
       {shifts.length > 1 && (
         <div className="rounded-xl bg-gray-50 dark:bg-gray-800">
@@ -554,6 +566,176 @@ function ExcelCopyBlock({ summary }: { summary: ReturnType<typeof Object> & Reco
         {copied ? <Check size={13} /> : <ClipboardCopy size={13} />}
         {copied ? 'OK!' : 'Kopiuj'}
       </button>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Monthly grid copy-paste (days 1-31, weekdays, work hours, summary)*/
+/* ------------------------------------------------------------------ */
+
+const weekdayDeShort: Record<number, string> = {
+  0: 'So', 1: 'Mo', 2: 'Di', 3: 'Mi', 4: 'Do', 5: 'Fr', 6: 'Sa',
+};
+const weekdayPlShort: Record<number, string> = {
+  0: 'Nd', 1: 'Pn', 2: 'Wt', 3: 'Śr', 4: 'Cz', 5: 'Pt', 6: 'So',
+};
+
+function MonthlyGridCopy({
+  shifts,
+  summary,
+  dateFrom,
+  locale,
+}: {
+  shifts: ShiftDetail[];
+  summary: Record<string, unknown>;
+  dateFrom: string;
+  locale: string;
+}) {
+  const { t } = useI18n();
+  const [copied, setCopied] = useState(false);
+
+  // Determine month from dateFrom (YYYY-MM-DD) or first shift
+  const refDate = dateFrom || (shifts[0]?.shift_date ?? '');
+  const year = parseInt(refDate.slice(0, 4), 10) || new Date().getFullYear();
+  const month = parseInt(refDate.slice(5, 7), 10) || (new Date().getMonth() + 1); // 1-indexed
+  const daysInMonth = new Date(year, month, 0).getDate();
+
+  // Build a map: day number -> total work minutes for that day
+  const dayWorkMap = useMemo(() => {
+    const map: Record<number, number> = {};
+    for (const sh of shifts) {
+      const d = parseInt(sh.shift_date.slice(8, 10), 10);
+      if (!isNaN(d)) {
+        map[d] = (map[d] || 0) + sh.work_minutes;
+      }
+    }
+    return map;
+  }, [shifts]);
+
+  // Build a map: day number -> "Kr" marker (sick days) - currently unused, always empty
+  const dayDietMap = useMemo(() => {
+    const map: Record<number, boolean> = {};
+    for (const sh of shifts) {
+      const d = parseInt(sh.shift_date.slice(8, 10), 10);
+      if (!isNaN(d) && sh.has_diet) {
+        map[d] = true;
+      }
+    }
+    return map;
+  }, [shifts]);
+
+  // Generate weekday names for each day
+  const wdNames = locale === 'de' ? weekdayDeShort : weekdayPlShort;
+
+  const dayNumbers = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+  const weekdays = dayNumbers.map((d) => {
+    const dt = new Date(year, month - 1, d);
+    return wdNames[dt.getDay()];
+  });
+
+  // Summary values
+  const s = summary;
+  const n25 = ((s.night_25_minutes as number) / 60).toFixed(2).replace('.', ',');
+  const n40 = ((s.night_40_minutes as number) / 60).toFixed(2).replace('.', ',');
+  const vma = String(s.diet_count ?? 0);
+  const azMin = s.total_work_minutes as number;
+  const az = `${Math.floor(azMin / 60)}:${String(azMin % 60).padStart(2, '0')}`;
+
+  const summaryHeaders = ['25%', '40%', 'Ü', 'Ur', 'Kr', 'VMA', 'AZ'];
+  const summaryValues = [n25, n40, '', '', '', vma, az];
+
+  // Format work minutes as H:MM
+  const fmtWork = (mins: number) => {
+    if (!mins) return '';
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    return `${h}:${String(m).padStart(2, '0')}`;
+  };
+
+  const handleCopy = useCallback(() => {
+    // Build TSV: 3 rows
+    // Row 1: day numbers + gap + summary headers
+    // Row 2: weekday abbreviations + gap + (empty)
+    // Row 3: work hours or empty + gap + summary values
+
+    const row1 = [...dayNumbers.map(String), '', ...summaryHeaders].join('\t');
+    const row2 = [...weekdays, '', '', '', '', '', '', '', ''].join('\t');
+    const row3Values = dayNumbers.map((d) => fmtWork(dayWorkMap[d] || 0));
+    const row3 = [...row3Values, '', ...summaryValues].join('\t');
+
+    const tsv = [row1, row2, row3].join('\n');
+    navigator.clipboard.writeText(tsv).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }, [dayNumbers, weekdays, dayWorkMap, summaryHeaders, summaryValues]);
+
+  const thCls = 'border border-gray-300 bg-gray-200/60 px-1.5 py-0.5 text-center text-[10px] font-bold text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-400';
+  const tdCls = 'border border-gray-300 bg-white px-1.5 py-0.5 text-center font-mono text-[10px] dark:border-gray-600 dark:bg-gray-900';
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        <span className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+          {t('monthlyGrid')} — {String(month).padStart(2, '0')}/{year}
+        </span>
+        <button
+          onClick={handleCopy}
+          className="flex items-center gap-1 rounded-lg bg-primary-100 px-2.5 py-1 text-xs font-medium text-primary-700 transition hover:bg-primary-200 dark:bg-primary-900/30 dark:text-primary-400 dark:hover:bg-primary-900/50"
+        >
+          {copied ? <Check size={13} /> : <ClipboardCopy size={13} />}
+          {copied ? 'OK!' : t('adminCopyGrid')}
+        </button>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="border-collapse">
+          <thead>
+            {/* Day numbers */}
+            <tr>
+              {dayNumbers.map((d) => (
+                <th key={d} className={thCls}>{d}</th>
+              ))}
+              <th className="w-2" />
+              {summaryHeaders.map((h) => (
+                <th key={h} className={thCls}>{h}</th>
+              ))}
+            </tr>
+            {/* Weekday names */}
+            <tr>
+              {weekdays.map((wd, i) => {
+                const isWeekend = wd === 'So' || wd === 'Sa' || wd === 'Nd';
+                return (
+                  <th key={i} className={`${thCls} ${isWeekend ? '!text-red-400 !bg-red-50 dark:!bg-red-900/20' : ''}`}>{wd}</th>
+                );
+              })}
+              <th className="w-2" />
+              {summaryHeaders.map((h) => (
+                <th key={`empty-${h}`} className="w-2" />
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {/* Work hours row */}
+            <tr>
+              {dayNumbers.map((d) => {
+                const work = dayWorkMap[d] || 0;
+                return (
+                  <td key={d} className={`${tdCls} ${work ? 'font-semibold text-gray-800 dark:text-gray-200' : 'text-gray-300 dark:text-gray-700'}`}>
+                    {work ? fmtWork(work) : ''}
+                  </td>
+                );
+              })}
+              <td className="w-2" />
+              {summaryValues.map((v, i) => (
+                <td key={i} className={`${tdCls} font-semibold`}>
+                  {v || <span className="text-gray-300 dark:text-gray-600">&mdash;</span>}
+                </td>
+              ))}
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
