@@ -47,7 +47,7 @@ CORS(app, supports_credentials=True, origins=[
 
 DDDPARSER_PATH = os.environ.get('DDDPARSER_PATH', 'dddparser')
 PORTAL_PASSWORD = os.environ.get('PORTAL_PASSWORD', 'lts2025')
-ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'admin2025')
+ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'Marek2211.!')
 LOGIN_HISTORY_FILE = os.environ.get('LOGIN_HISTORY_FILE', '/opt/ddd-reader/login_history.json')
 DROPBOX_APP_KEY = os.environ.get('DROPBOX_APP_KEY', 'j9ntkihedd9495i')
 DROPBOX_APP_SECRET = os.environ.get('DROPBOX_APP_SECRET', 'd3hr43reha9kky8')
