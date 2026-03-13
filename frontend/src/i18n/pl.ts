@@ -273,6 +273,28 @@ export const pl = {
   settlementPersonalNr: 'Nr personalny',
   settlementTotal: 'RAZEM',
 
+  // Vehicles (controlling)
+  navVehicles: 'Pojazdy',
+  vehiclesTitle: 'Controlling pojazdów',
+  vehiclesSubtitle: 'Aktywność pojazdów — GPS / silnik z Samsara',
+  vehiclesPeriod: 'Okres',
+  vehiclesGenerate: 'Generuj raport',
+  vehiclesLoading: 'Pobieranie danych z Samsara...',
+  vehiclesNoData: 'Wybierz miesiąc i kliknij Generuj',
+  vehiclesName: 'Pojazd',
+  vehiclesDate: 'Data',
+  vehiclesBeginDriving: 'Początek jazdy',
+  vehiclesLastDriving: 'Koniec jazdy',
+  vehiclesDuration: 'Czas',
+  vehiclesDistance: 'Dystans',
+  vehiclesTotalKm: 'Łącznie km',
+  vehiclesActiveDays: 'Dni aktywne',
+  vehiclesTotal: 'RAZEM',
+  vehiclesNoActivity: 'Brak aktywności w wybranym miesiącu',
+  vehiclesPrint: 'Drukuj',
+  vehiclesAllVehicles: 'Wszystkie pojazdy',
+  vehiclesCount: 'pojazdów',
+
   // Time
   timeAgo: 'temu',
   timeJustNow: 'przed chwilą',

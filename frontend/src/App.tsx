@@ -10,6 +10,7 @@ import { AdminPage } from './pages/AdminPage';
 import { DriverConfigPage } from './pages/DriverConfigPage';
 import { CompareDriversPage } from './pages/CompareDriversPage';
 import { SettlementPage } from './pages/SettlementPage';
+import { VehiclesPage } from './pages/VehiclesPage';
 import { AnalysisPage } from './pages/AnalysisPage';
 import { Spinner } from './components/Spinner';
 
@@ -57,6 +58,7 @@ export function App() {
       <Route path="/config" element={<AdminRoute><DriverConfigPage /></AdminRoute>} />
       <Route path="/compare" element={<AdminRoute><CompareDriversPage /></AdminRoute>} />
       <Route path="/settlement" element={<AdminRoute><SettlementPage /></AdminRoute>} />
+      <Route path="/vehicles" element={<AdminRoute><VehiclesPage /></AdminRoute>} />
       <Route path="/analysis" element={<ProtectedRoute><AnalysisPage /></ProtectedRoute>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

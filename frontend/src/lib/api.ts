@@ -366,6 +366,44 @@ export async function exportDatevBatch(period: string, drivers: SettlementDriver
   URL.revokeObjectURL(url);
 }
 
+// Vehicle activity (Samsara GPS/engine controlling)
+export interface VehicleDayActivity {
+  date: string;
+  begin_driving: string;
+  last_driving: string;
+  duration_h: number;
+  duration_m: number;
+  duration_hm: string;
+  duration_minutes: number;
+  distance_km: number;
+}
+
+export interface VehicleActivity {
+  vehicle_id: string;
+  vehicle_name: string;
+  days: VehicleDayActivity[];
+  total_km: number;
+  active_days: number;
+}
+
+export interface SamsaraVehicle {
+  id: string;
+  name: string;
+  vin: string;
+  serial: string;
+  license_plate: string;
+}
+
+export const fetchSamsaraVehicles = () =>
+  request<{ vehicles: SamsaraVehicle[] }>('/api/vehicles');
+
+export const fetchVehicleActivity = (period: string, vehicleIds?: string[]) =>
+  request<{ period: string; vehicles: VehicleActivity[] }>('/api/vehicles/activity', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ period, vehicle_ids: vehicleIds || [] }),
+  });
+
 // PDF export (returns blob)
 export async function exportPdf(driverName: string, cardNumber: string, summary: unknown, shifts: unknown[]) {
   const res = await fetch('/api/export/pdf', {

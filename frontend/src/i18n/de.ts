@@ -275,6 +275,28 @@ export const de: Record<TranslationKey, string> = {
   settlementPersonalNr: 'Personalnr.',
   settlementTotal: 'GESAMT',
 
+  // Vehicles (controlling)
+  navVehicles: 'Fahrzeuge',
+  vehiclesTitle: 'Fahrzeug-Controlling',
+  vehiclesSubtitle: 'Fahrzeugaktivität — GPS / Motor aus Samsara',
+  vehiclesPeriod: 'Zeitraum',
+  vehiclesGenerate: 'Bericht erstellen',
+  vehiclesLoading: 'Daten von Samsara werden abgerufen...',
+  vehiclesNoData: 'Monat auswählen und Erstellen klicken',
+  vehiclesName: 'Fahrzeug',
+  vehiclesDate: 'Datum',
+  vehiclesBeginDriving: 'Fahrtbeginn',
+  vehiclesLastDriving: 'Letztes Fahren',
+  vehiclesDuration: 'Dauer',
+  vehiclesDistance: 'Entfernung',
+  vehiclesTotalKm: 'Gesamt km',
+  vehiclesActiveDays: 'Aktive Tage',
+  vehiclesTotal: 'GESAMT',
+  vehiclesNoActivity: 'Keine Aktivität im ausgewählten Monat',
+  vehiclesPrint: 'Drucken',
+  vehiclesAllVehicles: 'Alle Fahrzeuge',
+  vehiclesCount: 'Fahrzeuge',
+
   // Time
   timeAgo: 'her',
   timeJustNow: 'gerade eben',
