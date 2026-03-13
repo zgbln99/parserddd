@@ -24,7 +24,7 @@ export function VehiclesPage() {
   const [error, setError] = useState('');
   const [activity, setActivity] = useState<VehicleActivity | null>(null);
   const [period, setPeriod] = useState('');
-  const [debugInfo, setDebugInfo] = useState<VehicleDebugInfo[]>([]);
+  const [debugInfo, setDebugInfo] = useState<VehicleDebugInfo | null>(null);
 
   const defaultPeriod = useMemo(() => {
     if (dateFrom) return dateFrom.slice(0, 7);
@@ -77,7 +77,7 @@ export function VehiclesPage() {
     setError('');
     setActivity(null);
     setPeriod('');
-    setDebugInfo([]);
+    setDebugInfo(null);
 
     try {
       const result = await fetchVehicleActivity(p, [selectedVehicleId]);
@@ -87,7 +87,7 @@ export function VehiclesPage() {
         setActivity(null);
       }
       setPeriod(result.period);
-      setDebugInfo(result.debug || []);
+      setDebugInfo(result.debug || null);
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -308,17 +308,23 @@ export function VehiclesPage() {
       {!loading && !error && !activity && period && (
         <Card className="p-6">
           <p className="mb-4 text-center text-sm text-gray-400">{t('vehiclesNoActivity')}</p>
-          {debugInfo.length > 0 && (
+          {debugInfo && (
             <div className="mx-auto max-w-md rounded-lg bg-gray-50 p-4 text-xs dark:bg-gray-900">
               <p className="mb-2 font-semibold text-gray-500">Samsara API debug:</p>
-              {debugInfo.map((d) => (
-                <div key={d.vehicle_id} className="space-y-1 text-gray-500">
-                  <p>GPS points: <span className="font-mono font-bold">{d.gps_points}</span></p>
-                  <p>Engine events: <span className="font-mono font-bold">{d.engine_events}</span></p>
-                  <p>Odometer points: <span className="font-mono font-bold">{d.odo_points}</span></p>
-                  <p>Days found: <span className="font-mono font-bold">{d.days_found}</span></p>
-                </div>
-              ))}
+              <div className="space-y-1 text-gray-500">
+                <p>API calls: <span className="font-mono font-bold">{debugInfo.api_calls}</span></p>
+                <p>Raw trips: <span className="font-mono font-bold">{debugInfo.raw_trips}</span></p>
+                <p>Vehicles with data: <span className="font-mono font-bold">{debugInfo.vehicles_with_data}</span></p>
+                <p>Total days: <span className="font-mono font-bold">{debugInfo.total_days}</span></p>
+                {debugInfo.errors?.length > 0 && (
+                  <div className="mt-2 text-red-500">
+                    <p className="font-semibold">Errors:</p>
+                    {debugInfo.errors.map((e, i) => (
+                      <p key={i} className="break-all font-mono">{e}</p>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </Card>
@@ -365,6 +371,9 @@ export function VehiclesPage() {
                     <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
                       {t('vehiclesDate')}
                     </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                      {locale === 'de' ? 'Letzte Position' : 'Ostatnia pozycja'}
+                    </th>
                     <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
                       {t('vehiclesDistance')}
                     </th>
@@ -401,6 +410,9 @@ export function VehiclesPage() {
                             {wd}
                           </span>
                         </td>
+                        <td className="max-w-[280px] truncate px-4 py-2.5 text-xs text-gray-500" title={day.last_location || ''}>
+                          {day.last_location || '-'}
+                        </td>
                         <td className="whitespace-nowrap px-4 py-2.5 font-mono text-sm">
                           {day.distance_km > 0 ? fmtKm(day.distance_km) : '-'}
                         </td>
@@ -422,6 +434,7 @@ export function VehiclesPage() {
                 <tfoot>
                   <tr className="border-t-2 border-gray-200 bg-gray-50/80 font-semibold dark:border-gray-700 dark:bg-gray-900/50">
                     <td className="px-4 py-3">Ings.</td>
+                    <td className="px-4 py-3"></td>
                     <td className="px-4 py-3 font-mono">{fmtKm(activity.total_km)}</td>
                     <td className="px-4 py-3" colSpan={2}></td>
                     <td className="px-4 py-3">
