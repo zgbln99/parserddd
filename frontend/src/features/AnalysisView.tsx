@@ -654,22 +654,15 @@ function MonthlyGridCopy({
   };
 
   const handleCopy = useCallback(() => {
-    // Build TSV: 3 rows
-    // Row 1: day numbers + gap + summary headers
-    // Row 2: weekday abbreviations + gap + (empty)
-    // Row 3: work hours or empty + gap + summary values
-
-    const row1 = [...dayNumbers.map(String), '', ...summaryHeaders].join('\t');
-    const row2 = [...weekdays, '', '', '', '', '', '', '', ''].join('\t');
+    // Copy only content (no headers): work hours per day + summary values
     const row3Values = dayNumbers.map((d) => fmtWork(dayWorkMap[d] || 0));
-    const row3 = [...row3Values, '', ...summaryValues].join('\t');
+    const tsv = [...row3Values, '', ...summaryValues].join('\t');
 
-    const tsv = [row1, row2, row3].join('\n');
     navigator.clipboard.writeText(tsv).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
-  }, [dayNumbers, weekdays, dayWorkMap, summaryHeaders, summaryValues]);
+  }, [dayNumbers, dayWorkMap, summaryValues]);
 
   const thCls = 'border border-gray-300 bg-gray-200/60 px-1.5 py-0.5 text-center text-[10px] font-bold text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-400';
   const tdCls = 'border border-gray-300 bg-white px-1.5 py-0.5 text-center font-mono text-[10px] dark:border-gray-600 dark:bg-gray-900';
