@@ -2194,25 +2194,51 @@ def api_samsara_vehicle_stats():
     if not SAMSARA_API_TOKEN:
         return jsonify({'error': 'Samsara API token not configured'}), 400
     try:
-        types = request.args.get('types', 'gps,obdOdometerMeters,gpsOdometerMeters,fuelPercents,engineStates')
-        resp = http_requests.get(
+        headers = _samsara_headers()
+        # Samsara allows max 3 types per request — split into two calls
+        # Call 1: GPS + engine + fuel
+        resp1 = http_requests.get(
             f'{SAMSARA_API_BASE}/fleet/vehicles/stats',
-            headers=_samsara_headers(),
-            params={'types': types},
+            headers=headers,
+            params={'types': 'gps,engineStates,fuelPercents'},
             timeout=15,
         )
-        if resp.status_code != 200:
-            return jsonify({'error': f'Samsara API: {resp.status_code}'}), 502
-        body = resp.json()
+        # Call 2: odometer
+        resp2 = http_requests.get(
+            f'{SAMSARA_API_BASE}/fleet/vehicles/stats',
+            headers=headers,
+            params={'types': 'obdOdometerMeters,gpsOdometerMeters'},
+            timeout=15,
+        )
+        # If first call fails, try without GPS (older fleets may not support it)
+        if resp1.status_code != 200:
+            resp1 = http_requests.get(
+                f'{SAMSARA_API_BASE}/fleet/vehicles/stats',
+                headers=headers,
+                params={'types': 'engineStates,fuelPercents'},
+                timeout=15,
+            )
+            if resp1.status_code != 200:
+                return jsonify({'error': f'Samsara API: {resp1.status_code} — {resp1.text[:200]}'}), 502
+
+        body1 = resp1.json()
+        # Build odometer lookup by vehicle id
+        odo_map = {}
+        if resp2.status_code == 200:
+            for v in resp2.json().get('data', []):
+                odo_map[v.get('id', '')] = v
+
         vehicles = []
-        for v in body.get('data', []):
+        for v in body1.get('data', []):
+            vid = v.get('id', '')
             entry = {
-                'id': v.get('id', ''),
+                'id': vid,
                 'name': v.get('name', ''),
             }
-            # Odometer (prefer OBD, fallback GPS)
-            obd_odo = v.get('obdOdometerMeters', {})
-            gps_odo = v.get('gpsOdometerMeters', {})
+            # Odometer from second call (prefer OBD, fallback GPS)
+            odo_v = odo_map.get(vid, {})
+            obd_odo = odo_v.get('obdOdometerMeters', {})
+            gps_odo = odo_v.get('gpsOdometerMeters', {})
             if obd_odo and obd_odo.get('value') is not None:
                 entry['odometerKm'] = round(obd_odo['value'] / 1000, 1)
                 entry['odometerTime'] = obd_odo.get('time', '')
@@ -2272,7 +2298,7 @@ def api_samsara_tachograph_activity():
                 timeout=30,
             )
             if resp.status_code != 200:
-                return jsonify({'error': f'Samsara API: {resp.status_code}'}), 502
+                return jsonify({'error': f'Samsara API: {resp.status_code} — {resp.text[:200]}'}), 502
             body = resp.json()
             all_data.extend(body.get('data', []))
             pagination = body.get('pagination', {})
