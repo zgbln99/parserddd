@@ -386,6 +386,15 @@ export interface VehicleActivity {
   active_days: number;
 }
 
+export interface VehicleDebugInfo {
+  vehicle_id: string;
+  gps_points: number;
+  engine_events: number;
+  odo_points: number;
+  days_found: number;
+  total_km: number;
+}
+
 export interface SamsaraVehicle {
   id: string;
   name: string;
@@ -398,7 +407,7 @@ export const fetchSamsaraVehicles = () =>
   request<{ vehicles: SamsaraVehicle[] }>('/api/vehicles');
 
 export const fetchVehicleActivity = (period: string, vehicleIds?: string[]) =>
-  request<{ period: string; vehicles: VehicleActivity[] }>('/api/vehicles/activity', {
+  request<{ period: string; vehicles: VehicleActivity[]; debug: VehicleDebugInfo[] }>('/api/vehicles/activity', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ period, vehicle_ids: vehicleIds || [] }),

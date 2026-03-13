@@ -3,7 +3,7 @@ import { Calendar, Truck, RefreshCw, AlertCircle, Printer, MapPin, Search } from
 import { useI18n } from '../i18n';
 import { useDateFilter } from '../hooks/useDateFilter';
 import { fetchSamsaraVehicles, fetchVehicleActivity } from '../lib/api';
-import type { SamsaraVehicle, VehicleActivity } from '../lib/api';
+import type { SamsaraVehicle, VehicleActivity, VehicleDebugInfo } from '../lib/api';
 import { Card } from '../components/Card';
 import { Spinner } from '../components/Spinner';
 import { Badge } from '../components/Badge';
@@ -24,6 +24,7 @@ export function VehiclesPage() {
   const [error, setError] = useState('');
   const [activity, setActivity] = useState<VehicleActivity | null>(null);
   const [period, setPeriod] = useState('');
+  const [debugInfo, setDebugInfo] = useState<VehicleDebugInfo[]>([]);
 
   const defaultPeriod = useMemo(() => {
     if (dateFrom) return dateFrom.slice(0, 7);
@@ -76,6 +77,7 @@ export function VehiclesPage() {
     setError('');
     setActivity(null);
     setPeriod('');
+    setDebugInfo([]);
 
     try {
       const result = await fetchVehicleActivity(p, [selectedVehicleId]);
@@ -85,6 +87,7 @@ export function VehiclesPage() {
         setActivity(null);
       }
       setPeriod(result.period);
+      setDebugInfo(result.debug || []);
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -303,7 +306,22 @@ export function VehiclesPage() {
 
       {/* No activity for selected vehicle/period */}
       {!loading && !error && !activity && period && (
-        <p className="py-20 text-center text-sm text-gray-400">{t('vehiclesNoActivity')}</p>
+        <Card className="p-6">
+          <p className="mb-4 text-center text-sm text-gray-400">{t('vehiclesNoActivity')}</p>
+          {debugInfo.length > 0 && (
+            <div className="mx-auto max-w-md rounded-lg bg-gray-50 p-4 text-xs dark:bg-gray-900">
+              <p className="mb-2 font-semibold text-gray-500">Samsara API debug:</p>
+              {debugInfo.map((d) => (
+                <div key={d.vehicle_id} className="space-y-1 text-gray-500">
+                  <p>GPS points: <span className="font-mono font-bold">{d.gps_points}</span></p>
+                  <p>Engine events: <span className="font-mono font-bold">{d.engine_events}</span></p>
+                  <p>Odometer points: <span className="font-mono font-bold">{d.odo_points}</span></p>
+                  <p>Days found: <span className="font-mono font-bold">{d.days_found}</span></p>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
       )}
 
       {/* Results for selected vehicle */}

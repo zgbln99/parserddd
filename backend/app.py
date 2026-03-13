@@ -2231,7 +2231,8 @@ def api_vehicles_list():
 def api_vehicles_activity():
     """
     Fetch vehicle activity from Samsara for a given month.
-    Returns daily breakdown: date, start/end time, duration, distance, last location.
+    Returns daily breakdown: date, start/end time, duration, distance.
+    Uses GPS data as primary source (reliable), engine states as supplement.
     """
     if not SAMSARA_API_TOKEN:
         return jsonify({'error': 'Samsara API not configured'}), 400
@@ -2284,20 +2285,15 @@ def api_vehicles_activity():
     else:
         vehicle_names = {}
 
-    # Step 2: Fetch stats for each vehicle (engine states + odometer)
-    results = []
-
-    def _fetch_vehicle_activity(vid):
-        """Fetch and process activity for one vehicle."""
-        # Fetch engine states and odometer (2 types, well within 3 limit)
-        all_engine = []
-        all_odo = []
-
+    # Helper: paginated fetch of vehicle stats for given types
+    def _fetch_stats(vid, types_str):
+        """Fetch all pages of vehicle stats for given types."""
+        all_data = []
         after_cursor = None
-        for _ in range(50):  # pagination
+        for _ in range(100):  # max pages
             params = {
                 'vehicleIds': vid,
-                'types': 'engineStates,obdOdometerMeters',
+                'types': types_str,
                 'startTime': start_time,
                 'endTime': end_time,
             }
@@ -2309,83 +2305,125 @@ def api_vehicles_activity():
                     headers=headers, params=params, timeout=30,
                 )
                 if resp.status_code != 200:
-                    return None
+                    app.logger.warning(
+                        f'Samsara stats {resp.status_code} for vehicle {vid}, '
+                        f'types={types_str}: {resp.text[:500]}'
+                    )
+                    break
                 data = resp.json()
-            except Exception:
-                return None
-
-            for item in data.get('data', []):
-                for es in item.get('engineStates', []):
-                    all_engine.append(es)
-                for od in item.get('obdOdometerMeters', []):
-                    all_odo.append(od)
-
+            except Exception as exc:
+                app.logger.warning(f'Samsara stats error for vehicle {vid}: {exc}')
+                break
+            all_data.append(data)
             pag = data.get('pagination', {})
             if pag.get('hasNextPage') and pag.get('endCursor'):
                 after_cursor = pag['endCursor']
             else:
                 break
+        return all_data
 
-        # Also try GPS odometer as fallback
+    # Step 2: Fetch stats for each vehicle
+    results = []
+    debug_info = []
+
+    def _fetch_vehicle_activity(vid):
+        """Fetch and process activity for one vehicle."""
+        # --- Fetch GPS data (most reliable for driving detection) ---
+        all_gps = []
+        for page in _fetch_stats(vid, 'gps'):
+            for item in page.get('data', []):
+                for pt in item.get('gps', []):
+                    all_gps.append(pt)
+
+        # --- Fetch engine states ---
+        all_engine = []
+        for page in _fetch_stats(vid, 'engineStates'):
+            for item in page.get('data', []):
+                for es in item.get('engineStates', []):
+                    all_engine.append(es)
+
+        # --- Fetch odometer (OBD first, GPS fallback) ---
+        all_odo = []
+        for page in _fetch_stats(vid, 'obdOdometerMeters'):
+            for item in page.get('data', []):
+                for od in item.get('obdOdometerMeters', []):
+                    all_odo.append(od)
         if not all_odo:
-            after_cursor = None
-            for _ in range(50):
-                params = {
-                    'vehicleIds': vid,
-                    'types': 'gpsOdometerMeters',
-                    'startTime': start_time,
-                    'endTime': end_time,
-                }
-                if after_cursor:
-                    params['after'] = after_cursor
-                try:
-                    resp = http_requests.get(
-                        f'{SAMSARA_API_BASE}/fleet/vehicles/stats',
-                        headers=headers, params=params, timeout=30,
-                    )
-                    if resp.status_code != 200:
-                        break
-                    data = resp.json()
-                except Exception:
-                    break
-                for item in data.get('data', []):
+            for page in _fetch_stats(vid, 'gpsOdometerMeters'):
+                for item in page.get('data', []):
                     for od in item.get('gpsOdometerMeters', []):
                         all_odo.append(od)
-                pag = data.get('pagination', {})
-                if pag.get('hasNextPage') and pag.get('endCursor'):
-                    after_cursor = pag['endCursor']
-                else:
-                    break
 
-        # Process engine states into daily shifts
-        # Engine state value: "On" or "Off"
-        daily = {}  # date_str -> {first_on, last_off, odo_start, odo_end}
+        dbg = {
+            'vehicle_id': vid,
+            'gps_points': len(all_gps),
+            'engine_events': len(all_engine),
+            'odo_points': len(all_odo),
+        }
 
-        for es in sorted(all_engine, key=lambda x: x.get('time', '')):
-            t_str = es.get('time', '')
+        # --- Build daily activity from GPS (primary) ---
+        # GPS point has: time, latitude, longitude, speedMilesPerHour, headingDegrees
+        daily = {}  # date_str -> {first_time, last_time}
+
+        for pt in sorted(all_gps, key=lambda x: x.get('time', '')):
+            t_str = pt.get('time', '')
             if not t_str:
                 continue
+            speed = pt.get('speedMilesPerHour', 0) or 0
+            # Consider the vehicle active if speed > 0 or if GPS is reporting
+            # (parked vehicles typically stop reporting or report speed=0)
             try:
                 dt = datetime.fromisoformat(t_str.replace('Z', '+00:00')).astimezone(CET)
             except Exception:
                 continue
             day_key = dt.strftime('%Y-%m-%d')
-            val = es.get('value', '')
 
             if day_key not in daily:
                 daily[day_key] = {
-                    'first_on': None,
-                    'last_off': None,
-                    'last_event': None,
+                    'first_time': dt,
+                    'last_time': dt,
+                    'has_movement': speed > 0,
                 }
+            else:
+                daily[day_key]['last_time'] = dt
+                if speed > 0:
+                    daily[day_key]['has_movement'] = True
+            # Track first movement time specifically
+            if speed > 0 and 'first_move' not in daily[day_key]:
+                daily[day_key]['first_move'] = dt
+            if speed > 0:
+                daily[day_key]['last_move'] = dt
 
-            if val == 'On' and daily[day_key]['first_on'] is None:
-                daily[day_key]['first_on'] = dt
-            if val == 'Off':
-                daily[day_key]['last_off'] = dt
-            daily[day_key]['last_event'] = dt
+        # --- Supplement with engine states if GPS is empty ---
+        if not daily:
+            for es in sorted(all_engine, key=lambda x: x.get('time', '')):
+                t_str = es.get('time', '')
+                if not t_str:
+                    continue
+                try:
+                    dt = datetime.fromisoformat(t_str.replace('Z', '+00:00')).astimezone(CET)
+                except Exception:
+                    continue
+                day_key = dt.strftime('%Y-%m-%d')
+                val = es.get('value', '')
 
-        # Process odometer readings per day
+                if day_key not in daily:
+                    daily[day_key] = {
+                        'first_time': None,
+                        'last_time': None,
+                        'has_movement': True,
+                    }
+
+                if val == 'On' and daily[day_key]['first_time'] is None:
+                    daily[day_key]['first_time'] = dt
+                    daily[day_key]['first_move'] = dt
+                if val == 'Off':
+                    daily[day_key]['last_time'] = dt
+                    daily[day_key]['last_move'] = dt
+                if daily[day_key]['last_time'] is None or dt > daily[day_key]['last_time']:
+                    daily[day_key]['last_time'] = dt
+
+        # --- Process odometer readings per day ---
         odo_daily = {}  # date_str -> (min_meters, max_meters)
         for od in sorted(all_odo, key=lambda x: x.get('time', '')):
             t_str = od.get('time', '')
@@ -2404,13 +2442,18 @@ def api_vehicles_activity():
                 mn, mx = odo_daily[day_key]
                 odo_daily[day_key] = (min(mn, meters), max(mx, meters))
 
-        # Build daily entries
+        # --- Build daily entries ---
         days = []
         total_km = 0.0
         for day_key in sorted(daily.keys()):
             d = daily[day_key]
-            start_dt = d['first_on']
-            end_dt = d['last_off'] or d['last_event']
+            # Skip days with no movement (parked, only GPS pings at 0 speed)
+            if not d.get('has_movement'):
+                continue
+
+            # Use first/last movement times, fallback to first/last GPS time
+            start_dt = d.get('first_move') or d.get('first_time')
+            end_dt = d.get('last_move') or d.get('last_time')
             if not start_dt:
                 continue
 
@@ -2441,6 +2484,10 @@ def api_vehicles_activity():
                 'distance_km': km,
             })
 
+        dbg['days_found'] = len(days)
+        dbg['total_km'] = round(total_km, 1)
+        debug_info.append(dbg)
+
         return {
             'vehicle_id': vid,
             'vehicle_name': vehicle_names.get(vid, vid),
@@ -2449,20 +2496,25 @@ def api_vehicles_activity():
             'active_days': len(days),
         }
 
-    # Process vehicles concurrently (max 5)
-    with ThreadPoolExecutor(max_workers=5) as executor:
-        futures = {executor.submit(_fetch_vehicle_activity, vid): vid for vid in vehicle_ids}
-        for future in as_completed(futures):
-            try:
-                result = future.result()
-                if result and result['active_days'] > 0:
-                    results.append(result)
-            except Exception:
-                pass
+    # Process vehicles (sequential for single vehicle, concurrent for multiple)
+    if len(vehicle_ids) == 1:
+        result = _fetch_vehicle_activity(vehicle_ids[0])
+        if result:
+            results.append(result)
+    else:
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            futures = {executor.submit(_fetch_vehicle_activity, vid): vid for vid in vehicle_ids}
+            for future in as_completed(futures):
+                try:
+                    result = future.result()
+                    if result:
+                        results.append(result)
+                except Exception:
+                    pass
 
     results.sort(key=lambda r: r['vehicle_name'])
-    _log_activity('vehicles_activity', f'{period}: {len(results)} vehicles with activity')
-    return jsonify({'period': period, 'vehicles': results})
+    _log_activity('vehicles_activity', f'{period}: {len(results)} vehicles, debug={debug_info}')
+    return jsonify({'period': period, 'vehicles': results, 'debug': debug_info})
 
 
 # ---------------------------------------------------------------------------
