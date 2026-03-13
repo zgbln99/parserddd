@@ -788,13 +788,13 @@ function MonthlyGridCopy({
   const month = parseInt(refDate.slice(5, 7), 10) || (new Date().getMonth() + 1); // 1-indexed
   const daysInMonth = new Date(year, month, 0).getDate();
 
-  // Build a map: day number -> total work minutes for that day
+  // Build a map: day number -> total duration minutes (including breaks) for that day
   const dayWorkMap = useMemo(() => {
     const map: Record<number, number> = {};
     for (const sh of shifts) {
       const d = parseInt(sh.shift_date.slice(8, 10), 10);
       if (!isNaN(d)) {
-        map[d] = (map[d] || 0) + sh.work_minutes;
+        map[d] = (map[d] || 0) + sh.duration_minutes;
       }
     }
     return map;
