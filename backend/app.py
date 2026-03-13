@@ -852,6 +852,66 @@ def api_analyze_dropbox():
             os.unlink(tmp_path)
 
 
+@app.route('/api/compare', methods=['POST'])
+@login_required
+def api_compare_drivers():
+    """Compare shifts across multiple drivers. Accepts {files: [{path, driver_name, card_number}]}."""
+    payload = request.get_json(silent=True) or {}
+    files = payload.get('files', [])
+    if not files or not isinstance(files, list):
+        return jsonify({'error': 'files list required'}), 400
+    if len(files) > 20:
+        return jsonify({'error': 'Max 20 drivers'}), 400
+
+    dbx = get_server_dropbox_client()
+    if not dbx:
+        return jsonify({'error': 'Brak połączenia z Dropbox'}), 500
+
+    results = []
+    for entry in files:
+        file_path = entry.get('path', '')
+        driver_name = entry.get('driver_name', '')
+        card_number = entry.get('card_number', '')
+        if not file_path:
+            continue
+        try:
+            metadata, response = dbx.files_download(file_path)
+            with tempfile.NamedTemporaryFile(suffix='.ddd', delete=False) as tmp:
+                tmp.write(response.content)
+                tmp_path = tmp.name
+            data = parse_ddd_file(tmp_path)
+            analysis = analyze_card(data)
+            os.unlink(tmp_path)
+
+            # Extract condensed shift data
+            shifts = []
+            for sh in analysis.get('shift_details', []):
+                shifts.append({
+                    'date': sh.get('shift_date', ''),
+                    'weekday': sh.get('weekday', ''),
+                    'start': sh.get('shift_start', ''),
+                    'end': sh.get('shift_end', ''),
+                    'duration_hm': sh.get('duration_hm', ''),
+                    'work_minutes': sh.get('work_minutes', 0),
+                })
+
+            results.append({
+                'driver_name': driver_name or analysis.get('driver_info', {}).get('driver_name', ''),
+                'card_number': card_number,
+                'shifts': shifts,
+            })
+        except Exception:
+            results.append({
+                'driver_name': driver_name,
+                'card_number': card_number,
+                'shifts': [],
+                'error': 'Nie udało się przeanalizować pliku',
+            })
+
+    _log_activity('compare_drivers', f"{len(results)} drivers")
+    return jsonify({'drivers': results})
+
+
 @app.route('/api/export/csv', methods=['POST'])
 @login_required
 def api_export_csv():

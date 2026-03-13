@@ -182,6 +182,30 @@ export const bulkUpdateDriverConfig = (cardNumbers: string[], updates: Partial<D
     body: JSON.stringify({ card_numbers: cardNumbers, updates }),
   });
 
+// Compare drivers
+export interface CompareShift {
+  date: string;
+  weekday: string;
+  start: string;
+  end: string;
+  duration_hm: string;
+  work_minutes: number;
+}
+
+export interface CompareDriverResult {
+  driver_name: string;
+  card_number: string;
+  shifts: CompareShift[];
+  error?: string;
+}
+
+export const compareDrivers = (files: { path: string; driver_name: string; card_number: string }[]) =>
+  request<{ drivers: CompareDriverResult[] }>('/api/compare', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ files }),
+  });
+
 // CSV export (returns blob)
 export async function exportCsv(driverName: string, shifts: unknown[]) {
   const res = await fetch('/api/export/csv', {

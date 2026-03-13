@@ -215,6 +215,24 @@ export const pl = {
   driverTotalDrivers: 'Łącznie kierowców',
   driverConfiguredCount: 'Skonfigurowanych',
 
+  // Compare
+  navCompare: 'Porównanie',
+  compareTitle: 'Porównanie kierowców',
+  compareSubtitle: 'Sprawdź godziny rozpoczęcia i zakończenia pracy',
+  compareSelectDrivers: 'Zaznacz kierowców do porównania',
+  compareGenerate: 'Generuj porównanie',
+  compareNoData: 'Wybierz kierowców i kliknij Generuj',
+  compareLoading: 'Analizowanie plików...',
+  compareStart: 'Początek',
+  compareEnd: 'Koniec',
+  compareDuration: 'Czas',
+  compareDate: 'Data',
+  compareAvgStart: 'Śr. początek',
+  compareAvgEnd: 'Śr. koniec',
+  compareAvgDuration: 'Śr. czas pracy',
+  compareTotalShifts: 'Zmian',
+  comparePrint: 'Drukuj raport',
+
   // Time
   timeAgo: 'temu',
   timeJustNow: 'przed chwilą',

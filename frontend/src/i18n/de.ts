@@ -217,6 +217,24 @@ export const de: Record<TranslationKey, string> = {
   driverTotalDrivers: 'Fahrer gesamt',
   driverConfiguredCount: 'Konfiguriert',
 
+  // Compare
+  navCompare: 'Vergleich',
+  compareTitle: 'Fahrervergleich',
+  compareSubtitle: 'Arbeitszeiten vergleichen — Beginn und Ende',
+  compareSelectDrivers: 'Fahrer zum Vergleich auswählen',
+  compareGenerate: 'Vergleich erstellen',
+  compareNoData: 'Fahrer auswählen und Erstellen klicken',
+  compareLoading: 'Dateien werden analysiert...',
+  compareStart: 'Beginn',
+  compareEnd: 'Ende',
+  compareDuration: 'Dauer',
+  compareDate: 'Datum',
+  compareAvgStart: 'Ø Beginn',
+  compareAvgEnd: 'Ø Ende',
+  compareAvgDuration: 'Ø Arbeitszeit',
+  compareTotalShifts: 'Schichten',
+  comparePrint: 'Bericht drucken',
+
   // Time
   timeAgo: 'her',
   timeJustNow: 'gerade eben',

@@ -1,0 +1,386 @@
+import { useEffect, useState, useMemo, useCallback } from 'react';
+import { Search, GitCompareArrows, Printer, Play } from 'lucide-react';
+import { useI18n } from '../i18n';
+import { fetchDrivers, compareDrivers, type CompareDriverResult } from '../lib/api';
+import { Card } from '../components/Card';
+import { Badge } from '../components/Badge';
+import { Spinner } from '../components/Spinner';
+import type { Driver } from '../types';
+
+const weekdayMapDe: Record<string, string> = {
+  Pn: 'Mo', Wt: 'Di', Śr: 'Mi', Cz: 'Do', Pt: 'Fr', So: 'Sa', Nd: 'So',
+};
+
+function localWd(wd: string, locale: string) {
+  return locale === 'de' ? (weekdayMapDe[wd] ?? wd) : wd;
+}
+
+function minutesToHm(mins: number) {
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return `${h}:${String(m).padStart(2, '0')}`;
+}
+
+function timeOnly(dt: string) {
+  // "2025-03-01 06:30" -> "06:30"
+  return dt.includes(' ') ? dt.split(' ')[1] : dt;
+}
+
+function avgTime(times: string[]): string {
+  if (!times.length) return '—';
+  let totalMin = 0;
+  for (const t of times) {
+    const [h, m] = t.split(':').map(Number);
+    totalMin += h * 60 + m;
+  }
+  const avg = Math.round(totalMin / times.length);
+  return minutesToHm(avg);
+}
+
+export function CompareDriversPage() {
+  const { t, locale } = useI18n();
+  const [drivers, setDrivers] = useState<Driver[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [search, setSearch] = useState('');
+  const [comparing, setComparing] = useState(false);
+  const [results, setResults] = useState<CompareDriverResult[] | null>(null);
+
+  useEffect(() => {
+    fetchDrivers()
+      .then((data) => { setDrivers(data.drivers); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
+
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase().trim();
+    if (!q) return drivers;
+    return drivers.filter((d) => d.name.toLowerCase().includes(q) || d.card_number.toLowerCase().includes(q));
+  }, [drivers, search]);
+
+  const toggleSelect = (name: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  };
+
+  const handleGenerate = useCallback(async () => {
+    if (selected.size === 0) return;
+    setComparing(true);
+    try {
+      // For each selected driver, pick the latest file
+      const files: { path: string; driver_name: string; card_number: string }[] = [];
+      for (const d of drivers) {
+        if (!selected.has(d.name)) continue;
+        if (d.files.length > 0) {
+          files.push({
+            path: d.files[0].path, // files are sorted newest-first
+            driver_name: d.name,
+            card_number: d.card_number,
+          });
+        }
+      }
+      if (files.length === 0) {
+        setComparing(false);
+        return;
+      }
+      const data = await compareDrivers(files);
+      setResults(data.drivers);
+    } catch {
+      setResults([]);
+    } finally {
+      setComparing(false);
+    }
+  }, [selected, drivers]);
+
+  // Collect all unique dates across all results
+  const allDates = useMemo(() => {
+    if (!results) return [];
+    const dateSet = new Set<string>();
+    for (const r of results) {
+      for (const sh of r.shifts) {
+        dateSet.add(sh.date);
+      }
+    }
+    return Array.from(dateSet).sort();
+  }, [results]);
+
+  // Build per-driver stats
+  const driverStats = useMemo(() => {
+    if (!results) return [];
+    return results.map((r) => {
+      const starts = r.shifts.map((sh) => timeOnly(sh.start));
+      const ends = r.shifts.map((sh) => timeOnly(sh.end));
+      const totalWork = r.shifts.reduce((s, sh) => s + sh.work_minutes, 0);
+      return {
+        name: r.driver_name,
+        totalShifts: r.shifts.length,
+        avgStart: avgTime(starts),
+        avgEnd: avgTime(ends),
+        avgDuration: r.shifts.length ? minutesToHm(Math.round(totalWork / r.shifts.length)) : '—',
+      };
+    });
+  }, [results]);
+
+  const handlePrint = useCallback(() => {
+    if (!results || results.length === 0) return;
+    const pw = window.open('', '_blank');
+    if (!pw) return;
+
+    const headerCols = results.map((r) => `<th colspan="2" style="border:1px solid #ccc;padding:6px 10px;background:#f0f0f0;text-align:center;font-size:12px;">${r.driver_name}</th>`).join('');
+    const subHeaderCols = results.map(() => `<th style="border:1px solid #ddd;padding:3px 8px;background:#f8f8f8;font-size:10px;text-align:center">${t('compareStart')}</th><th style="border:1px solid #ddd;padding:3px 8px;background:#f8f8f8;font-size:10px;text-align:center">${t('compareEnd')}</th>`).join('');
+
+    const shiftMap = new Map<string, Map<string, { start: string; end: string }>>();
+    for (const r of results) {
+      const m = new Map<string, { start: string; end: string }>();
+      for (const sh of r.shifts) {
+        m.set(sh.date, { start: timeOnly(sh.start), end: timeOnly(sh.end) });
+      }
+      shiftMap.set(r.driver_name, m);
+    }
+
+    const bodyRows = allDates.map((date) => {
+      const cells = results.map((r) => {
+        const sh = shiftMap.get(r.driver_name)?.get(date);
+        if (!sh) return '<td style="border:1px solid #eee;padding:3px 8px;text-align:center;color:#ccc">—</td><td style="border:1px solid #eee;padding:3px 8px;text-align:center;color:#ccc">—</td>';
+        return `<td style="border:1px solid #eee;padding:3px 8px;text-align:center;font-weight:600;color:#16a34a">${sh.start}</td><td style="border:1px solid #eee;padding:3px 8px;text-align:center;font-weight:600;color:#dc2626">${sh.end}</td>`;
+      }).join('');
+      return `<tr><td style="border:1px solid #ddd;padding:3px 8px;font-weight:bold;white-space:nowrap">${date}</td>${cells}</tr>`;
+    }).join('');
+
+    const statsRows = results.map((r) => {
+      const starts = r.shifts.map((sh) => timeOnly(sh.start));
+      const ends = r.shifts.map((sh) => timeOnly(sh.end));
+      const totalWork = r.shifts.reduce((s, sh) => s + sh.work_minutes, 0);
+      const avgDur = r.shifts.length ? minutesToHm(Math.round(totalWork / r.shifts.length)) : '—';
+      return `<tr><td style="padding:4px 8px;font-weight:bold">${r.driver_name}</td><td style="padding:4px 8px;text-align:center">${r.shifts.length}</td><td style="padding:4px 8px;text-align:center">${avgTime(starts)}</td><td style="padding:4px 8px;text-align:center">${avgTime(ends)}</td><td style="padding:4px 8px;text-align:center;font-weight:bold">${avgDur}</td></tr>`;
+    }).join('');
+
+    pw.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${t('compareTitle')}</title>
+<style>body{font-family:Arial,sans-serif;margin:20px;font-size:11px}h1{font-size:18px;margin-bottom:4px}.meta{color:#666;margin-bottom:16px;font-size:11px}table{border-collapse:collapse;width:100%;margin-top:10px}@media print{body{margin:10px}}</style></head><body>
+<h1>${t('compareTitle')}</h1>
+<div class="meta">${new Date().toLocaleDateString(locale === 'de' ? 'de-DE' : 'pl-PL')}</div>
+<h3 style="margin-top:20px;font-size:13px">${t('compareTotalShifts')}</h3>
+<table><thead><tr><th style="text-align:left;padding:4px 8px;border-bottom:2px solid #ccc">${t('driversName')}</th><th style="padding:4px 8px;border-bottom:2px solid #ccc">${t('compareTotalShifts')}</th><th style="padding:4px 8px;border-bottom:2px solid #ccc">${t('compareAvgStart')}</th><th style="padding:4px 8px;border-bottom:2px solid #ccc">${t('compareAvgEnd')}</th><th style="padding:4px 8px;border-bottom:2px solid #ccc">${t('compareAvgDuration')}</th></tr></thead><tbody>${statsRows}</tbody></table>
+<h3 style="margin-top:24px;font-size:13px">${t('compareDate')}</h3>
+<table><thead><tr><th style="border:1px solid #ccc;padding:6px 10px;background:#f0f0f0">${t('compareDate')}</th>${headerCols}</tr><tr><th style="border:1px solid #ddd"></th>${subHeaderCols}</tr></thead><tbody>${bodyRows}</tbody></table>
+</body></html>`);
+    pw.document.close();
+    pw.focus();
+    pw.print();
+  }, [results, allDates, t, locale]);
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center gap-3 py-20">
+        <Spinner size="lg" />
+        <p className="text-sm text-gray-400">{t('loading')}</p>
+      </div>
+    );
+  }
+
+  const inputCls = 'rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none transition focus:border-primary-400 focus:ring-2 focus:ring-primary-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:focus:ring-primary-900/40';
+
+  // Build shift lookup for comparison table
+  const shiftLookup = useMemo(() => {
+    if (!results) return new Map<string, Map<string, { start: string; end: string; duration_hm: string }>>();
+    const map = new Map<string, Map<string, { start: string; end: string; duration_hm: string }>>();
+    for (const r of results) {
+      const driverMap = new Map<string, { start: string; end: string; duration_hm: string }>();
+      for (const sh of r.shifts) {
+        driverMap.set(sh.date, { start: timeOnly(sh.start), end: timeOnly(sh.end), duration_hm: sh.duration_hm });
+      }
+      map.set(r.driver_name, driverMap);
+    }
+    return map;
+  }, [results]);
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center gap-3">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-cyan-600 text-white shadow-lg shadow-blue-500/20">
+          <GitCompareArrows size={20} />
+        </div>
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">{t('compareTitle')}</h1>
+          <p className="text-xs text-gray-500 dark:text-gray-400">{t('compareSubtitle')}</p>
+        </div>
+      </div>
+
+      {/* Driver selection */}
+      <Card className="p-5">
+        <div className="mb-3 flex flex-wrap items-center gap-3">
+          <div className="relative min-w-[200px] flex-1 sm:max-w-xs">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={t('driversSearch')}
+              className={`w-full pl-9 ${inputCls}`}
+            />
+          </div>
+          <div className="flex-1" />
+          {selected.size > 0 && (
+            <Badge variant="blue">{selected.size} {t('driverSelected')}</Badge>
+          )}
+          <button
+            onClick={handleGenerate}
+            disabled={selected.size < 2 || comparing}
+            className="flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-50"
+          >
+            <Play size={14} />
+            {comparing ? t('compareLoading') : t('compareGenerate')}
+          </button>
+        </div>
+
+        <div className="max-h-[280px] overflow-y-auto rounded-lg border border-gray-100 dark:border-gray-800">
+          <div className="grid grid-cols-2 gap-px bg-gray-100 sm:grid-cols-3 lg:grid-cols-4 dark:bg-gray-800">
+            {filtered.map((d) => (
+              <label
+                key={d.name}
+                className={`flex cursor-pointer items-center gap-2.5 bg-white px-3 py-2.5 transition hover:bg-blue-50/50 dark:bg-gray-900 dark:hover:bg-blue-900/10 ${
+                  selected.has(d.name) ? 'ring-2 ring-inset ring-blue-400 dark:ring-blue-600' : ''
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={selected.has(d.name)}
+                  onChange={() => toggleSelect(d.name)}
+                  className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium">{d.name}</p>
+                  <p className="truncate text-[10px] text-gray-400">{d.file_count} {t('files')}</p>
+                </div>
+              </label>
+            ))}
+          </div>
+        </div>
+      </Card>
+
+      {/* Comparing loader */}
+      {comparing && (
+        <div className="flex flex-col items-center gap-3 py-12">
+          <Spinner size="lg" />
+          <p className="text-sm text-gray-500">{t('compareLoading')}</p>
+        </div>
+      )}
+
+      {/* Results */}
+      {results && !comparing && results.length > 0 && (
+        <>
+          {/* Stats summary */}
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {driverStats.map((ds) => (
+              <Card key={ds.name} className="p-4">
+                <p className="text-sm font-bold">{ds.name}</p>
+                <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                  <span className="text-gray-400">{t('compareTotalShifts')}</span>
+                  <span className="font-semibold">{ds.totalShifts}</span>
+                  <span className="text-gray-400">{t('compareAvgStart')}</span>
+                  <span className="font-semibold text-green-600 dark:text-green-400">{ds.avgStart}</span>
+                  <span className="text-gray-400">{t('compareAvgEnd')}</span>
+                  <span className="font-semibold text-red-500 dark:text-red-400">{ds.avgEnd}</span>
+                  <span className="text-gray-400">{t('compareAvgDuration')}</span>
+                  <span className="font-semibold">{ds.avgDuration}</span>
+                </div>
+              </Card>
+            ))}
+          </div>
+
+          {/* Comparison table */}
+          <Card className="overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-200 bg-gray-50/80 dark:border-gray-800 dark:bg-gray-900/50">
+                    <th className="sticky left-0 z-10 bg-gray-50/80 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:bg-gray-900/50 dark:text-gray-400">
+                      {t('compareDate')}
+                    </th>
+                    {results.map((r) => (
+                      <th key={r.driver_name} colSpan={3} className="border-l border-gray-200 px-4 py-3 text-center text-xs font-bold uppercase tracking-wider text-gray-700 dark:border-gray-700 dark:text-gray-300">
+                        {r.driver_name}
+                      </th>
+                    ))}
+                  </tr>
+                  <tr className="border-b border-gray-100 bg-gray-50/50 dark:border-gray-800 dark:bg-gray-900/30">
+                    <th className="sticky left-0 z-10 bg-gray-50/50 dark:bg-gray-900/30" />
+                    {results.map((r) => (
+                      <th key={r.driver_name} className="border-l border-gray-100 dark:border-gray-800" colSpan={3}>
+                        <div className="flex">
+                          <span className="flex-1 px-2 py-1.5 text-center text-[10px] font-semibold uppercase text-green-600 dark:text-green-400">{t('compareStart')}</span>
+                          <span className="flex-1 px-2 py-1.5 text-center text-[10px] font-semibold uppercase text-red-500 dark:text-red-400">{t('compareEnd')}</span>
+                          <span className="flex-1 px-2 py-1.5 text-center text-[10px] font-semibold uppercase text-gray-500 dark:text-gray-400">{t('compareDuration')}</span>
+                        </div>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
+                  {allDates.map((date) => {
+                    // Determine weekday from first result that has this date
+                    let wd = '';
+                    for (const r of results) {
+                      const sh = r.shifts.find((s) => s.date === date);
+                      if (sh) { wd = localWd(sh.weekday, locale); break; }
+                    }
+                    const isWeekend = wd === 'So' || wd === 'Sa' || wd === 'Nd';
+
+                    return (
+                      <tr key={date} className={isWeekend ? 'bg-red-50/30 dark:bg-red-900/5' : 'hover:bg-gray-50 dark:hover:bg-gray-800/50'}>
+                        <td className="sticky left-0 z-10 whitespace-nowrap bg-white px-4 py-2 dark:bg-gray-900">
+                          <span className="font-medium">{date}</span>
+                          <span className={`ml-2 text-xs font-bold ${isWeekend ? 'text-red-400' : 'text-gray-400'}`}>{wd}</span>
+                        </td>
+                        {results.map((r) => {
+                          const sh = shiftLookup.get(r.driver_name)?.get(date);
+                          if (!sh) {
+                            return (
+                              <td key={r.driver_name} colSpan={3} className="border-l border-gray-100 px-2 py-2 text-center text-gray-300 dark:border-gray-800 dark:text-gray-700">
+                                —
+                              </td>
+                            );
+                          }
+                          return (
+                            <td key={r.driver_name} colSpan={3} className="border-l border-gray-100 dark:border-gray-800">
+                              <div className="flex">
+                                <span className="flex-1 px-2 py-2 text-center font-semibold text-green-700 dark:text-green-400">{sh.start}</span>
+                                <span className="flex-1 px-2 py-2 text-center font-semibold text-red-600 dark:text-red-400">{sh.end}</span>
+                                <span className="flex-1 px-2 py-2 text-center text-gray-600 dark:text-gray-400">{sh.duration_hm}</span>
+                              </div>
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+
+          {/* Print button */}
+          <div className="flex justify-center pt-2">
+            <button
+              onClick={handlePrint}
+              className="flex items-center gap-2 rounded-xl border border-gray-200 px-5 py-2.5 text-sm font-semibold text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-800"
+            >
+              <Printer size={16} />
+              {t('comparePrint')}
+            </button>
+          </div>
+        </>
+      )}
+
+      {/* Empty state */}
+      {!results && !comparing && (
+        <p className="py-12 text-center text-sm text-gray-400">{t('compareNoData')}</p>
+      )}
+    </div>
+  );
+}

@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, FileText, RefreshCw, Sun, Moon, Globe, LogOut, Calendar, X, Shield, UserCog } from 'lucide-react';
+import { LayoutDashboard, Users, FileText, RefreshCw, Sun, Moon, Globe, LogOut, Calendar, X, Shield, UserCog, GitCompareArrows } from 'lucide-react';
 import { useI18n, type Locale } from '../i18n';
 import { useTheme } from '../hooks/useTheme';
 import { useAuth } from '../hooks/useAuth';
@@ -24,6 +24,7 @@ export function Layout({ children }: { children: ReactNode }) {
     ...baseNavItems,
     ...(isAdmin
       ? [
+          { to: '/compare', icon: GitCompareArrows, labelKey: 'navCompare' as const },
           { to: '/config', icon: UserCog, labelKey: 'navDriverConfig' as const },
           { to: '/admin', icon: Shield, labelKey: 'navAdmin' as const },
         ]
