@@ -3,6 +3,7 @@ import { Search, GitCompareArrows, Printer, Play, FileDown } from 'lucide-react'
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { useI18n } from '../i18n';
+import { useDateFilter } from '../hooks/useDateFilter';
 import { fetchDrivers, compareDrivers, type CompareDriverResult } from '../lib/api';
 import { Card } from '../components/Card';
 import { Badge } from '../components/Badge';
@@ -41,6 +42,7 @@ function avgTime(times: string[]): string {
 
 export function CompareDriversPage() {
   const { t, locale } = useI18n();
+  const { dateFrom, dateTo } = useDateFilter();
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -98,34 +100,38 @@ export function CompareDriversPage() {
     }
   }, [selected, drivers]);
 
-  // Collect all unique dates across all results
+  // Collect all unique dates across all results, filtered by global date range
   const allDates = useMemo(() => {
     if (!results) return [];
     const dateSet = new Set<string>();
     for (const r of results) {
       for (const sh of r.shifts) {
+        if (dateFrom && sh.date < dateFrom) continue;
+        if (dateTo && sh.date > dateTo) continue;
         dateSet.add(sh.date);
       }
     }
     return Array.from(dateSet).sort();
-  }, [results]);
+  }, [results, dateFrom, dateTo]);
 
-  // Build per-driver stats
+  // Build per-driver stats (filtered by global date range)
   const driverStats = useMemo(() => {
     if (!results) return [];
+    const dateSet = new Set(allDates);
     return results.map((r) => {
-      const starts = r.shifts.map((sh) => timeOnly(sh.start));
-      const ends = r.shifts.map((sh) => timeOnly(sh.end));
-      const totalWork = r.shifts.reduce((s, sh) => s + sh.work_minutes, 0);
+      const filteredShifts = r.shifts.filter((sh) => dateSet.has(sh.date));
+      const starts = filteredShifts.map((sh) => timeOnly(sh.start));
+      const ends = filteredShifts.map((sh) => timeOnly(sh.end));
+      const totalWork = filteredShifts.reduce((s, sh) => s + sh.work_minutes, 0);
       return {
         name: r.driver_name,
-        totalShifts: r.shifts.length,
+        totalShifts: filteredShifts.length,
         avgStart: avgTime(starts),
         avgEnd: avgTime(ends),
-        avgDuration: r.shifts.length ? minutesToHm(Math.round(totalWork / r.shifts.length)) : '—',
+        avgDuration: filteredShifts.length ? minutesToHm(Math.round(totalWork / filteredShifts.length)) : '—',
       };
     });
-  }, [results]);
+  }, [results, allDates]);
 
   // Build shift lookup for comparison table (must be before any conditional returns – Rules of Hooks)
   const shiftLookup = useMemo(() => {
@@ -167,12 +173,14 @@ export function CompareDriversPage() {
       return `<tr><td style="border:1px solid #ddd;padding:3px 8px;font-weight:bold;white-space:nowrap">${date}</td>${cells}</tr>`;
     }).join('');
 
+    const dateSet = new Set(allDates);
     const statsRows = results.map((r) => {
-      const starts = r.shifts.map((sh) => timeOnly(sh.start));
-      const ends = r.shifts.map((sh) => timeOnly(sh.end));
-      const totalWork = r.shifts.reduce((s, sh) => s + sh.work_minutes, 0);
-      const avgDur = r.shifts.length ? minutesToHm(Math.round(totalWork / r.shifts.length)) : '—';
-      return `<tr><td style="padding:4px 8px;font-weight:bold">${r.driver_name}</td><td style="padding:4px 8px;text-align:center">${r.shifts.length}</td><td style="padding:4px 8px;text-align:center">${avgTime(starts)}</td><td style="padding:4px 8px;text-align:center">${avgTime(ends)}</td><td style="padding:4px 8px;text-align:center;font-weight:bold">${avgDur}</td></tr>`;
+      const fs = r.shifts.filter((sh) => dateSet.has(sh.date));
+      const starts = fs.map((sh) => timeOnly(sh.start));
+      const ends = fs.map((sh) => timeOnly(sh.end));
+      const totalWork = fs.reduce((s, sh) => s + sh.work_minutes, 0);
+      const avgDur = fs.length ? minutesToHm(Math.round(totalWork / fs.length)) : '—';
+      return `<tr><td style="padding:4px 8px;font-weight:bold">${r.driver_name}</td><td style="padding:4px 8px;text-align:center">${fs.length}</td><td style="padding:4px 8px;text-align:center">${avgTime(starts)}</td><td style="padding:4px 8px;text-align:center">${avgTime(ends)}</td><td style="padding:4px 8px;text-align:center;font-weight:bold">${avgDur}</td></tr>`;
     }).join('');
 
     pw.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${t('compareTitle')}</title>
