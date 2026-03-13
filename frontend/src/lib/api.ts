@@ -49,6 +49,26 @@ export const fetchDrivers = (refresh = false) =>
     `/api/drivers${refresh ? '?refresh=1' : ''}`,
   );
 
+// Add driver manually
+export const addDriver = (name: string) =>
+  request<{ ok: boolean; path: string }>('/api/drivers/add', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+  });
+
+// Save reader file to Dropbox
+export async function saveReaderFileToDropbox(file: File, driverName: string, cardNumber: string) {
+  const form = new FormData();
+  form.append('file', file);
+  form.append('driver_name', driverName);
+  form.append('card_number', cardNumber);
+  return request<{ ok: boolean; path: string; filename: string }>('/api/reader/save-to-dropbox', {
+    method: 'POST',
+    body: form,
+  });
+}
+
 // Analysis
 export const analyzeDropboxFile = (path: string) =>
   request<import('../types').AnalysisResult>(

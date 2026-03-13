@@ -62,6 +62,8 @@ export const de: Record<TranslationKey, string> = {
   driversDaysSince: 'Seit letztem Download',
   driversFileCount: 'Dateien',
   driversNoData: 'Keine Daten. Stellen Sie sicher, dass die Samsara-Dropbox-Synchronisierung funktioniert.',
+  driversAddDriver: 'Fahrer hinzufügen',
+  driversAddNamePlaceholder: 'Vor- und Nachname des Fahrers...',
   driversNoDays: 'keine Daten',
 
   // Driver detail
@@ -139,6 +141,10 @@ export const de: Record<TranslationKey, string> = {
   readerAnalyzing: 'Wird analysiert...',
   readerDropHint: '.ddd-Datei hier ablegen',
   readerSelectFile: 'oder klicken, um eine Datei auszuwählen',
+  readerSaveToDropbox: 'In Dropbox speichern',
+  readerSelectDriver: 'Fahrer auswählen, um die Datei zu speichern:',
+  readerSaveConfirm: 'Speichern',
+  readerSaved: 'In Dropbox gespeichert',
 
   // Sync monitor
   syncTitle: 'Synchronisierungsmonitor',

@@ -60,6 +60,8 @@ export const pl = {
   driversDaysSince: 'Od ostatniego pobrania',
   driversFileCount: 'Pliki',
   driversNoData: 'Brak danych. Upewnij się, że synchronizacja Samsara-Dropbox działa poprawnie.',
+  driversAddDriver: 'Dodaj kierowcę',
+  driversAddNamePlaceholder: 'Imię i nazwisko kierowcy...',
   driversNoDays: 'brak danych',
 
   // Driver detail
@@ -137,6 +139,10 @@ export const pl = {
   readerAnalyzing: 'Analizowanie...',
   readerDropHint: 'Upuść plik .ddd tutaj',
   readerSelectFile: 'lub kliknij, aby wybrać z dysku',
+  readerSaveToDropbox: 'Zapisz do Dropbox',
+  readerSelectDriver: 'Wybierz kierowcę, do którego zapisać plik:',
+  readerSaveConfirm: 'Zapisz',
+  readerSaved: 'Zapisano w Dropbox',
 
   // Sync monitor
   syncTitle: 'Monitor synchronizacji',

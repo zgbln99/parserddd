@@ -1,8 +1,8 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, RefreshCw, ChevronUp, ChevronDown, FileText, AlertCircle, AlertTriangle } from 'lucide-react';
+import { Search, RefreshCw, ChevronUp, ChevronDown, FileText, AlertCircle, AlertTriangle, UserPlus } from 'lucide-react';
 import { useI18n } from '../i18n';
-import { fetchDrivers } from '../lib/api';
+import { fetchDrivers, addDriver } from '../lib/api';
 import { formatDate, formatDateTime, daysLabel, daysColor, formatBytes } from '../lib/format';
 import { Card } from '../components/Card';
 import { Badge, StatusDot } from '../components/Badge';
@@ -36,6 +36,28 @@ export function DriversPage() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // Add driver modal
+  const [showAddDriver, setShowAddDriver] = useState(false);
+  const [newDriverName, setNewDriverName] = useState('');
+  const [addingDriver, setAddingDriver] = useState(false);
+  const [addDriverError, setAddDriverError] = useState('');
+
+  const handleAddDriver = useCallback(async () => {
+    if (!newDriverName.trim()) return;
+    setAddingDriver(true);
+    setAddDriverError('');
+    try {
+      await addDriver(newDriverName.trim());
+      setShowAddDriver(false);
+      setNewDriverName('');
+      load(true);
+    } catch (e: any) {
+      setAddDriverError(e.message);
+    } finally {
+      setAddingDriver(false);
+    }
+  }, [newDriverName, load]);
 
   // Overdue drivers (>28 days without download)
   const overdueDrivers = useMemo(() => {
@@ -120,6 +142,13 @@ export function DriversPage() {
           />
         </div>
         <div className="flex-1" />
+        <button
+          onClick={() => { setShowAddDriver(true); setNewDriverName(''); setAddDriverError(''); }}
+          className="flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
+        >
+          <UserPlus size={14} />
+          {t('driversAddDriver')}
+        </button>
         <button
           onClick={() => load(true)}
           disabled={loading}
@@ -233,6 +262,42 @@ export function DriversPage() {
           )}
         </Card>
       )}
+
+      {/* Add driver modal */}
+      <Modal open={showAddDriver} onClose={() => setShowAddDriver(false)} title={t('driversAddDriver')}>
+        <div className="space-y-4 p-5">
+          <div>
+            <label className="mb-1 block text-sm font-medium">{t('driversName')}</label>
+            <input
+              type="text"
+              value={newDriverName}
+              onChange={(e) => setNewDriverName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleAddDriver(); }}
+              placeholder={t('driversAddNamePlaceholder')}
+              autoFocus
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none transition focus:border-primary-400 focus:ring-2 focus:ring-primary-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:focus:ring-primary-900/40"
+            />
+          </div>
+          {addDriverError && (
+            <p className="text-sm text-red-500">{addDriverError}</p>
+          )}
+          <div className="flex justify-end gap-2">
+            <button
+              onClick={() => setShowAddDriver(false)}
+              className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium transition hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
+            >
+              {t('cancel')}
+            </button>
+            <button
+              onClick={handleAddDriver}
+              disabled={!newDriverName.trim() || addingDriver}
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-50"
+            >
+              {addingDriver ? t('loading') : t('save')}
+            </button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Driver files modal - all files shown, no date filtering */}
       <Modal open={!!selectedDriver} onClose={() => setSelectedDriver(null)} title={selectedDriver ? `${selectedDriver.name}${selectedDriver.card_number ? ` (${selectedDriver.card_number})` : ''}` : ''} wide>
