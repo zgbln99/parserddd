@@ -148,6 +148,7 @@ export const fetchSyncLog = () =>
 export interface LoginHistoryEntry {
   timestamp: string;
   role: string;
+  username?: string;
   ip: string;
   user_agent: string;
 }

@@ -197,11 +197,12 @@ def admin_required(f):
     return decorated
 
 
-def _record_login(role: str):
+def _record_login(role: str, username: str = ''):
     """Append a login event to the history file."""
     entry = {
         'timestamp': datetime.now(UTC).isoformat(),
         'role': role,
+        'username': username or role,
         'ip': request.remote_addr or '',
         'user_agent': request.headers.get('User-Agent', '')[:200],
     }
@@ -335,7 +336,7 @@ def api_login():
         session['logged_in'] = True
         session['role'] = 'admin'
         session['username'] = 'admin'
-        _record_login('admin')
+        _record_login('admin', 'admin')
         _clear_rate_limit(ip)
         return jsonify({'ok': True, 'role': 'admin', 'username': 'admin'})
     # Check hardcoded portal password
@@ -343,7 +344,7 @@ def api_login():
         session['logged_in'] = True
         session['role'] = 'user'
         session['username'] = 'user'
-        _record_login('user')
+        _record_login('user', 'user')
         _clear_rate_limit(ip)
         return jsonify({'ok': True, 'role': 'user', 'username': 'user'})
     # Check users from JSON file
@@ -354,7 +355,7 @@ def api_login():
             session['logged_in'] = True
             session['role'] = role
             session['username'] = u.get('name', '')
-            _record_login(role)
+            _record_login(role, u.get('name', ''))
             _clear_rate_limit(ip)
             return jsonify({'ok': True, 'role': role, 'username': u.get('name', '')})
     _record_failed_login(ip)

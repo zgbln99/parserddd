@@ -2,6 +2,7 @@ import { useEffect, useState, Fragment, useCallback } from 'react';
 import {
   AlertCircle, CheckCircle, XCircle, MinusCircle, ChevronDown, ChevronUp,
   Clock, Shield, History, Users, Key, Settings, Activity, Trash2, Plus,
+  ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import { useI18n } from '../i18n';
 import {
@@ -48,6 +49,7 @@ function LoginHistorySection() {
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50/80 dark:border-gray-800 dark:bg-gray-900/50">
                 <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('syncDate')}</th>
+                <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('adminUser')}</th>
                 <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('adminRole')}</th>
                 <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">IP</th>
                 <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('adminBrowser')}</th>
@@ -57,6 +59,7 @@ function LoginHistorySection() {
               {history.slice(0, 50).map((entry, i) => (
                 <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
                   <td className="whitespace-nowrap px-4 py-2 text-gray-500 dark:text-gray-400">{formatDateTime(entry.timestamp, locale)}</td>
+                  <td className="whitespace-nowrap px-4 py-2 font-medium">{entry.username || entry.role}</td>
                   <td className="whitespace-nowrap px-4 py-2">
                     <Badge variant={entry.role === 'admin' ? 'red' : 'gray'}>{entry.role}</Badge>
                   </td>
@@ -76,11 +79,14 @@ function LoginHistorySection() {
 /*  Activity Log                                                       */
 /* ------------------------------------------------------------------ */
 
+const ACTIVITY_PAGE_SIZE = 25;
+
 function ActivityLogSection() {
   const { t, locale } = useI18n();
   const [log, setLog] = useState<ActivityLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [page, setPage] = useState(0);
 
   useEffect(() => {
     fetchActivityLog()
@@ -90,6 +96,9 @@ function ActivityLogSection() {
 
   if (loading) return <Spinner />;
   if (error) return <p className="text-sm text-red-500">{error}</p>;
+
+  const totalPages = Math.max(1, Math.ceil(log.length / ACTIVITY_PAGE_SIZE));
+  const pageItems = log.slice(page * ACTIVITY_PAGE_SIZE, (page + 1) * ACTIVITY_PAGE_SIZE);
 
   const actionBadge = (action: string) => {
     if (action.startsWith('analyze')) return <Badge variant="blue">{action}</Badge>;
@@ -103,34 +112,60 @@ function ActivityLogSection() {
       <div className="mb-4 flex items-center gap-2">
         <Activity size={18} className="text-violet-500" />
         <h2 className="text-lg font-bold">{t('adminActivityLog')}</h2>
+        <span className="ml-auto text-xs text-gray-400">{log.length} total</span>
       </div>
       {log.length === 0 ? (
         <p className="py-8 text-center text-sm text-gray-400">{t('noData')}</p>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-100 bg-gray-50/80 dark:border-gray-800 dark:bg-gray-900/50">
-                <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('syncDate')}</th>
-                <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('adminUser')}</th>
-                <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('adminAction')}</th>
-                <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('adminDetail')}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
-              {log.slice(0, 100).map((entry, i) => (
-                <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
-                  <td className="whitespace-nowrap px-4 py-2 text-gray-500 dark:text-gray-400">{formatDateTime(entry.timestamp, locale)}</td>
-                  <td className="whitespace-nowrap px-4 py-2">
-                    <span className="font-medium">{entry.username || entry.role}</span>
-                  </td>
-                  <td className="whitespace-nowrap px-4 py-2">{actionBadge(entry.action)}</td>
-                  <td className="max-w-[400px] truncate px-4 py-2 text-xs text-gray-500">{entry.detail}</td>
+        <>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-100 bg-gray-50/80 dark:border-gray-800 dark:bg-gray-900/50">
+                  <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('syncDate')}</th>
+                  <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('adminUser')}</th>
+                  <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('adminAction')}</th>
+                  <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('adminDetail')}</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
+                {pageItems.map((entry, i) => (
+                  <tr key={page * ACTIVITY_PAGE_SIZE + i} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                    <td className="whitespace-nowrap px-4 py-2 text-gray-500 dark:text-gray-400">{formatDateTime(entry.timestamp, locale)}</td>
+                    <td className="whitespace-nowrap px-4 py-2">
+                      <span className="font-medium">{entry.username || entry.role}</span>
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-2">{actionBadge(entry.action)}</td>
+                    <td className="max-w-[400px] truncate px-4 py-2 text-xs text-gray-500">{entry.detail}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {totalPages > 1 && (
+            <div className="mt-4 flex items-center justify-center gap-3">
+              <button
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+                disabled={page === 0}
+                className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-semibold text-gray-600 transition hover:bg-gray-100 disabled:opacity-30 dark:text-gray-400 dark:hover:bg-gray-800"
+              >
+                <ChevronLeft size={14} />
+                {t('pagePrev')}
+              </button>
+              <span className="text-xs text-gray-500">
+                {page + 1} {t('pageOf')} {totalPages}
+              </span>
+              <button
+                onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+                disabled={page >= totalPages - 1}
+                className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-semibold text-gray-600 transition hover:bg-gray-100 disabled:opacity-30 dark:text-gray-400 dark:hover:bg-gray-800"
+              >
+                {t('pageNext')}
+                <ChevronRight size={14} />
+              </button>
+            </div>
+          )}
+        </>
       )}
     </Card>
   );
