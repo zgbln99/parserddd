@@ -1,7 +1,8 @@
-import { useMemo, useState, useCallback, useRef } from 'react';
+import { useMemo, useState, useCallback, useRef, useEffect } from 'react';
 import { useI18n } from '../i18n';
 import { formatDate } from '../lib/format';
-import { exportCsv, exportPdf, exportDatev } from '../lib/api';
+import { exportCsv, exportPdf, exportDatev, fetchDriverConfig } from '../lib/api';
+import type { DriverConfig } from '../lib/api';
 import { Badge } from '../components/Badge';
 import { BarChart } from '../components/BarChart';
 import { Download, FileText, ClipboardCopy, Check, Printer, BarChart3, UtensilsCrossed, Table2, Settings } from 'lucide-react';
@@ -46,6 +47,16 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
   const di = data.driver_info;
   const allShifts = data.shift_details;
   const [showConfig, setShowConfig] = useState(false);
+  const [driverConfig, setDriverConfig] = useState<DriverConfig | null>(null);
+
+  // Load driver config for VMA calculation
+  useEffect(() => {
+    if (di.card_number) {
+      fetchDriverConfig(di.card_number)
+        .then(setDriverConfig)
+        .catch(() => setDriverConfig(null));
+    }
+  }, [di.card_number]);
 
   // Filter shifts by date range
   const shifts = useMemo(() => {
@@ -100,6 +111,18 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
       total_shifts: shifts.length,
     };
   }, [data.summary, shifts, dateFrom, dateTo]);
+
+  // VMA calculation
+  const vma = useMemo(() => {
+    const dietRate = driverConfig?.diet_rate ?? 14.0;
+    const doubleDiet = driverConfig?.double_diet === 1;
+    const ratePerDay = doubleDiet ? dietRate * 2 : dietRate;
+    return {
+      amount: s.diet_count * ratePerDay,
+      ratePerDay,
+      doubleDiet,
+    };
+  }, [s.diet_count, driverConfig]);
 
   const handleExport = () => {
     exportCsv(di.driver_name || 'driver', shifts);
@@ -316,7 +339,10 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
         <div className="rounded-xl border border-green-200 bg-green-50 p-4 text-center dark:border-green-800 dark:bg-green-900/30">
           <p className="text-[0.65rem] font-bold uppercase tracking-wider text-green-500 dark:text-green-400">{t('analysisDietCount')}</p>
           <p className="mt-1 text-2xl font-extrabold text-green-700 dark:text-green-300">{s.diet_count}</p>
-          <p className="mt-0.5 text-xs text-green-500/70 dark:text-green-400/70">{t('analysisTotalShifts')}: {s.total_shifts}</p>
+          <p className="mt-0.5 text-xs font-semibold text-green-600 dark:text-green-400">
+            {vma.amount.toFixed(2).replace('.', ',')} €
+            {vma.doubleDiet && <span className="ml-1 text-[10px] font-normal opacity-70">(2×{vma.ratePerDay / 2}€)</span>}
+          </p>
         </div>
       </div>
 
