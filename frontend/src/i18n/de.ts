@@ -2,7 +2,7 @@ import type { TranslationKey } from './pl';
 
 export const de: Record<TranslationKey, string> = {
   // General
-  appName: 'DDD-Portal',
+  appName: 'LTS Logistik GmbH | Tachoprüfung',
   appSubtitle: 'Tachographen-Dateien herunterladen',
   loading: 'Wird geladen...',
   error: 'Fehler',
@@ -25,7 +25,7 @@ export const de: Record<TranslationKey, string> = {
   login: 'Anmelden',
   logout: 'Abmelden',
   password: 'Passwort',
-  loginTitle: 'DDD-Portal',
+  loginTitle: 'LTS Logistik GmbH | Tachoprüfung',
   loginSubtitle: 'Tachographen-Dateien herunterladen',
   loginError: 'Falsches Passwort',
   loginPlaceholder: 'Passwort eingeben',
@@ -234,6 +234,7 @@ export const de: Record<TranslationKey, string> = {
   compareAvgDuration: 'Ø Arbeitszeit',
   compareTotalShifts: 'Schichten',
   comparePrint: 'Bericht drucken',
+  compareExportPdf: 'PDF-Export',
 
   // Time
   timeAgo: 'her',

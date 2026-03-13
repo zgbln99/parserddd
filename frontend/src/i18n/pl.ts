@@ -1,6 +1,6 @@
 export const pl = {
   // General
-  appName: 'Portal DDD',
+  appName: 'LTS Logistik GmbH | Tachoprüfung',
   appSubtitle: 'Pobieranie plików z tachografu',
   loading: 'Wczytywanie...',
   error: 'Błąd',
@@ -23,7 +23,7 @@ export const pl = {
   login: 'Zaloguj się',
   logout: 'Wyloguj',
   password: 'Hasło',
-  loginTitle: 'Portal DDD',
+  loginTitle: 'LTS Logistik GmbH | Tachoprüfung',
   loginSubtitle: 'Pobieranie plików z tachografu',
   loginError: 'Nieprawidłowe hasło',
   loginPlaceholder: 'Wprowadź hasło',
@@ -232,6 +232,7 @@ export const pl = {
   compareAvgDuration: 'Śr. czas pracy',
   compareTotalShifts: 'Zmian',
   comparePrint: 'Drukuj raport',
+  compareExportPdf: 'Eksport PDF',
 
   // Time
   timeAgo: 'temu',

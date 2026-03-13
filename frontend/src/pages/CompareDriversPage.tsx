@@ -1,5 +1,7 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
-import { Search, GitCompareArrows, Printer, Play } from 'lucide-react';
+import { Search, GitCompareArrows, Printer, Play, FileDown } from 'lucide-react';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { useI18n } from '../i18n';
 import { fetchDrivers, compareDrivers, type CompareDriverResult } from '../lib/api';
 import { Card } from '../components/Card';
@@ -125,6 +127,20 @@ export function CompareDriversPage() {
     });
   }, [results]);
 
+  // Build shift lookup for comparison table (must be before any conditional returns – Rules of Hooks)
+  const shiftLookup = useMemo(() => {
+    if (!results) return new Map<string, Map<string, { start: string; end: string; duration_hm: string }>>();
+    const map = new Map<string, Map<string, { start: string; end: string; duration_hm: string }>>();
+    for (const r of results) {
+      const driverMap = new Map<string, { start: string; end: string; duration_hm: string }>();
+      for (const sh of r.shifts) {
+        driverMap.set(sh.date, { start: timeOnly(sh.start), end: timeOnly(sh.end), duration_hm: sh.duration_hm });
+      }
+      map.set(r.driver_name, driverMap);
+    }
+    return map;
+  }, [results]);
+
   const handlePrint = useCallback(() => {
     if (!results || results.length === 0) return;
     const pw = window.open('', '_blank');
@@ -173,6 +189,70 @@ export function CompareDriversPage() {
     pw.print();
   }, [results, allDates, t, locale]);
 
+  const handleExportPdf = useCallback(() => {
+    if (!results || results.length === 0) return;
+
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+
+    doc.setFontSize(16);
+    doc.text(t('compareTitle'), 14, 15);
+    doc.setFontSize(9);
+    doc.setTextColor(100);
+    doc.text(new Date().toLocaleDateString(locale === 'de' ? 'de-DE' : 'pl-PL'), 14, 21);
+    doc.setTextColor(0);
+
+    // Stats table
+    doc.setFontSize(11);
+    doc.text(t('compareTotalShifts'), 14, 30);
+
+    const statsHead = [[t('driversName'), t('compareTotalShifts'), t('compareAvgStart'), t('compareAvgEnd'), t('compareAvgDuration')]];
+    const statsBody = driverStats.map((ds) => [ds.name, String(ds.totalShifts), ds.avgStart, ds.avgEnd, ds.avgDuration]);
+
+    autoTable(doc, {
+      startY: 33,
+      head: statsHead,
+      body: statsBody,
+      styles: { fontSize: 8, cellPadding: 2 },
+      headStyles: { fillColor: [59, 130, 246] },
+    });
+
+    // Comparison table
+    const afterStats = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 8;
+    doc.setFontSize(11);
+    doc.text(t('compareDate'), 14, afterStats);
+
+    const compHead = [
+      [t('compareDate'), ...results.flatMap((r) => [{ content: r.driver_name, colSpan: 3 }])],
+      ['', ...results.flatMap(() => [t('compareStart'), t('compareEnd'), t('compareDuration')])],
+    ];
+
+    const compBody = allDates.map((date) => {
+      let wd = '';
+      for (const r of results) {
+        const sh = r.shifts.find((s) => s.date === date);
+        if (sh) { wd = localWd(sh.weekday, locale); break; }
+      }
+      const dateCell = `${date} ${wd}`;
+      const cells = results.flatMap((r) => {
+        const sh = shiftLookup.get(r.driver_name)?.get(date);
+        return sh ? [sh.start, sh.end, sh.duration_hm] : ['—', '—', '—'];
+      });
+      return [dateCell, ...cells];
+    });
+
+    autoTable(doc, {
+      startY: afterStats + 3,
+      head: compHead,
+      body: compBody,
+      styles: { fontSize: 7, cellPadding: 1.5, halign: 'center' },
+      headStyles: { fillColor: [59, 130, 246], fontSize: 7 },
+      columnStyles: { 0: { halign: 'left', fontStyle: 'bold' } },
+    });
+
+    const driverNames = results.map((r) => r.driver_name.split(' ')[0]).join('_');
+    doc.save(`vergleich_${driverNames}.pdf`);
+  }, [results, allDates, driverStats, shiftLookup, t, locale]);
+
   if (loading) {
     return (
       <div className="flex flex-col items-center gap-3 py-20">
@@ -183,20 +263,6 @@ export function CompareDriversPage() {
   }
 
   const inputCls = 'rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none transition focus:border-primary-400 focus:ring-2 focus:ring-primary-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:focus:ring-primary-900/40';
-
-  // Build shift lookup for comparison table
-  const shiftLookup = useMemo(() => {
-    if (!results) return new Map<string, Map<string, { start: string; end: string; duration_hm: string }>>();
-    const map = new Map<string, Map<string, { start: string; end: string; duration_hm: string }>>();
-    for (const r of results) {
-      const driverMap = new Map<string, { start: string; end: string; duration_hm: string }>();
-      for (const sh of r.shifts) {
-        driverMap.set(sh.date, { start: timeOnly(sh.start), end: timeOnly(sh.end), duration_hm: sh.duration_hm });
-      }
-      map.set(r.driver_name, driverMap);
-    }
-    return map;
-  }, [results]);
 
   return (
     <div className="space-y-6">
@@ -364,8 +430,15 @@ export function CompareDriversPage() {
             </div>
           </Card>
 
-          {/* Print button */}
-          <div className="flex justify-center pt-2">
+          {/* Print & PDF buttons */}
+          <div className="flex justify-center gap-3 pt-2">
+            <button
+              onClick={handleExportPdf}
+              className="flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700"
+            >
+              <FileDown size={16} />
+              {t('compareExportPdf')}
+            </button>
             <button
               onClick={handlePrint}
               className="flex items-center gap-2 rounded-xl border border-gray-200 px-5 py-2.5 text-sm font-semibold text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-800"
