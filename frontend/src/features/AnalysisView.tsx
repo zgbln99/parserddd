@@ -150,7 +150,8 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
   // Chart data: per-shift stacked bars
   const chartBars = useMemo(() => {
     return shifts.map((sh) => ({
-      label: sh.shift_date.slice(5), // MM-DD
+      label: sh.shift_date.slice(8), // DD
+      sublabel: localizeWeekday(sh.weekday, locale),
       segments: [
         { value: sh.driving_minutes / 60, color: '#3b82f6', name: t('analysisDriving') },
         { value: sh.work_only_minutes / 60, color: '#8b5cf6', name: t('analysisWork') },
@@ -159,7 +160,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
         { value: sh.night_40_minutes / 60, color: '#6366f1', name: t('analysisNight40') },
       ],
     }));
-  }, [shifts, t]);
+  }, [shifts, t, locale]);
 
   const handlePrint = useCallback(() => {
     if (!printRef.current) return;
