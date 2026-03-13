@@ -172,6 +172,8 @@ export function SettlementPage() {
     return `${h}:${String(m).padStart(2, '0')}`;
   };
 
+  const fmtDec = (min: number) => (min / 60).toFixed(2).replace('.', ',');
+
   const fmtEur = (val: number) => val.toFixed(2).replace('.', ',') + ' €';
 
   const monthLabel = (p: string) => {
@@ -282,12 +284,12 @@ export function SettlementPage() {
             </Card>
             <Card className="p-4 text-center">
               <Moon size={20} className="mx-auto mb-1 text-indigo-500" />
-              <p className="text-2xl font-bold">{fmtH(totals.n25)}</p>
+              <p className="text-2xl font-bold">{fmtDec(totals.n25)}</p>
               <p className="text-xs text-gray-500">{t('analysisNight25')}</p>
             </Card>
             <Card className="p-4 text-center">
               <Moon size={20} className="mx-auto mb-1 text-purple-500" />
-              <p className="text-2xl font-bold">{fmtH(totals.n40)}</p>
+              <p className="text-2xl font-bold">{fmtDec(totals.n40)}</p>
               <p className="text-xs text-gray-500">{t('analysisNight40')}</p>
             </Card>
             <Card className="p-4 text-center">
@@ -334,8 +336,8 @@ export function SettlementPage() {
                         <Badge variant="gray">{d.summary.total_shifts}</Badge>
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 text-right font-mono">{d.summary.total_work_hm}</td>
-                      <td className="whitespace-nowrap px-4 py-3 text-right font-mono text-indigo-600 dark:text-indigo-400">{d.summary.night_25_hm}</td>
-                      <td className="whitespace-nowrap px-4 py-3 text-right font-mono text-purple-600 dark:text-purple-400">{d.summary.night_40_hm}</td>
+                      <td className="whitespace-nowrap px-4 py-3 text-right font-mono text-indigo-600 dark:text-indigo-400">{fmtDec(d.summary.night_25_minutes)}</td>
+                      <td className="whitespace-nowrap px-4 py-3 text-right font-mono text-purple-600 dark:text-purple-400">{fmtDec(d.summary.night_40_minutes)}</td>
                       <td className="whitespace-nowrap px-4 py-3 text-right">
                         {d.summary.diet_count > 0 ? (
                           <Badge variant={d.double_diet ? 'blue' : 'gray'}>
@@ -354,8 +356,8 @@ export function SettlementPage() {
                     <td className="px-4 py-3" colSpan={3}>{t('settlementTotal')}</td>
                     <td className="whitespace-nowrap px-4 py-3 text-right">{totals.shifts}</td>
                     <td className="whitespace-nowrap px-4 py-3 text-right font-mono">{fmtH(totals.work)}</td>
-                    <td className="whitespace-nowrap px-4 py-3 text-right font-mono text-indigo-600 dark:text-indigo-400">{fmtH(totals.n25)}</td>
-                    <td className="whitespace-nowrap px-4 py-3 text-right font-mono text-purple-600 dark:text-purple-400">{fmtH(totals.n40)}</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-right font-mono text-indigo-600 dark:text-indigo-400">{fmtDec(totals.n25)}</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-right font-mono text-purple-600 dark:text-purple-400">{fmtDec(totals.n40)}</td>
                     <td className="whitespace-nowrap px-4 py-3 text-right">{totals.diets}</td>
                     <td className="whitespace-nowrap px-4 py-3 text-right font-semibold text-green-600 dark:text-green-400">{fmtEur(totals.vma)}</td>
                   </tr>

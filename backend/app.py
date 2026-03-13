@@ -1218,18 +1218,16 @@ def api_export_datev_batch():
             'Nacht 25%', 'Nacht 40%', 'VMA', 'Fahrzeug',
         ])
         for s in shifts:
-            n25 = fmt_de(s.get('night_25_minutes', 0) / 60)
-            n40 = fmt_de(s.get('night_40_minutes', 0) / 60)
             writer.writerow([
                 s.get('shift_date', ''),
                 s.get('weekday', ''),
                 s.get('shift_start', '').split(' ')[-1] if ' ' in s.get('shift_start', '') else s.get('shift_start', ''),
                 s.get('shift_end', '').split(' ')[-1] if ' ' in s.get('shift_end', '') else s.get('shift_end', ''),
-                s.get('work_hm', ''),
-                s.get('driving_hm', ''),
-                s.get('break_hm', ''),
-                n25,
-                n40,
+                fmt_de(s.get('work_minutes', 0) / 60),
+                fmt_de(s.get('driving_minutes', 0) / 60),
+                fmt_de(s.get('break_minutes', 0) / 60),
+                fmt_de(s.get('night_25_minutes', 0) / 60),
+                fmt_de(s.get('night_40_minutes', 0) / 60),
                 'JA' if s.get('has_diet') else '',
                 ', '.join(s.get('vehicles', [])),
             ])
@@ -1901,18 +1899,16 @@ def api_export_datev():
         'Nacht 25%', 'Nacht 40%', 'VMA', 'Fahrzeug',
     ])
     for s in shifts:
-        n25 = fmt_de(s.get('night_25_minutes', 0) / 60)
-        n40 = fmt_de(s.get('night_40_minutes', 0) / 60)
         writer.writerow([
             s.get('shift_date', ''),
             s.get('weekday', ''),
             s.get('shift_start', ''),
             s.get('shift_end', ''),
-            s.get('work_hm', ''),
-            s.get('driving_hm', ''),
-            s.get('break_hm', ''),
-            n25,
-            n40,
+            fmt_de(s.get('work_minutes', 0) / 60),
+            fmt_de(s.get('driving_minutes', 0) / 60),
+            fmt_de(s.get('break_minutes', 0) / 60),
+            fmt_de(s.get('night_25_minutes', 0) / 60),
+            fmt_de(s.get('night_40_minutes', 0) / 60),
             'JA' if s.get('has_diet') else '',
             ', '.join(s.get('vehicles', [])),
         ])
