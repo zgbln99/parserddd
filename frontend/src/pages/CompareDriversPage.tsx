@@ -201,65 +201,166 @@ export function CompareDriversPage() {
     if (!results || results.length === 0) return;
 
     const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+    const pageW = doc.internal.pageSize.getWidth();
+    const localeStr = locale === 'de' ? 'de-DE' : 'pl-PL';
+    const monthNames = locale === 'de'
+      ? ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember']
+      : ['Styczeń','Luty','Marzec','Kwiecień','Maj','Czerwiec','Lipiec','Sierpień','Wrzesień','Październik','Listopad','Grudzień'];
 
-    doc.setFontSize(16);
-    doc.text(t('compareTitle'), 14, 15);
+    // Group dates by month (YYYY-MM)
+    const monthMap = new Map<string, string[]>();
+    for (const date of allDates) {
+      const ym = date.substring(0, 7); // YYYY-MM
+      if (!monthMap.has(ym)) monthMap.set(ym, []);
+      monthMap.get(ym)!.push(date);
+    }
+    const months = Array.from(monthMap.keys()).sort();
+
+    // Weekend check helpers
+    const isWeekendDate = (date: string) => {
+      for (const r of results) {
+        const sh = r.shifts.find((s) => s.date === date);
+        if (sh) {
+          const wd = localWd(sh.weekday, locale);
+          return wd === 'So' || wd === 'Sa' || wd === 'Nd';
+        }
+      }
+      return false;
+    };
+
+    const getWd = (date: string) => {
+      for (const r of results) {
+        const sh = r.shifts.find((s) => s.date === date);
+        if (sh) return localWd(sh.weekday, locale);
+      }
+      return '';
+    };
+
+    // Table head for comparison (reused per month)
+    const compHead = [
+      [{ content: t('compareDate'), styles: { halign: 'left' as const } }, ...results.flatMap((r) => [{ content: r.driver_name, colSpan: 3 }])],
+      [{ content: '', styles: { halign: 'left' as const } }, ...results.flatMap(() => [t('compareStart'), t('compareEnd'), t('compareDuration')])],
+    ];
+
+    // Colors
+    const blue: [number, number, number] = [37, 99, 235];
+    const greenText: [number, number, number] = [21, 128, 61];
+    const redText: [number, number, number] = [220, 38, 38];
+    const grayText: [number, number, number] = [100, 100, 100];
+    const weekendBg: [number, number, number] = [254, 242, 242];
+
+    // --- Page 1: Summary ---
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text(t('compareTitle'), 14, 14);
     doc.setFontSize(9);
-    doc.setTextColor(100);
-    doc.text(new Date().toLocaleDateString(locale === 'de' ? 'de-DE' : 'pl-PL'), 14, 21);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(120);
+    doc.text(`${new Date().toLocaleDateString(localeStr)}  |  ${dateFrom || '...'} — ${dateTo || '...'}`, 14, 20);
     doc.setTextColor(0);
 
     // Stats table
-    doc.setFontSize(11);
-    doc.text(t('compareTotalShifts'), 14, 30);
-
     const statsHead = [[t('driversName'), t('compareTotalShifts'), t('compareAvgStart'), t('compareAvgEnd'), t('compareAvgDuration')]];
     const statsBody = driverStats.map((ds) => [ds.name, String(ds.totalShifts), ds.avgStart, ds.avgEnd, ds.avgDuration]);
 
     autoTable(doc, {
-      startY: 33,
+      startY: 26,
       head: statsHead,
       body: statsBody,
-      styles: { fontSize: 8, cellPadding: 2 },
-      headStyles: { fillColor: [59, 130, 246] },
+      styles: { fontSize: 9, cellPadding: 3 },
+      headStyles: { fillColor: blue, textColor: 255, fontStyle: 'bold', fontSize: 8 },
+      alternateRowStyles: { fillColor: [248, 250, 252] },
+      columnStyles: {
+        0: { fontStyle: 'bold' },
+        1: { halign: 'center' },
+        2: { halign: 'center', textColor: greenText },
+        3: { halign: 'center', textColor: redText },
+        4: { halign: 'center', fontStyle: 'bold' },
+      },
     });
 
-    // Comparison table
-    const afterStats = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 8;
-    doc.setFontSize(11);
-    doc.text(t('compareDate'), 14, afterStats);
+    // --- One page per month ---
+    for (const ym of months) {
+      doc.addPage('a4', 'landscape');
+      const [year, mon] = ym.split('-').map(Number);
+      const monthLabel = `${monthNames[mon - 1]} ${year}`;
 
-    const compHead = [
-      [t('compareDate'), ...results.flatMap((r) => [{ content: r.driver_name, colSpan: 3 }])],
-      ['', ...results.flatMap(() => [t('compareStart'), t('compareEnd'), t('compareDuration')])],
-    ];
+      // Header
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(0);
+      doc.text(monthLabel, 14, 14);
 
-    const compBody = allDates.map((date) => {
-      let wd = '';
-      for (const r of results) {
-        const sh = r.shifts.find((s) => s.date === date);
-        if (sh) { wd = localWd(sh.weekday, locale); break; }
-      }
-      const dateCell = `${date} ${wd}`;
-      const cells = results.flatMap((r) => {
-        const sh = shiftLookup.get(r.driver_name)?.get(date);
-        return sh ? [sh.start, sh.end, sh.duration_hm] : ['—', '—', '—'];
+      // Driver names on the right
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(100);
+      const names = results.map((r) => r.driver_name).join('  |  ');
+      doc.text(names, pageW - 14, 14, { align: 'right' });
+      doc.setTextColor(0);
+
+      const dates = monthMap.get(ym)!;
+
+      const compBody = dates.map((date) => {
+        const day = date.substring(8); // DD
+        const wd = getWd(date);
+        const dateCell = `${day} ${wd}`;
+        const cells = results.flatMap((r) => {
+          const sh = shiftLookup.get(r.driver_name)?.get(date);
+          return sh ? [sh.start, sh.end, sh.duration_hm] : ['—', '—', '—'];
+        });
+        return [dateCell, ...cells];
       });
-      return [dateCell, ...cells];
-    });
 
-    autoTable(doc, {
-      startY: afterStats + 3,
-      head: compHead,
-      body: compBody,
-      styles: { fontSize: 7, cellPadding: 1.5, halign: 'center' },
-      headStyles: { fillColor: [59, 130, 246], fontSize: 7 },
-      columnStyles: { 0: { halign: 'left', fontStyle: 'bold' } },
-    });
+      autoTable(doc, {
+        startY: 19,
+        head: compHead,
+        body: compBody,
+        styles: { fontSize: 7, cellPadding: 1.8, halign: 'center', lineWidth: 0.1, lineColor: [220, 220, 220] },
+        headStyles: { fillColor: blue, textColor: 255, fontStyle: 'bold', fontSize: 7, cellPadding: 2.5 },
+        columnStyles: { 0: { halign: 'left', fontStyle: 'bold', cellWidth: 22 } },
+        didParseCell: (data: any) => {
+          if (data.section !== 'body') return;
+          const rowDate = dates[data.row.index];
+          if (!rowDate) return;
+
+          // Weekend row background
+          if (isWeekendDate(rowDate)) {
+            data.cell.styles.fillColor = weekendBg;
+          }
+
+          // Color start/end/duration columns per driver
+          const colIdx = data.column.index;
+          if (colIdx === 0) return; // date column
+          const posInGroup = (colIdx - 1) % 3;
+          if (posInGroup === 0) data.cell.styles.textColor = greenText;      // start
+          else if (posInGroup === 1) data.cell.styles.textColor = redText;   // end
+          else data.cell.styles.textColor = grayText;                         // duration
+        },
+        margin: { left: 14, right: 14 },
+      });
+
+      // Month stats footer
+      const dateSet = new Set(dates);
+      const footerY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 5;
+      doc.setFontSize(7);
+      doc.setTextColor(100);
+      let footerX = 14;
+      for (const r of results) {
+        const fs = r.shifts.filter((sh) => dateSet.has(sh.date));
+        const starts = fs.map((sh) => timeOnly(sh.start));
+        const ends = fs.map((sh) => timeOnly(sh.end));
+        const totalWork = fs.reduce((s, sh) => s + sh.work_minutes, 0);
+        const avgDur = fs.length ? minutesToHm(Math.round(totalWork / fs.length)) : '—';
+        const txt = `${r.driver_name}: ${fs.length} ${t('compareTotalShifts').toLowerCase()}, Ø ${avgTime(starts)}–${avgTime(ends)}, Ø ${avgDur}`;
+        doc.text(txt, footerX, footerY);
+        footerX += (pageW - 28) / results.length;
+      }
+    }
 
     const driverNames = results.map((r) => r.driver_name.split(' ')[0]).join('_');
     doc.save(`vergleich_${driverNames}.pdf`);
-  }, [results, allDates, driverStats, shiftLookup, t, locale]);
+  }, [results, allDates, driverStats, shiftLookup, t, locale, dateFrom, dateTo]);
 
   if (loading) {
     return (
