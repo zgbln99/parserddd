@@ -52,10 +52,10 @@ export function AnalysisPage() {
           {t('back')}
         </button>
         <div className="min-w-0">
-          <h1 className="truncate text-2xl font-bold tracking-tight">{fileName}</h1>
-          {driverName && (
-            <p className="text-sm text-gray-500 dark:text-gray-400">{driverName}</p>
-          )}
+          <h1 className="truncate text-2xl font-bold tracking-tight">
+            {data?.driver_info?.driver_name || driverName || fileName}
+          </h1>
+          <p className="truncate text-sm text-gray-500 dark:text-gray-400">{fileName}</p>
         </div>
       </div>
 

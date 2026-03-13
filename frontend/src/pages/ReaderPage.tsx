@@ -156,9 +156,16 @@ export function ReaderPage() {
       {result && (
         <div>
           <div className="mb-4 flex items-center justify-between">
-            <div className="flex items-center gap-2 text-sm text-gray-500">
-              <FileText size={16} />
-              {result.source_file || t('analysisTitle')}
+            <div className="min-w-0">
+              <p className="truncate text-lg font-semibold text-gray-900 dark:text-gray-100">
+                {result.driver_info?.driver_name || result.source_file || t('analysisTitle')}
+              </p>
+              {result.source_file && result.driver_info?.driver_name && (
+                <div className="flex items-center gap-1.5 text-sm text-gray-500">
+                  <FileText size={14} />
+                  {result.source_file}
+                </div>
+              )}
             </div>
             <div className="flex items-center gap-2">
               {saved ? (
