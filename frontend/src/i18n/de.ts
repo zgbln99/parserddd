@@ -191,6 +191,16 @@ export const de: Record<TranslationKey, string> = {
   pageNext: 'Nächste',
   pagePrev: 'Vorherige',
 
+  // Driver config
+  driverConfig: 'Fahrerkonfiguration',
+  driverPersonalNr: 'Personalnummer',
+  driverDoubleDiet: 'Doppelte Verpflegung',
+  driverDietRate: 'Verpflegungssatz',
+  driverNotes: 'Notizen',
+  driverNotesPlaceholder: 'Zusätzliche Informationen...',
+  driverConfigs: 'Fahrerkonfigurationen',
+  driverNoConfigs: 'Keine Fahrerkonfigurationen',
+
   // Time
   timeAgo: 'her',
   timeJustNow: 'gerade eben',

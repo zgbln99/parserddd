@@ -12,6 +12,7 @@ import io
 import json
 import os
 import re
+import sqlite3
 import subprocess
 import tempfile
 import threading
@@ -55,6 +56,7 @@ USERS_FILE = os.environ.get('USERS_FILE', '/opt/ddd-reader/users.json')
 ACTIVITY_LOG_FILE = os.environ.get('ACTIVITY_LOG_FILE', '/opt/ddd-reader/activity_log.json')
 CONFIG_FILE = os.environ.get('CONFIG_FILE', '/opt/ddd-reader/config.json')
 _activity_lock = threading.Lock()
+DATABASE_FILE = os.environ.get('DATABASE_FILE', '/opt/ddd-reader/ddd_portal.db')
 DROPBOX_APP_KEY = os.environ.get('DROPBOX_APP_KEY', 'j9ntkihedd9495i')
 DROPBOX_APP_SECRET = os.environ.get('DROPBOX_APP_SECRET', 'd3hr43reha9kky8')
 DROPBOX_REFRESH_TOKEN = os.environ.get('DROPBOX_REFRESH_TOKEN', '')
@@ -68,6 +70,44 @@ FRONTEND_DIR = os.environ.get(
     'FRONTEND_DIR',
     os.path.join(os.path.dirname(__file__), '..', 'frontend', 'dist'),
 )
+
+# ---------------------------------------------------------------------------
+# Database
+# ---------------------------------------------------------------------------
+
+
+def _get_db() -> sqlite3.Connection:
+    """Get a thread-local SQLite connection."""
+    conn = sqlite3.connect(DATABASE_FILE)
+    conn.row_factory = sqlite3.Row
+    conn.execute('PRAGMA journal_mode=WAL')
+    conn.execute('PRAGMA foreign_keys=ON')
+    return conn
+
+
+def _init_db():
+    """Create database tables if they don't exist."""
+    os.makedirs(os.path.dirname(DATABASE_FILE), exist_ok=True)
+    conn = _get_db()
+    conn.executescript('''
+        CREATE TABLE IF NOT EXISTS driver_config (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            card_number   TEXT UNIQUE NOT NULL,
+            driver_name   TEXT NOT NULL DEFAULT '',
+            personal_nr   TEXT NOT NULL DEFAULT '',
+            double_diet   INTEGER NOT NULL DEFAULT 0,
+            diet_rate     REAL NOT NULL DEFAULT 14.0,
+            notes         TEXT NOT NULL DEFAULT '',
+            created_at    TEXT NOT NULL,
+            updated_at    TEXT NOT NULL
+        );
+    ''')
+    conn.commit()
+    conn.close()
+
+
+_init_db()
+
 
 # ---------------------------------------------------------------------------
 # Auth helpers
@@ -1057,6 +1097,97 @@ def api_activity_log():
         return jsonify({'error': str(e)}), 500
 
 
+# --- Driver config ---
+
+@app.route('/api/driver-config')
+@login_required
+def api_list_driver_configs():
+    """List all driver configs."""
+    conn = _get_db()
+    rows = conn.execute('SELECT * FROM driver_config ORDER BY driver_name').fetchall()
+    conn.close()
+    return jsonify({'configs': [dict(r) for r in rows]})
+
+
+@app.route('/api/driver-config/<card_number>')
+@login_required
+def api_get_driver_config(card_number):
+    """Get config for a specific driver by card number."""
+    conn = _get_db()
+    row = conn.execute('SELECT * FROM driver_config WHERE card_number = ?', (card_number,)).fetchone()
+    conn.close()
+    if row:
+        return jsonify(dict(row))
+    return jsonify({
+        'card_number': card_number,
+        'driver_name': '',
+        'personal_nr': '',
+        'double_diet': 0,
+        'diet_rate': 14.0,
+        'notes': '',
+    })
+
+
+@app.route('/api/driver-config', methods=['POST'])
+@admin_required
+def api_upsert_driver_config():
+    """Create or update a driver config."""
+    data = request.get_json(silent=True) or {}
+    card_number = data.get('card_number', '').strip()
+    if not card_number:
+        return jsonify({'error': 'card_number required'}), 400
+
+    now = datetime.now(UTC).isoformat()
+    conn = _get_db()
+    existing = conn.execute('SELECT id FROM driver_config WHERE card_number = ?', (card_number,)).fetchone()
+
+    if existing:
+        conn.execute('''
+            UPDATE driver_config SET
+                driver_name = ?, personal_nr = ?, double_diet = ?,
+                diet_rate = ?, notes = ?, updated_at = ?
+            WHERE card_number = ?
+        ''', (
+            data.get('driver_name', ''),
+            data.get('personal_nr', ''),
+            1 if data.get('double_diet') else 0,
+            float(data.get('diet_rate', 14.0)),
+            data.get('notes', ''),
+            now,
+            card_number,
+        ))
+    else:
+        conn.execute('''
+            INSERT INTO driver_config (card_number, driver_name, personal_nr, double_diet, diet_rate, notes, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            card_number,
+            data.get('driver_name', ''),
+            data.get('personal_nr', ''),
+            1 if data.get('double_diet') else 0,
+            float(data.get('diet_rate', 14.0)),
+            data.get('notes', ''),
+            now, now,
+        ))
+
+    conn.commit()
+    conn.close()
+    _log_activity('save_driver_config', f"{card_number} — {data.get('driver_name', '')}")
+    return jsonify({'ok': True})
+
+
+@app.route('/api/driver-config/<int:config_id>', methods=['DELETE'])
+@admin_required
+def api_delete_driver_config(config_id):
+    """Delete a driver config."""
+    conn = _get_db()
+    conn.execute('DELETE FROM driver_config WHERE id = ?', (config_id,))
+    conn.commit()
+    conn.close()
+    _log_activity('delete_driver_config', f"id={config_id}")
+    return jsonify({'ok': True})
+
+
 # --- User management ---
 
 @app.route('/api/admin/users')
@@ -1177,8 +1308,15 @@ def api_export_datev():
     shifts = payload.get('shifts', [])
     period = payload.get('period', '')  # YYYY-MM
 
-    # VMA daily rate (Germany, 8-24h absence)
-    VMA_RATE = 14.0
+    # Load driver config from DB
+    conn = _get_db()
+    dcfg = conn.execute('SELECT * FROM driver_config WHERE card_number = ?', (card_number,)).fetchone()
+    conn.close()
+    dcfg = dict(dcfg) if dcfg else {}
+
+    personal_nr = dcfg.get('personal_nr', '') or card_number
+    double_diet = bool(dcfg.get('double_diet', 0))
+    VMA_RATE = float(dcfg.get('diet_rate', 14.0))
 
     output = io.StringIO()
     writer = csv.writer(output, delimiter=';', quoting=csv.QUOTE_ALL)
@@ -1213,10 +1351,11 @@ def api_export_datev():
     n25_h = summary.get('night_25_minutes', 0) / 60
     n40_h = summary.get('night_40_minutes', 0) / 60
     diet_count = summary.get('diet_count', 0)
-    vma_amount = diet_count * VMA_RATE
+    effective_diet_count = diet_count * (2 if double_diet else 1)
+    vma_amount = effective_diet_count * VMA_RATE
 
     writer.writerow([
-        card_number,
+        personal_nr,
         driver_name,
         month_str,
         year_str,
@@ -1226,7 +1365,7 @@ def api_export_datev():
         '',  # Überstunden
         '',  # Urlaub
         '',  # Krank
-        str(diet_count),
+        str(effective_diet_count),
         fmt_de(vma_amount),
         str(summary.get('total_shifts', 0)),
     ])

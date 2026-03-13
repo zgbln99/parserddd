@@ -4,8 +4,10 @@ import { formatDate } from '../lib/format';
 import { exportCsv, exportPdf, exportDatev } from '../lib/api';
 import { Badge } from '../components/Badge';
 import { BarChart } from '../components/BarChart';
-import { Download, FileText, ClipboardCopy, Check, Printer, BarChart3, UtensilsCrossed, Table2 } from 'lucide-react';
+import { Download, FileText, ClipboardCopy, Check, Printer, BarChart3, UtensilsCrossed, Table2, Settings } from 'lucide-react';
 import type { AnalysisResult, ShiftDetail } from '../types';
+import { DriverConfigEditor } from './DriverConfigEditor';
+import { useAuth } from '../hooks/useAuth';
 
 function fmtNight(minutes: number, hm: string) {
   const decimal = (minutes / 60).toFixed(2);
@@ -40,8 +42,10 @@ interface AnalysisViewProps {
 
 export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateToChange }: AnalysisViewProps) {
   const { t, locale } = useI18n();
+  const { isAdmin } = useAuth();
   const di = data.driver_info;
   const allShifts = data.shift_details;
+  const [showConfig, setShowConfig] = useState(false);
 
   // Filter shifts by date range
   const shifts = useMemo(() => {
@@ -437,6 +441,30 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
                   {t('analysisPrint')}
                 </button>
               </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Driver config (admin only) */}
+      {isAdmin && di.card_number && (
+        <div className="rounded-xl bg-gray-50 dark:bg-gray-800">
+          <button
+            onClick={() => setShowConfig(!showConfig)}
+            className="flex w-full items-center gap-2 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500 transition hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+          >
+            <Settings size={14} />
+            {t('driverConfig')}
+            <span className="ml-auto text-[10px] font-normal normal-case text-gray-400">
+              {showConfig ? '▲' : '▼'}
+            </span>
+          </button>
+          {showConfig && (
+            <div className="px-4 pb-4">
+              <DriverConfigEditor
+                cardNumber={di.card_number}
+                driverName={di.driver_name || ''}
+              />
             </div>
           )}
         </div>

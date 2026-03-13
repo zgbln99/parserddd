@@ -7,7 +7,9 @@ import { useI18n } from '../i18n';
 import {
   fetchSyncLog, fetchLoginHistory, fetchActivityLog, fetchUsers,
   createUser, deleteUser, changePassword, fetchConfig, updateConfig,
+  fetchDriverConfigs, deleteDriverConfig,
   type LoginHistoryEntry, type ActivityLogEntry, type UserEntry, type SyncConfig,
+  type DriverConfig,
 } from '../lib/api';
 import { formatDateTime, formatBytes } from '../lib/format';
 import { Card, StatCard } from '../components/Card';
@@ -565,6 +567,89 @@ function SyncMonitorSection() {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Driver Config Management                                           */
+/* ------------------------------------------------------------------ */
+
+function DriverConfigSection() {
+  const { t } = useI18n();
+  const [configs, setConfigs] = useState<DriverConfig[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  const load = useCallback(() => {
+    fetchDriverConfigs()
+      .then((data) => { setConfigs(data.configs); setLoading(false); })
+      .catch((e) => { setError(e.message); setLoading(false); });
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleDelete = async (id: number, name: string) => {
+    if (!confirm(`${t('adminDeleteUser')}: ${name}?`)) return;
+    try {
+      await deleteDriverConfig(id);
+      load();
+    } catch (e: unknown) {
+      setError((e as Error).message);
+    }
+  };
+
+  if (loading) return <Spinner />;
+
+  return (
+    <Card>
+      <div className="mb-4 flex items-center gap-2">
+        <Settings size={18} className="text-green-500" />
+        <h2 className="text-lg font-bold">{t('driverConfigs')}</h2>
+        <Badge variant="gray">{configs.length}</Badge>
+      </div>
+      {error && <p className="mb-3 text-sm text-red-500">{error}</p>}
+      {configs.length === 0 ? (
+        <p className="py-4 text-center text-sm text-gray-400">{t('driverNoConfigs')}</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-100 bg-gray-50/80 dark:border-gray-800 dark:bg-gray-900/50">
+                <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">{t('driversName')}</th>
+                <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">{t('driversCardNumber')}</th>
+                <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">{t('driverPersonalNr')}</th>
+                <th className="px-4 py-2 text-center text-xs font-semibold uppercase tracking-wider text-gray-500">{t('driverDoubleDiet')}</th>
+                <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">{t('driverDietRate')}</th>
+                <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">{t('driverNotes')}</th>
+                <th className="px-4 py-2" />
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
+              {configs.map((c) => (
+                <tr key={c.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                  <td className="px-4 py-2 font-medium">{c.driver_name}</td>
+                  <td className="px-4 py-2 font-mono text-xs text-gray-500">{c.card_number}</td>
+                  <td className="px-4 py-2">{c.personal_nr || '—'}</td>
+                  <td className="px-4 py-2 text-center">
+                    {c.double_diet ? <Badge variant="green">{t('yes')}</Badge> : <span className="text-gray-300 dark:text-gray-600">{t('no')}</span>}
+                  </td>
+                  <td className="px-4 py-2">{c.diet_rate} EUR</td>
+                  <td className="max-w-[200px] truncate px-4 py-2 text-xs text-gray-500">{c.notes || '—'}</td>
+                  <td className="px-4 py-2">
+                    <button
+                      onClick={() => handleDelete(c.id!, c.driver_name)}
+                      className="rounded p-1 text-red-400 transition hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  Admin Page                                                         */
 /* ------------------------------------------------------------------ */
 
@@ -586,6 +671,9 @@ export function AdminPage() {
 
       {/* Sync config */}
       <SyncConfigSection />
+
+      {/* Driver configs */}
+      <DriverConfigSection />
 
       {/* Activity log */}
       <ActivityLogSection />

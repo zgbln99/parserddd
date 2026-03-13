@@ -189,6 +189,16 @@ export const pl = {
   pageNext: 'Następna',
   pagePrev: 'Poprzednia',
 
+  // Driver config
+  driverConfig: 'Konfiguracja kierowcy',
+  driverPersonalNr: 'Numer personalny',
+  driverDoubleDiet: 'Podwójna dieta',
+  driverDietRate: 'Stawka diety',
+  driverNotes: 'Notatki',
+  driverNotesPlaceholder: 'Dodatkowe informacje...',
+  driverConfigs: 'Konfiguracje kierowców',
+  driverNoConfigs: 'Brak konfiguracji kierowców',
+
   // Time
   timeAgo: 'temu',
   timeJustNow: 'przed chwilą',

@@ -146,6 +146,35 @@ export const updateConfig = (data: Record<string, string>) =>
     body: JSON.stringify(data),
   });
 
+// Driver config
+export interface DriverConfig {
+  id?: number;
+  card_number: string;
+  driver_name: string;
+  personal_nr: string;
+  double_diet: number; // 0 or 1
+  diet_rate: number;
+  notes: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export const fetchDriverConfigs = () =>
+  request<{ configs: DriverConfig[] }>('/api/driver-config');
+
+export const fetchDriverConfig = (cardNumber: string) =>
+  request<DriverConfig>(`/api/driver-config/${encodeURIComponent(cardNumber)}`);
+
+export const saveDriverConfig = (data: Partial<DriverConfig> & { card_number: string }) =>
+  request<{ ok: boolean }>('/api/driver-config', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+
+export const deleteDriverConfig = (id: number) =>
+  request<{ ok: boolean }>(`/api/driver-config/${id}`, { method: 'DELETE' });
+
 // CSV export (returns blob)
 export async function exportCsv(driverName: string, shifts: unknown[]) {
   const res = await fetch('/api/export/csv', {
