@@ -7,6 +7,7 @@ import { DriversPage } from './pages/DriversPage';
 import { ReaderPage } from './pages/ReaderPage';
 import { SyncPage } from './pages/SyncPage';
 import { AdminPage } from './pages/AdminPage';
+import { DriverConfigPage } from './pages/DriverConfigPage';
 import { AnalysisPage } from './pages/AnalysisPage';
 import { Spinner } from './components/Spinner';
 
@@ -51,6 +52,7 @@ export function App() {
       <Route path="/reader" element={<ProtectedRoute><ReaderPage /></ProtectedRoute>} />
       <Route path="/sync" element={<ProtectedRoute><SyncPage /></ProtectedRoute>} />
       <Route path="/admin" element={<AdminRoute><AdminPage /></AdminRoute>} />
+      <Route path="/config" element={<AdminRoute><DriverConfigPage /></AdminRoute>} />
       <Route path="/analysis" element={<ProtectedRoute><AnalysisPage /></ProtectedRoute>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

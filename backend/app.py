@@ -35,6 +35,9 @@ CET = ZoneInfo('Europe/Berlin')
 
 app = Flask(__name__, static_folder=None)
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16 MB
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=12)
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'ddd-parser-secret-key-change-me')
 
 # CORS for local dev (React on :5173, Flask on :8000)
@@ -56,6 +59,10 @@ USERS_FILE = os.environ.get('USERS_FILE', '/opt/ddd-reader/users.json')
 ACTIVITY_LOG_FILE = os.environ.get('ACTIVITY_LOG_FILE', '/opt/ddd-reader/activity_log.json')
 CONFIG_FILE = os.environ.get('CONFIG_FILE', '/opt/ddd-reader/config.json')
 _activity_lock = threading.Lock()
+_login_attempts: dict = {}  # IP -> (count, first_attempt_time)
+_login_lock = threading.Lock()
+LOGIN_MAX_ATTEMPTS = 5
+LOGIN_WINDOW_SECONDS = 300  # 5 minutes
 DATABASE_FILE = os.environ.get('DATABASE_FILE', '/opt/ddd-reader/ddd_portal.db')
 DROPBOX_APP_KEY = os.environ.get('DROPBOX_APP_KEY', 'j9ntkihedd9495i')
 DROPBOX_APP_SECRET = os.environ.get('DROPBOX_APP_SECRET', 'd3hr43reha9kky8')
@@ -222,16 +229,58 @@ def _save_config(cfg: dict):
 # ---------------------------------------------------------------------------
 
 
+def _check_rate_limit(ip: str) -> bool:
+    """Return True if this IP is rate-limited."""
+    now = datetime.now(UTC).timestamp()
+    with _login_lock:
+        if ip in _login_attempts:
+            count, first_time = _login_attempts[ip]
+            if now - first_time > LOGIN_WINDOW_SECONDS:
+                _login_attempts[ip] = (0, now)
+                return False
+            if count >= LOGIN_MAX_ATTEMPTS:
+                return True
+        return False
+
+
+def _record_failed_login(ip: str):
+    now = datetime.now(UTC).timestamp()
+    with _login_lock:
+        if ip in _login_attempts:
+            count, first_time = _login_attempts[ip]
+            if now - first_time > LOGIN_WINDOW_SECONDS:
+                _login_attempts[ip] = (1, now)
+            else:
+                _login_attempts[ip] = (count + 1, first_time)
+        else:
+            _login_attempts[ip] = (1, now)
+
+
+def _clear_rate_limit(ip: str):
+    with _login_lock:
+        _login_attempts.pop(ip, None)
+
+
 @app.route('/api/auth/login', methods=['POST'])
 def api_login():
+    ip = request.remote_addr or '0.0.0.0'
+    if _check_rate_limit(ip):
+        return jsonify({'error': 'Too many login attempts. Try again in 5 minutes.'}), 429
+
     data = request.get_json(silent=True) or {}
     password = data.get('password', '')
+
+    if not password or len(password) > 200:
+        _record_failed_login(ip)
+        return jsonify({'error': 'Nieprawidłowe hasło'}), 401
+
     # Check hardcoded admin password
     if password == ADMIN_PASSWORD:
         session['logged_in'] = True
         session['role'] = 'admin'
         session['username'] = 'admin'
         _record_login('admin')
+        _clear_rate_limit(ip)
         return jsonify({'ok': True, 'role': 'admin', 'username': 'admin'})
     # Check hardcoded portal password
     if password == PORTAL_PASSWORD:
@@ -239,6 +288,7 @@ def api_login():
         session['role'] = 'user'
         session['username'] = 'user'
         _record_login('user')
+        _clear_rate_limit(ip)
         return jsonify({'ok': True, 'role': 'user', 'username': 'user'})
     # Check users from JSON file
     pw_hash = _hash_password(password)
@@ -249,7 +299,9 @@ def api_login():
             session['role'] = role
             session['username'] = u.get('name', '')
             _record_login(role)
+            _clear_rate_limit(ip)
             return jsonify({'ok': True, 'role': role, 'username': u.get('name', '')})
+    _record_failed_login(ip)
     return jsonify({'error': 'Nieprawidłowe hasło'}), 401
 
 
@@ -1128,14 +1180,33 @@ def api_get_driver_config(card_number):
     })
 
 
+def _sanitize_text(val: str, max_len: int = 200) -> str:
+    """Strip and limit text input length."""
+    return str(val).strip()[:max_len]
+
+
 @app.route('/api/driver-config', methods=['POST'])
 @admin_required
 def api_upsert_driver_config():
     """Create or update a driver config."""
     data = request.get_json(silent=True) or {}
-    card_number = data.get('card_number', '').strip()
+    card_number = _sanitize_text(data.get('card_number', ''), 50)
     if not card_number:
         return jsonify({'error': 'card_number required'}), 400
+    if not re.match(r'^[A-Za-z0-9_ .\-/]+$', card_number):
+        return jsonify({'error': 'Invalid card_number format'}), 400
+
+    driver_name = _sanitize_text(data.get('driver_name', ''), 200)
+    personal_nr = _sanitize_text(data.get('personal_nr', ''), 50)
+    notes = _sanitize_text(data.get('notes', ''), 500)
+    double_diet = 1 if data.get('double_diet') else 0
+
+    try:
+        diet_rate = float(data.get('diet_rate', 14.0))
+        if diet_rate < 0 or diet_rate > 999:
+            diet_rate = 14.0
+    except (ValueError, TypeError):
+        diet_rate = 14.0
 
     now = datetime.now(UTC).isoformat()
     conn = _get_db()
@@ -1147,33 +1218,89 @@ def api_upsert_driver_config():
                 driver_name = ?, personal_nr = ?, double_diet = ?,
                 diet_rate = ?, notes = ?, updated_at = ?
             WHERE card_number = ?
-        ''', (
-            data.get('driver_name', ''),
-            data.get('personal_nr', ''),
-            1 if data.get('double_diet') else 0,
-            float(data.get('diet_rate', 14.0)),
-            data.get('notes', ''),
-            now,
-            card_number,
-        ))
+        ''', (driver_name, personal_nr, double_diet, diet_rate, notes, now, card_number))
     else:
         conn.execute('''
             INSERT INTO driver_config (card_number, driver_name, personal_nr, double_diet, diet_rate, notes, created_at, updated_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (
-            card_number,
-            data.get('driver_name', ''),
-            data.get('personal_nr', ''),
-            1 if data.get('double_diet') else 0,
-            float(data.get('diet_rate', 14.0)),
-            data.get('notes', ''),
-            now, now,
-        ))
+        ''', (card_number, driver_name, personal_nr, double_diet, diet_rate, notes, now, now))
 
     conn.commit()
     conn.close()
-    _log_activity('save_driver_config', f"{card_number} — {data.get('driver_name', '')}")
+    _log_activity('save_driver_config', f"{card_number} — {driver_name}")
     return jsonify({'ok': True})
+
+
+@app.route('/api/driver-config/bulk', methods=['POST'])
+@admin_required
+def api_bulk_driver_config():
+    """Bulk update driver configs. Expects {card_numbers: [...], updates: {...}}."""
+    data = request.get_json(silent=True) or {}
+    card_numbers = data.get('card_numbers', [])
+    updates = data.get('updates', {})
+
+    if not card_numbers or not isinstance(card_numbers, list):
+        return jsonify({'error': 'card_numbers list required'}), 400
+    if len(card_numbers) > 200:
+        return jsonify({'error': 'Too many card numbers (max 200)'}), 400
+    if not updates:
+        return jsonify({'error': 'updates required'}), 400
+
+    now = datetime.now(UTC).isoformat()
+    conn = _get_db()
+    count = 0
+
+    for cn in card_numbers:
+        cn = _sanitize_text(str(cn), 50)
+        if not cn:
+            continue
+        existing = conn.execute('SELECT id FROM driver_config WHERE card_number = ?', (cn,)).fetchone()
+        if existing:
+            # Build partial update
+            sets = ['updated_at = ?']
+            vals = [now]
+            if 'double_diet' in updates:
+                sets.append('double_diet = ?')
+                vals.append(1 if updates['double_diet'] else 0)
+            if 'diet_rate' in updates:
+                try:
+                    rate = float(updates['diet_rate'])
+                    if 0 <= rate <= 999:
+                        sets.append('diet_rate = ?')
+                        vals.append(rate)
+                except (ValueError, TypeError):
+                    pass
+            if 'personal_nr' in updates:
+                sets.append('personal_nr = ?')
+                vals.append(_sanitize_text(str(updates['personal_nr']), 50))
+            if 'notes' in updates:
+                sets.append('notes = ?')
+                vals.append(_sanitize_text(str(updates['notes']), 500))
+            vals.append(cn)
+            conn.execute(f"UPDATE driver_config SET {', '.join(sets)} WHERE card_number = ?", vals)
+        else:
+            # Create with defaults + updates
+            double_diet = 1 if updates.get('double_diet') else 0
+            try:
+                diet_rate = float(updates.get('diet_rate', 14.0))
+                if diet_rate < 0 or diet_rate > 999:
+                    diet_rate = 14.0
+            except (ValueError, TypeError):
+                diet_rate = 14.0
+            conn.execute('''
+                INSERT INTO driver_config (card_number, driver_name, personal_nr, double_diet, diet_rate, notes, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                cn, '', _sanitize_text(str(updates.get('personal_nr', '')), 50),
+                double_diet, diet_rate, _sanitize_text(str(updates.get('notes', '')), 500),
+                now, now,
+            ))
+        count += 1
+
+    conn.commit()
+    conn.close()
+    _log_activity('bulk_driver_config', f"{count} drivers updated")
+    return jsonify({'ok': True, 'updated': count})
 
 
 @app.route('/api/driver-config/<int:config_id>', methods=['DELETE'])

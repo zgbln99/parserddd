@@ -7,9 +7,7 @@ import { useI18n } from '../i18n';
 import {
   fetchSyncLog, fetchLoginHistory, fetchActivityLog, fetchUsers,
   createUser, deleteUser, changePassword, fetchConfig, updateConfig,
-  fetchDriverConfigs, deleteDriverConfig,
   type LoginHistoryEntry, type ActivityLogEntry, type UserEntry, type SyncConfig,
-  type DriverConfig,
 } from '../lib/api';
 import { formatDateTime, formatBytes } from '../lib/format';
 import { Card, StatCard } from '../components/Card';
@@ -37,7 +35,7 @@ function LoginHistorySection() {
   if (error) return <p className="text-sm text-red-500">{error}</p>;
 
   return (
-    <Card>
+    <Card className="p-6">
       <div className="mb-4 flex items-center gap-2">
         <History size={18} className="text-primary-500" />
         <h2 className="text-lg font-bold">{t('adminLoginHistory')}</h2>
@@ -101,7 +99,7 @@ function ActivityLogSection() {
   };
 
   return (
-    <Card>
+    <Card className="p-6">
       <div className="mb-4 flex items-center gap-2">
         <Activity size={18} className="text-violet-500" />
         <h2 className="text-lg font-bold">{t('adminActivityLog')}</h2>
@@ -191,7 +189,7 @@ function UserManagementSection() {
   if (loading) return <Spinner />;
 
   return (
-    <Card>
+    <Card className="p-6">
       <div className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Users size={18} className="text-blue-500" />
@@ -319,7 +317,7 @@ function PasswordChangeSection() {
   };
 
   return (
-    <Card>
+    <Card className="p-6">
       <div className="mb-4 flex items-center gap-2">
         <Key size={18} className="text-orange-500" />
         <h2 className="text-lg font-bold">{t('adminChangePassword')}</h2>
@@ -405,7 +403,7 @@ function SyncConfigSection() {
   if (loading) return <Spinner />;
 
   return (
-    <Card>
+    <Card className="p-6">
       <div className="mb-4 flex items-center gap-2">
         <Settings size={18} className="text-gray-500" />
         <h2 className="text-lg font-bold">{t('adminSyncConfig')}</h2>
@@ -567,127 +565,75 @@ function SyncMonitorSection() {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Driver Config Management                                           */
+/*  Admin Page — tabbed layout                                         */
 /* ------------------------------------------------------------------ */
 
-function DriverConfigSection() {
-  const { t } = useI18n();
-  const [configs, setConfigs] = useState<DriverConfig[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+type AdminTab = 'users' | 'security' | 'sync' | 'logs';
 
-  const load = useCallback(() => {
-    fetchDriverConfigs()
-      .then((data) => { setConfigs(data.configs); setLoading(false); })
-      .catch((e) => { setError(e.message); setLoading(false); });
-  }, []);
-
-  useEffect(() => { load(); }, [load]);
-
-  const handleDelete = async (id: number, name: string) => {
-    if (!confirm(`${t('adminDeleteUser')}: ${name}?`)) return;
-    try {
-      await deleteDriverConfig(id);
-      load();
-    } catch (e: unknown) {
-      setError((e as Error).message);
-    }
-  };
-
-  if (loading) return <Spinner />;
-
-  return (
-    <Card>
-      <div className="mb-4 flex items-center gap-2">
-        <Settings size={18} className="text-green-500" />
-        <h2 className="text-lg font-bold">{t('driverConfigs')}</h2>
-        <Badge variant="gray">{configs.length}</Badge>
-      </div>
-      {error && <p className="mb-3 text-sm text-red-500">{error}</p>}
-      {configs.length === 0 ? (
-        <p className="py-4 text-center text-sm text-gray-400">{t('driverNoConfigs')}</p>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-100 bg-gray-50/80 dark:border-gray-800 dark:bg-gray-900/50">
-                <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">{t('driversName')}</th>
-                <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">{t('driversCardNumber')}</th>
-                <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">{t('driverPersonalNr')}</th>
-                <th className="px-4 py-2 text-center text-xs font-semibold uppercase tracking-wider text-gray-500">{t('driverDoubleDiet')}</th>
-                <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">{t('driverDietRate')}</th>
-                <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">{t('driverNotes')}</th>
-                <th className="px-4 py-2" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
-              {configs.map((c) => (
-                <tr key={c.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
-                  <td className="px-4 py-2 font-medium">{c.driver_name}</td>
-                  <td className="px-4 py-2 font-mono text-xs text-gray-500">{c.card_number}</td>
-                  <td className="px-4 py-2">{c.personal_nr || '—'}</td>
-                  <td className="px-4 py-2 text-center">
-                    {c.double_diet ? <Badge variant="green">{t('yes')}</Badge> : <span className="text-gray-300 dark:text-gray-600">{t('no')}</span>}
-                  </td>
-                  <td className="px-4 py-2">{c.diet_rate} EUR</td>
-                  <td className="max-w-[200px] truncate px-4 py-2 text-xs text-gray-500">{c.notes || '—'}</td>
-                  <td className="px-4 py-2">
-                    <button
-                      onClick={() => handleDelete(c.id!, c.driver_name)}
-                      className="rounded p-1 text-red-400 transition hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </Card>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/*  Admin Page                                                         */
-/* ------------------------------------------------------------------ */
+const tabs: { key: AdminTab; icon: typeof Users; labelKey: string; color: string }[] = [
+  { key: 'users', icon: Users, labelKey: 'adminUsers', color: 'text-blue-500' },
+  { key: 'security', icon: Key, labelKey: 'adminChangePassword', color: 'text-orange-500' },
+  { key: 'sync', icon: Settings, labelKey: 'adminSyncConfig', color: 'text-gray-500' },
+  { key: 'logs', icon: Activity, labelKey: 'adminActivityLog', color: 'text-violet-500' },
+];
 
 export function AdminPage() {
   const { t } = useI18n();
+  const [activeTab, setActiveTab] = useState<AdminTab>('users');
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center gap-3">
-        <Shield size={24} className="text-red-500" />
-        <h1 className="text-2xl font-bold tracking-tight">{t('adminTitle')}</h1>
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-red-500 to-rose-600 text-white shadow-lg shadow-red-500/20">
+          <Shield size={20} />
+        </div>
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">{t('adminTitle')}</h1>
+          <p className="text-xs text-gray-500 dark:text-gray-400">System & Security</p>
+        </div>
       </div>
 
-      {/* User management */}
-      <UserManagementSection />
+      {/* Tab bar */}
+      <div className="flex gap-1 rounded-xl bg-gray-100 p-1 dark:bg-gray-800">
+        {tabs.map(({ key, icon: Icon, labelKey, color }) => (
+          <button
+            key={key}
+            onClick={() => setActiveTab(key)}
+            className={`flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition ${
+              activeTab === key
+                ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-900 dark:text-gray-100'
+                : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+            }`}
+          >
+            <Icon size={16} className={activeTab === key ? color : ''} />
+            <span className="hidden sm:inline">{t(labelKey as never)}</span>
+          </button>
+        ))}
+      </div>
 
-      {/* Password change */}
-      <PasswordChangeSection />
-
-      {/* Sync config */}
-      <SyncConfigSection />
-
-      {/* Driver configs */}
-      <DriverConfigSection />
-
-      {/* Activity log */}
-      <ActivityLogSection />
-
-      {/* Login history */}
-      <LoginHistorySection />
-
-      {/* Sync monitor */}
+      {/* Tab content */}
       <div>
-        <h2 className="mb-4 flex items-center gap-2 text-lg font-bold">
-          <Clock size={18} className="text-primary-500" />
-          {t('syncTitle')}
-        </h2>
-        <SyncMonitorSection />
+        {activeTab === 'users' && <UserManagementSection />}
+        {activeTab === 'security' && <PasswordChangeSection />}
+        {activeTab === 'sync' && (
+          <div className="space-y-6">
+            <SyncConfigSection />
+            <div>
+              <h2 className="mb-4 flex items-center gap-2 text-lg font-bold">
+                <Clock size={18} className="text-primary-500" />
+                {t('syncTitle')}
+              </h2>
+              <SyncMonitorSection />
+            </div>
+          </div>
+        )}
+        {activeTab === 'logs' && (
+          <div className="space-y-6">
+            <ActivityLogSection />
+            <LoginHistorySection />
+          </div>
+        )}
       </div>
     </div>
   );

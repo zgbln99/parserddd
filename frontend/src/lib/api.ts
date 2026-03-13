@@ -175,6 +175,13 @@ export const saveDriverConfig = (data: Partial<DriverConfig> & { card_number: st
 export const deleteDriverConfig = (id: number) =>
   request<{ ok: boolean }>(`/api/driver-config/${id}`, { method: 'DELETE' });
 
+export const bulkUpdateDriverConfig = (cardNumbers: string[], updates: Partial<DriverConfig>) =>
+  request<{ ok: boolean; updated: number }>('/api/driver-config/bulk', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ card_numbers: cardNumbers, updates }),
+  });
+
 // CSV export (returns blob)
 export async function exportCsv(driverName: string, shifts: unknown[]) {
   const res = await fetch('/api/export/csv', {
