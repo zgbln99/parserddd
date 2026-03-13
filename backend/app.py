@@ -1084,7 +1084,8 @@ def api_settlement():
                 personal_nr = dcfg.get('personal_nr', '') or card_number
                 double_diet = bool(dcfg.get('double_diet', 0))
                 diet_rate = float(dcfg.get('diet_rate', 14.0))
-                effective_diet = diet_count * (2 if double_diet else 1)
+                # Double diet = two allowances per day (14€ + 14€)
+                vma_per_day = diet_rate * 2 if double_diet else diet_rate
 
                 return {
                     'driver_name': driver_name,
@@ -1105,8 +1106,8 @@ def api_settlement():
                         'night_40_minutes': total_n40,
                         'night_40_hm': minutes_to_hm(total_n40),
                         'diet_count': diet_count,
-                        'effective_diet_count': effective_diet,
-                        'vma_amount': effective_diet * diet_rate,
+                        'effective_diet_count': diet_count,
+                        'vma_amount': diet_count * vma_per_day,
                         'total_shifts': len(month_shifts),
                     },
                     'shifts': month_shifts,
@@ -1180,8 +1181,9 @@ def api_export_datev_batch():
         n25_h = summary.get('night_25_minutes', 0) / 60
         n40_h = summary.get('night_40_minutes', 0) / 60
         diet_count = summary.get('diet_count', 0)
-        effective_diet_count = diet_count * (2 if double_diet else 1)
-        vma_amount = effective_diet_count * VMA_RATE
+        # Double diet = two separate allowances per day (14€ + 14€), not double the count
+        vma_per_day = VMA_RATE * 2 if double_diet else VMA_RATE
+        vma_amount = diet_count * vma_per_day
 
         writer.writerow([
             personal_nr,
@@ -1194,7 +1196,7 @@ def api_export_datev_batch():
             '',  # Überstunden
             '',  # Urlaub
             '',  # Krank
-            str(effective_diet_count),
+            str(diet_count),
             fmt_de(vma_amount),
             str(summary.get('total_shifts', 0)),
         ])
@@ -1871,8 +1873,9 @@ def api_export_datev():
     n25_h = summary.get('night_25_minutes', 0) / 60
     n40_h = summary.get('night_40_minutes', 0) / 60
     diet_count = summary.get('diet_count', 0)
-    effective_diet_count = diet_count * (2 if double_diet else 1)
-    vma_amount = effective_diet_count * VMA_RATE
+    # Double diet = two separate allowances per day (14€ + 14€), not double the count
+    vma_per_day = VMA_RATE * 2 if double_diet else VMA_RATE
+    vma_amount = diet_count * vma_per_day
 
     writer.writerow([
         personal_nr,
@@ -1885,7 +1888,7 @@ def api_export_datev():
         '',  # Überstunden
         '',  # Urlaub
         '',  # Krank
-        str(effective_diet_count),
+        str(diet_count),
         fmt_de(vma_amount),
         str(summary.get('total_shifts', 0)),
     ])

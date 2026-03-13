@@ -88,7 +88,9 @@ export function SettlementPage() {
           const personalNr = dcfg?.personal_nr || cardNumber;
           const doubleDiet = dcfg?.double_diet === 1;
           const dietRate = dcfg?.diet_rate ?? 14.0;
-          const effectiveDiet = dietCount * (doubleDiet ? 2 : 1);
+          // Double diet = two separate allowances per day (14€ + 14€ = 28€/day)
+          // diet_count stays the same, VMA doubles the rate
+          const vmaPerDay = doubleDiet ? dietRate * 2 : dietRate;
 
           results.push({
             driver_name: driver.name,
@@ -109,8 +111,8 @@ export function SettlementPage() {
               night_40_minutes: totalN40,
               night_40_hm: minutesToHm(totalN40),
               diet_count: dietCount,
-              effective_diet_count: effectiveDiet,
-              vma_amount: effectiveDiet * dietRate,
+              effective_diet_count: dietCount,
+              vma_amount: dietCount * vmaPerDay,
               total_shifts: monthShifts.length,
             },
             shifts: monthShifts,
@@ -335,9 +337,9 @@ export function SettlementPage() {
                       <td className="whitespace-nowrap px-4 py-3 text-right font-mono text-indigo-600 dark:text-indigo-400">{d.summary.night_25_hm}</td>
                       <td className="whitespace-nowrap px-4 py-3 text-right font-mono text-purple-600 dark:text-purple-400">{d.summary.night_40_hm}</td>
                       <td className="whitespace-nowrap px-4 py-3 text-right">
-                        {d.summary.effective_diet_count > 0 ? (
+                        {d.summary.diet_count > 0 ? (
                           <Badge variant={d.double_diet ? 'blue' : 'gray'}>
-                            {d.summary.effective_diet_count}{d.double_diet ? ' (2×)' : ''}
+                            {d.summary.diet_count}{d.double_diet ? ' (2×14€)' : ''}
                           </Badge>
                         ) : '-'}
                       </td>
