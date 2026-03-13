@@ -884,12 +884,37 @@ function MonthlyGridCopy({
     });
   }, [dayNumbers, dayWorkMap, absenceDays, summaryValues]);
 
+  // Build calendar weeks (rows of 7 days, Mon-Sun)
+  const calendarWeeks = useMemo(() => {
+    const firstDayOfWeek = new Date(year, month - 1, 1).getDay(); // 0=Sun
+    // Convert to Mon=0 ... Sun=6
+    const startOffset = firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1;
+    const weeks: (number | null)[][] = [];
+    let week: (number | null)[] = Array(startOffset).fill(null);
+    for (let d = 1; d <= daysInMonth; d++) {
+      week.push(d);
+      if (week.length === 7) {
+        weeks.push(week);
+        week = [];
+      }
+    }
+    if (week.length > 0) {
+      while (week.length < 7) week.push(null);
+      weeks.push(week);
+    }
+    return weeks;
+  }, [year, month, daysInMonth]);
+
+  const weekdayHeaders = locale === 'de'
+    ? ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So']
+    : ['Pn', 'Wt', 'Śr', 'Cz', 'Pt', 'So', 'Nd'];
+
   const thCls = 'border border-gray-300 bg-gray-200/60 px-1.5 py-0.5 text-center text-[10px] font-bold text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-400';
   const tdCls = 'border border-gray-300 bg-white px-1.5 py-0.5 text-center font-mono text-[10px] dark:border-gray-600 dark:bg-gray-900';
 
   return (
-    <div className="space-y-2">
-      <div className="flex items-center gap-2">
+    <div className="space-y-3">
+      <div className="flex items-center gap-2 flex-wrap">
         <span className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
           {t('monthlyGrid')} — {String(month).padStart(2, '0')}/{year}
         </span>
@@ -911,115 +936,122 @@ function MonthlyGridCopy({
           </button>
         )}
       </div>
-      <div className="overflow-x-auto">
+
+      <div className="flex gap-4 flex-wrap">
+        {/* Calendar grid (7 cols, Mon-Sun) */}
         <table className="border-collapse">
           <thead>
-            {/* Day numbers */}
             <tr>
-              {dayNumbers.map((d) => (
-                <th key={d} className={thCls}>{d}</th>
-              ))}
-              <th className="w-2" />
-              {summaryHeaders.map((h) => (
-                <th key={h} className={thCls}>{h}</th>
-              ))}
-            </tr>
-            {/* Weekday names */}
-            <tr>
-              {weekdays.map((wd, i) => {
-                const isWeekend = wd === 'So' || wd === 'Sa' || wd === 'Nd';
+              {weekdayHeaders.map((wd, i) => {
+                const isWeekend = i >= 5;
                 return (
-                  <th key={i} className={`${thCls} ${isWeekend ? '!text-red-400 !bg-red-50 dark:!bg-red-900/20' : ''}`}>{wd}</th>
+                  <th key={wd} className={`${thCls} w-[52px] ${isWeekend ? '!text-red-400 !bg-red-50 dark:!bg-red-900/20' : ''}`}>{wd}</th>
                 );
               })}
-              <th className="w-2" />
-              {summaryHeaders.map((h) => (
-                <th key={`empty-${h}`} className="w-2" />
-              ))}
             </tr>
           </thead>
           <tbody>
-            {/* Work hours / absence row */}
-            <tr>
-              {dayNumbers.map((d) => {
-                const work = dayWorkMap[d] || 0;
-                const absence = absenceDays[String(d)] as 'Ur' | 'Kr' | undefined;
-                const isClickable = work === 0 && !!onAbsenceChange;
-                const isWeekendDay = (() => {
-                  const wd = weekdays[d - 1];
-                  return wd === 'So' || wd === 'Sa' || wd === 'Nd';
-                })();
+            {calendarWeeks.map((week, wi) => (
+              <tr key={wi}>
+                {week.map((d, di) => {
+                  if (d === null) {
+                    return <td key={di} className={`${tdCls} !bg-gray-50 dark:!bg-gray-800/50`} style={{ height: 36 }} />;
+                  }
+                  const work = dayWorkMap[d] || 0;
+                  const absence = absenceDays[String(d)] as 'Ur' | 'Kr' | undefined;
+                  const isClickable = work === 0 && !!onAbsenceChange;
+                  const isWeekend = di >= 5;
 
-                let cellContent: React.ReactNode = '';
-                let cellClass = tdCls;
+                  let cellBg = '';
+                  let cellText: React.ReactNode = '';
+                  let cursor = '';
 
-                if (absence === 'Ur') {
-                  cellContent = 'Ur';
-                  cellClass = `${tdCls} !bg-blue-100 !text-blue-700 font-bold cursor-pointer dark:!bg-blue-900/40 dark:!text-blue-300`;
-                } else if (absence === 'Kr') {
-                  cellContent = 'Kr';
-                  cellClass = `${tdCls} !bg-orange-100 !text-orange-700 font-bold cursor-pointer dark:!bg-orange-900/40 dark:!text-orange-300`;
-                } else if (work) {
-                  cellContent = fmtWork(work);
-                  cellClass = `${tdCls} font-semibold text-gray-800 dark:text-gray-200`;
-                } else if (isClickable) {
-                  cellClass = `${tdCls} cursor-pointer hover:!bg-gray-100 dark:hover:!bg-gray-800 ${isWeekendDay ? '!bg-red-50/50 dark:!bg-red-900/10' : ''}`;
-                }
+                  if (absence === 'Ur') {
+                    cellBg = '!bg-blue-100 dark:!bg-blue-900/40';
+                    cellText = <><span className="block text-[9px] text-gray-400">{d}</span><span className="font-bold text-blue-700 dark:text-blue-300">Ur</span></>;
+                    cursor = 'cursor-pointer';
+                  } else if (absence === 'Kr') {
+                    cellBg = '!bg-orange-100 dark:!bg-orange-900/40';
+                    cellText = <><span className="block text-[9px] text-gray-400">{d}</span><span className="font-bold text-orange-700 dark:text-orange-300">Kr</span></>;
+                    cursor = 'cursor-pointer';
+                  } else if (work) {
+                    cellText = <><span className="block text-[9px] text-gray-400">{d}</span><span className="font-semibold text-gray-800 dark:text-gray-200">{fmtWork(work)}</span></>;
+                  } else {
+                    cellText = <span className="text-[9px] text-gray-300 dark:text-gray-600">{d}</span>;
+                    if (isClickable) {
+                      cursor = 'cursor-pointer hover:!bg-gray-100 dark:hover:!bg-gray-800';
+                    }
+                    if (isWeekend) {
+                      cellBg = '!bg-red-50/50 dark:!bg-red-900/10';
+                    }
+                  }
 
-                return (
-                  <td
-                    key={d}
-                    data-absence-cell
-                    className={`${cellClass} relative select-none`}
-                    onClick={(isClickable || absence) ? () => handleCellClick(d) : undefined}
-                    style={{ minWidth: 32 }}
-                  >
-                    {cellContent}
-                    {/* Popover */}
-                    {popoverDay === d && (
-                      <div
-                        data-absence-popover
-                        className="absolute left-1/2 top-full z-50 mt-1 -translate-x-1/2 rounded-lg border border-gray-200 bg-white p-1 shadow-lg dark:border-gray-600 dark:bg-gray-800"
-                        style={{ minWidth: 90 }}
-                      >
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleAbsenceSelect(d, 'Ur'); }}
-                          className="flex w-full items-center gap-1.5 rounded px-2 py-1 text-[11px] font-semibold text-blue-700 transition hover:bg-blue-50 dark:text-blue-300 dark:hover:bg-blue-900/30"
+                  return (
+                    <td
+                      key={di}
+                      data-absence-cell
+                      className={`${tdCls} ${cellBg} ${cursor} relative select-none`}
+                      onClick={(isClickable || absence) ? () => handleCellClick(d) : undefined}
+                      style={{ height: 36, width: 52 }}
+                    >
+                      {cellText}
+                      {/* Popover */}
+                      {popoverDay === d && (
+                        <div
+                          data-absence-popover
+                          className="absolute left-1/2 top-full z-50 mt-1 -translate-x-1/2 rounded-lg border border-gray-200 bg-white p-1 shadow-lg dark:border-gray-600 dark:bg-gray-800"
+                          style={{ minWidth: 100 }}
                         >
-                          <span className="inline-block h-2.5 w-2.5 rounded-sm bg-blue-500" />
-                          {t('monthlyVacation')}
-                        </button>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleAbsenceSelect(d, 'Kr'); }}
-                          className="flex w-full items-center gap-1.5 rounded px-2 py-1 text-[11px] font-semibold text-orange-700 transition hover:bg-orange-50 dark:text-orange-300 dark:hover:bg-orange-900/30"
-                        >
-                          <span className="inline-block h-2.5 w-2.5 rounded-sm bg-orange-500" />
-                          {t('monthlySick')}
-                        </button>
-                        {absence && (
                           <button
-                            onClick={(e) => { e.stopPropagation(); handleAbsenceSelect(d, null); }}
-                            className="flex w-full items-center gap-1.5 rounded px-2 py-1 text-[11px] font-semibold text-gray-500 transition hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700"
+                            onClick={(e) => { e.stopPropagation(); handleAbsenceSelect(d, 'Ur'); }}
+                            className="flex w-full items-center gap-1.5 rounded px-2 py-1.5 text-[11px] font-semibold text-blue-700 transition hover:bg-blue-50 dark:text-blue-300 dark:hover:bg-blue-900/30"
                           >
-                            <span className="inline-block h-2.5 w-2.5 rounded-sm bg-gray-300 dark:bg-gray-600" />
-                            {t('clear')}
+                            <span className="inline-block h-2.5 w-2.5 rounded-sm bg-blue-500" />
+                            {t('monthlyVacation')}
                           </button>
-                        )}
-                      </div>
-                    )}
-                  </td>
-                );
-              })}
-              <td className="w-2" />
-              {summaryValues.map((v, i) => (
-                <td key={i} className={`${tdCls} font-semibold`}>
-                  {v || <span className="text-gray-300 dark:text-gray-600">&mdash;</span>}
-                </td>
-              ))}
-            </tr>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleAbsenceSelect(d, 'Kr'); }}
+                            className="flex w-full items-center gap-1.5 rounded px-2 py-1.5 text-[11px] font-semibold text-orange-700 transition hover:bg-orange-50 dark:text-orange-300 dark:hover:bg-orange-900/30"
+                          >
+                            <span className="inline-block h-2.5 w-2.5 rounded-sm bg-orange-500" />
+                            {t('monthlySick')}
+                          </button>
+                          {absence && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleAbsenceSelect(d, null); }}
+                              className="flex w-full items-center gap-1.5 rounded px-2 py-1.5 text-[11px] font-semibold text-gray-500 transition hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700"
+                            >
+                              <span className="inline-block h-2.5 w-2.5 rounded-sm bg-gray-300 dark:bg-gray-600" />
+                              {t('clear')}
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
           </tbody>
         </table>
+
+        {/* Summary table (vertical, beside calendar) */}
+        <div className="flex flex-col justify-start">
+          <table className="border-collapse">
+            <tbody>
+              {summaryHeaders.map((h, i) => (
+                <tr key={h}>
+                  <td className={`${thCls} text-right pr-2`}>{h}</td>
+                  <td className={`${tdCls} font-semibold min-w-[50px]`}>
+                    {summaryValues[i] || <span className="text-gray-300 dark:text-gray-600">&mdash;</span>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
+
       {onAbsenceChange && (
         <div className="flex items-center gap-3 text-[10px] text-gray-400 dark:text-gray-500">
           <span className="flex items-center gap-1">
