@@ -305,6 +305,12 @@ export const de: Record<TranslationKey, string> = {
   samsaraTotalDriving: 'Gesamtfahrzeit',
   samsaraTotalWork: 'Gesamtarbeit',
   samsaraTotalBreak: 'Gesamtpausen',
+  samsaraLocation: 'Standort',
+  samsaraSpeed: 'Geschwindigkeit',
+  samsaraSearchVehicle: 'Fahrzeug suchen...',
+  samsaraShowMap: 'Auf Karte zeigen',
+  samsaraNoLocation: 'Kein Standort',
+  samsaraRefresh: 'Aktualisieren',
 
   // Time
   timeAgo: 'her',

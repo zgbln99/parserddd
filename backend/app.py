@@ -2194,7 +2194,7 @@ def api_samsara_vehicle_stats():
     if not SAMSARA_API_TOKEN:
         return jsonify({'error': 'Samsara API token not configured'}), 400
     try:
-        types = request.args.get('types', 'obdOdometerMeters,gpsOdometerMeters,fuelPercents,engineStates')
+        types = request.args.get('types', 'gps,obdOdometerMeters,gpsOdometerMeters,fuelPercents,engineStates')
         resp = http_requests.get(
             f'{SAMSARA_API_BASE}/fleet/vehicles/stats',
             headers=_samsara_headers(),
@@ -2229,6 +2229,18 @@ def api_samsara_vehicle_stats():
             if eng and eng.get('value') is not None:
                 entry['engineState'] = eng['value']
                 entry['engineTime'] = eng.get('time', '')
+            # GPS location
+            gps = v.get('gps', {})
+            if gps:
+                if gps.get('latitude') is not None:
+                    entry['latitude'] = round(gps['latitude'], 6)
+                    entry['longitude'] = round(gps.get('longitude', 0), 6)
+                    entry['gpsTime'] = gps.get('time', '')
+                    entry['speedKmh'] = round(gps.get('speedMilesPerHour', 0) * 1.60934, 1)
+                    entry['heading'] = gps.get('headingDegrees', 0)
+                rev = gps.get('reverseGeo', {})
+                if rev and rev.get('formattedLocation'):
+                    entry['location'] = rev['formattedLocation']
             vehicles.append(entry)
         return jsonify({'vehicles': vehicles})
     except Exception as e:

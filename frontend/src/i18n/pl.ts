@@ -303,6 +303,12 @@ export const pl = {
   samsaraTotalDriving: 'Łącznie jazda',
   samsaraTotalWork: 'Łącznie praca',
   samsaraTotalBreak: 'Łącznie przerwy',
+  samsaraLocation: 'Lokalizacja',
+  samsaraSpeed: 'Prędkość',
+  samsaraSearchVehicle: 'Szukaj pojazdu...',
+  samsaraShowMap: 'Pokaż na mapie',
+  samsaraNoLocation: 'Brak lokalizacji',
+  samsaraRefresh: 'Odśwież',
 
   // Time
   timeAgo: 'temu',

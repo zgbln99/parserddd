@@ -2,7 +2,7 @@ import { useEffect, useState, Fragment, useCallback } from 'react';
 import {
   AlertCircle, CheckCircle, XCircle, MinusCircle, ChevronDown, ChevronUp,
   Clock, Shield, History, Users, Key, Settings, Activity, Trash2, Plus,
-  ChevronLeft, ChevronRight, Truck, Radio,
+  ChevronLeft, ChevronRight, Truck, Radio, Search, MapPin, RefreshCw, Navigation,
 } from 'lucide-react';
 import { useI18n } from '../i18n';
 import {
@@ -610,12 +610,22 @@ function SamsaraVehicleStatsSection() {
   const [vehicles, setVehicles] = useState<SamsaraVehicleStat[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [search, setSearch] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
+  const load = useCallback(() => {
     fetchSamsaraVehicleStats()
-      .then((data) => { setVehicles(data.vehicles); setLoading(false); })
-      .catch((e) => { setError(e.message); setLoading(false); });
+      .then((data) => { setVehicles(data.vehicles); setLoading(false); setRefreshing(false); })
+      .catch((e) => { setError(e.message); setLoading(false); setRefreshing(false); });
   }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleRefresh = () => { setRefreshing(true); load(); };
+
+  const filtered = search.trim()
+    ? vehicles.filter((v) => v.name.toLowerCase().includes(search.toLowerCase()) || (v.location || '').toLowerCase().includes(search.toLowerCase()))
+    : vehicles;
 
   if (loading) return <Spinner />;
   if (error) return <p className="text-sm text-red-500">{error}</p>;
@@ -625,45 +635,110 @@ function SamsaraVehicleStatsSection() {
       <div className="mb-4 flex items-center gap-2">
         <Truck size={18} className="text-blue-500" />
         <h2 className="text-lg font-bold">{t('samsaraVehicleStats')}</h2>
-        <span className="ml-auto text-xs text-gray-400">{vehicles.length} total</span>
+        <span className="ml-auto text-xs text-gray-400">{filtered.length} / {vehicles.length}</span>
       </div>
-      {vehicles.length === 0 ? (
-        <p className="py-8 text-center text-sm text-gray-400">{t('samsaraNoVehicles')}</p>
+
+      {/* Search + Refresh */}
+      <div className="mb-4 flex items-center gap-3">
+        <div className="relative flex-1">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={t('samsaraSearchVehicle')}
+            className="w-full rounded-lg border border-gray-200 py-1.5 pl-9 pr-3 text-sm outline-none focus:border-primary-400 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+          />
+        </div>
+        <button
+          onClick={handleRefresh}
+          disabled={refreshing}
+          className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 transition hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-800"
+        >
+          <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
+          {t('samsaraRefresh')}
+        </button>
+      </div>
+
+      {filtered.length === 0 ? (
+        <p className="py-8 text-center text-sm text-gray-400">{search ? t('noData') : t('samsaraNoVehicles')}</p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50/80 dark:border-gray-800 dark:bg-gray-900/50">
-                <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('samsaraVehicle')}</th>
-                <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('samsaraOdometer')}</th>
-                <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('samsaraFuel')}</th>
-                <th className="px-4 py-2.5 text-center text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('samsaraEngine')}</th>
-                <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('samsaraLastUpdate')}</th>
+                <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('samsaraVehicle')}</th>
+                <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('samsaraLocation')}</th>
+                <th className="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('samsaraSpeed')}</th>
+                <th className="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('samsaraOdometer')}</th>
+                <th className="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('samsaraFuel')}</th>
+                <th className="px-3 py-2.5 text-center text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('samsaraEngine')}</th>
+                <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('samsaraLastUpdate')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
-              {vehicles.map((v) => (
+              {filtered.map((v) => (
                 <tr key={v.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
-                  <td className="whitespace-nowrap px-4 py-2 font-medium">{v.name}</td>
-                  <td className="whitespace-nowrap px-4 py-2 text-right font-mono text-sm">
-                    {v.odometerKm != null ? v.odometerKm.toLocaleString(locale === 'de' ? 'de-DE' : 'pl-PL') : '-'}
+                  <td className="whitespace-nowrap px-3 py-2">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">{v.name}</span>
+                      {v.engineState === 'On' && v.speedKmh != null && v.speedKmh > 0 && (
+                        <Navigation size={12} className="text-blue-500" style={{ transform: `rotate(${v.heading || 0}deg)` }} />
+                      )}
+                    </div>
                   </td>
-                  <td className="whitespace-nowrap px-4 py-2 text-right">
-                    {v.fuelPercent != null ? (
-                      <span className={`font-semibold ${v.fuelPercent < 20 ? 'text-red-500' : v.fuelPercent < 40 ? 'text-orange-500' : 'text-green-600'}`}>
-                        {v.fuelPercent}%
+                  <td className="max-w-[250px] px-3 py-2">
+                    {v.latitude != null ? (
+                      <div className="flex items-center gap-1.5">
+                        <MapPin size={12} className="flex-shrink-0 text-red-400" />
+                        <a
+                          href={`https://www.google.com/maps?q=${v.latitude},${v.longitude}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="truncate text-xs text-blue-600 underline decoration-blue-200 hover:decoration-blue-500 dark:text-blue-400"
+                          title={v.location || `${v.latitude}, ${v.longitude}`}
+                        >
+                          {v.location || `${v.latitude}, ${v.longitude}`}
+                        </a>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-gray-300 dark:text-gray-600">-</span>
+                    )}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2 text-right">
+                    {v.speedKmh != null ? (
+                      <span className={`font-mono text-xs ${v.speedKmh > 0 ? 'font-semibold text-blue-600' : 'text-gray-400'}`}>
+                        {v.speedKmh} km/h
                       </span>
                     ) : '-'}
                   </td>
-                  <td className="whitespace-nowrap px-4 py-2 text-center">
+                  <td className="whitespace-nowrap px-3 py-2 text-right font-mono text-sm">
+                    {v.odometerKm != null ? v.odometerKm.toLocaleString(locale === 'de' ? 'de-DE' : 'pl-PL') : '-'}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2 text-right">
+                    {v.fuelPercent != null ? (
+                      <div className="flex items-center justify-end gap-1.5">
+                        <div className="h-1.5 w-12 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+                          <div
+                            className={`h-full rounded-full ${v.fuelPercent < 20 ? 'bg-red-500' : v.fuelPercent < 40 ? 'bg-orange-500' : 'bg-green-500'}`}
+                            style={{ width: `${Math.min(100, v.fuelPercent)}%` }}
+                          />
+                        </div>
+                        <span className={`text-xs font-semibold ${v.fuelPercent < 20 ? 'text-red-500' : v.fuelPercent < 40 ? 'text-orange-500' : 'text-green-600'}`}>
+                          {v.fuelPercent}%
+                        </span>
+                      </div>
+                    ) : '-'}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2 text-center">
                     {v.engineState != null ? (
                       <Badge variant={v.engineState === 'On' ? 'green' : 'gray'} dot>
                         {v.engineState === 'On' ? t('samsaraEngineOn') : t('samsaraEngineOff')}
                       </Badge>
                     ) : '-'}
                   </td>
-                  <td className="whitespace-nowrap px-4 py-2 text-xs text-gray-500">
-                    {formatDateTime(v.odometerTime || v.fuelTime || v.engineTime || '', locale)}
+                  <td className="whitespace-nowrap px-3 py-2 text-xs text-gray-500">
+                    {formatDateTime(v.gpsTime || v.odometerTime || v.fuelTime || v.engineTime || '', locale)}
                   </td>
                 </tr>
               ))}

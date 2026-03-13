@@ -394,6 +394,12 @@ export interface SamsaraVehicleStat {
   fuelTime?: string;
   engineState?: string;
   engineTime?: string;
+  latitude?: number;
+  longitude?: number;
+  gpsTime?: string;
+  speedKmh?: number;
+  heading?: number;
+  location?: string;
 }
 
 export const fetchSamsaraVehicleStats = () =>
