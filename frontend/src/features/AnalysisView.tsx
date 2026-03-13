@@ -983,7 +983,7 @@ function MonthlyGridCopy({
                     {popoverDay === d && (
                       <div
                         data-absence-popover
-                        className="absolute left-1/2 top-full z-50 mt-1 -translate-x-1/2 rounded-lg border border-gray-200 bg-white p-1 shadow-lg dark:border-gray-600 dark:bg-gray-800"
+                        className="absolute left-1/2 bottom-full z-50 mb-1 -translate-x-1/2 rounded-lg border border-gray-200 bg-white p-1 shadow-lg dark:border-gray-600 dark:bg-gray-800"
                         style={{ minWidth: 90 }}
                       >
                         <button
