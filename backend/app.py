@@ -497,50 +497,48 @@ def build_timeline(records):
         for i, change in enumerate(changes):
             start_min = change['minutes']
             work_type = change['work_type']
+            is_manual = not change.get('card_present', True)
             end_min = changes[i + 1]['minutes'] if i + 1 < len(changes) else 1440
             if end_min > start_min:
                 start_dt = (base_date + timedelta(minutes=start_min)).astimezone(CET).replace(tzinfo=None)
                 end_dt = (base_date + timedelta(minutes=end_min)).astimezone(CET).replace(tzinfo=None)
-                all_intervals.append((start_dt, end_dt, work_type))
+                all_intervals.append((start_dt, end_dt, work_type, is_manual))
     # Deduplicate overlapping intervals caused by UTC→CET day boundary overlap
     return deduplicate_timeline(all_intervals)
 
 
 def deduplicate_timeline(intervals):
-    """Remove overlapping intervals from adjacent UTC daily records."""
+    """Remove overlapping intervals from adjacent UTC daily records.
+    Each interval is (start, end, work_type, is_manual)."""
     if not intervals:
         return []
     sorted_ivs = sorted(intervals, key=lambda x: x[0])
     result = [list(sorted_ivs[0])]
-    for start, end, wt in sorted_ivs[1:]:
+    for start, end, wt, manual in sorted_ivs[1:]:
         prev = result[-1]
         if start < prev[1]:
-            # Overlap detected – trim the new interval's start
             if end <= prev[1]:
-                # Completely contained within previous, skip
                 continue
-            # Partial overlap: keep only the non-overlapping tail
             start = prev[1]
         if end > start:
-            # Merge adjacent same-type intervals
-            if prev[2] == wt and abs((start - prev[1]).total_seconds()) < 60:
+            if prev[2] == wt and prev[3] == manual and abs((start - prev[1]).total_seconds()) < 60:
                 prev[1] = end
             else:
-                result.append([start, end, wt])
-    return [(s, e, w) for s, e, w in result]
+                result.append([start, end, wt, manual])
+    return [(s, e, w, m) for s, e, w, m in result]
 
 
 def merge_intervals(intervals):
     if not intervals:
         return []
     merged = [list(intervals[0])]
-    for start, end, wt in intervals[1:]:
+    for start, end, wt, manual in intervals[1:]:
         prev = merged[-1]
-        if prev[2] == wt and abs((start - prev[1]).total_seconds()) < 60:
+        if prev[2] == wt and prev[3] == manual and abs((start - prev[1]).total_seconds()) < 60:
             prev[1] = end
         else:
-            merged.append([start, end, wt])
-    return [(s, e, w) for s, e, w in merged]
+            merged.append([start, end, wt, manual])
+    return [(s, e, w, m) for s, e, w, m in merged]
 
 
 def detect_shifts(all_intervals, min_rest_hours=9):
@@ -550,7 +548,7 @@ def detect_shifts(all_intervals, min_rest_hours=9):
     min_rest_sec = min_rest_hours * 3600
     shifts = []
     current = []
-    for start, end, wt in merged:
+    for start, end, wt, manual in merged:
         if wt == 0:
             duration_sec = (end - start).total_seconds()
             if duration_sec >= min_rest_sec:
@@ -558,7 +556,7 @@ def detect_shifts(all_intervals, min_rest_hours=9):
                     shifts.append(current)
                     current = []
                 continue
-        current.append((start, end, wt))
+        current.append((start, end, wt, manual))
     if current:
         shifts.append(current)
     return shifts
@@ -567,7 +565,8 @@ def detect_shifts(all_intervals, min_rest_hours=9):
 def calculate_shift_night_hours(intervals, shift_start):
     night_25_sec = 0
     night_40_sec = 0
-    for start_dt, end_dt, work_type in intervals:
+    for interval in intervals:
+        start_dt, end_dt, work_type = interval[0], interval[1], interval[2]
         if work_type == 0:
             continue
         current = start_dt
@@ -608,6 +607,7 @@ def analyze_card(data):
     shift_details = []
     total_work = total_driving = total_break = total_avail = 0
     total_n25 = total_n40 = 0
+    total_manual = 0
     diet_count = 0
 
     for shift_intervals in shifts:
@@ -616,10 +616,11 @@ def analyze_card(data):
         shift_start = shift_intervals[0][0]
         shift_end = shift_intervals[-1][1]
 
-        break_sec = sum((e - s).total_seconds() for s, e, wt in shift_intervals if wt == 0)
-        avail_sec = sum((e - s).total_seconds() for s, e, wt in shift_intervals if wt == 1)
-        work_only_sec = sum((e - s).total_seconds() for s, e, wt in shift_intervals if wt == 2)
-        driving_sec = sum((e - s).total_seconds() for s, e, wt in shift_intervals if wt == 3)
+        break_sec = sum((e - s).total_seconds() for s, e, wt, _m in shift_intervals if wt == 0)
+        avail_sec = sum((e - s).total_seconds() for s, e, wt, _m in shift_intervals if wt == 1)
+        work_only_sec = sum((e - s).total_seconds() for s, e, wt, _m in shift_intervals if wt == 2)
+        driving_sec = sum((e - s).total_seconds() for s, e, wt, _m in shift_intervals if wt == 3)
+        manual_sec = sum((e - s).total_seconds() for s, e, wt, m in shift_intervals if m and wt != 0)
 
         work_sec = work_only_sec + driving_sec + avail_sec
         work_minutes = int(round(work_sec / 60))
@@ -627,6 +628,7 @@ def analyze_card(data):
         avail_minutes = int(round(avail_sec / 60))
         driving_minutes = int(round(driving_sec / 60))
         work_only_minutes = int(round(work_only_sec / 60))
+        manual_minutes = int(round(manual_sec / 60))
         duration_minutes = int(round((shift_end - shift_start).total_seconds() / 60))
 
         night_25, night_40 = calculate_shift_night_hours(shift_intervals, shift_start)
@@ -636,6 +638,7 @@ def analyze_card(data):
         total_avail += avail_minutes
         total_n25 += night_25
         total_n40 += night_40
+        total_manual += manual_minutes
         # Diet only on weekdays (Mon=0..Fri=4), not on weekends
         is_weekday = shift_start.weekday() < 5
         has_diet = duration_minutes >= 8 * 60 and is_weekday
@@ -677,6 +680,8 @@ def analyze_card(data):
             'night_40_hm': minutes_to_hm(night_40),
             'has_diet': has_diet,
             'vehicles': unique_plates,
+            'manual_minutes': manual_minutes,
+            'manual_hm': minutes_to_hm(manual_minutes),
         })
 
     total_night = total_n25 + total_n40
@@ -704,6 +709,8 @@ def analyze_card(data):
             'total_night_minutes': total_night,
             'diet_count': diet_count,
             'total_shifts': len(shift_details),
+            'total_manual_hm': minutes_to_hm(total_manual),
+            'total_manual_minutes': total_manual,
         },
         'shift_details': shift_details,
     }

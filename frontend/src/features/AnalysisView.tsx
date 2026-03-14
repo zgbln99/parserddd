@@ -607,7 +607,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
               <tr className="border-b border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800">
                 {[t('analysisWeekday'), t('analysisStart'), t('analysisEnd'), t('analysisTime'), t('analysisVehicle'),
                   t('analysisDriving'), t('analysisWork'), t('analysisBreaks'),
-                  t('analysisNight25'), t('analysisNight40'), t('analysisDiet'),
+                  t('analysisNight25'), t('analysisNight40'), t('analysisDiet'), 'Manual',
                 ].map((h) => (
                   <th key={h} className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold text-gray-500 dark:text-gray-400">
                     {h}
@@ -635,6 +635,11 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
                     {sh.has_diet
                       ? <Badge variant="green">{t('yes')}</Badge>
                       : <span className="text-gray-300 dark:text-gray-600">{t('no')}</span>}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2">
+                    {sh.manual_minutes > 0
+                      ? <Badge variant="yellow">{sh.manual_hm}</Badge>
+                      : <span className="text-gray-300 dark:text-gray-600">-</span>}
                   </td>
                 </tr>
                 );

@@ -56,6 +56,8 @@ export interface ShiftDetail {
   night_40_hm: string;
   has_diet: boolean;
   vehicles: string[];
+  manual_minutes: number;
+  manual_hm: string;
 }
 
 export interface AnalysisSummary {
@@ -79,6 +81,8 @@ export interface AnalysisSummary {
   total_night_minutes: number;
   diet_count: number;
   total_shifts: number;
+  total_manual_hm: string;
+  total_manual_minutes: number;
 }
 
 export interface AnalysisResult {

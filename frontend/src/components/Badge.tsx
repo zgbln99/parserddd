@@ -1,10 +1,11 @@
 import { clsx } from 'clsx';
 
-type Variant = 'green' | 'orange' | 'red' | 'blue' | 'gray';
+type Variant = 'green' | 'orange' | 'yellow' | 'red' | 'blue' | 'gray';
 
 const variantClasses: Record<Variant, string> = {
   green: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
   orange: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
+  yellow: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
   red: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
   blue: 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400',
   gray: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400',
@@ -13,6 +14,7 @@ const variantClasses: Record<Variant, string> = {
 const dotClasses: Record<Variant, string> = {
   green: 'bg-green-500',
   orange: 'bg-orange-500',
+  yellow: 'bg-yellow-500',
   red: 'bg-red-500',
   blue: 'bg-primary-500',
   gray: 'bg-gray-400',
