@@ -622,6 +622,10 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
                     <span className="text-gray-400">{t('analysisDiet')}</span>
                     <Badge variant="green">{t('yes')}</Badge>
                   </>}
+                  {sh.manual_minutes > 0 && <>
+                    <span className="text-gray-400">Manual</span>
+                    <Badge variant="yellow">{sh.manual_hm}</Badge>
+                  </>}
                 </div>
               </div>
             );
