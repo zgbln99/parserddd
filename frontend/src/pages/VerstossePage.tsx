@@ -1,9 +1,9 @@
 import { useState, useCallback, useMemo, useRef } from 'react';
-import { ShieldAlert, Play, Search, Users, AlertTriangle, CheckCircle } from 'lucide-react';
+import { ShieldAlert, Play, Search, Users, AlertTriangle, CheckCircle, Filter } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { useDateFilter } from '../hooks/useDateFilter';
 import { fetchDrivers, analyzeDropboxFile } from '../lib/api';
-import { analyzeVerstoesse, generateVerstossePdf, type VerstosseLang } from '../lib/pdf-generator';
+import { analyzeVerstoesse, generateVerstossePdf, type VerstosseLang, type VerstosseOptions } from '../lib/pdf-generator';
 import type { Driver, ShiftDetail } from '../types';
 import { Card } from '../components/Card';
 import { Badge } from '../components/Badge';
@@ -33,7 +33,12 @@ export function VerstossePage() {
   const [progress, setProgress] = useState({ current: 0, total: 0, name: '' });
   const [searchQuery, setSearchQuery] = useState('');
   const [pdfLang, setPdfLang] = useState<VerstosseLang>('de');
+  const [excludeManualEntry, setExcludeManualEntry] = useState(false);
   const cancelRef = useRef(false);
+
+  const verstosseOptions: VerstosseOptions = useMemo(() => ({
+    excludeManualEntry,
+  }), [excludeManualEntry]);
 
   // Load drivers on first render
   const loadDrivers = useCallback(async () => {
@@ -121,7 +126,7 @@ export function VerstossePage() {
 
         const driverName = driver.name;
         const cardNum = driver.card_number || analysis.driver_info?.card_number || '';
-        const result = analyzeVerstoesse(driverName, cardNum, shifts as any, pdfLang);
+        const result = analyzeVerstoesse(driverName, cardNum, shifts as any, pdfLang, verstosseOptions);
         const tFahrer = result.entries.reduce((s: number, v: any) => s + v.bussgeldFahrer, 0);
         const tUnternehmen = result.entries.reduce((s: number, v: any) => s + v.bussgeldUnternehmen, 0);
 
@@ -153,7 +158,7 @@ export function VerstossePage() {
     allResults.sort((a, b) => b.totalEntries - a.totalEntries);
     setResults(allResults);
     setLoading(false);
-  }, [selected, drivers, dateFrom, dateTo]);
+  }, [selected, drivers, dateFrom, dateTo, pdfLang, verstosseOptions]);
 
   const handleGeneratePdf = async (result: DriverViolationResult) => {
     const res = await generateVerstossePdf(
@@ -161,6 +166,7 @@ export function VerstossePage() {
       result.card_number,
       result.shifts as any,
       pdfLang,
+      verstosseOptions,
     );
     const msg = locale === 'de'
       ? `Verstöße-Dokument: ${res.totalEntries} Verstöße · Bußgeld Fahrer: ${res.totalFahrer.toFixed(2)} € · Unternehmen: ${res.totalUnternehmen.toFixed(2)} €`
@@ -176,14 +182,21 @@ export function VerstossePage() {
           result.card_number,
           result.shifts as any,
           pdfLang,
+          verstosseOptions,
         );
       }
     }
-    const totalViolations = results.reduce((s, r) => s + r.totalEntries, 0);
+    const totalViolationsCount = results.reduce((s, r) => s + r.totalEntries, 0);
     const msg = locale === 'de'
-      ? `${results.filter(r => r.totalEntries > 0).length} PDF-Dokumente erstellt — ${totalViolations} Verstöße gesamt`
-      : `${results.filter(r => r.totalEntries > 0).length} dokumentów PDF — ${totalViolations} naruszeń łącznie`;
+      ? `${results.filter(r => r.totalEntries > 0).length} PDF-Dokumente erstellt — ${totalViolationsCount} Verstöße gesamt`
+      : `${results.filter(r => r.totalEntries > 0).length} dokumentów PDF — ${totalViolationsCount} naruszeń łącznie`;
     toast(msg, 'success');
+  };
+
+  const fmtAmount = (val: number) => {
+    const parts = val.toFixed(2).split('.');
+    const intPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    return `${intPart},${parts[1]} \u20AC`;
   };
 
   const totalViolations = results.reduce((s, r) => s + r.totalEntries, 0);
@@ -192,7 +205,7 @@ export function VerstossePage() {
   const driversWithViolations = results.filter(r => r.totalEntries > 0).length;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
@@ -274,15 +287,15 @@ export function VerstossePage() {
             </div>
           )}
 
-          {/* Language + Generate */}
-          <div className="flex items-center gap-3 pt-2">
+          {/* Controls: Language + Exclusions + Generate */}
+          <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-gray-100 dark:border-white/5">
             {/* PDF language selector */}
             <div className="flex items-center gap-1 rounded-lg border border-gray-200 bg-white p-0.5 dark:border-white/10 dark:bg-slate-800">
               {([
-                { code: 'de' as VerstosseLang, label: 'DE', flag: '🇩🇪' },
-                { code: 'pl' as VerstosseLang, label: 'PL', flag: '🇵🇱' },
-                { code: 'en' as VerstosseLang, label: 'EN', flag: '🇬🇧' },
-                { code: 'el' as VerstosseLang, label: 'EL', flag: '🇬🇷' },
+                { code: 'de' as VerstosseLang, label: 'DE', flag: '\u{1F1E9}\u{1F1EA}' },
+                { code: 'pl' as VerstosseLang, label: 'PL', flag: '\u{1F1F5}\u{1F1F1}' },
+                { code: 'en' as VerstosseLang, label: 'EN', flag: '\u{1F1EC}\u{1F1E7}' },
+                { code: 'el' as VerstosseLang, label: 'EL', flag: '\u{1F1EC}\u{1F1F7}' },
               ]).map(({ code, label, flag }) => (
                 <button
                   key={code}
@@ -298,6 +311,27 @@ export function VerstossePage() {
                 </button>
               ))}
             </div>
+
+            {/* Exclusion toggle */}
+            <button
+              onClick={() => setExcludeManualEntry(!excludeManualEntry)}
+              className={`flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-medium transition ${
+                excludeManualEntry
+                  ? 'border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300'
+                  : 'border-gray-200 bg-white text-gray-500 hover:bg-gray-50 dark:border-white/10 dark:bg-slate-800 dark:text-gray-400 dark:hover:bg-white/5'
+              }`}
+              title={locale === 'de' ? 'Landeingabe-Verstöße ausschließen' : 'Wyklucz naruszenia wpisu kraju'}
+            >
+              <Filter size={13} />
+              {locale === 'de' ? 'Landeingabe ausschl.' : 'Bez wpisu kraju'}
+              {excludeManualEntry && (
+                <span className="flex h-4 w-4 items-center justify-center rounded-full bg-amber-500 text-[10px] font-bold text-white">
+                  <svg className="h-2.5 w-2.5" viewBox="0 0 12 12" fill="none"><path d="M2.5 6l2.5 2.5 4.5-5" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                </span>
+              )}
+            </button>
+
+            {/* Generate button */}
             <button
               onClick={handleGenerate}
               disabled={loading || selected.size === 0}
@@ -339,11 +373,11 @@ export function VerstossePage() {
             </div>
             <div className="rounded-xl border border-orange-200 bg-orange-50/50 p-4 dark:border-orange-500/20 dark:bg-orange-500/5">
               <span className="text-[11px] font-medium uppercase tracking-wider text-orange-500">{t('verstosseFahrerFines')}</span>
-              <p className="mt-1 text-2xl font-bold text-orange-600 dark:text-orange-400">{totalFahrer.toFixed(0)} €</p>
+              <p className="mt-1 text-xl font-bold tabular-nums text-orange-600 dark:text-orange-400">{fmtAmount(totalFahrer)}</p>
             </div>
             <div className="rounded-xl border border-red-200 bg-red-50/50 p-4 dark:border-red-500/20 dark:bg-red-500/5">
               <span className="text-[11px] font-medium uppercase tracking-wider text-red-500">{t('verstosseUnternehmenFines')}</span>
-              <p className="mt-1 text-2xl font-bold text-red-700 dark:text-red-300">{totalUnternehmen.toFixed(0)} €</p>
+              <p className="mt-1 text-xl font-bold tabular-nums text-red-700 dark:text-red-300">{fmtAmount(totalUnternehmen)}</p>
             </div>
           </div>
 
@@ -352,6 +386,11 @@ export function VerstossePage() {
             <div className="flex items-center justify-between">
               <p className="text-sm text-gray-500 dark:text-gray-400">
                 {driversWithViolations} {locale === 'de' ? 'Fahrer mit Verstößen' : 'kierowców z naruszeniami'}
+                {excludeManualEntry && (
+                  <span className="ml-2 text-xs text-amber-500">
+                    ({locale === 'de' ? 'ohne Landeingabe' : 'bez wpisu kraju'})
+                  </span>
+                )}
               </p>
               <button
                 onClick={handleGenerateAllPdfs}
@@ -368,21 +407,21 @@ export function VerstossePage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-gray-100 dark:border-white/10">
-                    <th className="pb-3 text-left font-semibold text-gray-700 dark:text-gray-300">{t('driversName')}</th>
-                    <th className="pb-3 text-left font-semibold text-gray-700 dark:text-gray-300">{t('driversCardNumber')}</th>
-                    <th className="pb-3 text-center font-semibold text-gray-700 dark:text-gray-300">{t('complianceViolations')}</th>
-                    <th className="pb-3 text-right font-semibold text-gray-700 dark:text-gray-300">{locale === 'de' ? 'Fahrer €' : 'Kierowca €'}</th>
-                    <th className="pb-3 text-right font-semibold text-gray-700 dark:text-gray-300">{locale === 'de' ? 'Unternehmen €' : 'Firma €'}</th>
-                    <th className="pb-3 text-center font-semibold text-gray-700 dark:text-gray-300">PDF</th>
+                  <tr className="border-b border-gray-200 dark:border-white/10">
+                    <th className="pb-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('driversName')}</th>
+                    <th className="pb-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('driversCardNumber')}</th>
+                    <th className="pb-3 text-center text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('complianceViolations')}</th>
+                    <th className="pb-3 text-right text-xs font-semibold uppercase tracking-wider text-orange-500">{locale === 'de' ? 'Fahrer' : 'Kierowca'}</th>
+                    <th className="pb-3 text-right text-xs font-semibold uppercase tracking-wider text-red-500">{locale === 'de' ? 'Unternehmen' : 'Firma'}</th>
+                    <th className="pb-3 text-center text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">PDF</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-50 dark:divide-white/5">
+                <tbody className="divide-y divide-gray-100 dark:divide-white/5">
                   {results.map(result => (
-                    <tr key={result.card_number || result.driver_name} className="hover:bg-gray-50/50 dark:hover:bg-white/[0.02]">
-                      <td className="py-3 font-medium text-gray-900 dark:text-white">{result.driver_name}</td>
-                      <td className="py-3 text-gray-500 dark:text-gray-400 font-mono text-xs">{result.card_number}</td>
-                      <td className="py-3 text-center">
+                    <tr key={result.card_number || result.driver_name} className="hover:bg-gray-50/80 dark:hover:bg-white/[0.02]">
+                      <td className="py-2.5 font-medium text-gray-900 dark:text-white">{result.driver_name}</td>
+                      <td className="py-2.5 text-gray-400 dark:text-gray-500 font-mono text-xs">{result.card_number}</td>
+                      <td className="py-2.5 text-center">
                         {result.totalEntries > 0 ? (
                           <Badge variant="red">{result.totalEntries}</Badge>
                         ) : (
@@ -392,13 +431,13 @@ export function VerstossePage() {
                           </Badge>
                         )}
                       </td>
-                      <td className="py-3 text-right font-mono text-orange-600 dark:text-orange-400">
-                        {result.totalFahrer > 0 ? `${result.totalFahrer.toFixed(2)} €` : '—'}
+                      <td className="py-2.5 text-right font-mono tabular-nums text-sm text-orange-600 dark:text-orange-400">
+                        {result.totalFahrer > 0 ? fmtAmount(result.totalFahrer) : '\u2014'}
                       </td>
-                      <td className="py-3 text-right font-mono text-red-700 dark:text-red-300">
-                        {result.totalUnternehmen > 0 ? `${result.totalUnternehmen.toFixed(2)} €` : '—'}
+                      <td className="py-2.5 text-right font-mono tabular-nums text-sm text-red-700 dark:text-red-300">
+                        {result.totalUnternehmen > 0 ? fmtAmount(result.totalUnternehmen) : '\u2014'}
                       </td>
-                      <td className="py-3 text-center">
+                      <td className="py-2.5 text-center">
                         {result.totalEntries > 0 ? (
                           <button
                             onClick={() => handleGeneratePdf(result)}
@@ -407,7 +446,7 @@ export function VerstossePage() {
                             PDF
                           </button>
                         ) : (
-                          <span className="text-gray-300 dark:text-gray-600">—</span>
+                          <span className="text-gray-300 dark:text-gray-600">\u2014</span>
                         )}
                       </td>
                     </tr>
@@ -415,15 +454,15 @@ export function VerstossePage() {
                 </tbody>
                 {/* Totals row */}
                 <tfoot>
-                  <tr className="border-t-2 border-gray-200 dark:border-white/10 font-bold">
-                    <td className="pt-3 text-gray-900 dark:text-white">{locale === 'de' ? 'GESAMT' : 'RAZEM'}</td>
-                    <td className="pt-3 text-gray-500">{results.length} {locale === 'de' ? 'Fahrer' : 'kierowców'}</td>
-                    <td className="pt-3 text-center">
+                  <tr className="border-t-2 border-gray-300 dark:border-white/15 font-bold">
+                    <td className="pt-3 pb-1 text-gray-900 dark:text-white">{locale === 'de' ? 'GESAMT' : 'RAZEM'}</td>
+                    <td className="pt-3 pb-1 text-gray-400 text-xs">{results.length} {locale === 'de' ? 'Fahrer' : 'kierowców'}</td>
+                    <td className="pt-3 pb-1 text-center">
                       <Badge variant={totalViolations > 0 ? 'red' : 'green'}>{totalViolations}</Badge>
                     </td>
-                    <td className="pt-3 text-right font-mono text-orange-600 dark:text-orange-400">{totalFahrer.toFixed(2)} €</td>
-                    <td className="pt-3 text-right font-mono text-red-700 dark:text-red-300">{totalUnternehmen.toFixed(2)} €</td>
-                    <td className="pt-3" />
+                    <td className="pt-3 pb-1 text-right font-mono tabular-nums text-orange-600 dark:text-orange-400">{fmtAmount(totalFahrer)}</td>
+                    <td className="pt-3 pb-1 text-right font-mono tabular-nums text-red-700 dark:text-red-300">{fmtAmount(totalUnternehmen)}</td>
+                    <td className="pt-3 pb-1" />
                   </tr>
                 </tfoot>
               </table>

@@ -860,11 +860,16 @@ interface VerstossType {
  *   VSI = Very Serious Infringement
  *   MSI = Most Serious Infringement
  */
+export interface VerstosseOptions {
+  excludeManualEntry?: boolean;
+}
+
 export function analyzeVerstoesse(
   driverName: string,
   cardNumber: string,
   shifts: Shift[],
   lang: VerstosseLang = 'de',
+  options: VerstosseOptions = {},
 ): { entries: VerstossEntry[]; types: VerstossType[]; period: string } {
   const entries: VerstossEntry[] = [];
   const V = violationTexts[lang];
@@ -914,7 +919,7 @@ export function analyzeVerstoesse(
     const zeitRange = `${startTime} - ${endTime}`;
 
     // ── 1) EU VO 165/2014 Art. 34 — Manuelle Eingabe fehlt/verspätet ──
-    if ((s.manual_minutes || 0) > 0) {
+    if (!options.excludeManualEntry && (s.manual_minutes || 0) > 0) {
       entries.push({
         datum, zeit: startTime,
         beschreibung: V.manualEntry(),
@@ -1508,8 +1513,9 @@ export async function generateVerstossePdf(
   cardNumber: string,
   shifts: Shift[],
   lang: VerstosseLang = 'de',
+  options: VerstosseOptions = {},
 ) {
-  const { entries, types, period } = analyzeVerstoesse(driverName, cardNumber, shifts, lang);
+  const { entries, types, period } = analyzeVerstoesse(driverName, cardNumber, shifts, lang, options);
   const L = verstosseI18n[lang];
 
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
