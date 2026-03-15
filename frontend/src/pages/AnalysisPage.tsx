@@ -46,7 +46,7 @@ export function AnalysisPage() {
       <div className="mb-6 flex items-center gap-4">
         <button
           onClick={goBack}
-          className="flex items-center gap-2 rounded-xl border border-gray-200 px-4 py-2 text-sm font-medium transition hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
+          className="flex items-center gap-2 rounded-xl border border-white/30 dark:border-white/10 px-4 py-2 text-sm font-medium transition hover:bg-black/[0.03] dark:hover:bg-white/5"
         >
           <ArrowLeft size={16} />
           {t('back')}
@@ -72,7 +72,7 @@ export function AnalysisPage() {
       {/* Error */}
       {error && (
         <Card className="py-12">
-          <div className="flex flex-col items-center gap-3 text-red-500">
+          <div className="flex flex-col items-center gap-3 text-rose-500">
             <AlertCircle size={32} />
             <p className="text-sm">{error}</p>
           </div>
@@ -94,7 +94,7 @@ export function AnalysisPage() {
 
       {!loading && data?.error && (
         <Card className="py-12">
-          <p className="text-center text-red-500">{data.error}</p>
+          <p className="text-center text-rose-500">{data.error}</p>
         </Card>
       )}
     </div>

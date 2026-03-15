@@ -200,13 +200,13 @@ export function SettlementPage() {
               type="month"
               value={selectedPeriod || defaultPeriod}
               onChange={(e) => setSelectedPeriod(e.target.value)}
-              className="rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none transition focus:border-primary-400 focus:ring-2 focus:ring-primary-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
+              className="glass-input rounded-xl px-3 py-2 text-sm outline-none"
             />
           </div>
           <button
             onClick={loading ? () => { cancelRef.current = true; } : handleGenerate}
             className={`flex items-center gap-2 rounded-xl px-5 py-2 text-sm font-semibold text-white transition ${
-              loading ? 'bg-red-600 hover:bg-red-700' : 'bg-primary-600 hover:bg-primary-700'
+              loading ? 'bg-rose-600 hover:bg-rose-700' : 'bg-primary-600 hover:bg-primary-700'
             }`}
           >
             {loading ? <RefreshCw size={14} className="animate-spin" /> : <Calendar size={14} />}
@@ -216,7 +216,7 @@ export function SettlementPage() {
             <button
               onClick={handleExportDatev}
               disabled={exporting}
-              className="flex items-center gap-2 rounded-xl bg-green-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-green-700 disabled:opacity-50"
+              className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-emerald-500/20 transition hover:brightness-110 disabled:opacity-50"
             >
               <Download size={14} />
               {exporting ? t('loading') : t('settlementExportDatev')}
@@ -238,7 +238,7 @@ export function SettlementPage() {
                     <span>{progress.current} / {progress.total}</span>
                     <span>{Math.round((progress.current / progress.total) * 100)}%</span>
                   </div>
-                  <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+                  <div className="h-2 w-full overflow-hidden rounded-full bg-black/10 dark:bg-white/10">
                     <div
                       className="h-full rounded-full bg-primary-500 transition-all duration-300"
                       style={{ width: `${(progress.current / progress.total) * 100}%` }}
@@ -256,7 +256,7 @@ export function SettlementPage() {
 
       {/* Error */}
       {error && (
-        <div className="flex flex-col items-center gap-3 py-12 text-red-500">
+        <div className="flex flex-col items-center gap-3 py-12 text-rose-500">
           <AlertCircle size={32} />
           <p className="text-sm">{error}</p>
         </div>
@@ -293,12 +293,12 @@ export function SettlementPage() {
               <p className="text-xs text-gray-500">{t('analysisNight40')}</p>
             </Card>
             <Card className="p-4 text-center">
-              <UtensilsCrossed size={20} className="mx-auto mb-1 text-orange-500" />
+              <UtensilsCrossed size={20} className="mx-auto mb-1 text-amber-500" />
               <p className="text-2xl font-bold">{totals.diets}</p>
               <p className="text-xs text-gray-500">{t('analysisDiet')}</p>
             </Card>
             <Card className="p-4 text-center">
-              <Download size={20} className="mx-auto mb-1 text-green-500" />
+              <Download size={20} className="mx-auto mb-1 text-emerald-500" />
               <p className="text-2xl font-bold">{fmtEur(totals.vma)}</p>
               <p className="text-xs text-gray-500">VMA</p>
             </Card>
@@ -306,7 +306,7 @@ export function SettlementPage() {
 
           {/* Driver table */}
           <Card className="overflow-hidden">
-            <div className="border-b border-gray-100 bg-gray-50/80 px-5 py-3 dark:border-gray-800 dark:bg-gray-900/50">
+            <div className="border-b border-white/20 px-5 py-3 dark:border-white/5">
               <h2 className="text-sm font-semibold">
                 {monthLabel(period)} — {drivers.length} {t('settlementDrivers').toLowerCase()}
               </h2>
@@ -314,7 +314,7 @@ export function SettlementPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-gray-100 bg-gray-50/40 dark:border-gray-800 dark:bg-gray-900/30">
+                  <tr className="border-b border-white/20 dark:border-white/5">
                     <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">#</th>
                     <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">{t('settlementPersonalNr')}</th>
                     <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">{t('driversName')}</th>
@@ -326,7 +326,7 @@ export function SettlementPage() {
                     <th className="whitespace-nowrap px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">VMA</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
+                <tbody className="divide-y divide-black/[0.03] dark:divide-white/[0.03]">
                   {drivers.map((d, i) => (
                     <tr key={d.card_number || d.driver_name} className="transition hover:bg-primary-50/30 dark:hover:bg-primary-900/10">
                       <td className="whitespace-nowrap px-4 py-3 text-gray-400">{i + 1}</td>
@@ -345,21 +345,21 @@ export function SettlementPage() {
                           </Badge>
                         ) : '-'}
                       </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-right font-semibold text-green-600 dark:text-green-400">
+                      <td className="whitespace-nowrap px-4 py-3 text-right font-semibold text-emerald-600 dark:text-emerald-400">
                         {fmtEur(d.summary.vma_amount)}
                       </td>
                     </tr>
                   ))}
                 </tbody>
                 <tfoot>
-                  <tr className="border-t-2 border-gray-200 bg-gray-50/80 font-semibold dark:border-gray-700 dark:bg-gray-900/50">
+                  <tr className="border-t-2 border-white/30 bg-black/[0.02] font-semibold dark:border-white/10 dark:bg-white/5">
                     <td className="px-4 py-3" colSpan={3}>{t('settlementTotal')}</td>
                     <td className="whitespace-nowrap px-4 py-3 text-right">{totals.shifts}</td>
                     <td className="whitespace-nowrap px-4 py-3 text-right font-mono">{fmtH(totals.work)}</td>
                     <td className="whitespace-nowrap px-4 py-3 text-right font-mono text-indigo-600 dark:text-indigo-400">{fmtDec(totals.n25)}</td>
                     <td className="whitespace-nowrap px-4 py-3 text-right font-mono text-purple-600 dark:text-purple-400">{fmtDec(totals.n40)}</td>
                     <td className="whitespace-nowrap px-4 py-3 text-right">{totals.diets}</td>
-                    <td className="whitespace-nowrap px-4 py-3 text-right font-semibold text-green-600 dark:text-green-400">{fmtEur(totals.vma)}</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-right font-semibold text-emerald-600 dark:text-emerald-400">{fmtEur(totals.vma)}</td>
                   </tr>
                 </tfoot>
               </table>

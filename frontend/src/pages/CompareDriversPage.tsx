@@ -371,7 +371,7 @@ export function CompareDriversPage() {
     );
   }
 
-  const inputCls = 'rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none transition focus:border-primary-400 focus:ring-2 focus:ring-primary-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:focus:ring-primary-900/40';
+  const inputCls = 'glass-input rounded-xl px-3 py-2 text-sm outline-none';
 
   return (
     <div className="animate-slide-up space-y-6">
@@ -406,19 +406,19 @@ export function CompareDriversPage() {
           <button
             onClick={handleGenerate}
             disabled={selected.size < 2 || comparing}
-            className="flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-50"
+            className="flex items-center gap-2 rounded-lg bg-gradient-to-r from-blue-500 to-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:brightness-110 disabled:opacity-50"
           >
             <Play size={14} />
             {comparing ? t('compareLoading') : t('compareGenerate')}
           </button>
         </div>
 
-        <div className="max-h-[280px] overflow-y-auto rounded-lg border border-gray-100 dark:border-gray-800">
-          <div className="grid grid-cols-2 gap-px bg-gray-100 sm:grid-cols-3 lg:grid-cols-4 dark:bg-gray-800">
+        <div className="max-h-[280px] overflow-y-auto rounded-lg border border-white/20 dark:border-white/5">
+          <div className="grid grid-cols-2 gap-px bg-black/[0.04] sm:grid-cols-3 lg:grid-cols-4 dark:bg-white/5">
             {filtered.map((d) => (
               <label
                 key={d.name}
-                className={`flex cursor-pointer items-center gap-2.5 bg-white px-3 py-2.5 transition hover:bg-blue-50/50 dark:bg-gray-900 dark:hover:bg-blue-900/10 ${
+                className={`flex cursor-pointer items-center gap-2.5 bg-white/50 px-3 py-2.5 transition hover:bg-blue-50/50 dark:bg-white/5 dark:hover:bg-blue-900/10 ${
                   selected.has(d.name) ? 'ring-2 ring-inset ring-blue-400 dark:ring-blue-600' : ''
                 }`}
               >
@@ -458,9 +458,9 @@ export function CompareDriversPage() {
                   <span className="text-gray-400">{t('compareTotalShifts')}</span>
                   <span className="font-semibold">{ds.totalShifts}</span>
                   <span className="text-gray-400">{t('compareAvgStart')}</span>
-                  <span className="font-semibold text-green-600 dark:text-green-400">{ds.avgStart}</span>
+                  <span className="font-semibold text-emerald-600 dark:text-emerald-400">{ds.avgStart}</span>
                   <span className="text-gray-400">{t('compareAvgEnd')}</span>
-                  <span className="font-semibold text-red-500 dark:text-red-400">{ds.avgEnd}</span>
+                  <span className="font-semibold text-rose-500 dark:text-rose-400">{ds.avgEnd}</span>
                   <span className="text-gray-400">{t('compareAvgDuration')}</span>
                   <span className="font-semibold">{ds.avgDuration}</span>
                 </div>
@@ -473,30 +473,30 @@ export function CompareDriversPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-gray-200 bg-gray-50/80 dark:border-gray-800 dark:bg-gray-900/50">
-                    <th className="sticky left-0 z-10 bg-gray-50/80 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:bg-gray-900/50 dark:text-gray-400">
+                  <tr className="border-b border-white/20 dark:border-white/5">
+                    <th className="sticky left-0 z-10 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:bg-gray-900/50 dark:text-gray-400">
                       {t('compareDate')}
                     </th>
                     {results.map((r) => (
-                      <th key={r.driver_name} colSpan={3} className="border-l border-gray-200 px-4 py-3 text-center text-xs font-bold uppercase tracking-wider text-gray-700 dark:border-gray-700 dark:text-gray-300">
+                      <th key={r.driver_name} colSpan={3} className="border-l border-white/20 px-4 py-3 text-center text-xs font-bold uppercase tracking-wider text-gray-700 dark:border-white/10 dark:text-gray-300">
                         {r.driver_name}
                       </th>
                     ))}
                   </tr>
-                  <tr className="border-b border-gray-100 bg-gray-50/50 dark:border-gray-800 dark:bg-gray-900/30">
-                    <th className="sticky left-0 z-10 bg-gray-50/50 dark:bg-gray-900/30" />
+                  <tr className="border-b border-white/10 dark:border-white/5">
+                    <th className="sticky left-0 z-10" />
                     {results.map((r) => (
-                      <th key={r.driver_name} className="border-l border-gray-100 dark:border-gray-800" colSpan={3}>
+                      <th key={r.driver_name} className="border-l border-white/10 dark:border-white/5" colSpan={3}>
                         <div className="flex">
-                          <span className="flex-1 px-2 py-1.5 text-center text-[10px] font-semibold uppercase text-green-600 dark:text-green-400">{t('compareStart')}</span>
-                          <span className="flex-1 px-2 py-1.5 text-center text-[10px] font-semibold uppercase text-red-500 dark:text-red-400">{t('compareEnd')}</span>
+                          <span className="flex-1 px-2 py-1.5 text-center text-[10px] font-semibold uppercase text-emerald-600 dark:text-emerald-400">{t('compareStart')}</span>
+                          <span className="flex-1 px-2 py-1.5 text-center text-[10px] font-semibold uppercase text-rose-500 dark:text-rose-400">{t('compareEnd')}</span>
                           <span className="flex-1 px-2 py-1.5 text-center text-[10px] font-semibold uppercase text-gray-500 dark:text-gray-400">{t('compareDuration')}</span>
                         </div>
                       </th>
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
+                <tbody className="divide-y divide-black/[0.03] dark:divide-white/[0.03]">
                   {allDates.map((date) => {
                     // Determine weekday from first result that has this date
                     let wd = '';
@@ -507,10 +507,10 @@ export function CompareDriversPage() {
                     const isWeekend = wd === 'So' || wd === 'Sa' || wd === 'Nd';
 
                     return (
-                      <tr key={date} className={isWeekend ? 'bg-red-50/30 dark:bg-red-900/5' : 'hover:bg-gray-50 dark:hover:bg-gray-800/50'}>
-                        <td className="sticky left-0 z-10 whitespace-nowrap bg-white px-4 py-2 dark:bg-gray-900">
+                      <tr key={date} className={isWeekend ? 'bg-rose-50/30 dark:bg-rose-900/5' : 'hover:bg-black/[0.03] dark:hover:bg-white/5'}>
+                        <td className="sticky left-0 z-10 whitespace-nowrap bg-white/80 backdrop-blur-sm px-4 py-2 dark:bg-gray-900/80">
                           <span className="font-medium">{date}</span>
-                          <span className={`ml-2 text-xs font-bold ${isWeekend ? 'text-red-400' : 'text-gray-400'}`}>{wd}</span>
+                          <span className={`ml-2 text-xs font-bold ${isWeekend ? 'text-rose-400' : 'text-gray-400'}`}>{wd}</span>
                         </td>
                         {results.map((r) => {
                           const sh = shiftLookup.get(r.driver_name)?.get(date);
@@ -522,10 +522,10 @@ export function CompareDriversPage() {
                             );
                           }
                           return (
-                            <td key={r.driver_name} colSpan={3} className="border-l border-gray-100 dark:border-gray-800">
+                            <td key={r.driver_name} colSpan={3} className="border-l border-white/10 dark:border-white/5">
                               <div className="flex">
-                                <span className="flex-1 px-2 py-2 text-center font-semibold text-green-700 dark:text-green-400">{sh.start}</span>
-                                <span className="flex-1 px-2 py-2 text-center font-semibold text-red-600 dark:text-red-400">{sh.end}</span>
+                                <span className="flex-1 px-2 py-2 text-center font-semibold text-emerald-700 dark:text-emerald-400">{sh.start}</span>
+                                <span className="flex-1 px-2 py-2 text-center font-semibold text-rose-600 dark:text-rose-400">{sh.end}</span>
                                 <span className="flex-1 px-2 py-2 text-center text-gray-600 dark:text-gray-400">{sh.duration_hm}</span>
                               </div>
                             </td>
@@ -543,14 +543,14 @@ export function CompareDriversPage() {
           <div className="flex justify-center gap-3 pt-2">
             <button
               onClick={handleExportPdf}
-              className="flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700"
+              className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:brightness-110"
             >
               <FileDown size={16} />
               {t('compareExportPdf')}
             </button>
             <button
               onClick={handlePrint}
-              className="flex items-center gap-2 rounded-xl border border-gray-200 px-5 py-2.5 text-sm font-semibold text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-800"
+              className="flex items-center gap-2 rounded-xl border border-white/30 dark:border-white/10 px-5 py-2.5 text-sm font-semibold text-gray-600 transition hover:bg-black/[0.03] dark:text-gray-400 dark:hover:bg-white/5"
             >
               <Printer size={16} />
               {t('comparePrint')}

@@ -340,26 +340,26 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
 
       {/* Date filter */}
       {hasDateFilter && (
-        <div className="flex flex-wrap items-center gap-3 rounded-xl bg-gray-50 px-4 py-3 dark:bg-gray-800">
+        <div className="flex flex-wrap items-center gap-3 rounded-xl bg-black/[0.02] px-4 py-3 dark:bg-white/5">
           <span className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('analysisDateFilter')}:</span>
           <label className="text-xs text-gray-500 dark:text-gray-400">{t('detailFrom')}:</label>
           <input
             type="date"
             value={dateFrom || ''}
             onChange={(e) => onDateFromChange(e.target.value)}
-            className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs outline-none transition focus:border-primary-400 focus:ring-1 focus:ring-primary-200 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:[color-scheme:dark]"
+            className="glass-input rounded-xl px-2.5 py-1.5 text-xs outline-none dark:[color-scheme:dark]"
           />
           <label className="text-xs text-gray-500 dark:text-gray-400">{t('detailTo')}:</label>
           <input
             type="date"
             value={dateTo || ''}
             onChange={(e) => onDateToChange(e.target.value)}
-            className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs outline-none transition focus:border-primary-400 focus:ring-1 focus:ring-primary-200 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:[color-scheme:dark]"
+            className="glass-input rounded-xl px-2.5 py-1.5 text-xs outline-none dark:[color-scheme:dark]"
           />
           {(dateFrom || dateTo) && (
             <button
               onClick={() => { onDateFromChange(''); onDateToChange(''); }}
-              className="rounded-lg px-2 py-1 text-xs font-medium text-red-500 transition hover:bg-red-50 dark:hover:bg-red-900/20"
+              className="rounded-lg px-2 py-1 text-xs font-medium text-rose-500 transition hover:bg-rose-500/10 dark:hover:bg-rose-500/10"
             >
               {t('clear')}
             </button>
@@ -390,10 +390,10 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
           <p className="mt-1 text-2xl font-extrabold text-indigo-700 dark:text-indigo-300">{(s.night_40_minutes / 60).toFixed(2)}</p>
           <p className="mt-0.5 text-xs text-indigo-500/70 dark:text-indigo-400/70">{s.night_40_hm}</p>
         </div>
-        <div className="rounded-xl border border-green-200 bg-green-50 p-4 text-center dark:border-green-800 dark:bg-green-900/30">
-          <p className="text-[0.65rem] font-bold uppercase tracking-wider text-green-500 dark:text-green-400">{t('analysisDietCount')}</p>
-          <p className="mt-1 text-2xl font-extrabold text-green-700 dark:text-green-300">{s.diet_count}</p>
-          <p className="mt-0.5 text-xs font-semibold text-green-600 dark:text-green-400">
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-center dark:border-emerald-800 dark:bg-emerald-900/30">
+          <p className="text-[0.65rem] font-bold uppercase tracking-wider text-emerald-500 dark:text-emerald-400">{t('analysisDietCount')}</p>
+          <p className="mt-1 text-2xl font-extrabold text-emerald-700 dark:text-emerald-300">{s.diet_count}</p>
+          <p className="mt-0.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
             {vma.amount.toFixed(2).replace('.', ',')} €
             {vma.doubleDiet && <span className="ml-1 text-[10px] font-normal opacity-70">(2×{vma.ratePerDay / 2}€)</span>}
           </p>
@@ -409,7 +409,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
           { label: t('analysisTotalShifts'), value: String(s.total_shifts) },
           { label: t('analysisNight25') + ' + ' + t('analysisNight40'), value: fmtNight(s.night_25_minutes + s.night_40_minutes, s.total_night_hm) },
         ].map(({ label, value }) => (
-          <div key={label} className="rounded-xl bg-gray-50 p-3 text-center dark:bg-gray-800">
+          <div key={label} className="rounded-xl bg-black/[0.02] p-3 text-center dark:bg-white/5">
             <p className="text-[0.65rem] font-bold uppercase tracking-wider text-gray-400">{label}</p>
             <p className="mt-0.5 text-xl font-extrabold">{value}</p>
           </div>
@@ -418,7 +418,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
 
       {/* Monthly grid copy block */}
       {shifts.length > 0 && hasDateFilter && dateFrom && (
-        <div className="rounded-xl bg-gray-50 p-4 dark:bg-gray-800">
+        <div className="rounded-xl bg-black/[0.02] p-4 dark:bg-white/5">
           <MonthlyGridCopy
             shifts={shifts}
             summary={s as unknown as Record<string, unknown>}
@@ -434,7 +434,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
 
       {/* Chart toggle + chart */}
       {shifts.length > 1 && (
-        <div className="rounded-xl bg-gray-50 dark:bg-gray-800">
+        <div className="rounded-xl bg-black/[0.02] dark:bg-white/5">
           <button
             onClick={() => setShowChart(!showChart)}
             className="flex w-full items-center gap-2 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500 transition hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
@@ -472,14 +472,14 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
 
       {/* Diet report toggle */}
       {shifts.length > 0 && (
-        <div className="rounded-xl bg-gray-50 dark:bg-gray-800">
+        <div className="rounded-xl bg-black/[0.02] dark:bg-white/5">
           <button
             onClick={() => setShowDietReport(!showDietReport)}
             className="flex w-full items-center gap-2 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500 transition hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
           >
             <UtensilsCrossed size={14} />
             {t('dietReport')}
-            <span className="ml-1 rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-bold text-green-700 dark:bg-green-900/40 dark:text-green-400">
+            <span className="ml-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400">
               {s.diet_count}/{s.total_shifts}
             </span>
             <span className="ml-auto text-[10px] font-normal normal-case text-gray-400">
@@ -490,20 +490,20 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
             <div className="px-4 pb-4">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-gray-200 dark:border-gray-700">
+                  <tr className="border-b border-white/30 dark:border-white/10">
                     <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 dark:text-gray-400">{t('syncDate')}</th>
                     <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 dark:text-gray-400">{t('analysisWeekday')}</th>
                     <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 dark:text-gray-400">{t('analysisDuration')}</th>
                     <th className="px-3 py-2 text-center text-xs font-semibold text-gray-500 dark:text-gray-400">{t('analysisDiet')}</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                <tbody className="divide-y divide-black/[0.03] dark:divide-white/[0.03]">
                   {shifts.map((sh, i) => {
                     const isWeekend = sh.weekday === 'So' || sh.weekday === 'Nd';
                     return (
                       <tr key={i} className={isWeekend ? 'text-gray-400 dark:text-gray-600' : ''}>
                         <td className="whitespace-nowrap px-3 py-1.5 font-medium">{sh.shift_date}</td>
-                        <td className={`whitespace-nowrap px-3 py-1.5 font-bold ${isWeekend ? 'text-red-400' : ''}`}>{localizeWeekday(sh.weekday, locale)}</td>
+                        <td className={`whitespace-nowrap px-3 py-1.5 font-bold ${isWeekend ? 'text-rose-400' : ''}`}>{localizeWeekday(sh.weekday, locale)}</td>
                         <td className="whitespace-nowrap px-3 py-1.5">{sh.duration_hm}</td>
                         <td className="whitespace-nowrap px-3 py-1.5 text-center">
                           {sh.has_diet
@@ -518,7 +518,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
               <div className="mt-3 flex justify-end">
                 <button
                   onClick={handlePrintDietReport}
-                  className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-700"
+                  className="flex items-center gap-1.5 rounded-lg border border-white/30 dark:border-white/10 px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:bg-black/5 dark:text-gray-400 dark:hover:bg-white/5"
                 >
                   <Printer size={13} />
                   {t('analysisPrint')}
@@ -531,7 +531,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
 
       {/* Monthly days (vacation/sick) */}
       {di.card_number && period && monthlyDays && (
-        <div className="rounded-xl bg-gray-50 p-4 dark:bg-gray-800">
+        <div className="rounded-xl bg-black/[0.02] p-4 dark:bg-white/5">
           <div className="mb-3 flex items-center gap-2">
             <CalendarDays size={14} className="text-gray-500" />
             <span className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
@@ -547,7 +547,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">{t('monthlySick')}</label>
-              <div className="flex h-[34px] w-20 items-center justify-center rounded-lg border border-orange-200 bg-orange-50 px-2.5 py-1.5 text-sm font-bold tabular-nums text-orange-700 dark:border-orange-800 dark:bg-orange-900/30 dark:text-orange-300">
+              <div className="flex h-[34px] w-20 items-center justify-center rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-sm font-bold tabular-nums text-amber-700 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
                 {monthlyDays.sick_days || 0}
               </div>
             </div>
@@ -557,7 +557,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
                 type="text"
                 value={monthlyDays.overtime_hm}
                 onChange={(e) => handleMonthlyChange('overtime_hm', e.target.value)}
-                className="w-20 rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm tabular-nums outline-none transition focus:border-primary-400 focus:ring-1 focus:ring-primary-200 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                className="w-20 glass-input rounded-xl px-2.5 py-1.5 text-sm tabular-nums outline-none"
                 placeholder="0:00"
               />
             </div>
@@ -576,7 +576,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
 
       {/* Driver config (admin only) */}
       {isAdmin && di.card_number && (
-        <div className="rounded-xl bg-gray-50 dark:bg-gray-800">
+        <div className="rounded-xl bg-black/[0.02] dark:bg-white/5">
           <button
             onClick={() => setShowConfig(!showConfig)}
             className="flex w-full items-center gap-2 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500 transition hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
@@ -601,10 +601,10 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
       {/* Shifts table */}
       {shifts.length > 0 && (
         <div className="-mx-6 overflow-x-auto px-6">
-          <div className="rounded-xl ring-1 ring-gray-200 dark:ring-gray-700">
+          <div className="rounded-xl border border-white/20 dark:border-white/5">
           <table className="w-full min-w-[900px] text-sm">
             <thead>
-              <tr className="border-b border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800">
+              <tr className="border-b border-white/20 dark:border-white/5">
                 {[t('analysisWeekday'), t('analysisStart'), t('analysisEnd'), t('analysisTime'), t('analysisVehicle'),
                   t('analysisDriving'), t('analysisWork'), t('analysisBreaks'),
                   t('analysisNight25'), t('analysisNight40'), t('analysisDiet'), 'Manual',
@@ -615,13 +615,13 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+            <tbody className="divide-y divide-black/[0.03] dark:divide-white/[0.03]">
               {shifts.map((sh, i) => {
                 const isWeekend = sh.weekday === 'So' || sh.weekday === 'Nd';
                 const wd = localizeWeekday(sh.weekday, locale);
                 return (
-                <tr key={i} className={`hover:bg-gray-50 dark:hover:bg-gray-800/50 ${isWeekend ? 'bg-red-50/40 dark:bg-red-900/10' : ''}`}>
-                  <td className={`whitespace-nowrap px-3 py-2 font-bold ${isWeekend ? 'text-red-500' : ''}`}>{wd}</td>
+                <tr key={i} className={`hover:bg-black/[0.03] dark:hover:bg-white/5 ${isWeekend ? 'bg-rose-50/40 dark:bg-rose-900/10' : ''}`}>
+                  <td className={`whitespace-nowrap px-3 py-2 font-bold ${isWeekend ? 'text-rose-500' : ''}`}>{wd}</td>
                   <td className="whitespace-nowrap px-3 py-2 font-medium">{sh.shift_start}</td>
                   <td className="whitespace-nowrap px-3 py-2 text-gray-500 dark:text-gray-400">{sh.shift_end}</td>
                   <td className="whitespace-nowrap px-3 py-2 font-bold">{sh.duration_hm}</td>
@@ -672,14 +672,14 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
         </button>
         <button
           onClick={handleDatevExport}
-          className="flex items-center gap-2 rounded-xl border border-green-200 bg-green-50 px-5 py-2.5 text-sm font-semibold text-green-700 transition hover:bg-green-100 dark:border-green-800 dark:bg-green-900/20 dark:text-green-400 dark:hover:bg-green-900/30"
+          className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-2.5 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-400 dark:hover:bg-emerald-900/30"
         >
           <Table2 size={16} />
           {t('analysisExportDatev')}
         </button>
         <button
           onClick={handlePrint}
-          className="flex items-center gap-2 rounded-xl border border-gray-200 px-5 py-2.5 text-sm font-semibold text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-800"
+          className="flex items-center gap-2 rounded-xl border border-white/30 dark:border-white/10 px-5 py-2.5 text-sm font-semibold text-gray-600 transition hover:bg-black/[0.03] dark:text-gray-400 dark:hover:bg-white/5"
         >
           <Printer size={16} />
           {t('analysisPrint')}
@@ -726,7 +726,7 @@ function ExcelCopyBlock({ summary, monthlyDays }: { summary: ReturnType<typeof O
         <thead>
           <tr>
             {cols.map((c) => (
-              <th key={c.header} className="border border-gray-300 bg-gray-200/60 px-2 py-1 text-center font-bold text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-400">
+              <th key={c.header} className="border border-white/30 bg-black/[0.04] px-2 py-1 text-center font-bold text-gray-500 dark:border-white/10 dark:bg-white/10 dark:text-gray-400">
                 {c.header}
               </th>
             ))}
@@ -735,7 +735,7 @@ function ExcelCopyBlock({ summary, monthlyDays }: { summary: ReturnType<typeof O
         <tbody>
           <tr>
             {cols.map((c) => (
-              <td key={c.header} className="border border-gray-300 bg-white px-2 py-1 text-center font-mono dark:border-gray-600 dark:bg-gray-900">
+              <td key={c.header} className="border border-white/30 bg-white/50 px-2 py-1 text-center font-mono dark:border-white/10 dark:bg-white/5">
                 {c.value || <span className="text-gray-300 dark:text-gray-600">&mdash;</span>}
               </td>
             ))}
@@ -744,7 +744,7 @@ function ExcelCopyBlock({ summary, monthlyDays }: { summary: ReturnType<typeof O
       </table>
       <button
         onClick={handleCopy}
-        className="flex items-center gap-1 rounded-lg bg-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-700 transition hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
+        className="flex items-center gap-1 rounded-lg bg-black/[0.06] px-2.5 py-1.5 text-xs font-medium text-gray-700 transition hover:bg-black/10 dark:bg-white/10 dark:text-gray-300 dark:hover:bg-white/15"
       >
         {copied ? <Check size={13} /> : <ClipboardCopy size={13} />}
         {copied ? 'OK!' : 'Kopiuj'}
@@ -871,8 +871,8 @@ function MonthlyGridCopy({
     });
   }, [dayNumbers, dayWorkMap, absenceDays, summaryValues]);
 
-  const thCls = 'border border-gray-300 bg-gray-200/60 px-1 py-0.5 text-center text-[10px] font-bold text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-400';
-  const tdCls = 'border border-gray-300 bg-white px-1 py-0.5 text-center font-mono text-[10px] dark:border-gray-600 dark:bg-gray-900';
+  const thCls = 'border border-white/30 bg-black/[0.04] px-1 py-0.5 text-center text-[10px] font-bold text-gray-500 dark:border-white/10 dark:bg-white/10 dark:text-gray-400';
+  const tdCls = 'border border-white/30 bg-white/50 px-1 py-0.5 text-center font-mono text-[10px] dark:border-white/10 dark:bg-white/5';
 
   return (
     <div className="space-y-2">
@@ -900,7 +900,7 @@ function MonthlyGridCopy({
         {onAbsenceChange && (
           <span className="ml-auto flex items-center gap-2 text-[10px] text-gray-400 dark:text-gray-500">
             <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-sm bg-blue-500" /> Ur</span>
-            <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-sm bg-orange-500" /> Kr</span>
+            <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-sm bg-amber-500" /> Kr</span>
           </span>
         )}
       </div>
@@ -922,7 +922,7 @@ function MonthlyGridCopy({
               {weekdays.map((wd, i) => {
                 const isWeekend = wd === 'So' || wd === 'Sa' || wd === 'Nd';
                 return (
-                  <th key={i} className={`${thCls} ${isWeekend ? '!text-red-400 !bg-red-50 dark:!bg-red-900/20' : ''}`}>{wd}</th>
+                  <th key={i} className={`${thCls} ${isWeekend ? '!text-rose-400 !bg-rose-50 dark:!bg-rose-900/20' : ''}`}>{wd}</th>
                 );
               })}
               <th className="w-1" />
@@ -951,7 +951,7 @@ function MonthlyGridCopy({
                   cellClass = `${tdCls} !bg-blue-100 !text-blue-700 font-bold cursor-pointer dark:!bg-blue-900/40 dark:!text-blue-300`;
                 } else if (absence === 'Kr') {
                   cellContent = 'Kr';
-                  cellClass = `${tdCls} !bg-orange-100 !text-orange-700 font-bold cursor-pointer dark:!bg-orange-900/40 dark:!text-orange-300`;
+                  cellClass = `${tdCls} !bg-amber-100 !text-amber-700 font-bold cursor-pointer dark:!bg-amber-900/40 dark:!text-amber-300`;
                 } else if (work) {
                   cellContent = fmtWork(work);
                   cellClass = `${tdCls} font-semibold text-gray-800 dark:text-gray-200`;

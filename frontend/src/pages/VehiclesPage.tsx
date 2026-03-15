@@ -165,12 +165,12 @@ export function VehiclesPage() {
               {t('vehiclesName')}
             </label>
             {vehiclesLoading ? (
-              <div className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-400 dark:border-gray-700 dark:bg-gray-800">
+              <div className="flex items-center gap-2 rounded-lg border border-white/30 dark:border-white/10 px-3 py-2 text-sm text-gray-400 dark:bg-white/5">
                 <Spinner size="sm" />
                 {t('loading')}
               </div>
             ) : vehiclesError ? (
-              <div className="flex items-center gap-2 rounded-lg border border-red-200 px-3 py-2 text-sm text-red-500">
+              <div className="flex items-center gap-2 rounded-lg border border-rose-200/50 px-3 py-2 text-sm text-rose-500">
                 <AlertCircle size={14} />
                 {vehiclesError}
               </div>
@@ -197,7 +197,7 @@ export function VehiclesPage() {
               type="month"
               value={selectedPeriod || defaultPeriod}
               onChange={(e) => setSelectedPeriod(e.target.value)}
-              className="rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none transition focus:border-primary-400 focus:ring-2 focus:ring-primary-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
+              className="glass-input rounded-xl px-3 py-2 text-sm outline-none"
             />
           </div>
 
@@ -225,10 +225,10 @@ export function VehiclesPage() {
 
         {/* Vehicle list / selection */}
         {!vehiclesLoading && !vehiclesError && vehicleList.length > 0 && (
-          <div className="mt-4 max-h-[240px] overflow-y-auto rounded-lg border border-gray-100 dark:border-gray-800">
+          <div className="mt-4 max-h-[240px] overflow-y-auto rounded-lg border border-white/20 dark:border-white/5">
             <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-gray-50 dark:bg-gray-900">
-                <tr className="border-b border-gray-100 dark:border-gray-800">
+              <thead className="sticky top-0 bg-black/[0.02] dark:bg-white/5">
+                <tr className="border-b border-white/20 dark:border-white/5">
                   <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">{t('vehiclesName')}</th>
                   <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">VIN</th>
                   <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
@@ -236,7 +236,7 @@ export function VehiclesPage() {
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
+              <tbody className="divide-y divide-black/[0.03] dark:divide-white/[0.03]">
                 {filteredVehicles.map((v) => (
                   <tr
                     key={v.id}
@@ -244,7 +244,7 @@ export function VehiclesPage() {
                     className={`cursor-pointer transition ${
                       v.id === selectedVehicleId
                         ? 'bg-primary-50 dark:bg-primary-900/20'
-                        : 'hover:bg-gray-50 dark:hover:bg-gray-800/50'
+                        : 'hover:bg-black/[0.03] dark:hover:bg-white/5'
                     }`}
                   >
                     <td className="px-3 py-2">
@@ -293,7 +293,7 @@ export function VehiclesPage() {
 
       {/* Error */}
       {error && (
-        <div className="flex flex-col items-center gap-3 py-12 text-red-500">
+        <div className="flex flex-col items-center gap-3 py-12 text-rose-500">
           <AlertCircle size={32} />
           <p className="text-sm">{error}</p>
         </div>
@@ -309,7 +309,7 @@ export function VehiclesPage() {
         <Card className="p-6">
           <p className="mb-4 text-center text-sm text-gray-400">{t('vehiclesNoActivity')}</p>
           {debugInfo && (
-            <div className="mx-auto max-w-md rounded-lg bg-gray-50 p-4 text-xs dark:bg-gray-900">
+            <div className="mx-auto max-w-md rounded-lg bg-black/[0.02] p-4 text-xs dark:bg-white/5">
               <p className="mb-2 font-semibold text-gray-500">Samsara API debug:</p>
               <div className="space-y-1 text-gray-500">
                 <p>API calls: <span className="font-mono font-bold">{debugInfo.api_calls}</span></p>
@@ -317,7 +317,7 @@ export function VehiclesPage() {
                 <p>Vehicles with data: <span className="font-mono font-bold">{debugInfo.vehicles_with_data}</span></p>
                 <p>Total days: <span className="font-mono font-bold">{debugInfo.total_days}</span></p>
                 {debugInfo.errors?.length > 0 && (
-                  <div className="mt-2 text-red-500">
+                  <div className="mt-2 text-rose-500">
                     <p className="font-semibold">Errors:</p>
                     {debugInfo.errors.map((e, i) => (
                       <p key={i} className="break-all font-mono">{e}</p>
@@ -346,12 +346,12 @@ export function VehiclesPage() {
               <p className="text-xs text-gray-500">{t('vehiclesActiveDays')}</p>
             </Card>
             <Card className="p-4 text-center">
-              <MapPin size={20} className="mx-auto mb-1 text-green-500" />
+              <MapPin size={20} className="mx-auto mb-1 text-emerald-500" />
               <p className="text-2xl font-bold">{fmtKm(activity.total_km)}</p>
               <p className="text-xs text-gray-500">{t('vehiclesTotalKm')}</p>
             </Card>
             <Card className="p-4 text-center">
-              <RefreshCw size={20} className="mx-auto mb-1 text-orange-500" />
+              <RefreshCw size={20} className="mx-auto mb-1 text-amber-500" />
               <p className="text-2xl font-bold">{Math.floor(totalMinutes / 60)}h {totalMinutes % 60}m</p>
               <p className="text-xs text-gray-500">{t('vehiclesDuration')}</p>
             </Card>
@@ -359,7 +359,7 @@ export function VehiclesPage() {
 
           {/* Day-by-day table */}
           <Card className="overflow-hidden">
-            <div className="border-b border-gray-100 bg-gray-50/80 px-5 py-3 dark:border-gray-800 dark:bg-gray-900/50">
+            <div className="border-b border-white/20 px-5 py-3 dark:border-white/5">
               <h2 className="text-sm font-semibold">
                 {activity.vehicle_name} — {monthLabel(period)}
               </h2>
@@ -367,7 +367,7 @@ export function VehiclesPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-gray-100 bg-gray-50/40 dark:border-gray-800 dark:bg-gray-900/30">
+                  <tr className="border-b border-white/20 dark:border-white/5">
                     <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
                       {t('vehiclesDate')}
                     </th>
@@ -388,7 +388,7 @@ export function VehiclesPage() {
                     </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
+                <tbody className="divide-y divide-black/[0.03] dark:divide-white/[0.03]">
                   {activity.days.map((day) => {
                     const wd = weekday(day.date);
                     const isSunday = new Date(day.date + 'T00:00:00').getDay() === 0;
@@ -398,15 +398,15 @@ export function VehiclesPage() {
                         key={day.date}
                         className={`transition ${
                           isSunday
-                            ? 'bg-red-50/50 dark:bg-red-900/10'
+                            ? 'bg-rose-50/50 dark:bg-rose-900/10'
                             : isSaturday
-                              ? 'bg-orange-50/30 dark:bg-orange-900/10'
+                              ? 'bg-amber-50/30 dark:bg-amber-900/10'
                               : 'hover:bg-primary-50/30 dark:hover:bg-primary-900/10'
                         }`}
                       >
                         <td className="whitespace-nowrap px-4 py-2.5">
                           <span className="font-medium">{fmtDate(day.date)}</span>
-                          <span className={`ml-2 text-xs ${isSunday ? 'font-bold text-red-500' : 'text-gray-400'}`}>
+                          <span className={`ml-2 text-xs ${isSunday ? 'font-bold text-rose-500' : 'text-gray-400'}`}>
                             {wd}
                           </span>
                         </td>
@@ -432,7 +432,7 @@ export function VehiclesPage() {
                   })}
                 </tbody>
                 <tfoot>
-                  <tr className="border-t-2 border-gray-200 bg-gray-50/80 font-semibold dark:border-gray-700 dark:bg-gray-900/50">
+                  <tr className="border-t-2 border-white/30 bg-black/[0.02] font-semibold dark:border-white/10 dark:bg-white/5">
                     <td className="px-4 py-3">Ings.</td>
                     <td className="px-4 py-3"></td>
                     <td className="px-4 py-3 font-mono">{fmtKm(activity.total_km)}</td>

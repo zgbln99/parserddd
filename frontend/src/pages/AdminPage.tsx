@@ -33,7 +33,7 @@ function LoginHistorySection() {
   }, []);
 
   if (loading) return <Spinner />;
-  if (error) return <p className="text-sm text-red-500">{error}</p>;
+  if (error) return <p className="text-sm text-rose-500">{error}</p>;
 
   return (
     <Card className="p-6">
@@ -47,7 +47,7 @@ function LoginHistorySection() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-gray-100 bg-gray-50/80 dark:border-gray-800 dark:bg-gray-900/50">
+              <tr className="border-b border-white/20 dark:border-white/5">
                 <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('syncDate')}</th>
                 <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('adminUser')}</th>
                 <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('adminRole')}</th>
@@ -55,9 +55,9 @@ function LoginHistorySection() {
                 <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('adminBrowser')}</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
+            <tbody className="divide-y divide-black/[0.03] dark:divide-white/[0.03]">
               {history.slice(0, 50).map((entry, i) => (
-                <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                <tr key={i} className="hover:bg-black/[0.03] dark:hover:bg-white/5">
                   <td className="whitespace-nowrap px-4 py-2 text-gray-500 dark:text-gray-400">{formatDateTime(entry.timestamp, locale)}</td>
                   <td className="whitespace-nowrap px-4 py-2 font-medium">{entry.username || entry.role}</td>
                   <td className="whitespace-nowrap px-4 py-2">
@@ -95,7 +95,7 @@ function ActivityLogSection() {
   }, []);
 
   if (loading) return <Spinner />;
-  if (error) return <p className="text-sm text-red-500">{error}</p>;
+  if (error) return <p className="text-sm text-rose-500">{error}</p>;
 
   const totalPages = Math.max(1, Math.ceil(log.length / ACTIVITY_PAGE_SIZE));
   const pageItems = log.slice(page * ACTIVITY_PAGE_SIZE, (page + 1) * ACTIVITY_PAGE_SIZE);
@@ -121,16 +121,16 @@ function ActivityLogSection() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-gray-100 bg-gray-50/80 dark:border-gray-800 dark:bg-gray-900/50">
+                <tr className="border-b border-white/20 dark:border-white/5">
                   <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('syncDate')}</th>
                   <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('adminUser')}</th>
                   <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('adminAction')}</th>
                   <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('adminDetail')}</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
+              <tbody className="divide-y divide-black/[0.03] dark:divide-white/[0.03]">
                 {pageItems.map((entry, i) => (
-                  <tr key={page * ACTIVITY_PAGE_SIZE + i} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                  <tr key={page * ACTIVITY_PAGE_SIZE + i} className="hover:bg-black/[0.03] dark:hover:bg-white/5">
                     <td className="whitespace-nowrap px-4 py-2 text-gray-500 dark:text-gray-400">{formatDateTime(entry.timestamp, locale)}</td>
                     <td className="whitespace-nowrap px-4 py-2">
                       <span className="font-medium">{entry.username || entry.role}</span>
@@ -147,7 +147,7 @@ function ActivityLogSection() {
               <button
                 onClick={() => setPage((p) => Math.max(0, p - 1))}
                 disabled={page === 0}
-                className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-semibold text-gray-600 transition hover:bg-gray-100 disabled:opacity-30 dark:text-gray-400 dark:hover:bg-gray-800"
+                className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-semibold text-gray-600 transition hover:bg-black/5 disabled:opacity-30 dark:text-gray-400 dark:hover:bg-white/5"
               >
                 <ChevronLeft size={14} />
                 {t('pagePrev')}
@@ -158,7 +158,7 @@ function ActivityLogSection() {
               <button
                 onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
                 disabled={page >= totalPages - 1}
-                className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-semibold text-gray-600 transition hover:bg-gray-100 disabled:opacity-30 dark:text-gray-400 dark:hover:bg-gray-800"
+                className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-semibold text-gray-600 transition hover:bg-black/5 disabled:opacity-30 dark:text-gray-400 dark:hover:bg-white/5"
               >
                 {t('pageNext')}
                 <ChevronRight size={14} />
@@ -239,17 +239,17 @@ function UserManagementSection() {
         </button>
       </div>
 
-      {error && <p className="mb-3 text-sm text-red-500">{error}</p>}
+      {error && <p className="mb-3 text-sm text-rose-500">{error}</p>}
 
       {showForm && (
-        <div className="mb-4 flex flex-wrap items-end gap-3 rounded-lg bg-gray-50 p-4 dark:bg-gray-800">
+        <div className="mb-4 flex flex-wrap items-end gap-3 rounded-lg bg-black/[0.02] p-4 dark:bg-white/5">
           <div>
             <label className="mb-1 block text-xs font-semibold text-gray-500">{t('adminUserName')}</label>
             <input
               type="text"
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
-              className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-primary-400 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+              className="glass-input rounded-xl px-3 py-1.5 text-sm outline-none"
               placeholder="Jan Kowalski"
             />
           </div>
@@ -259,7 +259,7 @@ function UserManagementSection() {
               type="password"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
-              className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-primary-400 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+              className="glass-input rounded-xl px-3 py-1.5 text-sm outline-none"
             />
           </div>
           <div>
@@ -267,7 +267,7 @@ function UserManagementSection() {
             <select
               value={newRole}
               onChange={(e) => setNewRole(e.target.value)}
-              className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-primary-400 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+              className="glass-input rounded-xl px-3 py-1.5 text-sm outline-none"
             >
               <option value="user">User</option>
               <option value="admin">Admin</option>
@@ -276,7 +276,7 @@ function UserManagementSection() {
           <button
             onClick={handleCreate}
             disabled={saving}
-            className="rounded-lg bg-green-600 px-4 py-1.5 text-sm font-semibold text-white transition hover:bg-green-700 disabled:opacity-50"
+            className="rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-1.5 text-sm font-semibold text-white shadow-lg shadow-emerald-500/20 transition hover:brightness-110 disabled:opacity-50"
           >
             {saving ? '...' : t('save')}
           </button>
@@ -289,7 +289,7 @@ function UserManagementSection() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-gray-100 bg-gray-50/80 dark:border-gray-800 dark:bg-gray-900/50">
+              <tr className="border-b border-white/20 dark:border-white/5">
                 <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">ID</th>
                 <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">{t('adminUserName')}</th>
                 <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">{t('adminRole')}</th>
@@ -297,9 +297,9 @@ function UserManagementSection() {
                 <th className="px-4 py-2" />
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
+            <tbody className="divide-y divide-black/[0.03] dark:divide-white/[0.03]">
               {users.map((u) => (
-                <tr key={u.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                <tr key={u.id} className="hover:bg-black/[0.03] dark:hover:bg-white/5">
                   <td className="px-4 py-2 font-mono text-xs text-gray-400">{u.id}</td>
                   <td className="px-4 py-2 font-medium">{u.name}</td>
                   <td className="px-4 py-2">
@@ -309,7 +309,7 @@ function UserManagementSection() {
                   <td className="px-4 py-2">
                     <button
                       onClick={() => handleDelete(u.id, u.name)}
-                      className="rounded p-1 text-red-400 transition hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
+                      className="rounded p-1 text-rose-400 transition hover:bg-rose-500/10 hover:text-rose-600 dark:hover:bg-rose-500/10"
                     >
                       <Trash2 size={14} />
                     </button>
@@ -354,7 +354,7 @@ function PasswordChangeSection() {
   return (
     <Card className="p-6">
       <div className="mb-4 flex items-center gap-2">
-        <Key size={18} className="text-orange-500" />
+        <Key size={18} className="text-amber-500" />
         <h2 className="text-lg font-bold">{t('adminChangePassword')}</h2>
       </div>
       <div className="flex flex-wrap items-end gap-3">
@@ -363,7 +363,7 @@ function PasswordChangeSection() {
           <select
             value={target}
             onChange={(e) => setTarget(e.target.value as 'portal' | 'admin')}
-            className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-primary-400 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+            className="glass-input rounded-xl px-3 py-1.5 text-sm outline-none"
           >
             <option value="portal">{t('adminPortalPassword')}</option>
             <option value="admin">{t('adminAdminPassword')}</option>
@@ -375,17 +375,17 @@ function PasswordChangeSection() {
             type="password"
             value={pw}
             onChange={(e) => setPw(e.target.value)}
-            className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-primary-400 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+            className="glass-input rounded-xl px-3 py-1.5 text-sm outline-none"
           />
         </div>
         <button
           onClick={handleSubmit}
           disabled={saving || !pw}
-          className="rounded-lg bg-orange-600 px-4 py-1.5 text-sm font-semibold text-white transition hover:bg-orange-700 disabled:opacity-50"
+          className="rounded-lg bg-gradient-to-r from-amber-500 to-amber-600 px-4 py-1.5 text-sm font-semibold text-white shadow-lg shadow-amber-500/20 transition hover:brightness-110 disabled:opacity-50"
         >
           {saving ? '...' : t('save')}
         </button>
-        {msg && <span className={`text-sm font-medium ${msg === 'OK!' ? 'text-green-600' : 'text-red-500'}`}>{msg}</span>}
+        {msg && <span className={`text-sm font-medium ${msg === 'OK!' ? 'text-emerald-600' : 'text-rose-500'}`}>{msg}</span>}
       </div>
     </Card>
   );
@@ -455,7 +455,7 @@ function SyncConfigSection() {
               value={samsaraToken}
               onChange={(e) => setSamsaraToken(e.target.value)}
               placeholder={t('adminNewToken')}
-              className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-primary-400 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+              className="glass-input rounded-xl px-3 py-1.5 text-sm outline-none"
             />
           </div>
         </div>
@@ -470,7 +470,7 @@ function SyncConfigSection() {
               value={dropboxToken}
               onChange={(e) => setDropboxToken(e.target.value)}
               placeholder={t('adminNewToken')}
-              className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-primary-400 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+              className="glass-input rounded-xl px-3 py-1.5 text-sm outline-none"
             />
           </div>
         </div>
@@ -480,18 +480,18 @@ function SyncConfigSection() {
             type="text"
             value={syncFolder}
             onChange={(e) => setSyncFolder(e.target.value)}
-            className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-primary-400 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+            className="glass-input rounded-xl px-3 py-1.5 text-sm outline-none"
           />
         </div>
         <div className="flex items-center gap-3 pt-2">
           <button
             onClick={handleSave}
             disabled={saving}
-            className="rounded-lg bg-gray-700 px-4 py-1.5 text-sm font-semibold text-white transition hover:bg-gray-800 disabled:opacity-50 dark:bg-gray-600 dark:hover:bg-gray-500"
+            className="rounded-lg bg-gradient-to-r from-blue-500 to-blue-600 px-4 py-1.5 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:brightness-110 disabled:opacity-50"
           >
             {saving ? '...' : t('save')}
           </button>
-          {msg && <span className={`text-sm font-medium ${msg === 'OK!' ? 'text-green-600' : 'text-red-500'}`}>{msg}</span>}
+          {msg && <span className={`text-sm font-medium ${msg === 'OK!' ? 'text-emerald-600' : 'text-rose-500'}`}>{msg}</span>}
         </div>
       </div>
     </Card>
@@ -516,16 +516,16 @@ function SyncMonitorSection() {
   }, []);
 
   if (loading) return <Spinner />;
-  if (error) return <p className="text-sm text-red-500">{error}</p>;
+  if (error) return <p className="text-sm text-rose-500">{error}</p>;
 
   const last = history[0];
   const totalUploaded = history.reduce((s, h) => s + h.uploaded, 0);
   const totalRuns = history.length;
 
   const statusIcon = (status: string) => {
-    if (status === 'ok') return <CheckCircle size={16} className="text-green-500" />;
-    if (status === 'error') return <XCircle size={16} className="text-red-500" />;
-    return <MinusCircle size={16} className="text-orange-500" />;
+    if (status === 'ok') return <CheckCircle size={16} className="text-emerald-500" />;
+    if (status === 'error') return <XCircle size={16} className="text-rose-500" />;
+    return <MinusCircle size={16} className="text-amber-500" />;
   };
 
   const statusBadge = (status: string) => {
@@ -551,36 +551,36 @@ function SyncMonitorSection() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-gray-100 bg-gray-50/80 dark:border-gray-800 dark:bg-gray-900/50">
+                  <tr className="border-b border-white/20 dark:border-white/5">
                     {[t('syncDate'), t('syncStatus'), t('syncFound'), t('syncUploaded'), t('syncErrors'), t('syncFiles')].map((h) => (
                       <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{h}</th>
                     ))}
                     <th className="px-4 py-3" />
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
+                <tbody className="divide-y divide-black/[0.03] dark:divide-white/[0.03]">
                   {history.map((h, i) => (
                     <Fragment key={i}>
-                      <tr onClick={() => setExpandedIdx(expandedIdx === i ? null : i)} className="cursor-pointer transition hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                      <tr onClick={() => setExpandedIdx(expandedIdx === i ? null : i)} className="cursor-pointer transition hover:bg-black/[0.03] dark:hover:bg-white/5">
                         <td className="whitespace-nowrap px-4 py-3 text-gray-500 dark:text-gray-400">{formatDateTime(h.timestamp, locale)}</td>
                         <td className="whitespace-nowrap px-4 py-3">{statusBadge(h.status)}</td>
                         <td className="whitespace-nowrap px-4 py-3">{h.found}</td>
                         <td className="whitespace-nowrap px-4 py-3 font-bold">{h.uploaded}</td>
-                        <td className="whitespace-nowrap px-4 py-3"><span className={h.errors ? 'text-red-500' : 'text-gray-300 dark:text-gray-600'}>{h.errors}</span></td>
+                        <td className="whitespace-nowrap px-4 py-3"><span className={h.errors ? 'text-rose-500' : 'text-gray-300 dark:text-gray-600'}>{h.errors}</span></td>
                         <td className="whitespace-nowrap px-4 py-3">{h.files.length > 0 ? <Badge variant="gray">{h.files.length}</Badge> : '-'}</td>
                         <td className="px-4 py-3">{h.files.length > 0 && (expandedIdx === i ? <ChevronUp size={14} className="text-gray-400" /> : <ChevronDown size={14} className="text-gray-400" />)}</td>
                       </tr>
                       {expandedIdx === i && h.files.length > 0 && (
                         <tr key={`${i}-d`}>
-                          <td colSpan={7} className="bg-gray-50 px-6 py-3 dark:bg-gray-800/30">
+                          <td colSpan={7} className="bg-black/[0.02] px-6 py-3 dark:bg-white/5">
                             <div className="space-y-1.5">
                               {h.files.map((f, fi) => (
                                 <div key={fi} className="flex items-center gap-3 text-xs">
-                                  {f.status === 'ok' ? <CheckCircle size={14} className="flex-shrink-0 text-green-500" /> : <XCircle size={14} className="flex-shrink-0 text-red-500" />}
+                                  {f.status === 'ok' ? <CheckCircle size={14} className="flex-shrink-0 text-emerald-500" /> : <XCircle size={14} className="flex-shrink-0 text-rose-500" />}
                                   <span className="min-w-[120px] font-medium text-gray-500">{f.driver}</span>
                                   <span className="flex-1 font-medium">{f.file}</span>
                                   {f.size && <span className="text-gray-400">{formatBytes(f.size)}</span>}
-                                  {f.error && <span className="text-red-500">{f.error}</span>}
+                                  {f.error && <span className="text-rose-500">{f.error}</span>}
                                 </div>
                               ))}
                             </div>
@@ -607,7 +607,7 @@ type AdminTab = 'users' | 'security' | 'sync' | 'logs';
 
 const tabs: { key: AdminTab; icon: typeof Users; labelKey: string; color: string }[] = [
   { key: 'users', icon: Users, labelKey: 'adminUsers', color: 'text-blue-500' },
-  { key: 'security', icon: Key, labelKey: 'adminChangePassword', color: 'text-orange-500' },
+  { key: 'security', icon: Key, labelKey: 'adminChangePassword', color: 'text-amber-500' },
   { key: 'sync', icon: Settings, labelKey: 'adminSyncConfig', color: 'text-gray-500' },
   { key: 'logs', icon: Activity, labelKey: 'adminActivityLog', color: 'text-violet-500' },
 ];
@@ -630,14 +630,14 @@ export function AdminPage() {
       </div>
 
       {/* Tab bar */}
-      <div className="flex gap-1 rounded-xl bg-gray-100 p-1 dark:bg-gray-800">
+      <div className="flex gap-1 rounded-xl bg-black/[0.04] p-1 dark:bg-white/5">
         {tabs.map(({ key, icon: Icon, labelKey, color }) => (
           <button
             key={key}
             onClick={() => setActiveTab(key)}
             className={`flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition ${
               activeTab === key
-                ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-900 dark:text-gray-100'
+                ? 'glass-card text-gray-900 dark:text-gray-100'
                 : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
             }`}
           >

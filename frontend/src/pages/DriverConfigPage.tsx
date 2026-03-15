@@ -161,7 +161,7 @@ export function DriverConfigPage() {
     );
   }
 
-  const inputCls = 'rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none transition focus:border-primary-400 focus:ring-2 focus:ring-primary-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:focus:ring-primary-900/40';
+  const inputCls = 'glass-input rounded-xl px-3 py-2 text-sm outline-none';
 
   return (
     <div className="animate-slide-up space-y-6">
@@ -262,7 +262,7 @@ export function DriverConfigPage() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-gray-100 bg-gray-50/80 dark:border-gray-800 dark:bg-gray-900/50">
+              <tr className="border-b border-white/20 dark:border-white/5">
                 <th className="w-10 px-4 py-3">
                   <input
                     type="checkbox"
@@ -280,11 +280,11 @@ export function DriverConfigPage() {
                 <th className="w-10 px-4 py-3" />
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
+            <tbody className="divide-y divide-black/[0.03] dark:divide-white/[0.03]">
               {filtered.map((d) => (
                 <Fragment key={d.card_number}>
                   <tr
-                    className={`transition hover:bg-gray-50 dark:hover:bg-gray-800/50 ${expandedCard === d.card_number ? 'bg-primary-50/50 dark:bg-primary-900/10' : ''}`}
+                    className={`transition hover:bg-black/[0.03] dark:hover:bg-white/5 ${expandedCard === d.card_number ? 'bg-primary-50/50 dark:bg-primary-900/10' : ''}`}
                   >
                     <td className="px-4 py-3">
                       <input
@@ -321,7 +321,7 @@ export function DriverConfigPage() {
                     <td className="px-4 py-3">
                       <button
                         onClick={() => openEditor(d)}
-                        className="rounded-lg p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-300"
+                        className="rounded-lg p-1.5 text-gray-400 transition hover:bg-black/5 hover:text-gray-600 dark:hover:bg-white/5 dark:hover:text-gray-300"
                       >
                         {expandedCard === d.card_number ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                       </button>
@@ -331,7 +331,7 @@ export function DriverConfigPage() {
                   {/* Inline editor */}
                   {expandedCard === d.card_number && (
                     <tr>
-                      <td colSpan={8} className="bg-gray-50/80 px-6 py-4 dark:bg-gray-800/50">
+                      <td colSpan={8} className="bg-black/[0.02] px-6 py-4 dark:bg-white/5">
                         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                           <div>
                             <label className="mb-1 block text-xs font-semibold text-gray-500 dark:text-gray-400">{t('driverPersonalNr')}</label>
@@ -361,7 +361,7 @@ export function DriverConfigPage() {
                                 onChange={(e) => setEditDoubleDiet(e.target.checked)}
                                 className="peer sr-only"
                               />
-                              <div className="h-6 w-11 rounded-full bg-gray-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-green-500 peer-checked:after:translate-x-full peer-checked:after:border-white dark:bg-gray-700" />
+                              <div className="h-6 w-11 rounded-full bg-gray-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-emerald-500 peer-checked:after:translate-x-full peer-checked:after:border-white dark:bg-white/10" />
                             </label>
                             <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">{t('driverDoubleDiet')}</span>
                           </div>
@@ -380,20 +380,20 @@ export function DriverConfigPage() {
                           <button
                             onClick={() => handleSave(d)}
                             disabled={saving}
-                            className="flex items-center gap-1.5 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-green-700 disabled:opacity-50"
+                            className="flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-emerald-500/20 transition hover:brightness-110 disabled:opacity-50"
                           >
                             <Save size={14} />
                             {saving ? '...' : t('save')}
                           </button>
                           <button
                             onClick={() => setExpandedCard(null)}
-                            className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-700"
+                            className="flex items-center gap-1.5 rounded-lg border border-white/30 dark:border-white/10 px-4 py-2 text-sm font-medium text-gray-600 transition hover:bg-black/[0.03] dark:text-gray-400 dark:hover:bg-white/5"
                           >
                             <X size={14} />
                             {t('cancel')}
                           </button>
                           {msg && (
-                            <span className={`text-sm font-medium ${msg === 'OK!' ? 'text-green-600' : 'text-red-500'}`}>{msg}</span>
+                            <span className={`text-sm font-medium ${msg === 'OK!' ? 'text-green-600' : 'text-rose-500'}`}>{msg}</span>
                           )}
                         </div>
                       </td>

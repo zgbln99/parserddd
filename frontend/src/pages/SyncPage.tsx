@@ -44,9 +44,9 @@ export function SyncPage() {
   const totalRuns = history.length;
 
   const statusIcon = (status: string) => {
-    if (status === 'ok') return <CheckCircle size={16} className="text-green-500" />;
-    if (status === 'error') return <XCircle size={16} className="text-red-500" />;
-    return <MinusCircle size={16} className="text-orange-500" />;
+    if (status === 'ok') return <CheckCircle size={16} className="text-emerald-500" />;
+    if (status === 'error') return <XCircle size={16} className="text-rose-500" />;
+    return <MinusCircle size={16} className="text-amber-500" />;
   };
 
   const statusBadge = (status: string) => {
@@ -97,7 +97,7 @@ export function SyncPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-gray-100 bg-gray-50/80 dark:border-gray-800 dark:bg-gray-900/50">
+                  <tr className="border-b border-white/20 dark:border-white/5">
                     <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('syncDate')}</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('syncStatus')}</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('syncFound')}</th>
@@ -107,19 +107,19 @@ export function SyncPage() {
                     <th className="px-4 py-3" />
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
+                <tbody className="divide-y divide-black/[0.03] dark:divide-white/[0.03]">
                   {history.map((h, i) => (
                     <Fragment key={i}>
                       <tr
                         onClick={() => setExpandedIdx(expandedIdx === i ? null : i)}
-                        className="cursor-pointer transition hover:bg-gray-50 dark:hover:bg-gray-800/50"
+                        className="cursor-pointer transition hover:bg-black/[0.03] dark:hover:bg-white/5"
                       >
                         <td className="whitespace-nowrap px-4 py-3 text-gray-500 dark:text-gray-400">{formatDateTime(h.timestamp, locale)}</td>
                         <td className="whitespace-nowrap px-4 py-3">{statusBadge(h.status)}</td>
                         <td className="whitespace-nowrap px-4 py-3">{h.found}</td>
                         <td className="whitespace-nowrap px-4 py-3 font-bold">{h.uploaded}</td>
                         <td className="whitespace-nowrap px-4 py-3">
-                          <span className={h.errors ? 'text-red-500' : 'text-gray-300 dark:text-gray-600'}>{h.errors}</span>
+                          <span className={h.errors ? 'text-rose-500' : 'text-gray-300 dark:text-gray-600'}>{h.errors}</span>
                         </td>
                         <td className="whitespace-nowrap px-4 py-3">
                           {h.files.length > 0 ? <Badge variant="gray">{h.files.length}</Badge> : '-'}
@@ -132,17 +132,17 @@ export function SyncPage() {
                       </tr>
                       {expandedIdx === i && h.files.length > 0 && (
                         <tr key={`${i}-detail`}>
-                          <td colSpan={7} className="bg-gray-50 px-6 py-3 dark:bg-gray-800/30">
+                          <td colSpan={7} className="bg-black/[0.02] px-6 py-3 dark:bg-white/5">
                             <div className="space-y-1.5">
                               {h.files.map((f, fi) => (
                                 <div key={fi} className="flex items-center gap-3 text-xs">
                                   {f.status === 'ok'
-                                    ? <CheckCircle size={14} className="flex-shrink-0 text-green-500" />
-                                    : <XCircle size={14} className="flex-shrink-0 text-red-500" />}
+                                    ? <CheckCircle size={14} className="flex-shrink-0 text-emerald-500" />
+                                    : <XCircle size={14} className="flex-shrink-0 text-rose-500" />}
                                   <span className="min-w-[120px] font-medium text-gray-500">{f.driver}</span>
                                   <span className="flex-1 font-medium">{f.file}</span>
                                   {f.size && <span className="text-gray-400">{formatBytes(f.size)}</span>}
-                                  {f.error && <span className="text-red-500">{f.error}</span>}
+                                  {f.error && <span className="text-rose-500">{f.error}</span>}
                                 </div>
                               ))}
                             </div>
