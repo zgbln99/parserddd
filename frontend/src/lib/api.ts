@@ -648,7 +648,7 @@ export interface EU561Driver {
 }
 
 export const fetchEU561Drivers = () =>
-  request<{ drivers: EU561Driver[]; samsara_available: boolean }>('/api/eu561/drivers');
+  request<{ drivers: EU561Driver[] }>('/api/eu561/drivers');
 
 export const analyzeEU561Dropbox = (driverName: string, cardNumber: string, files: { path: string }[]) =>
   request<EU561Result>('/api/eu561/analyze', {

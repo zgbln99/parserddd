@@ -850,8 +850,7 @@ export function EU561Page() {
       </div>
 
       {/* Driver selection */}
-      {(
-        <Card>
+      <Card>
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2">
               <Users size={16} />
@@ -935,7 +934,6 @@ export function EU561Page() {
             </div>
           )}
         </Card>
-      )}
 
       {/* Results */}
       {results.length > 0 && (
