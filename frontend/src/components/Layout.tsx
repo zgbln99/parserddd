@@ -58,30 +58,43 @@ export function Layout({ children }: { children: ReactNode }) {
       {/* Sidebar */}
       <aside
         className={clsx(
-          'fixed inset-y-0 left-0 z-50 flex w-64 flex-col glass-sidebar transition-transform duration-300 lg:translate-x-0',
+          'fixed inset-y-0 left-0 z-50 flex w-[272px] flex-col transition-transform duration-300 lg:translate-x-0',
+          'bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 text-white',
           sidebarOpen ? 'translate-x-0' : '-translate-x-full',
         )}
       >
         {/* Brand */}
-        <div className="flex h-16 items-center gap-3 border-b border-white/10 px-5 dark:border-white/5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-violet-600 shadow-lg shadow-blue-500/20">
-            <img src="https://ltslog.de/logo.png" alt="LTS" className="h-5 brightness-0 invert" />
+        <div className="px-5 pb-5 pt-6">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 ring-1 ring-white/10">
+              <Truck size={20} className="text-blue-400" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <span className="block text-[13px] font-semibold leading-tight text-white">Tachoprüfung</span>
+              <span className="text-[11px] font-medium text-slate-400">LTS Logistik GmbH</span>
+            </div>
+            <button
+              onClick={() => setSidebarOpen(false)}
+              className="rounded-lg p-1.5 text-slate-400 hover:bg-white/10 hover:text-white lg:hidden"
+            >
+              <ChevronLeft size={18} />
+            </button>
           </div>
-          <div className="min-w-0 flex-1">
-            <span className="block text-sm font-bold tracking-tight">{t('appName')}</span>
-            <span className="text-[10px] font-medium text-gray-400">LTS Logistik GmbH</span>
-          </div>
-          <button
-            onClick={() => setSidebarOpen(false)}
-            className="rounded-lg p-1.5 text-gray-400 hover:bg-black/5 lg:hidden dark:hover:bg-white/5"
-          >
-            <ChevronLeft size={18} />
-          </button>
+          {isAdmin && (
+            <div className="mt-3 flex items-center gap-2 rounded-lg bg-amber-500/10 px-3 py-1.5 ring-1 ring-amber-500/20">
+              <Shield size={12} className="text-amber-400" />
+              <span className="text-[11px] font-semibold text-amber-400">Administrator</span>
+            </div>
+          )}
         </div>
+
+        {/* Divider */}
+        <div className="mx-4 h-px bg-white/[0.08]" />
 
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto px-3 py-4">
-          <div className="space-y-1">
+          <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-widest text-slate-500">Menu</p>
+          <div className="space-y-0.5">
             {navItems.map(({ to, icon: Icon, labelKey }) => (
               <NavLink
                 key={to}
@@ -90,31 +103,40 @@ export function Layout({ children }: { children: ReactNode }) {
                 onClick={() => setSidebarOpen(false)}
                 className={({ isActive }) =>
                   clsx(
-                    'group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200',
+                    'group flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium transition-all duration-150',
                     isActive
-                      ? 'bg-gradient-to-r from-blue-500/10 to-violet-500/10 text-blue-700 shadow-sm dark:from-blue-500/15 dark:to-violet-500/10 dark:text-blue-400'
-                      : 'text-gray-600 hover:bg-black/5 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-200',
+                      ? 'bg-white/10 text-white shadow-sm shadow-black/20'
+                      : 'text-slate-400 hover:bg-white/[0.06] hover:text-slate-200',
                   )
                 }
               >
-                <Icon size={18} className="shrink-0" />
-                {t(labelKey)}
+                {({ isActive }) => (
+                  <>
+                    <div className={clsx(
+                      'flex h-8 w-8 items-center justify-center rounded-lg transition-colors',
+                      isActive
+                        ? 'bg-blue-500 text-white shadow-md shadow-blue-500/30'
+                        : 'bg-white/[0.06] text-slate-400 group-hover:text-slate-200',
+                    )}>
+                      <Icon size={16} />
+                    </div>
+                    <span>{t(labelKey)}</span>
+                    {isActive && (
+                      <div className="ml-auto h-1.5 w-1.5 rounded-full bg-blue-400 shadow-sm shadow-blue-400/50" />
+                    )}
+                  </>
+                )}
               </NavLink>
             ))}
           </div>
         </nav>
 
         {/* Bottom controls */}
-        <div className="border-t border-white/10 p-3 dark:border-white/5">
-          {isAdmin && (
-            <span className="mb-2 inline-flex items-center gap-1 rounded-lg bg-gradient-to-r from-rose-500/10 to-orange-500/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-rose-600 dark:from-rose-500/15 dark:to-orange-500/10 dark:text-rose-400">
-              Admin
-            </span>
-          )}
-          <div className="flex items-center gap-1">
+        <div className="border-t border-white/[0.06] p-3">
+          <div className="flex items-center gap-0.5">
             <button
               onClick={() => setLocale(locale === 'pl' ? 'de' : 'pl' as Locale)}
-              className="flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-medium text-gray-500 transition hover:bg-black/5 dark:text-gray-400 dark:hover:bg-white/5"
+              className="flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-medium text-slate-400 transition hover:bg-white/[0.06] hover:text-slate-200"
               title={locale === 'pl' ? 'Deutsch' : 'Polski'}
             >
               <Globe size={14} />
@@ -122,7 +144,7 @@ export function Layout({ children }: { children: ReactNode }) {
             </button>
             <button
               onClick={toggle}
-              className="rounded-lg p-2 text-gray-500 transition hover:bg-black/5 dark:text-gray-400 dark:hover:bg-white/5"
+              className="rounded-lg p-2 text-slate-400 transition hover:bg-white/[0.06] hover:text-slate-200"
               title={theme === 'dark' ? t('lightMode') : t('darkMode')}
             >
               {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
@@ -130,7 +152,7 @@ export function Layout({ children }: { children: ReactNode }) {
             <div className="flex-1" />
             <button
               onClick={handleLogout}
-              className="flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-medium text-rose-500 transition hover:bg-rose-500/10 dark:text-rose-400"
+              className="flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-medium text-slate-400 transition hover:bg-rose-500/10 hover:text-rose-400"
             >
               <LogOut size={14} />
               <span className="hidden sm:inline">{t('logout')}</span>
@@ -140,7 +162,7 @@ export function Layout({ children }: { children: ReactNode }) {
       </aside>
 
       {/* Main area */}
-      <div className="flex flex-1 flex-col lg:pl-64">
+      <div className="flex flex-1 flex-col lg:pl-[272px]">
         {/* Top bar */}
         <header className="sticky top-0 z-30 glass border-b border-white/20 dark:border-white/5">
           <div className="flex h-14 items-center gap-3 px-4 sm:px-6">
