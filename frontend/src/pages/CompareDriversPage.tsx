@@ -474,7 +474,7 @@ export function CompareDriversPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-white/20 dark:border-white/5">
-                    <th className="sticky left-0 z-10 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:bg-gray-900/50 dark:text-gray-400">
+                    <th className="sticky left-0 z-10 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
                       {t('compareDate')}
                     </th>
                     {results.map((r) => (
@@ -508,7 +508,7 @@ export function CompareDriversPage() {
 
                     return (
                       <tr key={date} className={isWeekend ? 'bg-rose-50/30 dark:bg-rose-900/5' : 'hover:bg-black/[0.03] dark:hover:bg-white/5'}>
-                        <td className="sticky left-0 z-10 whitespace-nowrap bg-white/80 backdrop-blur-sm px-4 py-2 dark:bg-gray-900/80">
+                        <td className="sticky left-0 z-10 whitespace-nowrap bg-white/80 backdrop-blur-sm px-4 py-2 dark:bg-[#1a1a2e]/90">
                           <span className="font-medium">{date}</span>
                           <span className={`ml-2 text-xs font-bold ${isWeekend ? 'text-rose-400' : 'text-gray-400'}`}>{wd}</span>
                         </td>
@@ -516,7 +516,7 @@ export function CompareDriversPage() {
                           const sh = shiftLookup.get(r.driver_name)?.get(date);
                           if (!sh) {
                             return (
-                              <td key={r.driver_name} colSpan={3} className="border-l border-gray-100 px-2 py-2 text-center text-gray-300 dark:border-gray-800 dark:text-gray-700">
+                              <td key={r.driver_name} colSpan={3} className="border-l border-white/10 px-2 py-2 text-center text-gray-300 dark:border-white/5 dark:text-gray-700">
                                 —
                               </td>
                             );

@@ -393,7 +393,7 @@ export function DriverConfigPage() {
                             {t('cancel')}
                           </button>
                           {msg && (
-                            <span className={`text-sm font-medium ${msg === 'OK!' ? 'text-green-600' : 'text-rose-500'}`}>{msg}</span>
+                            <span className={`text-sm font-medium ${msg === 'OK!' ? 'text-emerald-600' : 'text-rose-500'}`}>{msg}</span>
                           )}
                         </div>
                       </td>

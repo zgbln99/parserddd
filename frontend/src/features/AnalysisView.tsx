@@ -956,7 +956,7 @@ function MonthlyGridCopy({
                   cellContent = fmtWork(work);
                   cellClass = `${tdCls} font-semibold text-gray-800 dark:text-gray-200`;
                 } else if (isClickable) {
-                  cellClass = `${tdCls} cursor-pointer hover:!bg-gray-100 dark:hover:!bg-gray-800 ${isWeekendDay ? '!bg-red-50/50 dark:!bg-red-900/10' : ''}`;
+                  cellClass = `${tdCls} cursor-pointer hover:!bg-black/5 dark:hover:!bg-white/5 ${isWeekendDay ? '!bg-rose-50/50 dark:!bg-rose-900/10' : ''}`;
                 }
 
                 return (
