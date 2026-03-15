@@ -28,31 +28,39 @@ const LOGO_URL = 'https://lfrfrp.stripocdn.email/content/guids/CABINET_862a1b05e
 
 let cachedLogo: string | null = null;
 
-// ── Unicode font for multi-language PDF (Polish, Greek, etc.) ──
-// DejaVu Sans - reliable Unicode font covering Latin Extended + Greek + Cyrillic
-const UNICODE_FONT_URL = 'https://cdn.jsdelivr.net/npm/dejavu-fonts-ttf@2.37.3/ttf/DejaVuSans.ttf';
-let cachedFontBase64: string | null = null;
+// ── Inter font for beautiful multi-language PDF (Polish, Greek, etc.) ──
+let cachedFontRegular: string | null = null;
+let cachedFontBold: string | null = null;
 
-async function loadUnicodeFont(): Promise<string | null> {
-  if (cachedFontBase64) return cachedFontBase64;
+async function loadFontFile(url: string): Promise<string | null> {
   try {
-    const res = await fetch(UNICODE_FONT_URL);
+    const res = await fetch(url);
     if (!res.ok) return null;
     const buf = await res.arrayBuffer();
     const bytes = new Uint8Array(buf);
     let binary = '';
     for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-    cachedFontBase64 = btoa(binary);
-    return cachedFontBase64;
+    return btoa(binary);
   } catch { return null; }
 }
 
-function registerFont(doc: jsPDF, fontBase64: string) {
-  doc.addFileToVFS('UnicodeFont.ttf', fontBase64);
-  doc.addFont('UnicodeFont.ttf', 'UnicodeFont', 'normal');
-  // Use same file for bold (will render as regular, but avoids missing font errors)
-  doc.addFileToVFS('UnicodeFont-Bold.ttf', fontBase64);
-  doc.addFont('UnicodeFont-Bold.ttf', 'UnicodeFont', 'bold');
+async function loadInterFonts(): Promise<{ regular: string; bold: string } | null> {
+  if (cachedFontRegular && cachedFontBold) return { regular: cachedFontRegular, bold: cachedFontBold };
+  const [regular, bold] = await Promise.all([
+    loadFontFile('/fonts/Inter-Regular.ttf'),
+    loadFontFile('/fonts/Inter-Bold.ttf'),
+  ]);
+  if (!regular) return null;
+  cachedFontRegular = regular;
+  cachedFontBold = bold || regular;
+  return { regular: cachedFontRegular, bold: cachedFontBold };
+}
+
+function registerInterFont(doc: jsPDF, fonts: { regular: string; bold: string }) {
+  doc.addFileToVFS('Inter-Regular.ttf', fonts.regular);
+  doc.addFont('Inter-Regular.ttf', 'Inter', 'normal');
+  doc.addFileToVFS('Inter-Bold.ttf', fonts.bold);
+  doc.addFont('Inter-Bold.ttf', 'Inter', 'bold');
 }
 
 async function loadLogo(): Promise<string | null> {
@@ -1383,16 +1391,16 @@ export async function generateVerstossePdf(
 
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
 
-  // Load Unicode font for Polish/Greek support
-  const fontBase64 = await loadUnicodeFont();
-  const fontFamily = fontBase64 ? 'UnicodeFont' : 'helvetica';
-  if (fontBase64) {
-    registerFont(doc, fontBase64);
-    doc.setFont('UnicodeFont', 'normal');
+  // Load Inter font for beautiful multi-language PDF
+  const interFonts = await loadInterFonts();
+  const fontFamily = interFonts ? 'Inter' : 'helvetica';
+  if (interFonts) {
+    registerInterFont(doc, interFonts);
+    doc.setFont('Inter', 'normal');
   }
   const W = doc.internal.pageSize.getWidth();
   const H = doc.internal.pageSize.getHeight();
-  const M = 12;
+  const M = 7; // narrow margins for full-width layout
   const now = new Date();
   const erstelltAm = `${String(now.getDate()).padStart(2, '0')}.${String(now.getMonth() + 1).padStart(2, '0')}.${now.getFullYear()}, ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
@@ -1402,28 +1410,28 @@ export async function generateVerstossePdf(
 
   // ═══ PAGE HEADER ═══
   doc.setFont(fontFamily, 'bold');
-  doc.setFontSize(10);
+  doc.setFontSize(9);
   doc.setTextColor(60, 60, 60);
-  doc.text(L.docTitle, W - M, 10, { align: 'right' });
+  doc.text(L.docTitle, W - M, 9, { align: 'right' });
 
   doc.setFont(fontFamily, 'normal');
-  doc.setFontSize(8);
+  doc.setFontSize(7);
   doc.setTextColor(40, 40, 40);
-  doc.text(`${L.driver}: ${driverName}`, W - M, 15, { align: 'right' });
-  doc.text(`${L.cardNr}: ${cardNumber}`, W - M, 19.5, { align: 'right' });
+  doc.text(`${L.driver}: ${driverName}`, W - M, 13.5, { align: 'right' });
+  doc.text(`${L.cardNr}: ${cardNumber}`, W - M, 17.5, { align: 'right' });
 
   // Left-aligned header
   doc.setFont(fontFamily, 'bold');
-  doc.setFontSize(10);
+  doc.setFontSize(9);
   doc.setTextColor(40, 40, 40);
-  doc.text(L.violationDetails, M, 10);
+  doc.text(L.violationDetails, M, 9);
 
   doc.setFont(fontFamily, 'normal');
-  doc.setFontSize(8);
-  doc.text(`${L.selectedPeriod} ${period}`, M, 15);
-  doc.text(`${L.createdAt} ${erstelltAm}`, M, 19.5);
+  doc.setFontSize(7);
+  doc.text(`${L.selectedPeriod} ${period}`, M, 13.5);
+  doc.text(`${L.createdAt} ${erstelltAm}`, M, 17.5);
 
-  let y = 24;
+  let y = 21;
 
   // ═══ SUMMARY TABLE ═══
   const summHead = [[
@@ -1457,9 +1465,9 @@ export async function generateVerstossePdf(
     ]],
     styles: {
       font: fontFamily,
-      fontSize: 6,
-      cellPadding: { top: 0.8, bottom: 0.8, left: 1.5, right: 1.5 },
-      lineWidth: 0.2,
+      fontSize: 5.5,
+      cellPadding: { top: 0.7, bottom: 0.7, left: 1.2, right: 1.2 },
+      lineWidth: 0.15,
       lineColor: [180, 180, 180],
       textColor: [40, 40, 40],
     },
@@ -1467,31 +1475,31 @@ export async function generateVerstossePdf(
       fillColor: [230, 230, 230],
       textColor: [30, 30, 30],
       fontStyle: 'bold',
-      fontSize: 6,
+      fontSize: 5.5,
     },
     footStyles: {
       fillColor: [245, 245, 245],
       textColor: [30, 30, 30],
       fontStyle: 'bold',
-      fontSize: 6,
+      fontSize: 5.5,
     },
     alternateRowStyles: { fillColor: [255, 255, 255] },
     columnStyles: {
-      0: { cellWidth: 95 },
-      1: { halign: 'center', cellWidth: 14 },
-      2: { halign: 'center', cellWidth: 14 },
-      3: { halign: 'center', cellWidth: 14 },
-      4: { halign: 'center', cellWidth: 14 },
-      5: { halign: 'center', cellWidth: 16, fontStyle: 'bold' },
-      6: { halign: 'right', cellWidth: 28 },
-      7: { halign: 'right', cellWidth: 32 },
+      0: { cellWidth: 'auto' },
+      1: { halign: 'center', cellWidth: 12 },
+      2: { halign: 'center', cellWidth: 12 },
+      3: { halign: 'center', cellWidth: 12 },
+      4: { halign: 'center', cellWidth: 12 },
+      5: { halign: 'center', cellWidth: 14, fontStyle: 'bold' },
+      6: { halign: 'right', cellWidth: 26 },
+      7: { halign: 'right', cellWidth: 30 },
     },
     margin: { left: M, right: M },
     tableLineColor: [180, 180, 180],
-    tableLineWidth: 0.2,
+    tableLineWidth: 0.15,
   });
 
-  y = (doc as any).lastAutoTable.finalY + 4;
+  y = (doc as any).lastAutoTable.finalY + 3;
 
   // ═══ DETAIL TABLE ═══
   const detailHead = [[
@@ -1527,9 +1535,9 @@ export async function generateVerstossePdf(
     body: detailBody,
     styles: {
       font: fontFamily,
-      fontSize: 5.5,
-      cellPadding: { top: 0.6, bottom: 0.6, left: 1.2, right: 1.2 },
-      lineWidth: 0.15,
+      fontSize: 5,
+      cellPadding: { top: 0.5, bottom: 0.5, left: 1, right: 1 },
+      lineWidth: 0.12,
       lineColor: [200, 200, 200],
       textColor: [40, 40, 40],
       overflow: 'linebreak',
@@ -1538,18 +1546,18 @@ export async function generateVerstossePdf(
       fillColor: [230, 230, 230],
       textColor: [30, 30, 30],
       fontStyle: 'bold',
-      fontSize: 5.5,
-      cellPadding: { top: 1, bottom: 1, left: 1.2, right: 1.2 },
+      fontSize: 5,
+      cellPadding: { top: 0.8, bottom: 0.8, left: 1, right: 1 },
     },
     alternateRowStyles: { fillColor: [252, 252, 252] },
     columnStyles: {
-      0: { cellWidth: 20 },
-      1: { cellWidth: 20 },
-      2: { cellWidth: 80 },
+      0: { cellWidth: 18 },
+      1: { cellWidth: 14 },
+      2: { cellWidth: 'auto' },
       3: { cellWidth: 48 },
-      4: { halign: 'right', cellWidth: 24 },
-      5: { halign: 'right', cellWidth: 30 },
-      6: { halign: 'center', cellWidth: 16 },
+      4: { halign: 'right', cellWidth: 22 },
+      5: { halign: 'right', cellWidth: 26 },
+      6: { halign: 'center', cellWidth: 14 },
     },
     didParseCell: (data: any) => {
       if (data.section !== 'body') return;
@@ -1569,65 +1577,65 @@ export async function generateVerstossePdf(
   const disclaimerTexts = [L.disclaimer1, L.disclaimer2, L.disclaimer3];
 
   // Check if we need a new page for the disclaimer + signature
-  const neededSpace = 45;
-  if (y + neededSpace > H - 12) {
+  const neededSpace = 40;
+  if (y + neededSpace > H - 8) {
     doc.addPage('a4', 'landscape');
-    y = 12;
+    y = 8;
   }
 
   doc.setFont(fontFamily, 'normal');
-  doc.setFontSize(5.5);
+  doc.setFontSize(5);
   doc.setTextColor(50, 50, 50);
 
   for (const txt of disclaimerTexts) {
     const lines = doc.splitTextToSize(txt, W - 2 * M);
     doc.text(lines, M, y);
-    y += lines.length * 2.5 + 1;
+    y += lines.length * 2.2 + 0.8;
   }
 
   y += 2;
 
   // ═══ BEMERKUNG + SIGNATURE (3 columns) ═══
   doc.setFont(fontFamily, 'bold');
-  doc.setFontSize(7);
+  doc.setFontSize(6);
   doc.setTextColor(30, 30, 30);
   doc.text(L.remark, M, y);
-  y += 5;
+  y += 4;
 
   // Remark line (full width)
   doc.setDrawColor(40, 40, 40);
   doc.setLineWidth(0.2);
   doc.line(M, y, W - M, y);
-  y += 8;
+  y += 7;
 
   // 3 signature columns
   const colW = (W - 2 * M) / 3;
   const col1 = M;
   const col2 = M + colW;
   const col3 = M + colW * 2;
-  const lineLen = colW - 15;
+  const lineLen = colW - 10;
 
   doc.setLineWidth(0.3);
   doc.line(col1, y, col1 + lineLen, y);
-  doc.line(col2 + 7, y, col2 + 7 + lineLen, y);
-  doc.line(col3 + 14, y, col3 + 14 + lineLen, y);
+  doc.line(col2 + 5, y, col2 + 5 + lineLen, y);
+  doc.line(col3 + 10, y, col3 + 10 + lineLen, y);
   y += 3;
   doc.setFont(fontFamily, 'normal');
-  doc.setFontSize(6);
+  doc.setFontSize(5.5);
   doc.setTextColor(100, 100, 100);
   doc.text(L.placeDate, col1, y);
-  doc.text(L.signDriver, col2 + 7, y);
-  doc.text(L.signResponsible, col3 + 14, y);
+  doc.text(L.signDriver, col2 + 5, y);
+  doc.text(L.signResponsible, col3 + 10, y);
 
   // ═══ FOOTER on all pages ═══
   const pages = doc.getNumberOfPages();
   for (let i = 1; i <= pages; i++) {
     doc.setPage(i);
     doc.setFont(fontFamily, 'normal');
-    doc.setFontSize(6);
+    doc.setFontSize(5);
     doc.setTextColor(100, 100, 100);
-    doc.text('LTS Logistik GmbH \u2014 Tachopru\u0308fung', M, H - 5);
-    doc.text(`${L.pageOf} ${i} / ${pages}`, W - M, H - 5, { align: 'right' });
+    doc.text('LTS Logistik GmbH \u2014 Tachopru\u0308fung', M, H - 4);
+    doc.text(`${L.pageOf} ${i} / ${pages}`, W - M, H - 4, { align: 'right' });
   }
 
   doc.save(`Verstoesse_${safeName(driverName)}_${new Date().toISOString().slice(0, 10)}.pdf`);
