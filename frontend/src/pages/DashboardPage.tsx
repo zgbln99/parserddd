@@ -304,7 +304,7 @@ export function DashboardPage() {
       {/* Bottom row: sync + quick actions */}
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
         {/* Sync info */}
-        <Card className="p-6">
+        <Card className="p-4 sm:p-6">
           <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
             {t('dashSyncStatus')}
           </h3>
@@ -343,7 +343,7 @@ export function DashboardPage() {
         </Card>
 
         {/* Quick actions */}
-        <Card className="p-6">
+        <Card className="p-4 sm:p-6">
           <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
             {t('dashQuickActions')}
           </h3>

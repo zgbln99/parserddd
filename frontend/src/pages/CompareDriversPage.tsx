@@ -382,7 +382,7 @@ export function CompareDriversPage() {
       </div>
 
       {/* Driver selection */}
-      <Card className="p-5">
+      <Card className="p-3 sm:p-5">
         <div className="mb-3 flex flex-wrap items-center gap-3">
           <div className="relative w-full sm:min-w-[200px] flex-1 sm:max-w-xs">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />

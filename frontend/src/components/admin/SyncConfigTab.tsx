@@ -55,14 +55,14 @@ function SyncConfigSection() {
   if (loading) return <Spinner />;
 
   return (
-    <Card className="p-6">
+    <Card className="p-4 sm:p-6">
       <div className="mb-4 flex items-center gap-2">
         <Settings size={18} className="text-gray-500" />
         <h2 className="text-lg font-bold">{t('adminSyncConfig')}</h2>
       </div>
       <div className="space-y-3">
-        <div className="flex items-center gap-3">
-          <label className="w-40 text-xs font-semibold text-gray-500">Samsara API Token</label>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+          <label className="text-xs font-semibold text-gray-500 sm:w-40 shrink-0">Samsara API Token</label>
           <div className="flex items-center gap-2">
             {config?.samsara_api_token_set
               ? <Badge variant="green" dot>{t('adminConfigSet')}</Badge>
@@ -72,12 +72,12 @@ function SyncConfigSection() {
               value={samsaraToken}
               onChange={(e) => setSamsaraToken(e.target.value)}
               placeholder={t('adminNewToken')}
-              className="glass-input rounded-xl px-3 py-1.5 text-sm outline-none"
+              className="glass-input w-full rounded-xl px-3 py-1.5 text-sm outline-none"
             />
           </div>
         </div>
-        <div className="flex items-center gap-3">
-          <label className="w-40 text-xs font-semibold text-gray-500">Dropbox Refresh Token</label>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+          <label className="text-xs font-semibold text-gray-500 sm:w-40 shrink-0">Dropbox Refresh Token</label>
           <div className="flex items-center gap-2">
             {config?.dropbox_refresh_token_set
               ? <Badge variant="green" dot>{t('adminConfigSet')}</Badge>
@@ -87,17 +87,17 @@ function SyncConfigSection() {
               value={dropboxToken}
               onChange={(e) => setDropboxToken(e.target.value)}
               placeholder={t('adminNewToken')}
-              className="glass-input rounded-xl px-3 py-1.5 text-sm outline-none"
+              className="glass-input w-full rounded-xl px-3 py-1.5 text-sm outline-none"
             />
           </div>
         </div>
-        <div className="flex items-center gap-3">
-          <label className="w-40 text-xs font-semibold text-gray-500">{t('adminSyncFolder')}</label>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+          <label className="text-xs font-semibold text-gray-500 sm:w-40 shrink-0">{t('adminSyncFolder')}</label>
           <input
             type="text"
             value={syncFolder}
             onChange={(e) => setSyncFolder(e.target.value)}
-            className="glass-input rounded-xl px-3 py-1.5 text-sm outline-none"
+            className="glass-input w-full rounded-xl px-3 py-1.5 text-sm outline-none"
           />
         </div>
         <div className="flex items-center gap-3 pt-2">

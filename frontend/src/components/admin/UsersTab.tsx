@@ -56,7 +56,7 @@ export function UsersTab() {
   if (loading) return <Spinner />;
 
   return (
-    <Card className="p-6">
+    <Card className="p-4 sm:p-6">
       <div className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Users size={18} className="text-blue-500" />

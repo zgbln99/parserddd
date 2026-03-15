@@ -190,7 +190,7 @@ export function ReaderPage() {
               </button>
             </div>
           </div>
-          <Card className="p-6">
+          <Card className="p-3 sm:p-6">
             <AnalysisView data={result} dateFrom={dateFrom} dateTo={dateTo} onDateFromChange={setDateFrom} onDateToChange={setDateTo} />
           </Card>
         </div>

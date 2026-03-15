@@ -177,7 +177,7 @@ export function SettlementPage() {
       <h1 className="mb-6 text-2xl font-bold tracking-tight">{t('settlementTitle')}</h1>
 
       {/* Period selector */}
-      <Card className="mb-6 p-5">
+      <Card className="mb-6 p-3 sm:p-5">
         <div className="flex flex-wrap items-end gap-4">
           <div>
             <label className="mb-1 block text-sm font-medium text-gray-600 dark:text-gray-400">

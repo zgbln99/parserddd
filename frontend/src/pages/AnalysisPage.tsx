@@ -81,7 +81,7 @@ export function AnalysisPage() {
 
       {/* Result */}
       {!loading && data && !data.error && (
-        <Card className="p-6">
+        <Card className="p-3 sm:p-6">
           <AnalysisView
             data={data}
             dateFrom={dateFrom}

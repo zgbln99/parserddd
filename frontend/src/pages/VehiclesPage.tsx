@@ -149,7 +149,7 @@ export function VehiclesPage() {
       <p className="mb-6 text-sm text-gray-500 dark:text-gray-400">{t('vehiclesSubtitle')}</p>
 
       {/* Step 1: Vehicle selector + period + generate */}
-      <Card className="mb-6 p-5">
+      <Card className="mb-6 p-3 sm:p-5">
         <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-end gap-4">
           {/* Vehicle selector */}
           <div className="w-full sm:min-w-[250px] flex-1">

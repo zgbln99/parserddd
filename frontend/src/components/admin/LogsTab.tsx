@@ -37,7 +37,7 @@ function ActivityLogSection() {
   };
 
   return (
-    <Card className="p-6">
+    <Card className="p-4 sm:p-6">
       <div className="mb-4 flex items-center gap-2">
         <Activity size={18} className="text-violet-500" />
         <h2 className="text-lg font-bold">{t('adminActivityLog')}</h2>
@@ -126,7 +126,7 @@ function LoginHistorySection() {
   if (error) return <p className="text-sm text-rose-500">{error}</p>;
 
   return (
-    <Card className="p-6">
+    <Card className="p-4 sm:p-6">
       <div className="mb-4 flex items-center gap-2">
         <History size={18} className="text-primary-500" />
         <h2 className="text-lg font-bold">{t('adminLoginHistory')}</h2>
