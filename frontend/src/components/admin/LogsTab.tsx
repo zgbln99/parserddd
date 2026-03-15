@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Activity, History, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useEffect, useState, useMemo } from 'react';
+import { Activity, History, ChevronLeft, ChevronRight, Filter } from 'lucide-react';
 import { useI18n } from '../../i18n';
 import { fetchLoginHistory, fetchActivityLog, type LoginHistoryEntry, type ActivityLogEntry } from '../../lib/api';
 import { formatDateTime } from '../../lib/format';
@@ -7,6 +7,7 @@ import { Card } from '../Card';
 import { Badge } from '../Badge';
 import { Spinner } from '../Spinner';
 import { MobileCard, CardField } from '../MobileCards';
+import { SkeletonTable } from '../Skeleton';
 
 const ACTIVITY_PAGE_SIZE = 25;
 
@@ -16,6 +17,8 @@ function ActivityLogSection() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [page, setPage] = useState(0);
+  const [filterDate, setFilterDate] = useState('');
+  const [filterAction, setFilterAction] = useState('');
 
   useEffect(() => {
     fetchActivityLog()
@@ -23,11 +26,32 @@ function ActivityLogSection() {
       .catch((e) => { setError(e.message); setLoading(false); });
   }, []);
 
-  if (loading) return <Spinner />;
+  // Unique actions for filter dropdown
+  const uniqueActions = useMemo(() => {
+    const actions = new Set(log.map((e) => e.action));
+    return Array.from(actions).sort();
+  }, [log]);
+
+  // Filtered log
+  const filteredLog = useMemo(() => {
+    let result = log;
+    if (filterDate) {
+      result = result.filter((e) => e.timestamp.startsWith(filterDate));
+    }
+    if (filterAction) {
+      result = result.filter((e) => e.action === filterAction);
+    }
+    return result;
+  }, [log, filterDate, filterAction]);
+
+  // Reset page when filters change
+  useEffect(() => { setPage(0); }, [filterDate, filterAction]);
+
+  if (loading) return <Card className="p-4 sm:p-6"><SkeletonTable rows={5} cols={4} /></Card>;
   if (error) return <p className="text-sm text-rose-500">{error}</p>;
 
-  const totalPages = Math.max(1, Math.ceil(log.length / ACTIVITY_PAGE_SIZE));
-  const pageItems = log.slice(page * ACTIVITY_PAGE_SIZE, (page + 1) * ACTIVITY_PAGE_SIZE);
+  const totalPages = Math.max(1, Math.ceil(filteredLog.length / ACTIVITY_PAGE_SIZE));
+  const pageItems = filteredLog.slice(page * ACTIVITY_PAGE_SIZE, (page + 1) * ACTIVITY_PAGE_SIZE);
 
   const actionBadge = (action: string) => {
     if (action.startsWith('analyze')) return <Badge variant="blue">{action}</Badge>;
@@ -41,9 +65,41 @@ function ActivityLogSection() {
       <div className="mb-4 flex items-center gap-2">
         <Activity size={18} className="text-violet-500" />
         <h2 className="text-lg font-bold">{t('adminActivityLog')}</h2>
-        <span className="ml-auto text-xs text-gray-400">{log.length} total</span>
+        <span className="ml-auto text-xs text-gray-400">{filteredLog.length} / {log.length}</span>
       </div>
-      {log.length === 0 ? (
+
+      {/* Filters */}
+      {log.length > 0 && (
+        <div className="mb-4 flex flex-wrap items-center gap-3 rounded-lg bg-black/[0.02] px-3 py-2 dark:bg-white/5">
+          <Filter size={14} className="text-gray-400 shrink-0" />
+          <input
+            type="date"
+            value={filterDate}
+            onChange={(e) => setFilterDate(e.target.value)}
+            className="glass-input rounded-lg px-2 py-1 text-xs outline-none dark:[color-scheme:dark]"
+          />
+          <select
+            value={filterAction}
+            onChange={(e) => setFilterAction(e.target.value)}
+            className="glass-input rounded-lg px-2 py-1 text-xs outline-none"
+          >
+            <option value="">{t('adminAction')} — {t('dashShowAll')}</option>
+            {uniqueActions.map((a) => (
+              <option key={a} value={a}>{a}</option>
+            ))}
+          </select>
+          {(filterDate || filterAction) && (
+            <button
+              onClick={() => { setFilterDate(''); setFilterAction(''); }}
+              className="rounded-lg px-2 py-1 text-xs font-medium text-rose-500 transition hover:bg-rose-500/10"
+            >
+              {t('clear')}
+            </button>
+          )}
+        </div>
+      )}
+
+      {filteredLog.length === 0 ? (
         <p className="py-8 text-center text-sm text-gray-400">{t('noData')}</p>
       ) : (
         <>
@@ -122,7 +178,7 @@ function LoginHistorySection() {
       .catch((e) => { setError(e.message); setLoading(false); });
   }, []);
 
-  if (loading) return <Spinner />;
+  if (loading) return <Card className="p-4 sm:p-6"><SkeletonTable rows={5} cols={5} /></Card>;
   if (error) return <p className="text-sm text-rose-500">{error}</p>;
 
   return (

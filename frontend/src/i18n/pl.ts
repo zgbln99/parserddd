@@ -307,6 +307,21 @@ export const pl = {
   noConnection: 'Brak połączenia z serwerem',
   confirmDelete: 'Czy na pewno chcesz usunąć?',
   unsavedChanges: 'Masz niezapisane zmiany',
+
+  // Error messages
+  errorNetwork: 'Brak połączenia z serwerem. Sprawdź połączenie internetowe.',
+  errorTimeout: 'Żądanie trwało zbyt długo. Spróbuj ponownie.',
+  errorServerDown: 'Serwer nie odpowiada. Skontaktuj się z administratorem.',
+  errorForbidden: 'Brak uprawnień do wykonania tej operacji.',
+  errorNotFound: 'Nie znaleziono zasobu.',
+  errorRateLimit: 'Zbyt wiele prób. Poczekaj kilka minut i spróbuj ponownie.',
+
+  // Search
+  searchPlaceholder: 'Szukaj stron... (Ctrl+K)',
+
+  // Filters
+  adminFilterDate: 'Filtruj po dacie',
+  adminFilterAction: 'Filtruj po akcji',
 } as const;
 
 export type TranslationKey = keyof typeof pl;

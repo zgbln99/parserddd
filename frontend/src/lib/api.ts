@@ -1,13 +1,29 @@
 const BASE = '';
 
+function friendlyError(status: number, serverMsg?: string): string {
+  if (serverMsg) return serverMsg;
+  switch (status) {
+    case 403: return 'Brak uprawnień / Keine Berechtigung';
+    case 404: return 'Nie znaleziono / Nicht gefunden';
+    case 429: return 'Zbyt wiele prób / Zu viele Versuche';
+    case 500: case 502: case 503: return 'Błąd serwera / Serverfehler';
+    default: return `HTTP ${status}`;
+  }
+}
+
 async function request<T>(url: string, opts?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE}${url}`, {
-    credentials: 'include',
-    ...opts,
-    headers: {
-      ...(opts?.headers || {}),
-    },
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}${url}`, {
+      credentials: 'include',
+      ...opts,
+      headers: {
+        ...(opts?.headers || {}),
+      },
+    });
+  } catch {
+    throw new Error('Brak połączenia z serwerem / Keine Verbindung zum Server');
+  }
   if (res.status === 401) {
     window.location.href = '/login';
     throw new Error('Unauthorized');
@@ -17,9 +33,9 @@ async function request<T>(url: string, opts?: RequestInit): Promise<T> {
   try {
     data = JSON.parse(text);
   } catch {
-    throw new Error(`HTTP ${res.status}: Server error`);
+    throw new Error(friendlyError(res.status));
   }
-  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+  if (!res.ok) throw new Error(data.error || friendlyError(res.status));
   return data as T;
 }
 

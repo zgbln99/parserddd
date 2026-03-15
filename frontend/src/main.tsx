@@ -7,6 +7,7 @@ import { I18nProvider } from './i18n';
 import { ThemeProvider } from './hooks/useTheme';
 import { DateFilterProvider } from './hooks/useDateFilter';
 import { App } from './App';
+import { ToastProvider } from './components/Toast';
 
 // Register service worker for PWA
 if ('serviceWorker' in navigator) {
@@ -22,7 +23,9 @@ createRoot(document.getElementById('root')!).render(
         <I18nProvider>
           <AuthProvider>
             <DateFilterProvider>
-              <App />
+              <ToastProvider>
+                <App />
+              </ToastProvider>
             </DateFilterProvider>
           </AuthProvider>
         </I18nProvider>

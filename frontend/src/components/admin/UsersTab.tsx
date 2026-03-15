@@ -6,6 +6,8 @@ import { Card } from '../Card';
 import { Badge } from '../Badge';
 import { Spinner } from '../Spinner';
 import { MobileCard, CardField } from '../MobileCards';
+import { ConfirmDialog } from '../ConfirmDialog';
+import { useToast } from '../Toast';
 
 export function UsersTab() {
   const { t } = useI18n();
@@ -17,6 +19,8 @@ export function UsersTab() {
   const [newPassword, setNewPassword] = useState('');
   const [newRole, setNewRole] = useState('user');
   const [saving, setSaving] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<{ id: number; name: string } | null>(null);
+  const { toast } = useToast();
 
   const loadUsers = useCallback(() => {
     fetchUsers()
@@ -36,20 +40,30 @@ export function UsersTab() {
       setNewRole('user');
       setShowForm(false);
       loadUsers();
+      toast(t('monthlySaved'), 'success');
     } catch (e: unknown) {
       setError((e as Error).message);
+      toast((e as Error).message, 'error');
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = async (id: number, name: string) => {
-    if (!window.confirm(`${t('confirmDelete')} ${name}?`)) return;
+    setConfirmDelete({ id, name });
+  };
+
+  const doDelete = async () => {
+    if (!confirmDelete) return;
     try {
-      await deleteUser(id);
+      await deleteUser(confirmDelete.id);
       loadUsers();
+      toast(`${confirmDelete.name} — ${t('adminDeleteUser')}`, 'success');
     } catch (e: unknown) {
       setError((e as Error).message);
+      toast((e as Error).message, 'error');
+    } finally {
+      setConfirmDelete(null);
     }
   };
 
@@ -172,6 +186,14 @@ export function UsersTab() {
         </div>
         </>
       )}
+      <ConfirmDialog
+        open={!!confirmDelete}
+        title={t('adminDeleteUser')}
+        message={`${t('confirmDelete')} ${confirmDelete?.name}?`}
+        confirmLabel={t('adminDeleteUser')}
+        onConfirm={doDelete}
+        onCancel={() => setConfirmDelete(null)}
+      />
     </Card>
   );
 }

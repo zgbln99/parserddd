@@ -27,6 +27,19 @@ from flask import Flask, request, jsonify, session, send_from_directory
 from flask_cors import CORS
 from zoneinfo import ZoneInfo
 
+try:
+    import bcrypt
+    _HAS_BCRYPT = True
+except ImportError:
+    _HAS_BCRYPT = False
+
+try:
+    from flask_limiter import Limiter
+    from flask_limiter.util import get_remote_address
+    _HAS_LIMITER = True
+except ImportError:
+    _HAS_LIMITER = False
+
 UTC = ZoneInfo('UTC')
 CET = ZoneInfo('Europe/Berlin')
 
@@ -48,6 +61,21 @@ CORS(app, supports_credentials=True, origins=[
     'http://127.0.0.1:5173',
     'https://dd.ltslog.de',
 ])
+
+# Global rate limiter (30 requests/minute per IP for all API endpoints)
+if _HAS_LIMITER:
+    limiter = Limiter(
+        get_remote_address,
+        app=app,
+        default_limits=["60 per minute"],
+        storage_uri="memory://",
+    )
+    # Stricter limit for auth endpoints
+    auth_limit = limiter.limit("10 per minute")
+    # More generous for data endpoints
+    data_limit = limiter.limit("120 per minute")
+else:
+    limiter = None
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -73,6 +101,7 @@ SAMSARA_API_TOKEN = os.environ.get('SAMSARA_API_TOKEN', '')
 SAMSARA_API_BASE = 'https://api.eu.samsara.com'
 PORTAL_CACHE_FILE = os.environ.get('PORTAL_CACHE_FILE', '/opt/ddd-reader/portal_cache.json')
 PORTAL_CACHE_MAX_AGE = 900  # 15 minutes
+COMPANY_LOGO_PATH = os.environ.get('COMPANY_LOGO_PATH', '')
 
 import logging
 import sys
@@ -243,7 +272,21 @@ def _record_login(role: str, username: str = ''):
 
 
 def _hash_password(password: str) -> str:
+    """Hash password with bcrypt if available, fall back to SHA256."""
+    if _HAS_BCRYPT:
+        return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
     return hashlib.sha256(password.encode()).hexdigest()
+
+
+def _verify_password(password: str, stored_hash: str) -> bool:
+    """Verify password against stored hash (supports both bcrypt and SHA256)."""
+    if _HAS_BCRYPT and stored_hash.startswith('$2'):
+        try:
+            return bcrypt.checkpw(password.encode(), stored_hash.encode())
+        except Exception:
+            return False
+    # Fall back to SHA256 comparison
+    return hashlib.sha256(password.encode()).hexdigest() == stored_hash
 
 
 def _load_users() -> list:
@@ -374,9 +417,8 @@ def api_login():
         _clear_rate_limit(ip)
         return jsonify({'ok': True, 'role': 'user', 'username': 'user'})
     # Check users from JSON file
-    pw_hash = _hash_password(password)
     for u in _load_users():
-        if u.get('password_hash') == pw_hash:
+        if _verify_password(password, u.get('password_hash', '')):
             role = u.get('role', 'user')
             session['logged_in'] = True
             session['role'] = role
@@ -1389,11 +1431,23 @@ def api_export_pdf():
     summary = payload.get('summary', {})
     shifts = payload.get('shifts', [])
 
+    # Company logo (optional)
+    logo_html = ''
+    if COMPANY_LOGO_PATH and os.path.exists(COMPANY_LOGO_PATH):
+        import base64
+        with open(COMPANY_LOGO_PATH, 'rb') as lf:
+            logo_b64 = base64.b64encode(lf.read()).decode()
+        ext_logo = COMPANY_LOGO_PATH.rsplit('.', 1)[-1].lower()
+        mime = {'png': 'image/png', 'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'svg': 'image/svg+xml'}.get(ext_logo, 'image/png')
+        logo_html = f'<img src="data:{mime};base64,{logo_b64}" style="max-height:60px;margin-bottom:8px;" />'
+
     # Build simple HTML-based PDF using basic HTML tables
     html_parts = [
         '<!DOCTYPE html><html><head><meta charset="utf-8">',
         '<style>',
         'body{font-family:Arial,sans-serif;font-size:11px;margin:20px;}',
+        '.header{display:flex;align-items:center;gap:16px;margin-bottom:12px;}',
+        '.header img{max-height:60px;}',
         'h1{font-size:18px;margin-bottom:4px;}',
         'h2{font-size:14px;color:#555;margin:16px 0 8px;}',
         '.meta{color:#666;font-size:10px;margin-bottom:16px;}',
@@ -1409,8 +1463,8 @@ def api_export_pdf():
         '.diet-yes{color:#16a34a;font-weight:bold;}',
         '.footer{margin-top:20px;font-size:9px;color:#999;text-align:center;}',
         '</style></head><body>',
-        f'<h1>{driver_name}</h1>',
-        f'<div class="meta">{card_number}</div>' if card_number else '',
+        f'<div class="header">{logo_html}<div><h1>{driver_name}</h1>' if logo_html else f'<h1>{driver_name}</h1>',
+        f'<div class="meta">{card_number}</div></div></div>' if logo_html and card_number else (f'<div class="meta">{card_number}</div>' if card_number else ('</div></div>' if logo_html else '')),
         '<h2>Podsumowanie</h2>',
         '<div class="grid">',
         f'<div class="card highlight"><div class="label">Czas pracy</div><div class="val">{summary.get("total_work_hm", "-")}</div></div>',
@@ -1445,7 +1499,7 @@ def api_export_pdf():
             f'<td>{s.get("break_hm","")}</td><td>{n25}</td><td>{n40}</td><td>{diet}</td></tr>'
         )
     html_parts.append('</tbody></table>')
-    html_parts.append(f'<div class="footer">Portal DDD — wygenerowano {datetime.now().strftime("%Y-%m-%d %H:%M")}</div>')
+    html_parts.append(f'<div class="footer">LTS Logistik GmbH — Tachoprüfung — wygenerowano {datetime.now().strftime("%Y-%m-%d %H:%M")}</div>')
     html_parts.append('</body></html>')
 
     html_content = '\n'.join(html_parts)

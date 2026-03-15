@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Users, FileText, RefreshCw, AlertCircle, ArrowRight, Upload,
@@ -11,6 +11,9 @@ import { formatDateTime, formatDate } from '../lib/format';
 import { StatCard, Card } from '../components/Card';
 import { Badge } from '../components/Badge';
 import { Spinner } from '../components/Spinner';
+import { DashboardSkeleton } from '../components/Skeleton';
+
+const REFRESH_INTERVAL = 60_000; // 60 seconds
 
 const MAX_VISIBLE = 10;
 
@@ -64,6 +67,8 @@ export function DashboardPage() {
   const [showAllExpiring, setShowAllExpiring] = useState(false);
   const [scanning, setScanning] = useState(false);
 
+  const refreshRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   const loadDashboard = () => {
     fetchDashboard()
       .then(setData)
@@ -75,6 +80,16 @@ export function DashboardPage() {
     fetchConnectionStatus()
       .then(setConnections)
       .catch(() => {});
+
+    // Auto-refresh every 60s
+    refreshRef.current = setInterval(() => {
+      fetchDashboard().then(setData).catch(() => {});
+      fetchConnectionStatus().then(setConnections).catch(() => {});
+    }, REFRESH_INTERVAL);
+
+    return () => {
+      if (refreshRef.current) clearInterval(refreshRef.current);
+    };
   }, []);
 
   const handleScanExpiry = async () => {
@@ -105,12 +120,7 @@ export function DashboardPage() {
   }
 
   if (!data) {
-    return (
-      <div className="flex flex-col items-center gap-3 py-20 text-gray-400 animate-fade-in">
-        <Spinner size="lg" />
-        <p>{t('loading')}</p>
-      </div>
-    );
+    return <DashboardSkeleton />;
   }
 
   const syncBadge = data.last_sync_status === 'ok'

@@ -309,4 +309,19 @@ export const de: Record<TranslationKey, string> = {
   noConnection: 'Keine Verbindung zum Server',
   confirmDelete: 'Möchten Sie wirklich löschen?',
   unsavedChanges: 'Sie haben ungespeicherte Änderungen',
+
+  // Error messages
+  errorNetwork: 'Keine Verbindung zum Server. Bitte überprüfen Sie Ihre Internetverbindung.',
+  errorTimeout: 'Die Anfrage hat zu lange gedauert. Bitte versuchen Sie es erneut.',
+  errorServerDown: 'Server antwortet nicht. Kontaktieren Sie den Administrator.',
+  errorForbidden: 'Keine Berechtigung für diese Aktion.',
+  errorNotFound: 'Ressource nicht gefunden.',
+  errorRateLimit: 'Zu viele Versuche. Bitte warten Sie einige Minuten.',
+
+  // Search
+  searchPlaceholder: 'Seiten suchen... (Ctrl+K)',
+
+  // Filters
+  adminFilterDate: 'Nach Datum filtern',
+  adminFilterAction: 'Nach Aktion filtern',
 };

@@ -1,18 +1,30 @@
+import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
 import { Layout } from './components/Layout';
 import { LoginPage } from './pages/LoginPage';
-import { DashboardPage } from './pages/DashboardPage';
-import { DriversPage } from './pages/DriversPage';
-import { ReaderPage } from './pages/ReaderPage';
-import { SyncPage } from './pages/SyncPage';
-import { AdminPage } from './pages/AdminPage';
-import { DriverConfigPage } from './pages/DriverConfigPage';
-import { CompareDriversPage } from './pages/CompareDriversPage';
-import { SettlementPage } from './pages/SettlementPage';
-import { VehiclesPage } from './pages/VehiclesPage';
-import { AnalysisPage } from './pages/AnalysisPage';
 import { Spinner } from './components/Spinner';
+import { GlobalSearch } from './components/GlobalSearch';
+
+// Lazy-loaded pages for code splitting
+const DashboardPage = lazy(() => import('./pages/DashboardPage').then(m => ({ default: m.DashboardPage })));
+const DriversPage = lazy(() => import('./pages/DriversPage').then(m => ({ default: m.DriversPage })));
+const ReaderPage = lazy(() => import('./pages/ReaderPage').then(m => ({ default: m.ReaderPage })));
+const SyncPage = lazy(() => import('./pages/SyncPage').then(m => ({ default: m.SyncPage })));
+const AdminPage = lazy(() => import('./pages/AdminPage').then(m => ({ default: m.AdminPage })));
+const DriverConfigPage = lazy(() => import('./pages/DriverConfigPage').then(m => ({ default: m.DriverConfigPage })));
+const CompareDriversPage = lazy(() => import('./pages/CompareDriversPage').then(m => ({ default: m.CompareDriversPage })));
+const SettlementPage = lazy(() => import('./pages/SettlementPage').then(m => ({ default: m.SettlementPage })));
+const VehiclesPage = lazy(() => import('./pages/VehiclesPage').then(m => ({ default: m.VehiclesPage })));
+const AnalysisPage = lazy(() => import('./pages/AnalysisPage').then(m => ({ default: m.AnalysisPage })));
+
+function PageFallback() {
+  return (
+    <div className="flex items-center justify-center py-20">
+      <Spinner size="lg" />
+    </div>
+  );
+}
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { loggedIn } = useAuth();
@@ -45,22 +57,27 @@ export function App() {
   const { loggedIn } = useAuth();
 
   return (
-    <Routes>
-      <Route
-        path="/login"
-        element={loggedIn ? <Navigate to="/" replace /> : <LoginPage />}
-      />
-      <Route path="/" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
-      <Route path="/drivers" element={<ProtectedRoute><DriversPage /></ProtectedRoute>} />
-      <Route path="/reader" element={<ProtectedRoute><ReaderPage /></ProtectedRoute>} />
-      <Route path="/sync" element={<ProtectedRoute><SyncPage /></ProtectedRoute>} />
-      <Route path="/admin" element={<AdminRoute><AdminPage /></AdminRoute>} />
-      <Route path="/config" element={<AdminRoute><DriverConfigPage /></AdminRoute>} />
-      <Route path="/compare" element={<AdminRoute><CompareDriversPage /></AdminRoute>} />
-      <Route path="/settlement" element={<AdminRoute><SettlementPage /></AdminRoute>} />
-      <Route path="/vehicles" element={<AdminRoute><VehiclesPage /></AdminRoute>} />
-      <Route path="/analysis" element={<ProtectedRoute><AnalysisPage /></ProtectedRoute>} />
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+    <>
+      <GlobalSearch />
+      <Suspense fallback={<PageFallback />}>
+        <Routes>
+          <Route
+            path="/login"
+            element={loggedIn ? <Navigate to="/" replace /> : <LoginPage />}
+          />
+          <Route path="/" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
+          <Route path="/drivers" element={<ProtectedRoute><DriversPage /></ProtectedRoute>} />
+          <Route path="/reader" element={<ProtectedRoute><ReaderPage /></ProtectedRoute>} />
+          <Route path="/sync" element={<ProtectedRoute><SyncPage /></ProtectedRoute>} />
+          <Route path="/admin" element={<AdminRoute><AdminPage /></AdminRoute>} />
+          <Route path="/config" element={<AdminRoute><DriverConfigPage /></AdminRoute>} />
+          <Route path="/compare" element={<AdminRoute><CompareDriversPage /></AdminRoute>} />
+          <Route path="/settlement" element={<AdminRoute><SettlementPage /></AdminRoute>} />
+          <Route path="/vehicles" element={<AdminRoute><VehiclesPage /></AdminRoute>} />
+          <Route path="/analysis" element={<ProtectedRoute><AnalysisPage /></ProtectedRoute>} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Suspense>
+    </>
   );
 }
