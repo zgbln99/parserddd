@@ -340,8 +340,15 @@ export const de: Record<TranslationKey, string> = {
   configChangedBy: 'Geändert von',
   configChangedAt: 'Änderungsdatum',
 
+  // Compliance
+  complianceReport: 'Compliance EU 561/2006',
+  complianceScore: 'Compliance-Score',
+  complianceViolations: 'Verstöße',
+  complianceWarnings: 'Warnungen',
+  complianceNoViolations: 'Keine Verstöße — alle Vorschriften eingehalten',
+
   // Offline
-  offlineMode: 'Offline-Modus',
+  offlineMode: 'Offline-Modus — Daten aus Cache',
   offlineReady: 'App ist offline verfügbar',
   offlineSyncing: 'Synchronisierung...',
 };

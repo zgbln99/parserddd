@@ -1,9 +1,10 @@
 import { useState, useCallback, useMemo, useRef } from 'react';
-import { Download, RefreshCw, AlertCircle, Calendar, Users, Clock, Moon, UtensilsCrossed } from 'lucide-react';
+import { Download, RefreshCw, AlertCircle, Calendar, Users, Clock, Moon, UtensilsCrossed, FileText } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { useDateFilter } from '../hooks/useDateFilter';
 import { fetchDrivers, analyzeDropboxFile, exportDatevBatch, fetchDriverConfigs } from '../lib/api';
 import type { SettlementDriver } from '../lib/api';
+import { generateSettlementPdf } from '../lib/pdf-generator';
 import type { DriverConfig } from '../lib/api';
 import type { Driver, ShiftDetail } from '../types';
 import { Card } from '../components/Card';
@@ -149,6 +150,11 @@ export function SettlementPage() {
     }
   }, [drivers, period]);
 
+  const handleExportPdf = useCallback(() => {
+    if (!drivers.length || !period) return;
+    generateSettlementPdf(period, drivers as any);
+  }, [drivers, period]);
+
   const totals = useMemo(() => {
     let work = 0, n25 = 0, n40 = 0, diets = 0, vma = 0, shifts = 0;
     for (const d of drivers) {
@@ -200,14 +206,23 @@ export function SettlementPage() {
             {loading ? t('cancel') : t('settlementGenerate')}
           </button>
           {drivers.length > 0 && (
-            <button
-              onClick={handleExportDatev}
-              disabled={exporting}
-              className="flex min-h-[44px] items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-emerald-500/20 transition hover:brightness-110 disabled:opacity-50"
-            >
-              <Download size={14} />
-              {exporting ? t('loading') : t('settlementExportDatev')}
-            </button>
+            <>
+              <button
+                onClick={handleExportPdf}
+                className="flex min-h-[44px] items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-500 to-indigo-600 px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-indigo-500/20 transition hover:brightness-110"
+              >
+                <FileText size={14} />
+                {t('analysisExportPdf')}
+              </button>
+              <button
+                onClick={handleExportDatev}
+                disabled={exporting}
+                className="flex min-h-[44px] items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-emerald-500/20 transition hover:brightness-110 disabled:opacity-50"
+              >
+                <Download size={14} />
+                {exporting ? t('loading') : t('settlementExportDatev')}
+              </button>
+            </>
           )}
         </div>
       </Card>

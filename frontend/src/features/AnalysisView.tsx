@@ -1,18 +1,19 @@
 import { useMemo, useState, useCallback, useRef, useEffect } from 'react';
 import { useI18n } from '../i18n';
 import { formatDate } from '../lib/format';
-import { exportCsv, exportPdf, exportDatev, fetchDriverConfig, fetchMonthlyDays, saveMonthlyDays } from '../lib/api';
+import { exportCsv, exportDatev, fetchDriverConfig, fetchMonthlyDays, saveMonthlyDays } from '../lib/api';
 import type { DriverConfig, MonthlyDays } from '../lib/api';
 import { Badge } from '../components/Badge';
 import { Spinner } from '../components/Spinner';
 import { BarChart } from '../components/BarChart';
-import { Download, FileText, ClipboardCopy, Check, Printer, BarChart3, UtensilsCrossed, Table2, Settings, CalendarDays, Sheet } from 'lucide-react';
+import { Download, FileText, ClipboardCopy, Check, Printer, BarChart3, UtensilsCrossed, Table2, Settings, CalendarDays, Sheet, ShieldCheck } from 'lucide-react';
 import type { AnalysisResult, ShiftDetail } from '../types';
 import { DriverConfigEditor } from './DriverConfigEditor';
 import { useAuth } from '../hooks/useAuth';
 import { minutesToHm } from '../lib/utils';
 import { exportToXlsx, generateGoogleSheetsUrl } from '../lib/xlsx-export';
 import { useToast } from '../components/Toast';
+import { generateAnalysisPdf, analyzeCompliance, generateCompliancePdf } from '../lib/pdf-generator';
 
 function fmtNight(minutes: number, hm: string) {
   const decimal = (minutes / 60).toFixed(2);
@@ -179,7 +180,16 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
   };
 
   const handlePdfExport = () => {
-    exportPdf(di.driver_name || 'driver', di.card_number || '', s, shifts);
+    generateAnalysisPdf(di.driver_name || 'Fahrer', di.card_number || '', s as any, shifts as any);
+  };
+
+  const handleComplianceReport = () => {
+    const report = analyzeCompliance(di.driver_name || 'Fahrer', di.card_number || '', shifts as any);
+    generateCompliancePdf(report);
+    const msg = locale === 'de'
+      ? `Compliance-Score: ${report.score}% — ${report.violations.length} Feststellungen`
+      : `Compliance score: ${report.score}% — ${report.violations.length} ustaleń`;
+    toast(msg, report.score >= 80 ? 'success' : 'error');
   };
 
   const handleDatevExport = () => {
@@ -744,6 +754,13 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
         >
           <Printer size={16} />
           {t('analysisPrint')}
+        </button>
+        <button
+          onClick={handleComplianceReport}
+          className="flex min-h-[44px] items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-5 py-2.5 text-sm font-semibold text-red-700 transition hover:bg-red-100 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/30"
+        >
+          <ShieldCheck size={16} />
+          {t('complianceReport')}
         </button>
       </div>
     </div>

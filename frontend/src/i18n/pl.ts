@@ -338,8 +338,15 @@ export const pl = {
   configChangedBy: 'Zmieniono przez',
   configChangedAt: 'Data zmiany',
 
+  // Compliance
+  complianceReport: 'Compliance EU 561/2006',
+  complianceScore: 'Wynik compliance',
+  complianceViolations: 'Naruszenia',
+  complianceWarnings: 'Ostrzeżenia',
+  complianceNoViolations: 'Brak naruszeń — wszystkie przepisy spełnione',
+
   // Offline
-  offlineMode: 'Tryb offline',
+  offlineMode: 'Tryb offline — dane z cache',
   offlineReady: 'Aplikacja gotowa do pracy offline',
   offlineSyncing: 'Synchronizacja...',
 } as const;

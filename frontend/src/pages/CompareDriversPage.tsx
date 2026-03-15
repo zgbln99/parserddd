@@ -11,6 +11,64 @@ import { Spinner } from '../components/Spinner';
 import { minutesToHm } from '../lib/utils';
 import type { Driver } from '../types';
 
+const LOGO_URL = 'https://lfrfrp.stripocdn.email/content/guids/CABINET_862a1b05e2f09e6cca20d3b1bce9a4ee0b92caa7a66ee37aabdb90e233f8e4dc/images/image_6.png';
+let _cachedLogo: string | null = null;
+async function preloadLogo(): Promise<string | null> {
+  if (_cachedLogo) return _cachedLogo;
+  try {
+    const res = await fetch(LOGO_URL);
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => { _cachedLogo = reader.result as string; resolve(_cachedLogo); };
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(blob);
+    });
+  } catch { return null; }
+}
+
+function addBrandedHeader(doc: jsPDF, logo: string | null, title: string, subtitle: string) {
+  const pageW = doc.internal.pageSize.getWidth();
+  const m = 14;
+  doc.setFillColor(30, 64, 175);
+  doc.rect(0, 0, pageW, 3, 'F');
+  let textX = m;
+  if (logo) { try { doc.addImage(logo, 'PNG', m, 5, 24, 10); textX = m + 27; } catch {} }
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7);
+  doc.setTextColor(100, 116, 139);
+  doc.text('LTS Logistik GmbH', textX, 9);
+  doc.setFontSize(13);
+  doc.setTextColor(15, 23, 42);
+  doc.text(title, textX, 14.5);
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(100, 116, 139);
+  doc.text(subtitle, textX, 19);
+  doc.setFontSize(7);
+  doc.text(new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }), pageW - m, 9, { align: 'right' });
+  doc.setDrawColor(99, 102, 241);
+  doc.setLineWidth(0.5);
+  doc.line(m, 22, pageW - m, 22);
+}
+
+function addBrandedFooter(doc: jsPDF) {
+  const pages = doc.getNumberOfPages();
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  for (let i = 1; i <= pages; i++) {
+    doc.setPage(i);
+    doc.setFillColor(30, 64, 175);
+    doc.rect(0, pageH - 3, pageW, 3, 'F');
+    doc.setFontSize(6.5);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(100, 116, 139);
+    doc.text('LTS Logistik GmbH — Tachoprüfung', 14, pageH - 5);
+    doc.text(`Seite ${i} / ${pages}`, pageW - 14, pageH - 5, { align: 'right' });
+  }
+}
+
 const weekdayMapDe: Record<string, string> = {
   Pn: 'Mo', Wt: 'Di', Śr: 'Mi', Cz: 'Do', Pt: 'Fr', So: 'Sa', Nd: 'So',
 };
@@ -192,9 +250,10 @@ export function CompareDriversPage() {
     pw.print();
   }, [results, allDates, t, locale]);
 
-  const handleExportPdf = useCallback(() => {
+  const handleExportPdf = useCallback(async () => {
     if (!results || results.length === 0) return;
 
+    const logo = await preloadLogo();
     const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
     const pageW = doc.internal.pageSize.getWidth();
     const localeStr = locale === 'de' ? 'de-DE' : 'pl-PL';
@@ -238,21 +297,15 @@ export function CompareDriversPage() {
     ];
 
     // Colors
-    const blue: [number, number, number] = [37, 99, 235];
+    const blue: [number, number, number] = [30, 64, 175];
     const greenText: [number, number, number] = [21, 128, 61];
     const redText: [number, number, number] = [220, 38, 38];
     const grayText: [number, number, number] = [100, 100, 100];
     const weekendBg: [number, number, number] = [254, 242, 242];
 
-    // --- Page 1: Summary ---
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.text(t('compareTitle'), 14, 14);
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(120);
-    doc.text(`${new Date().toLocaleDateString(localeStr)}  |  ${dateFrom || '...'} — ${dateTo || '...'}`, 14, 20);
-    doc.setTextColor(0);
+    // --- Page 1: Summary with branded header ---
+    const driverNames = results.map((r) => r.driver_name).join(', ');
+    addBrandedHeader(doc, logo, t('compareTitle'), `${driverNames} · ${dateFrom || '...'} — ${dateTo || '...'}`);
 
     // Stats table
     const statsHead = [[t('driversName'), t('compareTotalShifts'), t('compareAvgStart'), t('compareAvgEnd'), t('compareAvgDuration')]];
@@ -353,8 +406,9 @@ export function CompareDriversPage() {
       }
     }
 
-    const driverNames = results.map((r) => r.driver_name.split(' ')[0]).join('_');
-    doc.save(`vergleich_${driverNames}.pdf`);
+    addBrandedFooter(doc);
+    const driverFileNames = results.map((r) => r.driver_name.split(' ')[0]).join('_');
+    doc.save(`Vergleich_${driverFileNames}.pdf`);
   }, [results, allDates, driverStats, shiftLookup, t, locale, dateFrom, dateTo]);
 
   if (loading) {
