@@ -9,12 +9,7 @@ import type { Driver, ShiftDetail } from '../types';
 import { Card } from '../components/Card';
 import { Badge } from '../components/Badge';
 import { Spinner } from '../components/Spinner';
-
-function minutesToHm(min: number): string {
-  const h = Math.floor(min / 60);
-  const m = min % 60;
-  return `${h}:${String(m).padStart(2, '0')}`;
-}
+import { minutesToHm, monthLabel } from '../lib/utils';
 
 export function SettlementPage() {
   const { t, locale } = useI18n();
@@ -176,15 +171,6 @@ export function SettlementPage() {
 
   const fmtEur = (val: number) => val.toFixed(2).replace('.', ',') + ' €';
 
-  const monthLabel = (p: string) => {
-    if (!p) return '';
-    const [y, m] = p.split('-');
-    const months = locale === 'de'
-      ? ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember']
-      : ['Styczeń', 'Luty', 'Marzec', 'Kwiecień', 'Maj', 'Czerwiec', 'Lipiec', 'Sierpień', 'Wrzesień', 'Październik', 'Listopad', 'Grudzień'];
-    return `${months[parseInt(m, 10) - 1]} ${y}`;
-  };
-
   return (
     <div className="animate-slide-up">
       <h1 className="mb-6 text-2xl font-bold tracking-tight">{t('settlementTitle')}</h1>
@@ -308,7 +294,7 @@ export function SettlementPage() {
           <Card className="overflow-hidden">
             <div className="border-b border-white/20 px-5 py-3 dark:border-white/5">
               <h2 className="text-sm font-semibold">
-                {monthLabel(period)} — {drivers.length} {t('settlementDrivers').toLowerCase()}
+                {monthLabel(period, locale)} — {drivers.length} {t('settlementDrivers').toLowerCase()}
               </h2>
             </div>
             <div className="overflow-x-auto">

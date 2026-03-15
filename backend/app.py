@@ -37,7 +37,8 @@ CET = ZoneInfo('Europe/Berlin')
 app = Flask(__name__, static_folder=None)
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16 MB
 app.config['SESSION_COOKIE_HTTPONLY'] = True
-app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # Keep Lax for cross-origin redirects
+app.config['SESSION_COOKIE_SECURE'] = os.environ.get('FLASK_ENV') == 'production'
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=12)
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'ddd-parser-secret-key-change-me')
 
@@ -71,7 +72,27 @@ DROPBOX_REFRESH_TOKEN = os.environ.get('DROPBOX_REFRESH_TOKEN', '')
 SAMSARA_API_TOKEN = os.environ.get('SAMSARA_API_TOKEN', '')
 SAMSARA_API_BASE = 'https://api.eu.samsara.com'
 PORTAL_CACHE_FILE = os.environ.get('PORTAL_CACHE_FILE', '/opt/ddd-reader/portal_cache.json')
-PORTAL_CACHE_MAX_AGE = 300  # 5 minutes
+PORTAL_CACHE_MAX_AGE = 900  # 15 minutes
+
+import logging
+import sys
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S',
+)
+logger = logging.getLogger('ddd-reader')
+
+# Warn about default credentials
+_INSECURE_DEFAULTS = {
+    'PORTAL_PASSWORD': 'lts2025',
+    'ADMIN_PASSWORD': 'Marek2211.!',
+    'FLASK_SECRET_KEY': 'ddd-parser-secret-key-change-me',
+}
+for _env_key, _default_val in _INSECURE_DEFAULTS.items():
+    if os.environ.get(_env_key, _default_val) == _default_val:
+        logger.warning('⚠ %s is using default value — set it via environment variable!', _env_key)
 
 # Path to built React frontend
 FRONTEND_DIR = os.environ.get(
@@ -263,6 +284,11 @@ def _log_activity(action: str, detail: str = ''):
                 json.dump(log, f, indent=2)
     except Exception:
         pass
+
+
+def _log_config_change(action: str, detail: str = ''):
+    """Log configuration changes with full context."""
+    _log_activity(f'config_change:{action}', detail)
 
 
 def _load_config() -> dict:
@@ -1861,6 +1887,7 @@ def api_upsert_driver_config():
     conn.commit()
     conn.close()
     _log_activity('save_driver_config', f"{card_number} — {driver_name}")
+    _log_config_change('save_driver_config', f"{card_number} — {driver_name}")
     return jsonify({'ok': True})
 
 
@@ -1933,6 +1960,7 @@ def api_bulk_driver_config():
     conn.commit()
     conn.close()
     _log_activity('bulk_driver_config', f"{count} drivers updated")
+    _log_config_change('bulk_driver_config', f"{count} drivers updated")
     return jsonify({'ok': True, 'updated': count})
 
 
@@ -1945,6 +1973,7 @@ def api_delete_driver_config(config_id):
     conn.commit()
     conn.close()
     _log_activity('delete_driver_config', f"id={config_id}")
+    _log_config_change('delete_driver_config', f"id={config_id}")
     return jsonify({'ok': True})
 
 
