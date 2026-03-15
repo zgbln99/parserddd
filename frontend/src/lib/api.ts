@@ -657,9 +657,3 @@ export const analyzeEU561Dropbox = (driverName: string, cardNumber: string, file
     body: JSON.stringify({ driver_name: driverName, card_number: cardNumber, files }),
   });
 
-export const analyzeEU561Samsara = (driverIds: string[], startTime?: string, endTime?: string) =>
-  request<{ drivers: EU561Result[]; period: { start: string; end: string }; source: string }>('/api/eu561/samsara', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ driver_ids: driverIds, start_time: startTime, end_time: endTime }),
-  });

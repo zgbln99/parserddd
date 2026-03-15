@@ -10,7 +10,7 @@ import { Badge } from '../components/Badge';
 import { Spinner } from '../components/Spinner';
 import { useToast } from '../components/Toast';
 import {
-  fetchEU561Drivers, analyzeEU561Dropbox, analyzeEU561Samsara,
+  fetchEU561Drivers, analyzeEU561Dropbox,
   type EU561Result, type EU561Driver, type EU561Day, type EU561Week,
   type EU561Compensation, type EU561Infringement,
   type EU561Schedule, type EU561ScheduleRecommendation,
@@ -750,13 +750,11 @@ export function EU561Page() {
   const { toast } = useToast();
 
   const [drivers, setDrivers] = useState<EU561Driver[]>([]);
-  const [samsaraAvailable, setSamsaraAvailable] = useState(false);
   const [driversLoading, setDriversLoading] = useState(false);
   const [driversLoaded, setDriversLoaded] = useState(false);
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
-  const [mode, setMode] = useState<'dropbox' | 'samsara'>('dropbox');
 
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<EU561Result[]>([]);
@@ -769,7 +767,6 @@ export function EU561Page() {
     try {
       const data = await fetchEU561Drivers();
       setDrivers(data.drivers);
-      setSamsaraAvailable(data.samsara_available);
       setDriversLoaded(true);
     } catch {
       toast(locale === 'de' ? 'Fehler beim Laden' : 'Błąd ładowania', 'error');
@@ -812,41 +809,29 @@ export function EU561Page() {
     setLoading(true);
     setResults([]);
 
-    if (mode === 'samsara' && samsaraAvailable) {
-      // Samsara live mode - one API call for all drivers
+    const selectedDrivers = drivers.filter(d => selected.has(d.name));
+    setProgress({ current: 0, total: selectedDrivers.length, name: '' });
+
+    const allResults: EU561Result[] = [];
+
+    for (let i = 0; i < selectedDrivers.length; i++) {
+      const driver = selectedDrivers[i];
+      setProgress({ current: i + 1, total: selectedDrivers.length, name: driver.name });
+
       try {
-        const data = await analyzeEU561Samsara([]);
-        setResults(data.drivers);
-      } catch (e: any) {
-        toast(e.message || 'Error', 'error');
+        const files = driver.files.map(f => ({ path: f.path }));
+        if (files.length === 0) continue;
+
+        const result = await analyzeEU561Dropbox(driver.name, driver.card_number, files);
+        allResults.push(result);
+      } catch {
+        // Skip failed drivers
       }
-    } else {
-      // Dropbox mode - analyze each driver individually
-      const selectedDrivers = drivers.filter(d => selected.has(d.name));
-      setProgress({ current: 0, total: selectedDrivers.length, name: '' });
-
-      const allResults: EU561Result[] = [];
-
-      for (let i = 0; i < selectedDrivers.length; i++) {
-        const driver = selectedDrivers[i];
-        setProgress({ current: i + 1, total: selectedDrivers.length, name: driver.name });
-
-        try {
-          const files = driver.files.map(f => ({ path: f.path }));
-          if (files.length === 0) continue;
-
-          const result = await analyzeEU561Dropbox(driver.name, driver.card_number, files);
-          allResults.push(result);
-        } catch {
-          // Skip failed drivers
-        }
-      }
-
-      setResults(allResults);
     }
 
+    setResults(allResults);
     setLoading(false);
-  }, [selected, drivers, mode, samsaraAvailable, toast]);
+  }, [selected, drivers, toast]);
 
   return (
     <div className="space-y-6">
@@ -864,36 +849,8 @@ export function EU561Page() {
         </p>
       </div>
 
-      {/* Source mode selector */}
-      <div className="flex gap-2">
-        <button
-          onClick={() => setMode('dropbox')}
-          className={`rounded-lg px-4 py-2 text-sm font-medium transition ${
-            mode === 'dropbox'
-              ? 'bg-blue-600 text-white'
-              : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-white/10 dark:text-slate-300'
-          }`}
-        >
-          {locale === 'de' ? 'DDD-Dateien (Dropbox)' : 'Pliki DDD (Dropbox)'}
-        </button>
-        <button
-          onClick={() => setMode('samsara')}
-          disabled={!samsaraAvailable}
-          className={`rounded-lg px-4 py-2 text-sm font-medium transition ${
-            mode === 'samsara'
-              ? 'bg-blue-600 text-white'
-              : samsaraAvailable
-                ? 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-white/10 dark:text-slate-300'
-                : 'bg-gray-100 text-gray-300 cursor-not-allowed dark:bg-white/5 dark:text-slate-600'
-          }`}
-        >
-          Samsara Live
-          {!samsaraAvailable && <span className="ml-1 text-xs">(brak tokenu)</span>}
-        </button>
-      </div>
-
       {/* Driver selection */}
-      {mode === 'dropbox' && (
+      {(
         <Card>
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2">
@@ -977,33 +934,6 @@ export function EU561Page() {
               <ProgressBar value={progress.current} max={progress.total} />
             </div>
           )}
-        </Card>
-      )}
-
-      {/* Samsara mode - just a button */}
-      {mode === 'samsara' && (
-        <Card>
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
-                {locale === 'de' ? 'Samsara Live-Analyse' : 'Analiza Samsara Live'}
-              </h3>
-              <p className="text-xs text-gray-400 mt-1">
-                {locale === 'de'
-                  ? 'Holt Tachograph-Aktivitätsdaten der letzten 28 Tage von Samsara'
-                  : 'Pobiera dane aktywności tachografu z ostatnich 28 dni z Samsary'
-                }
-              </p>
-            </div>
-            <button
-              onClick={handleAnalyze}
-              disabled={loading}
-              className="flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-            >
-              {loading ? <Spinner size="sm" /> : <Play size={16} />}
-              {locale === 'de' ? 'Jetzt analysieren' : 'Analizuj teraz'}
-            </button>
-          </div>
         </Card>
       )}
 
