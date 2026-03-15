@@ -359,9 +359,9 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
               {t('clear')}
             </button>
           )}
-          {/* Excel copy – inline */}
+          {/* Excel copy – inline (hidden on mobile, too wide) */}
           {shifts.length > 0 && (
-            <div className="ml-auto">
+            <div className="hidden sm:block ml-auto">
               <ExcelCopyBlock summary={s} monthlyDays={monthlyDays} />
             </div>
           )}
@@ -411,9 +411,9 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
         ))}
       </div>
 
-      {/* Monthly grid copy block */}
+      {/* Monthly grid copy block (hidden on mobile - 31-col table) */}
       {shifts.length > 0 && hasDateFilter && dateFrom && (
-        <div className="rounded-xl bg-black/[0.02] p-4 dark:bg-white/5">
+        <div className="hidden sm:block rounded-xl bg-black/[0.02] p-4 dark:bg-white/5">
           <MonthlyGridCopy
             shifts={shifts}
             summary={s as unknown as Record<string, unknown>}
@@ -482,14 +482,14 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
             </span>
           </button>
           {showDietReport && (
-            <div className="overflow-x-auto px-4 pb-4">
-              <table className="w-full sm:min-w-[600px] text-sm">
+            <div className="overflow-hidden px-2 sm:px-4 pb-4">
+              <table className="w-full text-xs sm:text-sm">
                 <thead>
                   <tr className="border-b border-white/30 dark:border-white/10">
-                    <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 dark:text-gray-400">{t('syncDate')}</th>
-                    <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 dark:text-gray-400">{t('analysisWeekday')}</th>
-                    <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 dark:text-gray-400">{t('analysisDuration')}</th>
-                    <th className="px-3 py-2 text-center text-xs font-semibold text-gray-500 dark:text-gray-400">{t('analysisDiet')}</th>
+                    <th className="px-2 py-2 text-left text-xs font-semibold text-gray-500 dark:text-gray-400">{t('syncDate')}</th>
+                    <th className="px-2 py-2 text-left text-xs font-semibold text-gray-500 dark:text-gray-400">{t('analysisWeekday')}</th>
+                    <th className="px-2 py-2 text-left text-xs font-semibold text-gray-500 dark:text-gray-400">{t('analysisDuration')}</th>
+                    <th className="px-2 py-2 text-center text-xs font-semibold text-gray-500 dark:text-gray-400">{t('analysisDiet')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-black/[0.03] dark:divide-white/[0.03]">
@@ -497,10 +497,10 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
                     const isWeekend = sh.weekday === 'So' || sh.weekday === 'Nd';
                     return (
                       <tr key={i} className={isWeekend ? 'text-gray-400 dark:text-gray-600' : ''}>
-                        <td className="whitespace-nowrap px-3 py-1.5 font-medium">{sh.shift_date}</td>
-                        <td className={`whitespace-nowrap px-3 py-1.5 font-bold ${isWeekend ? 'text-rose-400' : ''}`}>{localizeWeekday(sh.weekday, locale)}</td>
-                        <td className="whitespace-nowrap px-3 py-1.5">{sh.duration_hm}</td>
-                        <td className="whitespace-nowrap px-3 py-1.5 text-center">
+                        <td className="whitespace-nowrap px-2 py-1.5 font-medium">{sh.shift_date}</td>
+                        <td className={`whitespace-nowrap px-2 py-1.5 font-bold ${isWeekend ? 'text-rose-400' : ''}`}>{localizeWeekday(sh.weekday, locale)}</td>
+                        <td className="whitespace-nowrap px-2 py-1.5">{sh.duration_hm}</td>
+                        <td className="whitespace-nowrap px-2 py-1.5 text-center">
                           {sh.has_diet
                             ? <Badge variant="green">{t('yes')}</Badge>
                             : <span className="text-gray-300 dark:text-gray-600">{t('no')}</span>}

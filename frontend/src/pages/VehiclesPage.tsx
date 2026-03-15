@@ -217,7 +217,7 @@ export function VehiclesPage() {
 
         {/* Vehicle list / selection */}
         {!vehiclesLoading && !vehiclesError && vehicleList.length > 0 && (
-          <div className="mt-4 max-h-[240px] overflow-y-auto overflow-x-auto rounded-lg border border-white/20 dark:border-white/5">
+          <div className="mt-4 max-h-[240px] overflow-y-auto overflow-x-hidden sm:overflow-x-auto rounded-lg border border-white/20 dark:border-white/5">
             <table className="w-full sm:min-w-[600px] text-sm">
               <thead className="sticky top-0 bg-black/[0.02] dark:bg-white/5">
                 <tr className="border-b border-white/20 dark:border-white/5">
