@@ -6,6 +6,7 @@ import { formatDateTime } from '../../lib/format';
 import { Card } from '../Card';
 import { Badge } from '../Badge';
 import { Spinner } from '../Spinner';
+import { MobileCard, CardField } from '../MobileCards';
 
 const ACTIVITY_PAGE_SIZE = 25;
 
@@ -46,7 +47,17 @@ function ActivityLogSection() {
         <p className="py-8 text-center text-sm text-gray-400">{t('noData')}</p>
       ) : (
         <>
-          <div className="overflow-x-auto">
+          <div className="block sm:hidden space-y-3 p-4">
+            {pageItems.map((entry, i) => (
+              <MobileCard key={page * ACTIVITY_PAGE_SIZE + i}>
+                <CardField label={t('adminUser')} value={<span className="font-medium">{entry.username || entry.role}</span>} />
+                <CardField label={t('adminAction')} value={actionBadge(entry.action)} />
+                <CardField label={t('adminDetail')} value={<span className="text-xs text-gray-500 truncate max-w-[200px] inline-block">{entry.detail}</span>} />
+                <CardField label={t('syncDate')} value={formatDateTime(entry.timestamp, locale)} />
+              </MobileCard>
+            ))}
+          </div>
+          <div className="hidden sm:block overflow-x-auto">
             <table className="w-full min-w-[600px] text-sm">
               <thead>
                 <tr className="border-b border-white/20 dark:border-white/5">
@@ -123,7 +134,18 @@ function LoginHistorySection() {
       {history.length === 0 ? (
         <p className="py-8 text-center text-sm text-gray-400">{t('noData')}</p>
       ) : (
-        <div className="overflow-x-auto">
+        <>
+        <div className="block sm:hidden space-y-3 p-4">
+          {history.slice(0, 50).map((entry, i) => (
+            <MobileCard key={i}>
+              <CardField label={t('adminUser')} value={<span className="font-medium">{entry.username || entry.role}</span>} />
+              <CardField label={t('adminRole')} value={<Badge variant={entry.role === 'admin' ? 'red' : 'gray'}>{entry.role}</Badge>} />
+              <CardField label={t('adminBrowser')} value={<span className="text-xs text-gray-400 truncate max-w-[200px] inline-block">{entry.user_agent}</span>} />
+              <CardField label={t('syncDate')} value={formatDateTime(entry.timestamp, locale)} />
+            </MobileCard>
+          ))}
+        </div>
+        <div className="hidden sm:block overflow-x-auto">
           <table className="w-full min-w-[600px] text-sm">
             <thead>
               <tr className="border-b border-white/20 dark:border-white/5">
@@ -149,6 +171,7 @@ function LoginHistorySection() {
             </tbody>
           </table>
         </div>
+        </>
       )}
     </Card>
   );

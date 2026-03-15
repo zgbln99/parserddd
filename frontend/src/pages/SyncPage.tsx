@@ -6,6 +6,7 @@ import { formatDateTime, formatBytes } from '../lib/format';
 import { Card, StatCard } from '../components/Card';
 import { Badge } from '../components/Badge';
 import { Spinner } from '../components/Spinner';
+import { MobileCard, CardField } from '../components/MobileCards';
 import type { SyncHistoryEntry } from '../types';
 
 export function SyncPage() {
@@ -105,7 +106,31 @@ export function SyncPage() {
           </div>
 
           {/* History table */}
-          <Card className="overflow-hidden">
+          <div className="block sm:hidden space-y-3 p-4">
+            {history.map((h, i) => (
+              <MobileCard key={i} onClick={() => setExpandedIdx(expandedIdx === i ? null : i)}>
+                <CardField label={t('syncDate')} value={formatDateTime(h.timestamp, locale)} />
+                <CardField label={t('syncStatus')} value={statusBadge(h.status)} />
+                <CardField label={t('syncFound')} value={h.found} />
+                <CardField label={t('syncUploaded')} value={<span className="font-bold">{h.uploaded}</span>} />
+                <CardField label={t('syncErrors')} value={<span className={h.errors ? 'text-rose-500' : 'text-gray-300 dark:text-gray-600'}>{h.errors}</span>} />
+                {expandedIdx === i && h.files.length > 0 && (
+                  <div className="mt-3 space-y-1.5 border-t border-white/10 pt-3">
+                    {h.files.map((f, fi) => (
+                      <div key={fi} className="flex items-center gap-2 text-xs">
+                        {f.status === 'ok'
+                          ? <CheckCircle size={14} className="flex-shrink-0 text-emerald-500" />
+                          : <XCircle size={14} className="flex-shrink-0 text-rose-500" />}
+                        <span className="font-medium text-gray-500">{f.driver}</span>
+                        <span className="flex-1 truncate font-medium">{f.file}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </MobileCard>
+            ))}
+          </div>
+          <Card className="hidden sm:block overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full min-w-[800px] text-sm">
                 <thead>

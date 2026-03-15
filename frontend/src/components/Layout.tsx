@@ -234,7 +234,7 @@ export function Layout({ children }: { children: ReactNode }) {
         </main>
 
         {/* Mobile bottom nav */}
-        <nav className="fixed inset-x-0 bottom-0 z-30 glass border-t border-white/20 lg:hidden dark:border-white/5">
+        <nav className="fixed inset-x-0 bottom-0 z-30 glass border-t border-white/20 lg:hidden dark:border-white/5 safe-bottom">
           <div className="flex items-stretch justify-around">
             {navItems.slice(0, 5).map(({ to, icon: Icon, labelKey }) => (
               <NavLink

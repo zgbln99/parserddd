@@ -11,6 +11,7 @@ import {
 import { Card, StatCard } from '../components/Card';
 import { Badge } from '../components/Badge';
 import { Spinner } from '../components/Spinner';
+import { MobileCard, CardField } from '../components/MobileCards';
 import type { Driver } from '../types';
 
 interface MergedDriver {
@@ -200,9 +201,9 @@ export function DriverConfigPage() {
 
       {/* Toolbar */}
       <Card className="p-4">
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3">
           {/* Search */}
-          <div className="relative min-w-[200px] flex-1 sm:max-w-xs">
+          <div className="relative w-full sm:min-w-[200px] flex-1 sm:max-w-xs">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
               type="text"

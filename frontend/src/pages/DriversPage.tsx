@@ -8,6 +8,7 @@ import { Card } from '../components/Card';
 import { Badge, StatusDot } from '../components/Badge';
 import { Spinner } from '../components/Spinner';
 import { Modal } from '../components/Modal';
+import { MobileCard, CardField } from '../components/MobileCards';
 import type { Driver, DriverFile } from '../types';
 
 const PAGE_SIZE = 20;
@@ -198,10 +199,35 @@ export function DriversPage() {
         <p className="py-20 text-center text-gray-400">{t('driversNoData')}</p>
       )}
 
-      {/* Table */}
+      {/* Table (desktop) + Cards (mobile) */}
       {pageData.length > 0 && (
         <Card className="overflow-hidden">
-          <div className="overflow-x-auto">
+          {/* Mobile card view */}
+          <div className="block sm:hidden divide-y divide-black/[0.03] dark:divide-white/[0.03]">
+            {pageData.map((d) => (
+              <div
+                key={d.name}
+                onClick={() => openDriver(d)}
+                className={`cursor-pointer p-4 transition active:bg-blue-50/50 dark:active:bg-blue-900/10 ${d.days_since !== null && d.days_since > 28 ? 'bg-rose-50/30 dark:bg-rose-900/10' : ''}`}
+              >
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <p className="text-sm font-bold truncate">{d.name}</p>
+                  <span className="inline-flex items-center gap-1.5 text-xs font-semibold shrink-0">
+                    <StatusDot color={daysColor(d.days_since)} />
+                    {daysLabel(d.days_since, locale)}
+                  </span>
+                </div>
+                <div className="space-y-1">
+                  <CardField label={t('driversCardNumber')} value={<span className="font-mono text-xs">{d.card_number}</span>} />
+                  <CardField label={t('driversLastDownload')} value={formatDateTime(d.latest_download, locale)} />
+                  <CardField label={t('driversFileCount')} value={<Badge variant="gray">{d.file_count}</Badge>} />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop table view */}
+          <div className="hidden sm:block overflow-x-auto">
             <table className="w-full min-w-[800px] text-sm">
               <thead>
                 <tr className="border-b border-white/20 dark:border-white/5">

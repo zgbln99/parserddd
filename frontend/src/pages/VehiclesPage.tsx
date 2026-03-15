@@ -7,6 +7,7 @@ import type { SamsaraVehicle, VehicleActivity, VehicleDebugInfo } from '../lib/a
 import { Card } from '../components/Card';
 import { Spinner } from '../components/Spinner';
 import { Badge } from '../components/Badge';
+import { CardField } from '../components/MobileCards';
 import { monthLabel } from '../lib/utils';
 
 export function VehiclesPage() {
@@ -151,7 +152,7 @@ export function VehiclesPage() {
       <Card className="mb-6 p-5">
         <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-end gap-4">
           {/* Vehicle selector */}
-          <div className="min-w-[250px] flex-1">
+          <div className="w-full sm:min-w-[250px] flex-1">
             <label className="mb-1 block text-sm font-medium text-gray-600 dark:text-gray-400">
               {t('vehiclesName')}
             </label>
@@ -355,7 +356,50 @@ export function VehiclesPage() {
                 {activity.vehicle_name} — {monthLabel(period, locale)}
               </h2>
             </div>
-            <div className="overflow-x-auto">
+            {/* Mobile card view */}
+            <div className="block sm:hidden divide-y divide-black/[0.03] dark:divide-white/[0.03]">
+              {activity.days.map((day) => {
+                const wd = weekday(day.date);
+                const isSunday = new Date(day.date + 'T00:00:00').getDay() === 0;
+                const isSaturday = new Date(day.date + 'T00:00:00').getDay() === 6;
+                return (
+                  <div
+                    key={day.date}
+                    className={`p-4 space-y-1.5 ${
+                      isSunday ? 'bg-rose-50/30 dark:bg-rose-900/10' : isSaturday ? 'bg-amber-50/20 dark:bg-amber-900/10' : ''
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <p className="text-sm font-bold">
+                        {fmtDate(day.date)}
+                        <span className={`ml-2 text-xs ${isSunday ? 'font-bold text-rose-500' : 'text-gray-400'}`}>{wd}</span>
+                      </p>
+                      <Badge variant={day.duration_h >= 10 ? 'blue' : 'gray'}>{day.duration_hm}</Badge>
+                    </div>
+                    <CardField label={t('vehiclesDistance')} value={day.distance_km > 0 ? fmtKm(day.distance_km) : '-'} />
+                    <CardField label={t('vehiclesBeginDriving')} value={fmtDateTime(day.begin_driving)} />
+                    <CardField label={t('vehiclesLastDriving')} value={fmtDateTime(day.last_driving)} />
+                    {day.last_location && (
+                      <div className="mt-1 flex items-start gap-1.5 text-xs text-gray-400">
+                        <MapPin size={12} className="mt-0.5 shrink-0" />
+                        <span className="line-clamp-2">{day.last_location}</span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+              {/* Mobile totals */}
+              <div className="p-4 bg-black/[0.02] dark:bg-white/5 space-y-1.5">
+                <p className="text-sm font-bold mb-2">Ings.</p>
+                <CardField label={t('vehiclesTotalKm')} value={<span className="font-mono font-bold">{fmtKm(activity.total_km)}</span>} />
+                <CardField label={t('vehiclesDuration')} value={
+                  <Badge variant="blue">{totalMinutes > 0 ? `${Math.floor(totalMinutes / 60)}h ${totalMinutes % 60}m` : '-'}</Badge>
+                } />
+              </div>
+            </div>
+
+            {/* Desktop table view */}
+            <div className="hidden sm:block overflow-x-auto">
               <table className="w-full min-w-[800px] text-sm">
                 <thead>
                   <tr className="border-b border-white/20 dark:border-white/5">

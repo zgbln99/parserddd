@@ -9,6 +9,7 @@ import type { Driver, ShiftDetail } from '../types';
 import { Card } from '../components/Card';
 import { Badge } from '../components/Badge';
 import { Spinner } from '../components/Spinner';
+import { CardField } from '../components/MobileCards';
 import { minutesToHm, monthLabel } from '../lib/utils';
 
 export function SettlementPage() {
@@ -297,7 +298,43 @@ export function SettlementPage() {
                 {monthLabel(period, locale)} — {drivers.length} {t('settlementDrivers').toLowerCase()}
               </h2>
             </div>
-            <div className="overflow-x-auto">
+            {/* Mobile card view */}
+            <div className="block sm:hidden divide-y divide-black/[0.03] dark:divide-white/[0.03]">
+              {drivers.map((d, i) => (
+                <div key={d.card_number || d.driver_name} className="p-4 space-y-1.5">
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <p className="text-sm font-bold truncate">
+                      <span className="text-gray-400 mr-1.5">{i + 1}.</span>
+                      {d.driver_name}
+                    </p>
+                    <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400 shrink-0">{fmtEur(d.summary.vma_amount)}</span>
+                  </div>
+                  {d.personal_nr && <CardField label={t('settlementPersonalNr')} value={<span className="font-mono text-xs">{d.personal_nr}</span>} />}
+                  <CardField label={t('analysisShifts')} value={<Badge variant="gray">{d.summary.total_shifts}</Badge>} />
+                  <CardField label={t('analysisWorkTime')} value={<span className="font-mono">{d.summary.total_work_hm}</span>} />
+                  <CardField label={t('analysisNight25')} value={<span className="font-mono text-indigo-600 dark:text-indigo-400">{fmtDec(d.summary.night_25_minutes)}</span>} />
+                  <CardField label={t('analysisNight40')} value={<span className="font-mono text-purple-600 dark:text-purple-400">{fmtDec(d.summary.night_40_minutes)}</span>} />
+                  <CardField label={t('analysisDiet')} value={
+                    d.summary.diet_count > 0
+                      ? <Badge variant={d.double_diet ? 'blue' : 'gray'}>{d.summary.diet_count}{d.double_diet ? ' (2×14€)' : ''}</Badge>
+                      : '-'
+                  } />
+                </div>
+              ))}
+              {/* Mobile totals */}
+              <div className="p-4 bg-black/[0.02] dark:bg-white/5 space-y-1.5">
+                <p className="text-sm font-bold mb-2">{t('settlementTotal')}</p>
+                <CardField label={t('analysisShifts')} value={<span className="font-bold">{totals.shifts}</span>} />
+                <CardField label={t('analysisWorkTime')} value={<span className="font-mono font-bold">{fmtH(totals.work)}</span>} />
+                <CardField label={t('analysisNight25')} value={<span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">{fmtDec(totals.n25)}</span>} />
+                <CardField label={t('analysisNight40')} value={<span className="font-mono font-bold text-purple-600 dark:text-purple-400">{fmtDec(totals.n40)}</span>} />
+                <CardField label={t('analysisDiet')} value={<span className="font-bold">{totals.diets}</span>} />
+                <CardField label="VMA" value={<span className="font-bold text-emerald-600 dark:text-emerald-400">{fmtEur(totals.vma)}</span>} />
+              </div>
+            </div>
+
+            {/* Desktop table view */}
+            <div className="hidden sm:block overflow-x-auto">
               <table className="w-full min-w-[800px] text-sm">
                 <thead>
                   <tr className="border-b border-white/20 dark:border-white/5">

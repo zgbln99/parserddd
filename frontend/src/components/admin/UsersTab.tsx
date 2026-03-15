@@ -5,6 +5,7 @@ import { fetchUsers, createUser, deleteUser, type UserEntry } from '../../lib/ap
 import { Card } from '../Card';
 import { Badge } from '../Badge';
 import { Spinner } from '../Spinner';
+import { MobileCard, CardField } from '../MobileCards';
 
 export function UsersTab() {
   const { t } = useI18n();
@@ -117,7 +118,26 @@ export function UsersTab() {
       {users.length === 0 ? (
         <p className="py-4 text-center text-sm text-gray-400">{t('adminNoUsers')}</p>
       ) : (
-        <div className="overflow-x-auto">
+        <>
+        <div className="block sm:hidden space-y-3 p-4">
+          {users.map((u) => (
+            <MobileCard key={u.id}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="font-medium">{u.name}</span>
+                  <span className="ml-2"><Badge variant={u.role === 'admin' ? 'red' : 'gray'}>{u.role}</Badge></span>
+                </div>
+                <button
+                  onClick={() => handleDelete(u.id, u.name)}
+                  className="rounded p-1 text-rose-400 transition hover:bg-rose-500/10 hover:text-rose-600 dark:hover:bg-rose-500/10"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            </MobileCard>
+          ))}
+        </div>
+        <div className="hidden sm:block overflow-x-auto">
           <table className="w-full min-w-[600px] text-sm">
             <thead>
               <tr className="border-b border-white/20 dark:border-white/5">
@@ -150,6 +170,7 @@ export function UsersTab() {
             </tbody>
           </table>
         </div>
+        </>
       )}
     </Card>
   );

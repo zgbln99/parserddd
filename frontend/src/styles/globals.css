@@ -206,6 +206,39 @@ body {
   background: rgba(75, 85, 99, 0.5);
 }
 
+/* --- SAFE AREA (notched phones) --- */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* --- SCROLL HINT (horizontal scroll indicator) --- */
+.scroll-hint {
+  position: relative;
+}
+
+.scroll-hint::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 32px;
+  background: linear-gradient(to right, transparent, rgba(255,255,255,0.8));
+  pointer-events: none;
+  z-index: 5;
+  border-radius: 0 0.75rem 0.75rem 0;
+}
+
+.dark .scroll-hint::after {
+  background: linear-gradient(to right, transparent, rgba(15, 23, 42, 0.8));
+}
+
+.scroll-hint.scrolled-right::after {
+  display: none;
+}
+
 /* --- TABLE GLASS --- */
 .glass-table {
   border-collapse: separate;
