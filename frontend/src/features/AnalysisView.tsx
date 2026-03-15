@@ -483,7 +483,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
           </button>
           {showDietReport && (
             <div className="overflow-x-auto px-4 pb-4">
-              <table className="w-full min-w-[600px] text-sm">
+              <table className="w-full sm:min-w-[600px] text-sm">
                 <thead>
                   <tr className="border-b border-white/30 dark:border-white/10">
                     <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 dark:text-gray-400">{t('syncDate')}</th>
@@ -595,7 +595,41 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
 
       {/* Shifts table */}
       {shifts.length > 0 && (
-        <div className="-mx-6 overflow-x-auto px-6">
+        <>
+        {/* Mobile shifts cards */}
+        <div className="block sm:hidden space-y-2">
+          {shifts.map((sh, i) => {
+            const isWeekend = sh.weekday === 'So' || sh.weekday === 'Nd';
+            const wd = localizeWeekday(sh.weekday, locale);
+            return (
+              <div key={i} className={`rounded-xl border border-white/20 p-3 dark:border-white/5 ${isWeekend ? 'bg-rose-50/30 dark:bg-rose-900/10' : 'bg-white/50 dark:bg-white/5'}`}>
+                <div className="flex items-center justify-between mb-2">
+                  <span className={`text-sm font-bold ${isWeekend ? 'text-rose-500' : ''}`}>{wd} {sh.shift_date?.slice(5)}</span>
+                  <span className="text-sm font-bold">{sh.duration_hm}</span>
+                </div>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                  <span className="text-gray-400">{t('analysisStart')}</span>
+                  <span className="font-medium text-emerald-600 dark:text-emerald-400">{sh.shift_start?.split(' ')[1] || sh.shift_start}</span>
+                  <span className="text-gray-400">{t('analysisEnd')}</span>
+                  <span className="font-medium text-rose-500 dark:text-rose-400">{sh.shift_end?.split(' ')[1] || sh.shift_end}</span>
+                  <span className="text-gray-400">{t('analysisDriving')}</span>
+                  <span className="font-medium">{sh.driving_hm}</span>
+                  <span className="text-gray-400">{t('analysisWork')}</span>
+                  <span>{sh.work_only_hm}</span>
+                  <span className="text-gray-400">{t('analysisBreaks')}</span>
+                  <span>{sh.break_hm}</span>
+                  {sh.has_diet && <>
+                    <span className="text-gray-400">{t('analysisDiet')}</span>
+                    <Badge variant="green">{t('yes')}</Badge>
+                  </>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Desktop shifts table */}
+        <div className="hidden sm:block -mx-6 overflow-x-auto px-6">
           <div className="rounded-xl border border-white/20 dark:border-white/5">
           <table className="w-full min-w-[900px] text-sm">
             <thead>
@@ -643,6 +677,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
           </table>
           </div>
         </div>
+        </>
       )}
 
       {shifts.length === 0 && (
@@ -717,7 +752,7 @@ function ExcelCopyBlock({ summary, monthlyDays }: { summary: ReturnType<typeof O
 
   return (
     <div className="flex items-center gap-2 overflow-x-auto">
-      <table className="border-collapse min-w-[600px] text-xs">
+      <table className="border-collapse sm:min-w-[600px] text-xs">
         <thead>
           <tr>
             {cols.map((c) => (

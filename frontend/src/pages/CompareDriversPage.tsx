@@ -465,7 +465,43 @@ export function CompareDriversPage() {
 
           {/* Comparison table */}
           <Card className="overflow-hidden">
-            <div className="overflow-x-auto">
+            {/* Mobile: per-date cards */}
+            <div className="block sm:hidden divide-y divide-black/[0.03] dark:divide-white/[0.03]">
+              {allDates.map((date) => {
+                let wd = '';
+                for (const r of results) {
+                  const sh = r.shifts.find((s) => s.date === date);
+                  if (sh) { wd = localWd(sh.weekday, locale); break; }
+                }
+                const isWeekend = wd === 'So' || wd === 'Sa' || wd === 'Nd';
+                return (
+                  <div key={date} className={`p-4 space-y-2 ${isWeekend ? 'bg-rose-50/30 dark:bg-rose-900/5' : ''}`}>
+                    <p className="text-sm font-bold">
+                      {date}
+                      <span className={`ml-2 text-xs ${isWeekend ? 'font-bold text-rose-400' : 'text-gray-400'}`}>{wd}</span>
+                    </p>
+                    {results.map((r) => {
+                      const sh = shiftLookup.get(r.driver_name)?.get(date);
+                      if (!sh) return null;
+                      return (
+                        <div key={r.driver_name} className="flex items-center justify-between gap-2 rounded-lg bg-black/[0.02] px-3 py-1.5 dark:bg-white/5">
+                          <span className="text-xs font-medium truncate">{r.driver_name}</span>
+                          <div className="flex items-center gap-3 text-xs shrink-0">
+                            <span className="font-semibold text-emerald-600 dark:text-emerald-400">{sh.start}</span>
+                            <span className="text-gray-300 dark:text-gray-600">→</span>
+                            <span className="font-semibold text-rose-500 dark:text-rose-400">{sh.end}</span>
+                            <span className="text-gray-500">{sh.duration_hm}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Desktop table */}
+            <div className="hidden sm:block overflow-x-auto">
               <table className="w-full min-w-[800px] text-sm">
                 <thead>
                   <tr className="border-b border-white/20 dark:border-white/5">
