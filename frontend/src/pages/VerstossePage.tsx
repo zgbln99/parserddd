@@ -226,7 +226,7 @@ export function VerstossePage() {
 
       {/* Driver selection */}
       <Card>
-        <div className="space-y-4">
+        <div className="space-y-4 p-6">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-2">
               <Users size={16} />
@@ -412,7 +412,7 @@ export function VerstossePage() {
 
           {/* Driver results table */}
           <Card>
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto p-6">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-200 dark:border-white/10">
@@ -482,7 +482,7 @@ export function VerstossePage() {
       {/* Empty state */}
       {!loading && results.length === 0 && (
         <Card>
-          <div className="flex flex-col items-center justify-center py-12 text-center">
+          <div className="flex flex-col items-center justify-center px-6 py-12 text-center">
             <ShieldAlert size={48} className="mb-4 text-gray-300 dark:text-gray-600" />
             <p className="text-sm text-gray-500 dark:text-gray-400">{t('verstosseNoData')}</p>
           </div>
