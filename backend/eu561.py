@@ -735,6 +735,336 @@ def calculate_remaining_time(timeline: list) -> dict:
 # Full EU 561 analysis
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# Rest schedule planner
+# ---------------------------------------------------------------------------
+
+def _iso_week_label(dt: datetime) -> str:
+    iso = dt.isocalendar()
+    return f"{iso[0]}-W{iso[1]:02d}"
+
+
+def _monday_of_week(year: int, week: int) -> datetime:
+    """Return the Monday of a given ISO year/week."""
+    jan4 = datetime(year, 1, 4)
+    start_of_w1 = jan4 - timedelta(days=jan4.weekday())
+    return start_of_w1 + timedelta(weeks=week - 1)
+
+
+def build_rest_schedule(timeline: list, weeks: list, compensations: list) -> dict:
+    """Build a forward-looking rest schedule with recommendations.
+
+    Analyses past rest patterns and projects upcoming obligations:
+    - Next daily rest deadline
+    - Next weekly rest (regular vs reduced allowed)
+    - Pending compensations with deadlines
+    - 4-week return-to-base recommendation
+    - Optimal rest pattern for coming weeks
+
+    Returns a schedule dict with past_rests, upcoming items, and recommendations.
+    """
+    if not timeline:
+        return {'past_rests': [], 'upcoming': [], 'recommendations': [], 'weekly_pattern': []}
+
+    now = timeline[-1][1]
+    weekly_rests = find_weekly_rests(timeline)
+    daily_rests = find_daily_rests(timeline)
+
+    # ---- Past rest history (for display) ----
+    past_rests = []
+    for wr in weekly_rests:
+        is_regular = wr.minutes >= WEEKLY_REST_NORMAL
+        past_rests.append({
+            'type': 'weekly',
+            'start': wr.start.strftime('%Y-%m-%d %H:%M'),
+            'end': wr.end.strftime('%Y-%m-%d %H:%M'),
+            'duration_minutes': wr.minutes,
+            'duration_hm': minutes_to_hm(wr.minutes),
+            'is_regular': is_regular,
+            'week': _iso_week_label(wr.start),
+        })
+
+    # ---- Determine reduced weekly rest pattern ----
+    # EU 561: in any 2 consecutive weeks, at least one must be regular (45h)
+    last_was_reduced = False
+    if weekly_rests:
+        last_wr = weekly_rests[-1]
+        last_was_reduced = last_wr.minutes < WEEKLY_REST_NORMAL
+
+    # Count consecutive reduced rests at the end
+    consecutive_reduced = 0
+    for wr in reversed(weekly_rests):
+        if wr.minutes < WEEKLY_REST_NORMAL:
+            consecutive_reduced += 1
+        else:
+            break
+
+    can_reduce_next = consecutive_reduced < 1  # max 1 reduced in a row (every other week)
+
+    # ---- 6×24h rule: when must next weekly rest start? ----
+    if weekly_rests:
+        last_wr_end = weekly_rests[-1].end
+        next_weekly_deadline = last_wr_end + timedelta(hours=144)  # 6×24h
+    else:
+        next_weekly_deadline = timeline[0][0] + timedelta(hours=144)
+
+    # ---- Daily rest: when is the next one due? ----
+    if daily_rests:
+        last_dr_end = daily_rests[-1].end
+        next_daily_deadline = last_dr_end + timedelta(hours=24)
+    else:
+        next_daily_deadline = timeline[0][0] + timedelta(hours=24)
+
+    # Count reduced daily rests since last weekly rest
+    reduced_daily_since_weekly = 0
+    last_weekly_end = weekly_rests[-1].end if weekly_rests else timeline[0][0]
+    for dr in daily_rests:
+        if dr.start >= last_weekly_end and dr.minutes < DAILY_REST_NORMAL:
+            reduced_daily_since_weekly += 1
+
+    can_reduce_daily = reduced_daily_since_weekly < MAX_REDUCED_DAILY_REST
+
+    # ---- Pending compensations ----
+    pending_comps = [c for c in compensations if c['status'] in ('pending', 'overdue')]
+
+    # ---- Build upcoming schedule items ----
+    upcoming = []
+
+    # Next daily rest
+    daily_rest_type = '11h' if not can_reduce_daily else '11h (lub 9h skrócony)'
+    daily_rest_type_de = '11h' if not can_reduce_daily else '11h (oder 9h verkürzt)'
+    upcoming.append({
+        'id': 'next_daily_rest',
+        'type': 'daily_rest',
+        'priority': 'high' if next_daily_deadline <= now + timedelta(hours=4) else 'normal',
+        'deadline': next_daily_deadline.strftime('%Y-%m-%d %H:%M'),
+        'description': f'Odpoczynek dzienny: min. {daily_rest_type}',
+        'description_de': f'Tagesruhe: min. {daily_rest_type_de}',
+        'can_reduce': can_reduce_daily,
+        'reduced_daily_count': reduced_daily_since_weekly,
+        'reduced_daily_limit': MAX_REDUCED_DAILY_REST,
+    })
+
+    # Next weekly rest
+    if can_reduce_next:
+        weekly_desc = 'Odpoczynek tygodniowy: 45h regularny LUB 24h skrócony'
+        weekly_desc_de = 'Wochenruhe: 45h regulär ODER 24h verkürzt'
+        next_rest_type = 'regular_or_reduced'
+    else:
+        weekly_desc = 'Odpoczynek tygodniowy: 45h REGULARNY (obowiązkowy — poprzedni był skrócony)'
+        weekly_desc_de = 'Wochenruhe: 45h REGULÄR (Pflicht — vorherige war verkürzt)'
+        next_rest_type = 'regular_required'
+
+    upcoming.append({
+        'id': 'next_weekly_rest',
+        'type': 'weekly_rest',
+        'priority': 'high' if next_weekly_deadline <= now + timedelta(hours=24) else 'normal',
+        'deadline': next_weekly_deadline.strftime('%Y-%m-%d %H:%M'),
+        'description': weekly_desc,
+        'description_de': weekly_desc_de,
+        'rest_type': next_rest_type,
+        'can_reduce': can_reduce_next,
+        'consecutive_reduced': consecutive_reduced,
+        'min_duration_minutes': WEEKLY_REST_REDUCED if can_reduce_next else WEEKLY_REST_NORMAL,
+        'min_duration_hm': minutes_to_hm(WEEKLY_REST_REDUCED if can_reduce_next else WEEKLY_REST_NORMAL),
+    })
+
+    # Pending compensations
+    for comp in pending_comps:
+        is_overdue = comp['status'] == 'overdue'
+        upcoming.append({
+            'id': f'compensation_{comp["week"]}',
+            'type': 'compensation',
+            'priority': 'critical' if is_overdue else 'high',
+            'deadline': comp['deadline_week'],
+            'description': f'Kompensacja {comp["compensation_hm"]} za skrócony weekend ({comp["week"]})',
+            'description_de': f'Kompensation {comp["compensation_hm"]} für verkürzte Wochenruhe ({comp["week"]})',
+            'compensation_minutes': comp['compensation_minutes'],
+            'compensation_hm': comp['compensation_hm'],
+            'from_week': comp['week'],
+            'status': comp['status'],
+        })
+
+    # ---- Build weekly pattern (past + projected 4 weeks ahead) ----
+    weekly_pattern = []
+
+    # Past weeks from analysis
+    for w in weeks:
+        rest_min = w.get('weekly_rest_minutes', 0)
+        is_regular = rest_min >= WEEKLY_REST_NORMAL
+        weekly_pattern.append({
+            'week': w['week'],
+            'status': 'past',
+            'rest_type': 'regular' if is_regular else ('reduced' if rest_min >= WEEKLY_REST_REDUCED else 'missing'),
+            'rest_minutes': rest_min,
+            'rest_hm': minutes_to_hm(rest_min),
+            'driving_minutes': w['driving_minutes'],
+            'driving_hm': minutes_to_hm(w['driving_minutes']),
+            'compensation_minutes': w.get('compensation_minutes', 0),
+            'compensation_hm': w.get('compensation_hm', '0:00'),
+        })
+
+    # Project 4 weeks ahead
+    if weekly_pattern:
+        last_week = weekly_pattern[-1]
+        last_year = last_week.get('week', '2026-W01').split('-W')
+        try:
+            proj_year = int(last_year[0])
+            proj_week_nr = int(last_year[1])
+        except (ValueError, IndexError):
+            proj_year = now.isocalendar()[0]
+            proj_week_nr = now.isocalendar()[1]
+
+        proj_can_reduce = can_reduce_next
+        for i in range(1, 5):
+            proj_week_nr += 1
+            if proj_week_nr > 52:
+                proj_week_nr = 1
+                proj_year += 1
+            week_label = f"{proj_year}-W{proj_week_nr:02d}"
+
+            # Determine recommended rest type
+            if not proj_can_reduce:
+                rec_type = 'regular'
+                proj_can_reduce = True  # next one can be reduced again
+            else:
+                # Check if there are pending compensations needing regular rest
+                has_pending_comp = any(
+                    c['status'] in ('pending', 'overdue') and c.get('deadline_week', '') <= week_label
+                    for c in compensations
+                )
+                if has_pending_comp:
+                    rec_type = 'regular_with_compensation'
+                    proj_can_reduce = True
+                else:
+                    rec_type = 'flexible'
+                    proj_can_reduce = True  # simplification
+
+            weekly_pattern.append({
+                'week': week_label,
+                'status': 'projected',
+                'rest_type': rec_type,
+                'rest_minutes': 0,
+                'rest_hm': '—',
+                'driving_minutes': 0,
+                'driving_hm': '—',
+                'compensation_minutes': 0,
+                'compensation_hm': '0:00',
+            })
+
+    # ---- Recommendations ----
+    recommendations = []
+
+    # Break recommendation
+    remaining = calculate_remaining_time(timeline)
+    if remaining.get('break_needed'):
+        recommendations.append({
+            'priority': 'critical',
+            'icon': 'pause',
+            'text': 'Natychmiast zrób przerwę min. 45 min!',
+            'text_de': 'Sofort Pause von min. 45 Min. einlegen!',
+        })
+    elif remaining.get('continuous_remaining_minutes', 270) <= 60:
+        recommendations.append({
+            'priority': 'high',
+            'icon': 'pause',
+            'text': f'Za {remaining["continuous_remaining_hm"]} jazdy wymagana przerwa 45 min',
+            'text_de': f'In {remaining["continuous_remaining_hm"]} Lenkzeit 45 Min. Pause erforderlich',
+        })
+
+    # Daily rest recommendation
+    if remaining.get('daily_rest_needed_by'):
+        recommendations.append({
+            'priority': 'normal',
+            'icon': 'bed',
+            'text': f'Odpoczynek dzienny ({daily_rest_type}) najpóźniej do {remaining["daily_rest_needed_by"]}',
+            'text_de': f'Tagesruhe ({daily_rest_type_de}) spätestens bis {remaining["daily_rest_needed_by"]}',
+        })
+
+    # Weekly rest recommendation
+    days_to_weekly = (next_weekly_deadline - now).total_seconds() / 3600 if next_weekly_deadline > now else 0
+    if days_to_weekly <= 48:
+        if not can_reduce_next:
+            recommendations.append({
+                'priority': 'high',
+                'icon': 'calendar',
+                'text': f'Weekend REGULARNY (45h) wymagany do {next_weekly_deadline.strftime("%Y-%m-%d %H:%M")} — poprzedni był skrócony',
+                'text_de': f'REGULÄRE Wochenruhe (45h) erforderlich bis {next_weekly_deadline.strftime("%Y-%m-%d %H:%M")} — vorherige war verkürzt',
+            })
+        else:
+            recommendations.append({
+                'priority': 'normal',
+                'icon': 'calendar',
+                'text': f'Odpoczynek tygodniowy do {next_weekly_deadline.strftime("%Y-%m-%d %H:%M")} (możliwy skrócony 24h)',
+                'text_de': f'Wochenruhe bis {next_weekly_deadline.strftime("%Y-%m-%d %H:%M")} (verkürzt 24h möglich)',
+            })
+
+    # Compensation recommendation
+    for comp in pending_comps:
+        if comp['status'] == 'overdue':
+            recommendations.append({
+                'priority': 'critical',
+                'icon': 'alert',
+                'text': f'PILNE: Odbierz kompensację {comp["compensation_hm"]} za tydzień {comp["week"]} — termin minął!',
+                'text_de': f'DRINGEND: Kompensation {comp["compensation_hm"]} für Woche {comp["week"]} — Frist abgelaufen!',
+            })
+        else:
+            recommendations.append({
+                'priority': 'high',
+                'icon': 'clock',
+                'text': f'Kompensacja {comp["compensation_hm"]} za skrócony weekend ({comp["week"]}) — termin: {comp["deadline_week"]}',
+                'text_de': f'Kompensation {comp["compensation_hm"]} für verkürzte Wochenruhe ({comp["week"]}) — Frist: {comp["deadline_week"]}',
+            })
+
+    # Reduced daily rest budget
+    if reduced_daily_since_weekly >= MAX_REDUCED_DAILY_REST:
+        recommendations.append({
+            'priority': 'high',
+            'icon': 'bed',
+            'text': f'Wykorzystano limit skróconych odpoczynków dziennych ({MAX_REDUCED_DAILY_REST}/{MAX_REDUCED_DAILY_REST}) — następne muszą być 11h',
+            'text_de': f'Limit verkürzter Tagesruhezeiten erreicht ({MAX_REDUCED_DAILY_REST}/{MAX_REDUCED_DAILY_REST}) — nächste müssen 11h sein',
+        })
+    elif reduced_daily_since_weekly > 0:
+        left = MAX_REDUCED_DAILY_REST - reduced_daily_since_weekly
+        recommendations.append({
+            'priority': 'info',
+            'icon': 'bed',
+            'text': f'Pozostało {left} skróconych odpoczynków dziennych (9h) do następnego weekendu',
+            'text_de': f'{left} verkürzte Tagesruhezeiten (9h) bis zur nächsten Wochenruhe übrig',
+        })
+
+    # 4-week return-to-base reminder
+    if len(weekly_rests) >= 4:
+        four_weeks_ago = now - timedelta(weeks=4)
+        regular_rests_in_4w = [
+            wr for wr in weekly_rests
+            if wr.start >= four_weeks_ago and wr.minutes >= WEEKLY_REST_NORMAL
+        ]
+        if not regular_rests_in_4w:
+            recommendations.append({
+                'priority': 'high',
+                'icon': 'home',
+                'text': 'Brak regularnego weekendu (45h) w ostatnich 4 tygodniach — kierowca powinien wrócić do bazy/domu',
+                'text_de': 'Keine reguläre Wochenruhe (45h) in den letzten 4 Wochen — Fahrer sollte zur Basis/nach Hause zurückkehren',
+            })
+
+    return {
+        'past_rests': past_rests,
+        'upcoming': upcoming,
+        'recommendations': recommendations,
+        'weekly_pattern': weekly_pattern,
+        'status': {
+            'can_reduce_next_weekly': can_reduce_next,
+            'consecutive_reduced_weekly': consecutive_reduced,
+            'reduced_daily_count': reduced_daily_since_weekly,
+            'reduced_daily_remaining': MAX_REDUCED_DAILY_REST - reduced_daily_since_weekly,
+            'next_weekly_deadline': next_weekly_deadline.strftime('%Y-%m-%d %H:%M'),
+            'next_daily_deadline': next_daily_deadline.strftime('%Y-%m-%d %H:%M'),
+            'pending_compensations': len(pending_comps),
+        },
+    }
+
+
 def analyze_eu561(timeline: list, driver_name: str = '', card_number: str = '') -> dict:
     """Run full EU 561 compliance analysis on a timeline.
 
@@ -756,6 +1086,7 @@ def analyze_eu561(timeline: list, driver_name: str = '', card_number: str = '') 
             'weeks': [],
             'compensations': [],
             'remaining': {},
+            'schedule': {'past_rests': [], 'upcoming': [], 'recommendations': [], 'weekly_pattern': []},
             'all_infringements': [],
             'summary': {
                 'total_infringements': 0,
@@ -782,6 +1113,7 @@ def analyze_eu561(timeline: list, driver_name: str = '', card_number: str = '') 
     reduced_rest_infringements = analyze_reduced_daily_rests(timeline, weeks)
     six_day_infringements = analyze_six_day_rule(timeline)
     remaining = calculate_remaining_time(timeline)
+    schedule = build_rest_schedule(timeline, weeks, compensations)
 
     # Collect all infringements
     all_infringements = []
@@ -833,6 +1165,7 @@ def analyze_eu561(timeline: list, driver_name: str = '', card_number: str = '') 
         'weeks': weeks_serialized,
         'compensations': compensations,
         'remaining': remaining,
+        'schedule': schedule,
         'all_infringements': all_infringements,
         'summary': {
             'total_infringements': len(all_infringements),

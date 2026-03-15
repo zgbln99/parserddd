@@ -2,7 +2,7 @@ import { useState, useCallback, useMemo } from 'react';
 import {
   Clock, AlertTriangle, CheckCircle, Play, Search, Users,
   Calendar, ChevronDown, ChevronUp, Timer, Coffee, TrendingDown,
-  ShieldCheck, ShieldAlert, Truck,
+  ShieldCheck, ShieldAlert, Truck, Bed, Home, Pause, ArrowRight,
 } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { Card } from '../components/Card';
@@ -13,6 +13,8 @@ import {
   fetchEU561Drivers, analyzeEU561Dropbox, analyzeEU561Samsara,
   type EU561Result, type EU561Driver, type EU561Day, type EU561Week,
   type EU561Compensation, type EU561Infringement,
+  type EU561Schedule, type EU561ScheduleRecommendation,
+  type EU561ScheduleUpcoming, type EU561WeeklyPattern,
 } from '../lib/api';
 
 function SeverityBadge({ severity }: { severity: string }) {
@@ -317,8 +319,321 @@ function InfringementsList({ infringements, locale }: { infringements: EU561Infr
   );
 }
 
+function RecommendationIcon({ icon }: { icon: string }) {
+  const cls = "flex-shrink-0";
+  switch (icon) {
+    case 'pause': return <Pause size={16} className={`${cls} text-amber-500`} />;
+    case 'bed': return <Bed size={16} className={`${cls} text-blue-500`} />;
+    case 'calendar': return <Calendar size={16} className={`${cls} text-purple-500`} />;
+    case 'home': return <Home size={16} className={`${cls} text-green-500`} />;
+    case 'alert': return <AlertTriangle size={16} className={`${cls} text-red-500`} />;
+    case 'clock': return <Clock size={16} className={`${cls} text-amber-500`} />;
+    default: return <ArrowRight size={16} className={`${cls} text-gray-400`} />;
+  }
+}
+
+function RestScheduleView({ schedule, locale }: { schedule: EU561Schedule; locale: string }) {
+  const priorityColors: Record<string, string> = {
+    critical: 'border-red-300 bg-red-50 dark:border-red-500/30 dark:bg-red-900/20',
+    high: 'border-amber-300 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-900/20',
+    normal: 'border-blue-200 bg-blue-50/50 dark:border-blue-500/20 dark:bg-blue-900/10',
+    info: 'border-gray-200 bg-gray-50 dark:border-white/10 dark:bg-white/[0.02]',
+  };
+
+  const priorityLabels: Record<string, Record<string, string>> = {
+    pl: { critical: 'PILNE', high: 'Ważne', normal: 'Info', info: 'Hint' },
+    de: { critical: 'DRINGEND', high: 'Wichtig', normal: 'Info', info: 'Hinweis' },
+  };
+
+  const restTypeLabels: Record<string, Record<string, string>> = {
+    pl: {
+      regular: '45h regularny',
+      reduced: '24h skrócony',
+      missing: 'Brak!',
+      regular_required: '45h WYMAGANY',
+      regular_with_compensation: '45h + kompensacja',
+      flexible: '45h lub 24h',
+      regular_or_reduced: '45h lub 24h',
+    },
+    de: {
+      regular: '45h regulär',
+      reduced: '24h verkürzt',
+      missing: 'Fehlt!',
+      regular_required: '45h PFLICHT',
+      regular_with_compensation: '45h + Kompensation',
+      flexible: '45h oder 24h',
+      regular_or_reduced: '45h oder 24h',
+    },
+  };
+
+  const labels = restTypeLabels[locale] || restTypeLabels['pl'];
+  const pLabels = priorityLabels[locale] || priorityLabels['pl'];
+
+  return (
+    <div className="space-y-4">
+      {/* Recommendations */}
+      {schedule.recommendations.length > 0 && (
+        <Card>
+          <div className="mb-3 flex items-center gap-2">
+            <AlertTriangle size={18} className="text-amber-500" />
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
+              {locale === 'de' ? 'Empfehlungen' : 'Zalecenia'}
+            </h3>
+          </div>
+          <div className="space-y-2">
+            {schedule.recommendations.map((rec, i) => (
+              <div
+                key={i}
+                className={`flex items-start gap-3 rounded-lg border p-3 ${priorityColors[rec.priority] || priorityColors['info']}`}
+              >
+                <RecommendationIcon icon={rec.icon} />
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium text-gray-900 dark:text-white">
+                    {locale === 'de' ? (rec.text_de || rec.text) : rec.text}
+                  </div>
+                </div>
+                <Badge variant={rec.priority === 'critical' ? 'red' : rec.priority === 'high' ? 'yellow' : 'blue'}>
+                  {pLabels[rec.priority] || rec.priority}
+                </Badge>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {/* Upcoming obligations */}
+      {schedule.upcoming.length > 0 && (
+        <Card>
+          <div className="mb-3 flex items-center gap-2">
+            <Calendar size={18} className="text-blue-500" />
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
+              {locale === 'de' ? 'Nächste Pflichten' : 'Nadchodzące obowiązki'}
+            </h3>
+          </div>
+          <div className="space-y-3">
+            {schedule.upcoming.map(item => (
+              <div
+                key={item.id}
+                className={`rounded-lg border p-4 ${priorityColors[item.priority] || priorityColors['normal']}`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      {item.type === 'daily_rest' && <Bed size={16} className="text-blue-500" />}
+                      {item.type === 'weekly_rest' && <Calendar size={16} className="text-purple-500" />}
+                      {item.type === 'compensation' && <Coffee size={16} className="text-amber-500" />}
+                      <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                        {item.type === 'daily_rest' && (locale === 'de' ? 'Tagesruhe' : 'Odpoczynek dzienny')}
+                        {item.type === 'weekly_rest' && (locale === 'de' ? 'Wochenruhe' : 'Odpoczynek tygodniowy')}
+                        {item.type === 'compensation' && (locale === 'de' ? 'Kompensation' : 'Kompensacja')}
+                      </span>
+                    </div>
+                    <div className="mt-1 text-sm text-gray-700 dark:text-slate-300">
+                      {locale === 'de' ? (item.description_de || item.description) : item.description}
+                    </div>
+
+                    {/* Extra details for each type */}
+                    {item.type === 'daily_rest' && item.reduced_daily_count !== undefined && (
+                      <div className="mt-2 text-xs text-gray-500 dark:text-slate-400">
+                        {locale === 'de' ? 'Verkürzte Tagesruhe genutzt' : 'Skrócone odpoczynki dzienne wykorzystane'}:{' '}
+                        <span className="font-medium">{item.reduced_daily_count}/{item.reduced_daily_limit}</span>
+                        {item.can_reduce && (
+                          <span className="ml-2 text-green-600">
+                            ({locale === 'de' ? '9h möglich' : '9h możliwe'})
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    {item.type === 'weekly_rest' && (
+                      <div className="mt-2 flex items-center gap-2 text-xs">
+                        <span className="font-medium text-gray-700 dark:text-slate-300">
+                          Min: {item.min_duration_hm}
+                        </span>
+                        {item.can_reduce ? (
+                          <Badge variant="green">{locale === 'de' ? 'Verkürzung möglich' : 'Skrócenie możliwe'}</Badge>
+                        ) : (
+                          <Badge variant="red">{locale === 'de' ? 'Nur regulär!' : 'Tylko regularny!'}</Badge>
+                        )}
+                      </div>
+                    )}
+
+                    {item.type === 'compensation' && (
+                      <div className="mt-2 text-xs">
+                        <span className="font-medium text-amber-600">
+                          {item.compensation_hm} {locale === 'de' ? 'en bloc an Ruhezeit anhängen' : 'en bloc dołączyć do odpoczynku'}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="text-right flex-shrink-0">
+                    <div className="text-[11px] font-medium text-gray-500 dark:text-slate-400">
+                      {locale === 'de' ? 'Frist' : 'Termin'}
+                    </div>
+                    <div className="text-sm font-bold text-gray-900 dark:text-white">{item.deadline}</div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {/* Weekly pattern timeline */}
+      {schedule.weekly_pattern.length > 0 && (
+        <Card>
+          <div className="mb-3 flex items-center gap-2">
+            <TrendingDown size={18} className="text-purple-500" />
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
+              {locale === 'de' ? 'Wochenrhythmus — Ruhezeiten' : 'Wzorzec tygodniowy — odpoczynki'}
+            </h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-200 dark:border-white/10">
+                  <th className="py-2 pl-3 text-left font-medium text-gray-500 dark:text-slate-400">
+                    {locale === 'de' ? 'Woche' : 'Tydzień'}
+                  </th>
+                  <th className="py-2 text-center font-medium text-gray-500 dark:text-slate-400">
+                    {locale === 'de' ? 'Wochenruhe' : 'Odp. tygodniowy'}
+                  </th>
+                  <th className="py-2 text-right font-medium text-gray-500 dark:text-slate-400">
+                    {locale === 'de' ? 'Dauer' : 'Czas'}
+                  </th>
+                  <th className="py-2 text-right font-medium text-gray-500 dark:text-slate-400">
+                    {locale === 'de' ? 'Lenkzeit' : 'Jazda'}
+                  </th>
+                  <th className="py-2 pr-3 text-center font-medium text-gray-500 dark:text-slate-400">
+                    {locale === 'de' ? 'Kompensation' : 'Kompensacja'}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {schedule.weekly_pattern.map((wp, i) => {
+                  const isProjected = wp.status === 'projected';
+                  const restColor: Record<string, string> = {
+                    regular: 'text-green-600',
+                    reduced: 'text-amber-600',
+                    missing: 'text-red-600 font-bold',
+                    regular_required: 'text-red-600 font-bold',
+                    regular_with_compensation: 'text-purple-600 font-bold',
+                    flexible: 'text-blue-500',
+                    regular_or_reduced: 'text-blue-500',
+                  };
+
+                  return (
+                    <tr
+                      key={wp.week}
+                      className={`border-b border-gray-100 dark:border-white/5 ${
+                        isProjected ? 'bg-blue-50/30 dark:bg-blue-900/5' : ''
+                      }`}
+                    >
+                      <td className="py-2.5 pl-3 font-medium text-gray-900 dark:text-white">
+                        <div className="flex items-center gap-2">
+                          {wp.week}
+                          {isProjected && (
+                            <Badge variant="blue">
+                              {locale === 'de' ? 'Plan' : 'Plan'}
+                            </Badge>
+                          )}
+                        </div>
+                      </td>
+                      <td className={`py-2.5 text-center font-medium ${restColor[wp.rest_type] || 'text-gray-500'}`}>
+                        {labels[wp.rest_type] || wp.rest_type}
+                      </td>
+                      <td className="py-2.5 text-right tabular-nums text-gray-700 dark:text-slate-300">
+                        {wp.rest_hm}
+                      </td>
+                      <td className="py-2.5 text-right tabular-nums text-gray-700 dark:text-slate-300">
+                        {wp.driving_hm}
+                      </td>
+                      <td className="py-2.5 pr-3 text-center">
+                        {wp.compensation_minutes > 0 ? (
+                          <span className="font-medium text-amber-600">{wp.compensation_hm}</span>
+                        ) : (
+                          <span className="text-gray-300">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <div className="mt-2 text-[11px] text-gray-400 flex items-center gap-4">
+            <span className="flex items-center gap-1">
+              <span className="inline-block h-2 w-2 rounded-full bg-green-500" />
+              {locale === 'de' ? '45h regulär' : '45h regularny'}
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="inline-block h-2 w-2 rounded-full bg-amber-500" />
+              {locale === 'de' ? '24h verkürzt' : '24h skrócony'}
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="inline-block h-2 w-2 rounded-full bg-blue-500" />
+              {locale === 'de' ? 'Geplant' : 'Planowany'}
+            </span>
+          </div>
+        </Card>
+      )}
+
+      {/* Status summary */}
+      {schedule.status && (
+        <Card>
+          <div className="mb-3 flex items-center gap-2">
+            <ShieldCheck size={18} className="text-green-500" />
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
+              {locale === 'de' ? 'Regelstatus' : 'Status reguł'}
+            </h3>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="rounded-lg border border-gray-100 p-3 dark:border-white/5">
+              <div className="text-xs text-gray-500 dark:text-slate-400">
+                {locale === 'de' ? 'Verkürzte Tagesruhe verbraucht' : 'Skrócone dzienne wykorzystane'}
+              </div>
+              <div className="mt-1 text-lg font-bold text-gray-900 dark:text-white">
+                {schedule.status.reduced_daily_count} / {schedule.status.reduced_daily_count + schedule.status.reduced_daily_remaining}
+              </div>
+              <div className="mt-1">
+                <ProgressBar
+                  value={schedule.status.reduced_daily_count}
+                  max={schedule.status.reduced_daily_count + schedule.status.reduced_daily_remaining}
+                />
+              </div>
+            </div>
+            <div className="rounded-lg border border-gray-100 p-3 dark:border-white/5">
+              <div className="text-xs text-gray-500 dark:text-slate-400">
+                {locale === 'de' ? 'Nächster Wochenruhe-Typ' : 'Następny odp. tygodniowy'}
+              </div>
+              <div className={`mt-1 text-lg font-bold ${schedule.status.can_reduce_next_weekly ? 'text-blue-600' : 'text-red-600'}`}>
+                {schedule.status.can_reduce_next_weekly
+                  ? (locale === 'de' ? '24h oder 45h' : '24h lub 45h')
+                  : (locale === 'de' ? '45h PFLICHT' : '45h WYMAGANY')
+                }
+              </div>
+              <div className="mt-1 text-xs text-gray-400">
+                {locale === 'de' ? 'Aufeinander verkürzt' : 'Z rzędu skrócone'}: {schedule.status.consecutive_reduced_weekly}
+              </div>
+            </div>
+            <div className="rounded-lg border border-gray-100 p-3 dark:border-white/5">
+              <div className="text-xs text-gray-500 dark:text-slate-400">
+                {locale === 'de' ? 'Offene Kompensationen' : 'Otwarte kompensacje'}
+              </div>
+              <div className={`mt-1 text-lg font-bold ${schedule.status.pending_compensations > 0 ? 'text-amber-600' : 'text-green-600'}`}>
+                {schedule.status.pending_compensations}
+              </div>
+            </div>
+          </div>
+        </Card>
+      )}
+    </div>
+  );
+}
+
 function DriverResult({ result, locale }: { result: EU561Result; locale: string }) {
-  const [tab, setTab] = useState<'overview' | 'daily' | 'weekly'>('overview');
+  const [tab, setTab] = useState<'overview' | 'daily' | 'weekly' | 'schedule'>('schedule');
 
   const summary = result.summary;
 
@@ -375,7 +690,7 @@ function DriverResult({ result, locale }: { result: EU561Result; locale: string 
 
       {/* Tabs */}
       <div className="flex gap-1 rounded-lg bg-gray-100 p-1 dark:bg-white/10">
-        {(['overview', 'daily', 'weekly'] as const).map(t => (
+        {(['schedule', 'overview', 'daily', 'weekly'] as const).map(t => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -385,6 +700,7 @@ function DriverResult({ result, locale }: { result: EU561Result; locale: string 
                 : 'text-gray-500 hover:text-gray-700 dark:text-slate-400 dark:hover:text-white'
             }`}
           >
+            {t === 'schedule' && (locale === 'de' ? 'Harmonogram' : 'Harmonogram')}
             {t === 'overview' && (locale === 'de' ? 'Übersicht' : 'Podsumowanie')}
             {t === 'daily' && (locale === 'de' ? 'Täglich' : 'Dziennie')}
             {t === 'weekly' && (locale === 'de' ? 'Wöchentlich' : 'Tygodniowo')}
@@ -393,6 +709,10 @@ function DriverResult({ result, locale }: { result: EU561Result; locale: string 
       </div>
 
       {/* Tab content */}
+      {tab === 'schedule' && result.schedule && (
+        <RestScheduleView schedule={result.schedule} locale={locale} />
+      )}
+
       {tab === 'overview' && (
         <div className="space-y-4">
           <CompensationTable compensations={result.compensations} locale={locale} />

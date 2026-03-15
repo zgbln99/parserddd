@@ -549,6 +549,69 @@ export interface EU561Remaining {
   daily_rest_needed_by: string | null;
 }
 
+export interface EU561ScheduleUpcoming {
+  id: string;
+  type: 'daily_rest' | 'weekly_rest' | 'compensation';
+  priority: 'critical' | 'high' | 'normal' | 'info';
+  deadline: string;
+  description: string;
+  description_de?: string;
+  rest_type?: string;
+  can_reduce?: boolean;
+  min_duration_minutes?: number;
+  min_duration_hm?: string;
+  compensation_minutes?: number;
+  compensation_hm?: string;
+  from_week?: string;
+  status?: string;
+  reduced_daily_count?: number;
+  reduced_daily_limit?: number;
+  consecutive_reduced?: number;
+}
+
+export interface EU561ScheduleRecommendation {
+  priority: 'critical' | 'high' | 'normal' | 'info';
+  icon: string;
+  text: string;
+  text_de?: string;
+}
+
+export interface EU561WeeklyPattern {
+  week: string;
+  status: 'past' | 'projected';
+  rest_type: string;
+  rest_minutes: number;
+  rest_hm: string;
+  driving_minutes: number;
+  driving_hm: string;
+  compensation_minutes: number;
+  compensation_hm: string;
+}
+
+export interface EU561Schedule {
+  past_rests: {
+    type: string;
+    start: string;
+    end: string;
+    duration_minutes: number;
+    duration_hm: string;
+    is_regular: boolean;
+    week: string;
+  }[];
+  upcoming: EU561ScheduleUpcoming[];
+  recommendations: EU561ScheduleRecommendation[];
+  weekly_pattern: EU561WeeklyPattern[];
+  status?: {
+    can_reduce_next_weekly: boolean;
+    consecutive_reduced_weekly: number;
+    reduced_daily_count: number;
+    reduced_daily_remaining: number;
+    next_weekly_deadline: string;
+    next_daily_deadline: string;
+    pending_compensations: number;
+  };
+}
+
 export interface EU561Result {
   driver_name: string;
   card_number: string;
@@ -559,6 +622,7 @@ export interface EU561Result {
   weeks: EU561Week[];
   compensations: EU561Compensation[];
   remaining: EU561Remaining;
+  schedule: EU561Schedule;
   all_infringements: EU561Infringement[];
   summary: {
     total_infringements: number;
