@@ -362,34 +362,30 @@ export function VerstossePage() {
       {results.length > 0 && (
         <>
           {/* Summary cards */}
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-white/10 dark:bg-slate-800/50">
-              <div className="flex items-center gap-2 mb-2">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <div className="rounded-2xl border border-gray-200 bg-white px-5 py-5 shadow-sm dark:border-white/10 dark:bg-slate-800/50">
+              <div className="flex items-center gap-2">
                 <Users size={14} className="text-gray-400" />
                 <span className="text-[11px] font-medium uppercase tracking-wider text-gray-400">{t('verstosseDriversAnalyzed')}</span>
               </div>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">{results.length}</p>
+              <p className="mt-3 text-3xl font-bold text-gray-900 dark:text-white">{results.length}</p>
             </div>
-            <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-white/10 dark:bg-slate-800/50">
-              <div className="flex items-center gap-2 mb-2">
+            <div className="rounded-2xl border border-gray-200 bg-white px-5 py-5 shadow-sm dark:border-white/10 dark:bg-slate-800/50">
+              <div className="flex items-center gap-2">
                 <AlertTriangle size={14} className={totalViolations > 0 ? 'text-red-400' : 'text-green-400'} />
                 <span className="text-[11px] font-medium uppercase tracking-wider text-gray-400">{t('verstosseTotalViolations')}</span>
               </div>
-              <p className={`text-2xl font-bold ${totalViolations > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
+              <p className={`mt-3 text-3xl font-bold ${totalViolations > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
                 {totalViolations}
               </p>
             </div>
-            <div className="rounded-xl border border-orange-200 bg-orange-50/50 p-4 dark:border-orange-500/20 dark:bg-orange-500/5">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-[11px] font-medium uppercase tracking-wider text-orange-500">{t('verstosseFahrerFines')}</span>
-              </div>
-              <p className="text-2xl font-bold tabular-nums text-orange-600 dark:text-orange-400">{fmtAmount(totalFahrer)}</p>
+            <div className="rounded-2xl border border-orange-200 bg-gradient-to-br from-orange-50 to-amber-50/50 px-5 py-5 shadow-sm dark:border-orange-500/20 dark:from-orange-500/5 dark:to-amber-500/5">
+              <span className="text-[11px] font-medium uppercase tracking-wider text-orange-500">{t('verstosseFahrerFines')}</span>
+              <p className="mt-3 text-3xl font-bold tabular-nums text-orange-600 dark:text-orange-400">{fmtAmount(totalFahrer)}</p>
             </div>
-            <div className="rounded-xl border border-red-200 bg-red-50/50 p-4 dark:border-red-500/20 dark:bg-red-500/5">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-[11px] font-medium uppercase tracking-wider text-red-500">{t('verstosseUnternehmenFines')}</span>
-              </div>
-              <p className="text-2xl font-bold tabular-nums text-red-700 dark:text-red-300">{fmtAmount(totalUnternehmen)}</p>
+            <div className="rounded-2xl border border-red-200 bg-gradient-to-br from-red-50 to-rose-50/50 px-5 py-5 shadow-sm dark:border-red-500/20 dark:from-red-500/5 dark:to-rose-500/5">
+              <span className="text-[11px] font-medium uppercase tracking-wider text-red-500">{t('verstosseUnternehmenFines')}</span>
+              <p className="mt-3 text-3xl font-bold tabular-nums text-red-700 dark:text-red-300">{fmtAmount(totalUnternehmen)}</p>
             </div>
           </div>
 
