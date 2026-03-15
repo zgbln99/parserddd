@@ -258,8 +258,57 @@ export function DriverConfigPage() {
         </div>
       </Card>
 
-      {/* Driver list */}
-      <Card className="overflow-hidden">
+      {/* Driver list - Mobile */}
+      <div className="block sm:hidden space-y-3 p-4">
+        {filtered.map((d) => (
+          <MobileCard key={d.card_number} onClick={() => openEditor(d)}>
+            <CardField label={t('driversName')} value={<span className="font-semibold">{d.name}</span>} />
+            <CardField label={t('driverPersonalNr')} value={d.config?.personal_nr ? <span className="font-medium">{d.config.personal_nr}</span> : <span className="text-gray-300 dark:text-gray-600">&mdash;</span>} />
+            <CardField label={t('driverDoubleDiet')} value={d.config?.double_diet ? <Badge variant="green">{t('yes')}</Badge> : <span className="text-gray-300 dark:text-gray-600">{t('no')}</span>} />
+            <CardField label={t('driverConfigStatus')} value={d.config ? <Badge variant="green" dot>{t('driverConfigured')}</Badge> : <Badge variant="orange" dot>{t('driverNotConfigured')}</Badge>} />
+            {expandedCard === d.card_number && (
+              <div className="mt-3 space-y-3 border-t border-white/10 pt-3" onClick={(e) => e.stopPropagation()}>
+                <div>
+                  <label className="mb-1 block text-xs font-semibold text-gray-500 dark:text-gray-400">{t('driverPersonalNr')}</label>
+                  <input type="text" value={editPersonalNr} onChange={(e) => setEditPersonalNr(e.target.value)} placeholder="z.B. 1001" className={`block w-full ${inputCls}`} />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-semibold text-gray-500 dark:text-gray-400">{t('driverDietRate')} (EUR)</label>
+                  <input type="number" step="0.01" value={editDietRate} onChange={(e) => setEditDietRate(e.target.value)} className={`block w-full ${inputCls}`} />
+                </div>
+                <div className="flex items-center gap-3">
+                  <label className="relative inline-flex cursor-pointer items-center">
+                    <input type="checkbox" checked={editDoubleDiet} onChange={(e) => setEditDoubleDiet(e.target.checked)} className="peer sr-only" />
+                    <div className="h-6 w-11 rounded-full bg-gray-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-emerald-500 peer-checked:after:translate-x-full peer-checked:after:border-white dark:bg-white/10" />
+                  </label>
+                  <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">{t('driverDoubleDiet')}</span>
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-semibold text-gray-500 dark:text-gray-400">{t('driverNotes')}</label>
+                  <input type="text" value={editNotes} onChange={(e) => setEditNotes(e.target.value)} placeholder={t('driverNotesPlaceholder')} className={`block w-full ${inputCls}`} />
+                </div>
+                <div className="flex items-center gap-3">
+                  <button onClick={() => handleSave(d)} disabled={saving} className="flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-emerald-500/20 transition hover:brightness-110 disabled:opacity-50">
+                    <Save size={14} />
+                    {saving ? '...' : t('save')}
+                  </button>
+                  <button onClick={() => setExpandedCard(null)} className="flex items-center gap-1.5 rounded-lg border border-white/30 dark:border-white/10 px-4 py-2 text-sm font-medium text-gray-600 transition hover:bg-black/[0.03] dark:text-gray-400 dark:hover:bg-white/5">
+                    <X size={14} />
+                    {t('cancel')}
+                  </button>
+                  {msg && <span className={`text-sm font-medium ${msg === 'OK!' ? 'text-emerald-600' : 'text-rose-500'}`}>{msg}</span>}
+                </div>
+              </div>
+            )}
+          </MobileCard>
+        ))}
+        {filtered.length === 0 && (
+          <p className="py-12 text-center text-sm text-gray-400">{t('noData')}</p>
+        )}
+      </div>
+
+      {/* Driver list - Desktop */}
+      <Card className="hidden sm:block overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[800px] text-sm">
             <thead>
