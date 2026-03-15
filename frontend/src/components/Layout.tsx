@@ -59,41 +59,41 @@ export function Layout({ children }: { children: ReactNode }) {
       <aside
         className={clsx(
           'fixed inset-y-0 left-0 z-50 flex w-[272px] flex-col transition-transform duration-300 lg:translate-x-0',
-          'bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 text-white',
+          'border-r border-gray-200 bg-white dark:border-white/[0.06] dark:bg-slate-900',
           sidebarOpen ? 'translate-x-0' : '-translate-x-full',
         )}
       >
         {/* Brand */}
         <div className="px-5 pb-5 pt-6">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 ring-1 ring-white/10">
-              <Truck size={20} className="text-blue-400" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 ring-1 ring-blue-100 dark:bg-white/10 dark:ring-white/10">
+              <Truck size={20} className="text-blue-600 dark:text-blue-400" />
             </div>
             <div className="min-w-0 flex-1">
-              <span className="block text-[13px] font-semibold leading-tight text-white">Tachoprüfung</span>
-              <span className="text-[11px] font-medium text-slate-400">LTS Logistik GmbH</span>
+              <span className="block text-[13px] font-semibold leading-tight text-gray-900 dark:text-white">Tachoprüfung</span>
+              <span className="text-[11px] font-medium text-gray-400 dark:text-slate-400">LTS Logistik GmbH</span>
             </div>
             <button
               onClick={() => setSidebarOpen(false)}
-              className="rounded-lg p-1.5 text-slate-400 hover:bg-white/10 hover:text-white lg:hidden"
+              className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 lg:hidden dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-white"
             >
               <ChevronLeft size={18} />
             </button>
           </div>
           {isAdmin && (
-            <div className="mt-3 flex items-center gap-2 rounded-lg bg-amber-500/10 px-3 py-1.5 ring-1 ring-amber-500/20">
-              <Shield size={12} className="text-amber-400" />
-              <span className="text-[11px] font-semibold text-amber-400">Administrator</span>
+            <div className="mt-3 flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-1.5 ring-1 ring-amber-200 dark:bg-amber-500/10 dark:ring-amber-500/20">
+              <Shield size={12} className="text-amber-600 dark:text-amber-400" />
+              <span className="text-[11px] font-semibold text-amber-600 dark:text-amber-400">Administrator</span>
             </div>
           )}
         </div>
 
         {/* Divider */}
-        <div className="mx-4 h-px bg-white/[0.08]" />
+        <div className="mx-4 h-px bg-gray-100 dark:bg-white/[0.08]" />
 
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto px-3 py-4">
-          <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-widest text-slate-500">Menu</p>
+          <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-widest text-gray-400 dark:text-slate-500">Menu</p>
           <div className="space-y-0.5">
             {navItems.map(({ to, icon: Icon, labelKey }) => (
               <NavLink
@@ -105,8 +105,8 @@ export function Layout({ children }: { children: ReactNode }) {
                   clsx(
                     'group flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium transition-all duration-150',
                     isActive
-                      ? 'bg-white/10 text-white shadow-sm shadow-black/20'
-                      : 'text-slate-400 hover:bg-white/[0.06] hover:text-slate-200',
+                      ? 'bg-blue-50 text-blue-700 dark:bg-white/10 dark:text-white'
+                      : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900 dark:text-slate-400 dark:hover:bg-white/[0.06] dark:hover:text-slate-200',
                   )
                 }
               >
@@ -115,14 +115,14 @@ export function Layout({ children }: { children: ReactNode }) {
                     <div className={clsx(
                       'flex h-8 w-8 items-center justify-center rounded-lg transition-colors',
                       isActive
-                        ? 'bg-blue-500 text-white shadow-md shadow-blue-500/30'
-                        : 'bg-white/[0.06] text-slate-400 group-hover:text-slate-200',
+                        ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30 dark:bg-blue-500 dark:shadow-blue-500/30'
+                        : 'bg-gray-100 text-gray-400 group-hover:text-gray-600 dark:bg-white/[0.06] dark:text-slate-400 dark:group-hover:text-slate-200',
                     )}>
                       <Icon size={16} />
                     </div>
                     <span>{t(labelKey)}</span>
                     {isActive && (
-                      <div className="ml-auto h-1.5 w-1.5 rounded-full bg-blue-400 shadow-sm shadow-blue-400/50" />
+                      <div className="ml-auto h-1.5 w-1.5 rounded-full bg-blue-500 shadow-sm shadow-blue-500/50 dark:bg-blue-400 dark:shadow-blue-400/50" />
                     )}
                   </>
                 )}
@@ -132,11 +132,11 @@ export function Layout({ children }: { children: ReactNode }) {
         </nav>
 
         {/* Bottom controls */}
-        <div className="border-t border-white/[0.06] p-3">
+        <div className="border-t border-gray-100 p-3 dark:border-white/[0.06]">
           <div className="flex items-center gap-0.5">
             <button
               onClick={() => setLocale(locale === 'pl' ? 'de' : 'pl' as Locale)}
-              className="flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-medium text-slate-400 transition hover:bg-white/[0.06] hover:text-slate-200"
+              className="flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-medium text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 dark:text-slate-400 dark:hover:bg-white/[0.06] dark:hover:text-slate-200"
               title={locale === 'pl' ? 'Deutsch' : 'Polski'}
             >
               <Globe size={14} />
@@ -144,7 +144,7 @@ export function Layout({ children }: { children: ReactNode }) {
             </button>
             <button
               onClick={toggle}
-              className="rounded-lg p-2 text-slate-400 transition hover:bg-white/[0.06] hover:text-slate-200"
+              className="rounded-lg p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 dark:text-slate-400 dark:hover:bg-white/[0.06] dark:hover:text-slate-200"
               title={theme === 'dark' ? t('lightMode') : t('darkMode')}
             >
               {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
@@ -152,7 +152,7 @@ export function Layout({ children }: { children: ReactNode }) {
             <div className="flex-1" />
             <button
               onClick={handleLogout}
-              className="flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-medium text-slate-400 transition hover:bg-rose-500/10 hover:text-rose-400"
+              className="flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-medium text-gray-400 transition hover:bg-rose-50 hover:text-rose-500 dark:text-slate-400 dark:hover:bg-rose-500/10 dark:hover:text-rose-400"
             >
               <LogOut size={14} />
               <span className="hidden sm:inline">{t('logout')}</span>
