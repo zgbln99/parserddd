@@ -10,16 +10,11 @@ import { Download, FileText, ClipboardCopy, Check, Printer, BarChart3, UtensilsC
 import type { AnalysisResult, ShiftDetail } from '../types';
 import { DriverConfigEditor } from './DriverConfigEditor';
 import { useAuth } from '../hooks/useAuth';
+import { minutesToHm } from '../lib/utils';
 
 function fmtNight(minutes: number, hm: string) {
   const decimal = (minutes / 60).toFixed(2);
   return `${decimal} (${hm})`;
-}
-
-function minutesToHm(minutes: number) {
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  return `${h}:${String(m).padStart(2, '0')}`;
 }
 
 function minutesToDecimal(minutes: number) {

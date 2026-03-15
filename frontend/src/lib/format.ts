@@ -47,3 +47,13 @@ export function daysColor(days: number | null): 'green' | 'orange' | 'red' {
   if (days > 7) return 'orange';
   return 'green';
 }
+
+export const MONTHS_FULL_PL = ['Styczeń', 'Luty', 'Marzec', 'Kwiecień', 'Maj', 'Czerwiec', 'Lipiec', 'Sierpień', 'Wrzesień', 'Październik', 'Listopad', 'Grudzień'];
+export const MONTHS_FULL_DE = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
+
+export function monthLabel(period: string, locale: string = 'pl'): string {
+  const [year, month] = period.split('-');
+  const months = locale === 'de' ? MONTHS_FULL_DE : MONTHS_FULL_PL;
+  const idx = parseInt(month, 10) - 1;
+  return `${months[idx] || month} ${year}`;
+}

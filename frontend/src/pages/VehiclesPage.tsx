@@ -7,6 +7,7 @@ import type { SamsaraVehicle, VehicleActivity, VehicleDebugInfo } from '../lib/a
 import { Card } from '../components/Card';
 import { Spinner } from '../components/Spinner';
 import { Badge } from '../components/Badge';
+import { monthLabel } from '../lib/utils';
 
 export function VehiclesPage() {
   const { t, locale } = useI18n();
@@ -137,16 +138,6 @@ export function VehiclesPage() {
     }
   };
 
-  const monthLabel = (p: string) => {
-    if (!p) return '';
-    const [y, m] = p.split('-');
-    const months =
-      locale === 'de'
-        ? ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember']
-        : ['Styczeń', 'Luty', 'Marzec', 'Kwiecień', 'Maj', 'Czerwiec', 'Lipiec', 'Sierpień', 'Wrzesień', 'Październik', 'Listopad', 'Grudzień'];
-    return `${months[parseInt(m, 10) - 1]} ${y}`;
-  };
-
   const handlePrint = () => window.print();
 
   const totalMinutes = activity ? activity.days.reduce((s, d) => s + d.duration_minutes, 0) : 0;
@@ -225,8 +216,8 @@ export function VehiclesPage() {
 
         {/* Vehicle list / selection */}
         {!vehiclesLoading && !vehiclesError && vehicleList.length > 0 && (
-          <div className="mt-4 max-h-[240px] overflow-y-auto rounded-lg border border-white/20 dark:border-white/5">
-            <table className="w-full text-sm">
+          <div className="mt-4 max-h-[240px] overflow-y-auto overflow-x-auto rounded-lg border border-white/20 dark:border-white/5">
+            <table className="w-full min-w-[600px] text-sm">
               <thead className="sticky top-0 bg-black/[0.02] dark:bg-white/5">
                 <tr className="border-b border-white/20 dark:border-white/5">
                   <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">{t('vehiclesName')}</th>
@@ -338,7 +329,7 @@ export function VehiclesPage() {
             <Card className="p-4 text-center">
               <Truck size={20} className="mx-auto mb-1 text-primary-500" />
               <p className="text-lg font-bold">{activity.vehicle_name}</p>
-              <p className="text-xs text-gray-500">{monthLabel(period)}</p>
+              <p className="text-xs text-gray-500">{monthLabel(period, locale)}</p>
             </Card>
             <Card className="p-4 text-center">
               <Calendar size={20} className="mx-auto mb-1 text-blue-500" />
@@ -361,11 +352,11 @@ export function VehiclesPage() {
           <Card className="overflow-hidden">
             <div className="border-b border-white/20 px-5 py-3 dark:border-white/5">
               <h2 className="text-sm font-semibold">
-                {activity.vehicle_name} — {monthLabel(period)}
+                {activity.vehicle_name} — {monthLabel(period, locale)}
               </h2>
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full min-w-[800px] text-sm">
                 <thead>
                   <tr className="border-b border-white/20 dark:border-white/5">
                     <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">

@@ -260,7 +260,7 @@ export function DriverConfigPage() {
       {/* Driver list */}
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full min-w-[800px] text-sm">
             <thead>
               <tr className="border-b border-white/20 dark:border-white/5">
                 <th className="w-10 px-4 py-3">

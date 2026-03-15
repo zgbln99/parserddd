@@ -8,6 +8,7 @@ import { fetchDrivers, compareDrivers, type CompareDriverResult } from '../lib/a
 import { Card } from '../components/Card';
 import { Badge } from '../components/Badge';
 import { Spinner } from '../components/Spinner';
+import { minutesToHm } from '../lib/utils';
 import type { Driver } from '../types';
 
 const weekdayMapDe: Record<string, string> = {
@@ -16,12 +17,6 @@ const weekdayMapDe: Record<string, string> = {
 
 function localWd(wd: string, locale: string) {
   return locale === 'de' ? (weekdayMapDe[wd] ?? wd) : wd;
-}
-
-function minutesToHm(mins: number) {
-  const h = Math.floor(mins / 60);
-  const m = mins % 60;
-  return `${h}:${String(m).padStart(2, '0')}`;
 }
 
 function timeOnly(dt: string) {
@@ -471,7 +466,7 @@ export function CompareDriversPage() {
           {/* Comparison table */}
           <Card className="overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full min-w-[800px] text-sm">
                 <thead>
                   <tr className="border-b border-white/20 dark:border-white/5">
                     <th className="sticky left-0 z-10 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">

@@ -94,6 +94,12 @@ export function DashboardPage() {
       <div className="flex flex-col items-center gap-3 py-20 text-rose-500 animate-fade-in">
         <AlertCircle size={32} />
         <p>{error}</p>
+        <button
+          onClick={() => { setError(''); loadDashboard(); }}
+          className="mt-2 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:brightness-110"
+        >
+          {t('tryAgain')}
+        </button>
       </div>
     );
   }

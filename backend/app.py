@@ -2048,6 +2048,7 @@ def api_change_password():
     else:
         ADMIN_PASSWORD = new_password
     _log_activity('change_password', target)
+    _log_config_change('change_password', f"{target} password changed")
     return jsonify({'ok': True})
 
 
@@ -2081,6 +2082,7 @@ def api_update_config():
     if 'dropbox_refresh_token' in data and data['dropbox_refresh_token']:
         DROPBOX_REFRESH_TOKEN = data['dropbox_refresh_token']
     _log_activity('update_config', ', '.join(data.keys()))
+    _log_config_change('update_config', ', '.join(data.keys()))
     return jsonify({'ok': True})
 
 
@@ -2485,6 +2487,30 @@ def portal_sync_log():
 @login_required
 def upload():
     return api_analyze_upload()
+
+
+# ---------------------------------------------------------------------------
+# Health endpoint
+# ---------------------------------------------------------------------------
+
+_app_start_time = datetime.now(UTC)
+
+@app.route('/api/health')
+def health():
+    uptime = (datetime.now(UTC) - _app_start_time).total_seconds()
+    db_ok = False
+    try:
+        conn = _get_db()
+        conn.execute('SELECT 1')
+        conn.close()
+        db_ok = True
+    except Exception:
+        pass
+    return jsonify({
+        'status': 'ok' if db_ok else 'degraded',
+        'uptime_seconds': int(uptime),
+        'database': db_ok,
+    })
 
 
 # ---------------------------------------------------------------------------

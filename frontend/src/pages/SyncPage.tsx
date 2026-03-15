@@ -15,10 +15,16 @@ export function SyncPage() {
   const [error, setError] = useState('');
   const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
 
-  useEffect(() => {
+  const loadSyncLog = () => {
+    setLoading(true);
+    setError('');
     fetchSyncLog()
       .then((data) => { setHistory(data.history); setLoading(false); })
       .catch((e) => { setError(e.message); setLoading(false); });
+  };
+
+  useEffect(() => {
+    loadSyncLog();
   }, []);
 
   if (loading) {
@@ -32,9 +38,15 @@ export function SyncPage() {
 
   if (error) {
     return (
-      <div className="flex flex-col items-center gap-3 py-20 text-rose-500">
+      <div className="flex flex-col items-center gap-3 py-20 text-rose-500 animate-fade-in">
         <AlertCircle size={32} />
         <p>{error}</p>
+        <button
+          onClick={() => { setError(''); loadSyncLog(); }}
+          className="mt-2 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:brightness-110"
+        >
+          {t('tryAgain')}
+        </button>
       </div>
     );
   }
@@ -95,7 +107,7 @@ export function SyncPage() {
           {/* History table */}
           <Card className="overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full min-w-[800px] text-sm">
                 <thead>
                   <tr className="border-b border-white/20 dark:border-white/5">
                     <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('syncDate')}</th>
