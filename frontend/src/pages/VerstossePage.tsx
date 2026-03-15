@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useRef } from 'react';
-import { ShieldAlert, Play, Search, Users, AlertTriangle, CheckCircle, Filter } from 'lucide-react';
+import { ShieldAlert, Play, Search, Users, AlertTriangle, CheckCircle } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { useDateFilter } from '../hooks/useDateFilter';
 import { fetchDrivers, analyzeDropboxFile } from '../lib/api';
@@ -313,23 +313,31 @@ export function VerstossePage() {
             </div>
 
             {/* Exclusion toggle */}
-            <button
-              onClick={() => setExcludeManualEntry(!excludeManualEntry)}
-              className={`flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-medium transition ${
+            <label
+              className={`flex cursor-pointer select-none items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-medium transition ${
                 excludeManualEntry
                   ? 'border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300'
                   : 'border-gray-200 bg-white text-gray-500 hover:bg-gray-50 dark:border-white/10 dark:bg-slate-800 dark:text-gray-400 dark:hover:bg-white/5'
               }`}
               title={locale === 'de' ? 'Landeingabe-Verstöße ausschließen' : 'Wyklucz naruszenia wpisu kraju'}
             >
-              <Filter size={13} />
-              {locale === 'de' ? 'Landeingabe ausschl.' : 'Bez wpisu kraju'}
-              {excludeManualEntry && (
-                <span className="flex h-4 w-4 items-center justify-center rounded-full bg-amber-500 text-[10px] font-bold text-white">
-                  <svg className="h-2.5 w-2.5" viewBox="0 0 12 12" fill="none"><path d="M2.5 6l2.5 2.5 4.5-5" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                </span>
-              )}
-            </button>
+              <div className={`flex h-4 w-4 items-center justify-center rounded border transition ${
+                excludeManualEntry
+                  ? 'border-amber-500 bg-amber-500'
+                  : 'border-gray-300 bg-white dark:border-gray-600 dark:bg-slate-700'
+              }`}>
+                {excludeManualEntry && (
+                  <svg className="h-2.5 w-2.5 text-white" viewBox="0 0 12 12" fill="none"><path d="M2.5 6l2.5 2.5 4.5-5" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                )}
+              </div>
+              <input
+                type="checkbox"
+                checked={excludeManualEntry}
+                onChange={() => setExcludeManualEntry(!excludeManualEntry)}
+                className="sr-only"
+              />
+              {locale === 'de' ? 'Ohne Landeingabe' : 'Bez wpisu kraju'}
+            </label>
 
             {/* Generate button */}
             <button
@@ -372,12 +380,16 @@ export function VerstossePage() {
               </p>
             </div>
             <div className="rounded-xl border border-orange-200 bg-orange-50/50 p-4 dark:border-orange-500/20 dark:bg-orange-500/5">
-              <span className="text-[11px] font-medium uppercase tracking-wider text-orange-500">{t('verstosseFahrerFines')}</span>
-              <p className="mt-1 text-xl font-bold tabular-nums text-orange-600 dark:text-orange-400">{fmtAmount(totalFahrer)}</p>
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-[11px] font-medium uppercase tracking-wider text-orange-500">{t('verstosseFahrerFines')}</span>
+              </div>
+              <p className="text-2xl font-bold tabular-nums text-orange-600 dark:text-orange-400">{fmtAmount(totalFahrer)}</p>
             </div>
             <div className="rounded-xl border border-red-200 bg-red-50/50 p-4 dark:border-red-500/20 dark:bg-red-500/5">
-              <span className="text-[11px] font-medium uppercase tracking-wider text-red-500">{t('verstosseUnternehmenFines')}</span>
-              <p className="mt-1 text-xl font-bold tabular-nums text-red-700 dark:text-red-300">{fmtAmount(totalUnternehmen)}</p>
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-[11px] font-medium uppercase tracking-wider text-red-500">{t('verstosseUnternehmenFines')}</span>
+              </div>
+              <p className="text-2xl font-bold tabular-nums text-red-700 dark:text-red-300">{fmtAmount(totalUnternehmen)}</p>
             </div>
           </div>
 
@@ -431,11 +443,11 @@ export function VerstossePage() {
                           </Badge>
                         )}
                       </td>
-                      <td className="py-2.5 text-right font-mono tabular-nums text-sm text-orange-600 dark:text-orange-400">
-                        {result.totalFahrer > 0 ? fmtAmount(result.totalFahrer) : '\u2014'}
+                      <td className={`py-2.5 text-right font-mono tabular-nums text-sm ${result.totalFahrer > 0 ? 'text-orange-600 dark:text-orange-400' : 'text-gray-300 dark:text-gray-600'}`}>
+                        {fmtAmount(result.totalFahrer)}
                       </td>
-                      <td className="py-2.5 text-right font-mono tabular-nums text-sm text-red-700 dark:text-red-300">
-                        {result.totalUnternehmen > 0 ? fmtAmount(result.totalUnternehmen) : '\u2014'}
+                      <td className={`py-2.5 text-right font-mono tabular-nums text-sm ${result.totalUnternehmen > 0 ? 'text-red-700 dark:text-red-300' : 'text-gray-300 dark:text-gray-600'}`}>
+                        {fmtAmount(result.totalUnternehmen)}
                       </td>
                       <td className="py-2.5 text-center">
                         {result.totalEntries > 0 ? (
