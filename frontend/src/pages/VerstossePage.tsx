@@ -21,7 +21,7 @@ interface DriverViolationResult {
 
 export function VerstossePage() {
   const { t, locale } = useI18n();
-  const { dateFrom } = useDateFilter();
+  const { dateFrom, dateTo } = useDateFilter();
   const { toast } = useToast();
 
   const [drivers, setDrivers] = useState<Driver[]>([]);
@@ -103,10 +103,15 @@ export function VerstossePage() {
         const analysis = await analyzeDropboxFile(latestFile.path);
         let shifts = analysis.shift_details || [];
 
-        // Filter by date if set
-        if (dateFrom) {
-          const period = dateFrom.slice(0, 7);
-          shifts = shifts.filter((sh: ShiftDetail) => sh.shift_date?.slice(0, 7) === period);
+        // Filter by global date range
+        if (dateFrom || dateTo) {
+          shifts = shifts.filter((sh: ShiftDetail) => {
+            const d = sh.shift_date;
+            if (!d) return false;
+            if (dateFrom && d < dateFrom) return false;
+            if (dateTo && d > dateTo) return false;
+            return true;
+          });
         }
 
         if (shifts.length === 0) {
@@ -148,7 +153,7 @@ export function VerstossePage() {
     allResults.sort((a, b) => b.totalEntries - a.totalEntries);
     setResults(allResults);
     setLoading(false);
-  }, [selected, drivers, dateFrom]);
+  }, [selected, drivers, dateFrom, dateTo]);
 
   const handleGeneratePdf = async (result: DriverViolationResult) => {
     const res = await generateVerstossePdf(
@@ -189,16 +194,21 @@ export function VerstossePage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-50 ring-1 ring-red-200 dark:bg-red-500/10 dark:ring-red-500/20">
-              <ShieldAlert size={20} className="text-red-600 dark:text-red-400" />
-            </div>
-            {t('verstosseTitle')}
-          </h1>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t('verstosseSubtitle')}</p>
-        </div>
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-50 ring-1 ring-red-200 dark:bg-red-500/10 dark:ring-red-500/20">
+            <ShieldAlert size={20} className="text-red-600 dark:text-red-400" />
+          </div>
+          {t('verstosseTitle')}
+        </h1>
+        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+          {t('verstosseSubtitle')}
+          {(dateFrom || dateTo) && (
+            <span className="ml-2 inline-flex items-center gap-1 rounded-md bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 ring-1 ring-blue-200 dark:bg-blue-500/10 dark:text-blue-300 dark:ring-blue-500/20">
+              {dateFrom || '...'} — {dateTo || '...'}
+            </span>
+          )}
+        </p>
       </div>
 
       {/* Driver selection */}
@@ -310,38 +320,39 @@ export function VerstossePage() {
       {results.length > 0 && (
         <>
           {/* Summary cards */}
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-            <Card>
-              <div className="text-center">
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{results.length}</p>
-                <p className="text-xs text-gray-500">{t('verstosseDriversAnalyzed')}</p>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-white/10 dark:bg-slate-800/50">
+              <div className="flex items-center gap-2 mb-2">
+                <Users size={14} className="text-gray-400" />
+                <span className="text-[11px] font-medium uppercase tracking-wider text-gray-400">{t('verstosseDriversAnalyzed')}</span>
               </div>
-            </Card>
-            <Card>
-              <div className="text-center">
-                <p className={`text-2xl font-bold ${totalViolations > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
-                  {totalViolations}
-                </p>
-                <p className="text-xs text-gray-500">{t('verstosseTotalViolations')}</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{results.length}</p>
+            </div>
+            <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-white/10 dark:bg-slate-800/50">
+              <div className="flex items-center gap-2 mb-2">
+                <AlertTriangle size={14} className={totalViolations > 0 ? 'text-red-400' : 'text-green-400'} />
+                <span className="text-[11px] font-medium uppercase tracking-wider text-gray-400">{t('verstosseTotalViolations')}</span>
               </div>
-            </Card>
-            <Card>
-              <div className="text-center">
-                <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">{totalFahrer.toFixed(0)} €</p>
-                <p className="text-xs text-gray-500">{t('verstosseFahrerFines')}</p>
-              </div>
-            </Card>
-            <Card>
-              <div className="text-center">
-                <p className="text-2xl font-bold text-red-700 dark:text-red-300">{totalUnternehmen.toFixed(0)} €</p>
-                <p className="text-xs text-gray-500">{t('verstosseUnternehmenFines')}</p>
-              </div>
-            </Card>
+              <p className={`text-2xl font-bold ${totalViolations > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
+                {totalViolations}
+              </p>
+            </div>
+            <div className="rounded-xl border border-orange-200 bg-orange-50/50 p-4 dark:border-orange-500/20 dark:bg-orange-500/5">
+              <span className="text-[11px] font-medium uppercase tracking-wider text-orange-500">{t('verstosseFahrerFines')}</span>
+              <p className="mt-1 text-2xl font-bold text-orange-600 dark:text-orange-400">{totalFahrer.toFixed(0)} €</p>
+            </div>
+            <div className="rounded-xl border border-red-200 bg-red-50/50 p-4 dark:border-red-500/20 dark:bg-red-500/5">
+              <span className="text-[11px] font-medium uppercase tracking-wider text-red-500">{t('verstosseUnternehmenFines')}</span>
+              <p className="mt-1 text-2xl font-bold text-red-700 dark:text-red-300">{totalUnternehmen.toFixed(0)} €</p>
+            </div>
           </div>
 
           {/* Export all button */}
           {driversWithViolations > 0 && (
-            <div className="flex justify-end">
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                {driversWithViolations} {locale === 'de' ? 'Fahrer mit Verstößen' : 'kierowców z naruszeniami'}
+              </p>
               <button
                 onClick={handleGenerateAllPdfs}
                 className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-red-600 to-orange-600 px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-red-500/20 transition hover:brightness-110"

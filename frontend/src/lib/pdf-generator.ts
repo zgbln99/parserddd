@@ -1231,8 +1231,13 @@ const verstosseI18n: Record<VerstosseLang, {
   remark: string;
   placeDate: string;
   signDriver: string;
-  signDispatcher: string;
+  signResponsible: string;
   pageOf: string;
+  detDate: string;
+  detTime: string;
+  detDescription: string;
+  detLegalBasis: string;
+  detCategory: string;
 }> = {
   de: {
     docTitle: 'Verstöße-Dokument',
@@ -1252,8 +1257,13 @@ const verstosseI18n: Record<VerstosseLang, {
     remark: 'Bemerkung:',
     placeDate: 'Ort, Datum',
     signDriver: 'Unterschrift Fahrer/Fahrerin',
-    signDispatcher: 'Unterschrift Disponent/Fuhrparkleiter',
+    signResponsible: 'Unterschrift Verantwortlicher',
     pageOf: 'Seite',
+    detDate: 'Datum',
+    detTime: 'Zeit',
+    detDescription: 'Beschreibung',
+    detLegalBasis: 'Rechtliche Grundlagen',
+    detCategory: 'Kategorie',
   },
   pl: {
     docTitle: 'Dokument naruszeń',
@@ -1273,8 +1283,13 @@ const verstosseI18n: Record<VerstosseLang, {
     remark: 'Uwagi:',
     placeDate: 'Miejscowość, data',
     signDriver: 'Podpis kierowcy',
-    signDispatcher: 'Podpis dyspozytora/kierownika floty',
+    signResponsible: 'Podpis osoby odpowiedzialnej',
     pageOf: 'Strona',
+    detDate: 'Data',
+    detTime: 'Czas',
+    detDescription: 'Opis',
+    detLegalBasis: 'Podstawa prawna',
+    detCategory: 'Kategoria',
   },
   en: {
     docTitle: 'Violations Document',
@@ -1294,8 +1309,13 @@ const verstosseI18n: Record<VerstosseLang, {
     remark: 'Remarks:',
     placeDate: 'Place, Date',
     signDriver: 'Driver Signature',
-    signDispatcher: 'Dispatcher/Fleet Manager Signature',
+    signResponsible: 'Responsible Person Signature',
     pageOf: 'Page',
+    detDate: 'Date',
+    detTime: 'Time',
+    detDescription: 'Description',
+    detLegalBasis: 'Legal Basis',
+    detCategory: 'Category',
   },
   el: {
     docTitle: 'Έγγραφο Παραβάσεων',
@@ -1315,8 +1335,13 @@ const verstosseI18n: Record<VerstosseLang, {
     remark: 'Παρατηρήσεις:',
     placeDate: 'Τόπος, Ημερομηνία',
     signDriver: 'Υπογραφή Οδηγού',
-    signDispatcher: 'Υπογραφή Διαχειριστή Στόλου',
+    signResponsible: 'Υπογραφή Υπεύθυνου',
     pageOf: 'Σελίδα',
+    detDate: 'Ημερομηνία',
+    detTime: 'Ώρα',
+    detDescription: 'Περιγραφή',
+    detLegalBasis: 'Νομική Βάση',
+    detCategory: 'Κατηγορία',
   },
 };
 
@@ -1430,65 +1455,132 @@ export async function generateVerstossePdf(
     tableLineWidth: 0.2,
   });
 
-  y = (doc as any).lastAutoTable.finalY + 6;
+  y = (doc as any).lastAutoTable.finalY + 5;
+
+  // ═══ DETAIL TABLE ═══
+  const detailHead = [[
+    L.detDate, L.detTime, L.detDescription, L.detLegalBasis,
+    L.fineDriver, L.fineCompany, L.detCategory,
+  ]];
+
+  const detailBody: string[][] = [];
+
+  // Totals as first row
+  detailBody.push([
+    '', '', '', '',
+    `${totalFahrer.toFixed(2).replace('.', ',')} €`,
+    `${totalUnternehmen.toFixed(2).replace('.', ',')} €`,
+    '',
+  ]);
+
+  for (const e of entries) {
+    detailBody.push([
+      e.datum,
+      e.zeit,
+      e.beschreibung,
+      e.rechtsgrundlage,
+      `${e.bussgeldFahrer.toFixed(2).replace('.', ',')} €`,
+      `${e.bussgeldUnternehmen.toFixed(2).replace('.', ',')} €`,
+      e.kategorie,
+    ]);
+  }
+
+  autoTable(doc, {
+    startY: y,
+    head: detailHead,
+    body: detailBody,
+    styles: {
+      fontSize: 6,
+      cellPadding: { top: 1, bottom: 1, left: 1.5, right: 1.5 },
+      lineWidth: 0.15,
+      lineColor: [200, 200, 200],
+      textColor: [40, 40, 40],
+      overflow: 'linebreak',
+    },
+    headStyles: {
+      fillColor: [230, 230, 230],
+      textColor: [30, 30, 30],
+      fontStyle: 'bold',
+      fontSize: 6,
+      cellPadding: { top: 1.5, bottom: 1.5, left: 1.5, right: 1.5 },
+    },
+    alternateRowStyles: { fillColor: [252, 252, 252] },
+    columnStyles: {
+      0: { cellWidth: 20 },
+      1: { cellWidth: 20 },
+      2: { cellWidth: 80 },
+      3: { cellWidth: 48 },
+      4: { halign: 'right', cellWidth: 24 },
+      5: { halign: 'right', cellWidth: 30 },
+      6: { halign: 'center', cellWidth: 16 },
+    },
+    didParseCell: (data: any) => {
+      if (data.section !== 'body') return;
+      if (data.row.index === 0) {
+        data.cell.styles.fontStyle = 'bold';
+        data.cell.styles.fillColor = [245, 245, 245];
+      }
+    },
+    margin: { left: M, right: M },
+    tableLineColor: [200, 200, 200],
+    tableLineWidth: 0.15,
+  });
+
+  y = (doc as any).lastAutoTable.finalY + 4;
 
   // ═══ LEGAL DISCLAIMER TEXT ═══
   const disclaimerTexts = [L.disclaimer1, L.disclaimer2, L.disclaimer3];
 
   // Check if we need a new page for the disclaimer + signature
-  const neededSpace = 55;
+  const neededSpace = 50;
   if (y + neededSpace > H - 15) {
     doc.addPage('a4', 'landscape');
     y = 15;
   }
 
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(6.5);
+  doc.setFontSize(6);
   doc.setTextColor(50, 50, 50);
 
   for (const txt of disclaimerTexts) {
     const lines = doc.splitTextToSize(txt, W - 2 * M);
     doc.text(lines, M, y);
-    y += lines.length * 3 + 2;
+    y += lines.length * 2.8 + 1.5;
   }
 
-  y += 4;
+  y += 3;
 
-  // ═══ BEMERKUNG + SIGNATURE ═══
+  // ═══ BEMERKUNG + SIGNATURE (3 columns) ═══
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8);
   doc.setTextColor(30, 30, 30);
   doc.text(L.remark, M, y);
-  y += 8;
+  y += 6;
 
-  // Remark line
+  // Remark line (full width)
   doc.setDrawColor(40, 40, 40);
-  doc.setLineWidth(0.3);
-  doc.line(M, y, M + 80, y);
-  y += 1;
+  doc.setLineWidth(0.2);
+  doc.line(M, y, W - M, y);
+  y += 10;
 
-  y += 8;
+  // 3 signature columns
+  const colW = (W - 2 * M) / 3;
+  const col1 = M;
+  const col2 = M + colW;
+  const col3 = M + colW * 2;
+  const lineLen = colW - 15;
+
   doc.setLineWidth(0.3);
-  doc.line(M, y, M + 60, y);
-  doc.line(M + 90, y, M + 150, y);
+  doc.line(col1, y, col1 + lineLen, y);
+  doc.line(col2 + 7, y, col2 + 7 + lineLen, y);
+  doc.line(col3 + 14, y, col3 + 14 + lineLen, y);
   y += 4;
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
   doc.setTextColor(100, 100, 100);
-  doc.text(L.placeDate, M, y);
-  doc.text(L.signDriver, M + 90, y);
-
-  y += 8;
-  doc.setLineWidth(0.3);
-  doc.setDrawColor(40, 40, 40);
-  doc.line(M, y, M + 60, y);
-  doc.line(M + 90, y, M + 150, y);
-  y += 4;
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7);
-  doc.setTextColor(100, 100, 100);
-  doc.text(L.placeDate, M, y);
-  doc.text(L.signDispatcher, M + 90, y);
+  doc.text(L.placeDate, col1, y);
+  doc.text(L.signDriver, col2 + 7, y);
+  doc.text(L.signResponsible, col3 + 14, y);
 
   // ═══ FOOTER on all pages ═══
   const pages = doc.getNumberOfPages();
