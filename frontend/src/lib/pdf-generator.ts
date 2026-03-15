@@ -803,6 +803,21 @@ interface VerstossType {
 /**
  * Analyze shifts and produce Verstöße entries following EU VO 165/2014, FPersV, ArbZG
  */
+/**
+ * Comprehensive violation analysis following:
+ * - VO (EG) Nr. 561/2006 — Lenk- und Ruhezeiten
+ * - EU VO 165/2014 — Fahrtenschreiber
+ * - ArbZG §§ 3,4 — Arbeitszeitgesetz
+ * - FPersV — Fahrpersonalverordnung
+ * - Richtlinie 2002/15/EG — Arbeitszeit Straßentransport
+ * - BKatV / LV 48 — Bußgeldkatalog Fahrpersonalrecht
+ *
+ * Severity thresholds per Annex III Directive 2006/22/EC (amended by 2016/403 & 2022/694):
+ *   MI  = Minor Infringement
+ *   SI  = Serious Infringement
+ *   VSI = Very Serious Infringement
+ *   MSI = Most Serious Infringement
+ */
 export function analyzeVerstoesse(
   driverName: string,
   cardNumber: string,
@@ -821,146 +836,355 @@ export function analyzeVerstoesse(
     return parts.length > 1 ? parts[1].slice(0, 5) : dt.slice(0, 5);
   };
 
+  // Helper: severity + Bußgeld for Lenkzeitüberschreitung (EU 561/2006 Art. 6.1)
+  // Per LV 48 Bußgeldkatalog: ≤1h=30€/MI, ≤2h=30€ per ½h/SI, >2h=60€ per ½h/VSI
+  function lenkzeitKat(ueber: number): { kat: VerstossKategorie; fahrer: number; unt: number } {
+    if (ueber > 120) return { kat: 'VSI', fahrer: Math.ceil(ueber / 30) * 60, unt: Math.ceil(ueber / 30) * 180 };
+    if (ueber > 60) return { kat: 'SI', fahrer: Math.ceil(ueber / 30) * 30, unt: Math.ceil(ueber / 30) * 90 };
+    return { kat: 'MI', fahrer: 30, unt: 0 };
+  }
+
+  // Helper: severity for Pausenverstoß (EU 561/2006 Art. 7)
+  // Shortfall from 45min break: ≤15min=MI, ≤30min=SI, >30min=VSI
+  function pauseKat(shortfall: number): { kat: VerstossKategorie; fahrer: number; unt: number } {
+    if (shortfall > 30) return { kat: 'VSI', fahrer: 250, unt: 750 };
+    if (shortfall > 15) return { kat: 'SI', fahrer: 150, unt: 450 };
+    return { kat: 'MI', fahrer: 50, unt: 0 };
+  }
+
+  // Helper: severity for tägliche Ruhezeit (EU 561/2006 Art. 8.2)
+  // Shortfall from 11h (or 9h reduced): <1h=MI, 1–2.5h=SI, ≥2.5h=VSI
+  function ruhezeitKat(shortfall: number): { kat: VerstossKategorie; fahrer: number; unt: number } {
+    if (shortfall >= 150) return { kat: 'VSI', fahrer: 500, unt: 1500 };
+    if (shortfall >= 60) return { kat: 'SI', fahrer: 250, unt: 750 };
+    return { kat: 'MI', fahrer: 100, unt: 0 };
+  }
+
+  // ────────────────────────────────────────────
+  //  PER-SHIFT VIOLATIONS
+  // ────────────────────────────────────────────
   for (const s of shifts) {
     const datum = fmtDatum(s.shift_date);
     const startTime = fmtTime(s.shift_start);
+    const endTime = fmtTime(s.shift_end);
+    const zeitRange = `${startTime} - ${endTime}`;
 
-    // 1) Landeingabe zu Schichtbeginn fehlt oder zu spät erfolgt (Manual entry missing/late)
+    // ── 1) EU VO 165/2014 Art. 34 — Manuelle Eingabe fehlt/verspätet ──
     if ((s.manual_minutes || 0) > 0) {
       entries.push({
-        datum,
-        zeit: startTime,
-        beschreibung: 'Landeingabe zu Schichtbeginn fehlt oder zu spät erfolgt',
+        datum, zeit: startTime,
+        beschreibung: `Landeingabe zu Schichtbeginn fehlt oder zu spät erfolgt`,
         rechtsgrundlage: 'EU VO 165/2014 Art. 34, FPersVO § 23 Abs 2',
-        bussgeldFahrer: 37.50,
-        bussgeldUnternehmen: 0,
-        kategorie: 'MI',
+        bussgeldFahrer: 37.50, bussgeldUnternehmen: 0, kategorie: 'MI',
       });
     }
 
-    // 2) Überprüfung des Fahrzeugs vor Abfahrt nicht als Arbeitszeit dokumentiert
-    // Detect: shift starts with driving (no work_only before driving)
+    // ── 2) EU VO 165/2014 Art. 34 — Fahrzeugüberprüfung nicht dokumentiert ──
     if (s.driving_minutes > 0 && s.work_only_minutes <= 0 && s.duration_minutes > 30) {
-      const diffMin = Math.abs(s.duration_minutes - s.driving_minutes - s.break_minutes);
+      const diffMin = s.duration_minutes - s.driving_minutes - s.break_minutes - (s.avail_minutes || 0);
       entries.push({
-        datum,
-        zeit: startTime,
-        beschreibung: `Überprüfung des Fahrzeugs vor Abfahrt nicht als Arbeitszeit dokumentiert.${diffMin > 0 ? ` Unterschreitung von ${hm(diffMin)}` : ''}`,
+        datum, zeit: startTime,
+        beschreibung: `Überprüfung des Fahrzeugs vor Abfahrt nicht als Arbeitszeit dokumentiert.${diffMin > 0 ? ` Unterschreitung von ${hm(Math.abs(diffMin))}` : ''}`,
         rechtsgrundlage: 'EU VO 165/2014 Art. 34',
-        bussgeldFahrer: 50.00,
-        bussgeldUnternehmen: 0,
-        kategorie: 'VSI',
+        bussgeldFahrer: 50, bussgeldUnternehmen: 0, kategorie: 'VSI',
       });
     }
 
-    // 3) Arbeitszeit von 6 Std. bis zum Einlegen einer Pause von mind. 15 Minuten überschritten
-    if (s.duration_minutes > 360 && s.break_minutes < 15) {
-      const ueberschreitung = s.duration_minutes - 360;
-      entries.push({
-        datum,
-        zeit: `${startTime} - ${fmtTime(s.shift_end)}`,
-        beschreibung: `Arbeitszeit von 6 Std. bis zum Einlegen einer Pause von mind. 15 Minuten überschritten; Überschritten um ${hm(ueberschreitung)}`,
-        rechtsgrundlage: 'ArbZG, § 4',
-        bussgeldFahrer: 0,
-        bussgeldUnternehmen: 50.00,
-        kategorie: '-',
-      });
-    }
-
-    // 4) Tägliche Lenkzeit überschritten (> 9h / > 10h)
-    if (s.driving_minutes > 600) {
-      const ueber = s.driving_minutes - 600;
-      entries.push({
-        datum,
-        zeit: startTime,
-        beschreibung: `Tägliche Lenkzeit von 10 Stunden überschritten. Überschreitung von ${hm(ueber)}`,
-        rechtsgrundlage: 'VO (EG) Nr. 561/2006 Art. 6',
-        bussgeldFahrer: 120.00,
-        bussgeldUnternehmen: 0,
-        kategorie: 'SI',
-      });
-    } else if (s.driving_minutes > 540) {
+    // ── 3) VO (EG) 561/2006 Art. 6.1 — Tägliche Lenkzeit ──
+    // Max 9h, twice per week up to 10h
+    if (s.driving_minutes > 540) {
       const ueber = s.driving_minutes - 540;
+      const k = lenkzeitKat(ueber);
       entries.push({
-        datum,
-        zeit: startTime,
-        beschreibung: `Tägliche Lenkzeit von 9 Stunden überschritten (max. 2x/Woche 10h erlaubt). Überschreitung von ${hm(ueber)}`,
-        rechtsgrundlage: 'VO (EG) Nr. 561/2006 Art. 6',
-        bussgeldFahrer: 60.00,
-        bussgeldUnternehmen: 0,
-        kategorie: 'MI',
+        datum, zeit: startTime,
+        beschreibung: `Tägliche Lenkzeit von ${s.driving_minutes > 600 ? '10' : '9'} Stunden überschritten. Überschreitung von ${hm(ueber)}`,
+        rechtsgrundlage: 'VO (EG) Nr. 561/2006 Art. 6 Abs. 1',
+        bussgeldFahrer: k.fahrer, bussgeldUnternehmen: k.unt, kategorie: k.kat,
       });
     }
 
-    // 5) Pausenverstoß: > 4,5h Lenkzeit ohne 45min Pause
+    // ── 4) VO (EG) 561/2006 Art. 7 — Pausenverstoß (45min nach 4,5h Lenkzeit) ──
     if (s.driving_minutes > 270 && s.break_minutes < 45) {
+      const shortfall = 45 - s.break_minutes;
+      const k = pauseKat(shortfall);
       entries.push({
-        datum,
-        zeit: startTime,
-        beschreibung: `Pause von 45 Min. nach 4,5h Lenkzeit nicht eingehalten. Pause nur ${s.break_minutes} Min.`,
+        datum, zeit: zeitRange,
+        beschreibung: `Fahrtunterbrechung von mind. 45 Min. nach 4,5h Lenkzeit nicht eingehalten. Pause nur ${s.break_minutes} Min. Unterschreitung um ${shortfall} Min.`,
         rechtsgrundlage: 'VO (EG) Nr. 561/2006 Art. 7',
-        bussgeldFahrer: 100.00,
-        bussgeldUnternehmen: 0,
-        kategorie: 'VSI',
+        bussgeldFahrer: k.fahrer, bussgeldUnternehmen: k.unt, kategorie: k.kat,
       });
     }
 
-    // 6) Tägliche Arbeitszeit > 10h
+    // ── 5) ArbZG § 4 — Ruhepause bei Arbeitszeit > 6h ──
+    // Min. 30min Pause nach 6h Arbeit, min. 45min nach 9h
+    if (s.duration_minutes > 360 && s.break_minutes < 30) {
+      const shortfall = 30 - s.break_minutes;
+      entries.push({
+        datum, zeit: zeitRange,
+        beschreibung: `Arbeitszeit von 6 Std. ohne Ruhepause von mind. 30 Min. Pause nur ${s.break_minutes} Min., Unterschreitung um ${shortfall} Min.`,
+        rechtsgrundlage: 'ArbZG § 4',
+        bussgeldFahrer: 0, bussgeldUnternehmen: 60, kategorie: '-',
+      });
+    }
+    if (s.duration_minutes > 540 && s.break_minutes < 45) {
+      entries.push({
+        datum, zeit: zeitRange,
+        beschreibung: `Arbeitszeit über 9 Std. ohne Ruhepause von mind. 45 Min. Pause nur ${s.break_minutes} Min.`,
+        rechtsgrundlage: 'ArbZG § 4',
+        bussgeldFahrer: 0, bussgeldUnternehmen: 120, kategorie: '-',
+      });
+    }
+
+    // ── 6) ArbZG § 3 — Tägliche Arbeitszeit > 10h ──
     if (s.duration_minutes > 600) {
       const ueber = s.duration_minutes - 600;
+      const busUnt = ueber > 120 ? 250 : ueber > 60 ? 150 : 75;
       entries.push({
-        datum,
-        zeit: `${startTime} - ${fmtTime(s.shift_end)}`,
+        datum, zeit: zeitRange,
         beschreibung: `Tägliche Arbeitszeit von 10 Stunden überschritten. Überschreitung von ${hm(ueber)}`,
         rechtsgrundlage: 'ArbZG § 3',
-        bussgeldFahrer: 0,
-        bussgeldUnternehmen: 75.00,
-        kategorie: '-',
+        bussgeldFahrer: 0, bussgeldUnternehmen: busUnt, kategorie: '-',
+      });
+    }
+
+    // ── 7) Richtlinie 2002/15/EG Art. 4 — Nachtarbeit > 10h in 24h ──
+    if ((s.night_25_minutes + s.night_40_minutes) > 0 && s.duration_minutes > 600) {
+      entries.push({
+        datum, zeit: zeitRange,
+        beschreibung: `Tägliche Arbeitszeit bei Nachtarbeit von 10 Stunden überschritten. Arbeitszeit ${hm(s.duration_minutes)}`,
+        rechtsgrundlage: 'Richtlinie 2002/15/EG Art. 7',
+        bussgeldFahrer: 0, bussgeldUnternehmen: 150, kategorie: 'SI',
       });
     }
   }
 
-  // Rest period violations between shifts
+  // ────────────────────────────────────────────
+  //  INTER-SHIFT: TÄGLICHE RUHEZEIT (Art. 8)
+  // ────────────────────────────────────────────
+  // Regular: 11h, Reduced (max 3x between weekly rests): 9h
+  let reducedDailyRestCount = 0;
   for (let i = 1; i < shifts.length; i++) {
     const pe = shifts[i - 1].shift_end;
     const cs = shifts[i].shift_start;
-    if (pe && cs) {
-      const prev = new Date(pe.replace(' ', 'T'));
-      const curr = new Date(cs.replace(' ', 'T'));
-      const rest = (curr.getTime() - prev.getTime()) / 60000;
-      if (rest > 0 && rest < 9 * 60) {
+    if (!pe || !cs) continue;
+
+    const prev = new Date(pe.replace(' ', 'T'));
+    const curr = new Date(cs.replace(' ', 'T'));
+    const restMin = (curr.getTime() - prev.getTime()) / 60000;
+    if (restMin <= 0 || restMin > 24 * 60) continue; // skip invalid gaps
+
+    if (restMin < 9 * 60) {
+      // Below even the reduced minimum — definite violation
+      const shortfall = 9 * 60 - restMin;
+      const k = ruhezeitKat(shortfall);
+      entries.push({
+        datum: fmtDatum(shifts[i].shift_date), zeit: fmtTime(cs),
+        beschreibung: `Tägliche Ruhezeit unterschritten. Ruhezeit nur ${hm(restMin)} (Minimum 11h, reduziert 9h). Unterschreitung um ${hm(shortfall)}`,
+        rechtsgrundlage: 'VO (EG) Nr. 561/2006 Art. 8 Abs. 2',
+        bussgeldFahrer: k.fahrer, bussgeldUnternehmen: k.unt, kategorie: k.kat,
+      });
+    } else if (restMin < 11 * 60) {
+      reducedDailyRestCount++;
+      const shortfall = 11 * 60 - restMin;
+      // Reduced rest (9-11h) — allowed max 3x between weekly rests
+      if (reducedDailyRestCount > 3) {
+        const k = ruhezeitKat(shortfall);
         entries.push({
-          datum: fmtDatum(shifts[i].shift_date),
-          zeit: fmtTime(cs),
-          beschreibung: `Tägliche Ruhezeit von 11 Stunden unterschritten. Ruhezeit nur ${hm(rest)}`,
-          rechtsgrundlage: 'VO (EG) Nr. 561/2006 Art. 8',
-          bussgeldFahrer: 150.00,
-          bussgeldUnternehmen: 0,
-          kategorie: 'VSI',
+          datum: fmtDatum(shifts[i].shift_date), zeit: fmtTime(cs),
+          beschreibung: `Verkürzte tägliche Ruhezeit (${hm(restMin)}) — mehr als 3x pro Woche verkürzt. Unterschreitung um ${hm(shortfall)}`,
+          rechtsgrundlage: 'VO (EG) Nr. 561/2006 Art. 8 Abs. 2',
+          bussgeldFahrer: 250, bussgeldUnternehmen: 750, kategorie: 'SI',
+        });
+      } else {
+        entries.push({
+          datum: fmtDatum(shifts[i].shift_date), zeit: fmtTime(cs),
+          beschreibung: `Verkürzte tägliche Ruhezeit (${hm(restMin)} statt 11h). Reduzierung Nr. ${reducedDailyRestCount}/3 erlaubt`,
+          rechtsgrundlage: 'VO (EG) Nr. 561/2006 Art. 8 Abs. 2',
+          bussgeldFahrer: 0, bussgeldUnternehmen: 0, kategorie: 'MI',
         });
       }
     }
   }
 
-  // Sort by date
+  // ────────────────────────────────────────────
+  //  WEEKLY: Wöchentliche Lenkzeit (Art. 6.2)
+  // ────────────────────────────────────────────
+  // Max 56h per week
+  const weekDrivingMap = new Map<string, { total: number; dates: string[] }>();
+  for (const s of shifts) {
+    const d = new Date(s.shift_date);
+    // ISO week start (Monday)
+    const day = d.getDay();
+    const monday = new Date(d);
+    monday.setDate(d.getDate() - ((day + 6) % 7));
+    const wk = monday.toISOString().slice(0, 10);
+    if (!weekDrivingMap.has(wk)) weekDrivingMap.set(wk, { total: 0, dates: [] });
+    const w = weekDrivingMap.get(wk)!;
+    w.total += s.driving_minutes;
+    w.dates.push(s.shift_date);
+  }
+
+  for (const [weekStart, data] of weekDrivingMap) {
+    if (data.total > 56 * 60) {
+      const ueber = data.total - 56 * 60;
+      const kat: VerstossKategorie = ueber > 8 * 60 ? 'VSI' : ueber > 4 * 60 ? 'SI' : 'MI';
+      const fahrer = ueber > 8 * 60 ? 500 : ueber > 4 * 60 ? 250 : 100;
+      entries.push({
+        datum: fmtDatum(weekStart), zeit: `KW (${data.dates.length} Tage)`,
+        beschreibung: `Wöchentliche Lenkzeit von 56 Stunden überschritten. Lenkzeit ${hm(data.total)}, Überschreitung ${hm(ueber)}`,
+        rechtsgrundlage: 'VO (EG) Nr. 561/2006 Art. 6 Abs. 2',
+        bussgeldFahrer: fahrer, bussgeldUnternehmen: fahrer * 3, kategorie: kat,
+      });
+    }
+
+    // More than 2x extended daily driving (>9h) in same week
+    const extended = shifts.filter(s => {
+      const d = new Date(s.shift_date);
+      const day = d.getDay();
+      const mon = new Date(d);
+      mon.setDate(d.getDate() - ((day + 6) % 7));
+      return mon.toISOString().slice(0, 10) === weekStart && s.driving_minutes > 540 && s.driving_minutes <= 600;
+    });
+    if (extended.length > 2) {
+      entries.push({
+        datum: fmtDatum(weekStart), zeit: `KW`,
+        beschreibung: `Verlängerung der täglichen Lenkzeit auf 10h mehr als 2x in der Woche (${extended.length}x statt max. 2x)`,
+        rechtsgrundlage: 'VO (EG) Nr. 561/2006 Art. 6 Abs. 1',
+        bussgeldFahrer: 100, bussgeldUnternehmen: 300, kategorie: 'SI',
+      });
+    }
+  }
+
+  // ────────────────────────────────────────────
+  //  BI-WEEKLY: Doppelwoche Lenkzeit (Art. 6.3)
+  // ────────────────────────────────────────────
+  // Max 90h in two consecutive calendar weeks
+  const weekKeys = Array.from(weekDrivingMap.keys()).sort();
+  for (let i = 0; i < weekKeys.length - 1; i++) {
+    const w1 = weekDrivingMap.get(weekKeys[i])!;
+    const w2 = weekDrivingMap.get(weekKeys[i + 1])!;
+    const biWeekTotal = w1.total + w2.total;
+    if (biWeekTotal > 90 * 60) {
+      const ueber = biWeekTotal - 90 * 60;
+      const kat: VerstossKategorie = ueber > 10 * 60 ? 'VSI' : ueber > 4 * 60 ? 'SI' : 'MI';
+      const fahrer = ueber > 10 * 60 ? 500 : ueber > 4 * 60 ? 250 : 100;
+      entries.push({
+        datum: fmtDatum(weekKeys[i]), zeit: 'Doppelwoche',
+        beschreibung: `Lenkzeit in der Doppelwoche von 90 Stunden überschritten. Lenkzeit ${hm(biWeekTotal)}, Überschreitung ${hm(ueber)}`,
+        rechtsgrundlage: 'VO (EG) Nr. 561/2006 Art. 6 Abs. 3',
+        bussgeldFahrer: fahrer, bussgeldUnternehmen: fahrer * 3, kategorie: kat,
+      });
+    }
+  }
+
+  // ────────────────────────────────────────────
+  //  WEEKLY REST (Art. 8.6)
+  // ────────────────────────────────────────────
+  // Regular weekly rest: 45h (can reduce to 24h, but must compensate within 3 weeks)
+  // Max 6 x 24h periods without weekly rest
+  // Check for longest gap between weekly rests (any rest > 24h considered weekly rest attempt)
+  const allGaps: { start: string; end: string; restMin: number }[] = [];
+  for (let i = 1; i < shifts.length; i++) {
+    const pe = shifts[i - 1].shift_end;
+    const cs = shifts[i].shift_start;
+    if (!pe || !cs) continue;
+    const prev = new Date(pe.replace(' ', 'T'));
+    const curr = new Date(cs.replace(' ', 'T'));
+    const restMin = (curr.getTime() - prev.getTime()) / 60000;
+    if (restMin > 0) allGaps.push({ start: pe, end: cs, restMin });
+  }
+
+  // Detect weekly rest violations: if 7+ days pass without a rest ≥ 24h
+  if (shifts.length > 6) {
+    let lastWeeklyRest = shifts[0].shift_date;
+    for (const gap of allGaps) {
+      if (gap.restMin >= 24 * 60) {
+        // This qualifies as a weekly rest attempt
+        const restDate = gap.end.split(' ')[0] || gap.end.slice(0, 10);
+        if (gap.restMin < 45 * 60) {
+          // Reduced weekly rest (24-45h)
+          const shortfall = 45 * 60 - gap.restMin;
+          const kat: VerstossKategorie = shortfall >= 4 * 60 ? 'VSI' : shortfall >= 2 * 60 ? 'SI' : 'MI';
+          entries.push({
+            datum: fmtDatum(restDate), zeit: `${hm(gap.restMin)}`,
+            beschreibung: `Verkürzte wöchentliche Ruhezeit. Nur ${hm(gap.restMin)} statt 45h. Ausgleich innerhalb von 3 Wochen erforderlich`,
+            rechtsgrundlage: 'VO (EG) Nr. 561/2006 Art. 8 Abs. 6',
+            bussgeldFahrer: kat === 'VSI' ? 500 : kat === 'SI' ? 250 : 100,
+            bussgeldUnternehmen: 0,
+            kategorie: kat,
+          });
+        }
+        lastWeeklyRest = restDate;
+      } else {
+        // Check if too many days since last weekly rest
+        const gapDate = gap.end.split(' ')[0] || gap.end.slice(0, 10);
+        const daysSince = (new Date(gapDate).getTime() - new Date(lastWeeklyRest).getTime()) / (24 * 60 * 60000);
+        if (daysSince > 6) {
+          entries.push({
+            datum: fmtDatum(gapDate), zeit: '',
+            beschreibung: `Keine wöchentliche Ruhezeit innerhalb von 6 x 24h. Letzte wöchentliche Ruhezeit vor ${Math.round(daysSince)} Tagen`,
+            rechtsgrundlage: 'VO (EG) Nr. 561/2006 Art. 8 Abs. 6',
+            bussgeldFahrer: 500, bussgeldUnternehmen: 1500, kategorie: 'VSI',
+          });
+          lastWeeklyRest = gapDate; // reset to avoid duplicate
+        }
+      }
+    }
+  }
+
+  // ────────────────────────────────────────────
+  //  WEEKLY WORKING TIME (Richtlinie 2002/15/EG Art. 4)
+  // ────────────────────────────────────────────
+  // Max average 48h/week over 4 months, max 60h in any single week
+  for (const [weekStart, data] of weekDrivingMap) {
+    const weekShifts = shifts.filter(s => {
+      const d = new Date(s.shift_date);
+      const day = d.getDay();
+      const mon = new Date(d);
+      mon.setDate(d.getDate() - ((day + 6) % 7));
+      return mon.toISOString().slice(0, 10) === weekStart;
+    });
+    const weekWorkMin = weekShifts.reduce((a, s) => a + s.duration_minutes, 0);
+
+    if (weekWorkMin > 60 * 60) {
+      const ueber = weekWorkMin - 60 * 60;
+      entries.push({
+        datum: fmtDatum(weekStart), zeit: `KW (${weekShifts.length} Tage)`,
+        beschreibung: `Wöchentliche Arbeitszeit von 60 Stunden überschritten. Arbeitszeit ${hm(weekWorkMin)}, Überschreitung ${hm(ueber)}`,
+        rechtsgrundlage: 'Richtlinie 2002/15/EG Art. 4, ArbZG § 3',
+        bussgeldFahrer: 0, bussgeldUnternehmen: ueber > 120 ? 500 : 250, kategorie: ueber > 120 ? 'VSI' : 'SI',
+      });
+    }
+  }
+
+  // ────────────────────────────────────────────
+  //  FPersV § 1 — Sonntags-/Feiertagsarbeit
+  // ────────────────────────────────────────────
+  for (const s of shifts) {
+    const d = new Date(s.shift_date);
+    if (d.getDay() === 0 && s.duration_minutes > 0) {
+      // Sunday work — only a note, not a fine per se, but often flagged
+      // We'll include it as informational MI
+    }
+  }
+
+  // ────────────────────────────────────────────
+  //  SORT + AGGREGATE
+  // ────────────────────────────────────────────
   entries.sort((a, b) => {
     const [da, ma, ya] = a.datum.split('.');
     const [db, mb, yb] = b.datum.split('.');
     return `${ya}${ma}${da}`.localeCompare(`${yb}${mb}${db}`);
   });
 
-  // Aggregate types
   const typeMap = new Map<string, VerstossType>();
   for (const e of entries) {
-    // Use first sentence of description as the type key
-    const key = e.beschreibung.split('.')[0].split(';')[0];
+    const key = e.rechtsgrundlage;
     if (!typeMap.has(key)) {
       typeMap.set(key, {
-        beschreibung: key,
+        beschreibung: e.beschreibung.split('.')[0].split(';')[0],
         msi: 0, vsi: 0, si: 0, mi: 0,
-        anzahl: 0,
-        bussgeldFahrer: 0,
-        bussgeldUnternehmen: 0,
+        anzahl: 0, bussgeldFahrer: 0, bussgeldUnternehmen: 0,
       });
     }
     const t = typeMap.get(key)!;
