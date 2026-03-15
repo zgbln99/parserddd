@@ -369,34 +369,34 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
       )}
 
       {/* Key metrics - highlighted */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-xl border border-primary-200 bg-primary-50 p-4 text-center dark:border-primary-800 dark:bg-primary-900/30">
-          <p className="text-[0.65rem] font-bold uppercase tracking-wider text-primary-500 dark:text-primary-400">{t('analysisWorkTime')}</p>
+          <p className="text-xs font-bold uppercase tracking-wider text-primary-500 dark:text-primary-400">{t('analysisWorkTime')}</p>
           <p className="mt-1 text-2xl font-extrabold text-primary-700 dark:text-primary-300">{s.total_work_hm}</p>
           <p className="mt-0.5 text-xs text-primary-500/70 dark:text-primary-400/70">{s.total_work_decimal}h</p>
         </div>
         <div className="rounded-xl border border-violet-200 bg-violet-50 p-4 text-center dark:border-violet-800 dark:bg-violet-900/30" title={locale === 'de' ? 'Arbeit 22:00-06:00 unter 2h = 25% Zuschlag' : 'Praca w godz. 22:00-06:00 poniżej 2h = 25% dodatku'}>
-          <p className="text-[0.65rem] font-bold uppercase tracking-wider text-violet-500 dark:text-violet-400">{t('analysisNight25')}</p>
+          <p className="text-xs font-bold uppercase tracking-wider text-violet-500 dark:text-violet-400">{t('analysisNight25')}</p>
           <p className="mt-1 text-2xl font-extrabold text-violet-700 dark:text-violet-300">{(s.night_25_minutes / 60).toFixed(2)}</p>
           <p className="mt-0.5 text-xs text-violet-500/70 dark:text-violet-400/70">{s.night_25_hm}</p>
         </div>
         <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-4 text-center dark:border-indigo-800 dark:bg-indigo-900/30" title={locale === 'de' ? 'Arbeit 22:00-06:00 über 2h = 40% Zuschlag' : 'Praca w godz. 22:00-06:00 powyżej 2h = 40% dodatku'}>
-          <p className="text-[0.65rem] font-bold uppercase tracking-wider text-indigo-500 dark:text-indigo-400">{t('analysisNight40')}</p>
+          <p className="text-xs font-bold uppercase tracking-wider text-indigo-500 dark:text-indigo-400">{t('analysisNight40')}</p>
           <p className="mt-1 text-2xl font-extrabold text-indigo-700 dark:text-indigo-300">{(s.night_40_minutes / 60).toFixed(2)}</p>
           <p className="mt-0.5 text-xs text-indigo-500/70 dark:text-indigo-400/70">{s.night_40_hm}</p>
         </div>
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-center dark:border-emerald-800 dark:bg-emerald-900/30" title="Verpflegungsmehraufwand - dieta za podróż służbową">
-          <p className="text-[0.65rem] font-bold uppercase tracking-wider text-emerald-500 dark:text-emerald-400">{t('analysisDietCount')}</p>
+          <p className="text-xs font-bold uppercase tracking-wider text-emerald-500 dark:text-emerald-400">{t('analysisDietCount')}</p>
           <p className="mt-1 text-2xl font-extrabold text-emerald-700 dark:text-emerald-300">{s.diet_count}</p>
           <p className="mt-0.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
             {vma.amount.toFixed(2).replace('.', ',')} €
-            {vma.doubleDiet && <span className="ml-1 text-[10px] font-normal opacity-70">(2×{vma.ratePerDay / 2}€)</span>}
+            {vma.doubleDiet && <span className="ml-1 text-xs font-normal opacity-70">(2×{vma.ratePerDay / 2}€)</span>}
           </p>
         </div>
       </div>
 
       {/* Secondary metrics */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
         {[
           { label: t('analysisDriving'), value: s.total_driving_hm },
           { label: t('analysisBreaks'), value: s.total_break_hm },
@@ -405,7 +405,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
           { label: t('analysisNight25') + ' + ' + t('analysisNight40'), value: fmtNight(s.night_25_minutes + s.night_40_minutes, s.total_night_hm) },
         ].map(({ label, value }) => (
           <div key={label} className="rounded-xl bg-black/[0.02] p-3 text-center dark:bg-white/5">
-            <p className="text-[0.65rem] font-bold uppercase tracking-wider text-gray-400">{label}</p>
+            <p className="text-xs font-bold uppercase tracking-wider text-gray-400">{label}</p>
             <p className="mt-0.5 text-xl font-extrabold">{value}</p>
           </div>
         ))}
@@ -436,7 +436,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
           >
             <BarChart3 size={14} />
             {t('analysisChart')}
-            <span className="ml-auto text-[10px] font-normal normal-case text-gray-400">
+            <span className="ml-auto text-xs font-normal normal-case text-gray-400">
               {showChart ? '▲' : '▼'}
             </span>
           </button>
@@ -474,10 +474,10 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
           >
             <UtensilsCrossed size={14} />
             {t('dietReport')}
-            <span className="ml-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400">
+            <span className="ml-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400">
               {s.diet_count}/{s.total_shifts}
             </span>
-            <span className="ml-auto text-[10px] font-normal normal-case text-gray-400">
+            <span className="ml-auto text-xs font-normal normal-case text-gray-400">
               {showDietReport ? '▲' : '▼'}
             </span>
           </button>
@@ -565,7 +565,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
               {savingMonthly ? t('loading') : t('monthlySave')}
             </button>
           </div>
-          <p className="mt-2 text-[10px] text-gray-400 dark:text-gray-500">{t('absenceCalendarHint')}</p>
+          <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">{t('absenceCalendarHint')}</p>
         </div>
       )}
 
@@ -578,7 +578,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
           >
             <Settings size={14} />
             {t('driverConfig')}
-            <span className="ml-auto text-[10px] font-normal normal-case text-gray-400">
+            <span className="ml-auto text-xs font-normal normal-case text-gray-400">
               {showConfig ? '▲' : '▼'}
             </span>
           </button>
@@ -866,8 +866,8 @@ function MonthlyGridCopy({
     });
   }, [dayNumbers, dayWorkMap, absenceDays, summaryValues]);
 
-  const thCls = 'border border-white/30 bg-black/[0.04] px-1 py-0.5 text-center text-[10px] font-bold text-gray-500 dark:border-white/10 dark:bg-white/10 dark:text-gray-400';
-  const tdCls = 'border border-white/30 bg-white/50 px-1 py-0.5 text-center font-mono text-[10px] dark:border-white/10 dark:bg-white/5';
+  const thCls = 'border border-white/30 bg-black/[0.04] px-1 py-0.5 text-center text-xs font-bold text-gray-500 dark:border-white/10 dark:bg-white/10 dark:text-gray-400';
+  const tdCls = 'border border-white/30 bg-white/50 px-1 py-0.5 text-center font-mono text-xs dark:border-white/10 dark:bg-white/5';
 
   return (
     <div className="space-y-2">
@@ -893,7 +893,7 @@ function MonthlyGridCopy({
           </button>
         )}
         {onAbsenceChange && (
-          <span className="ml-auto flex items-center gap-2 text-[10px] text-gray-400 dark:text-gray-500">
+          <span className="ml-auto flex items-center gap-2 text-xs text-gray-400 dark:text-gray-500">
             <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-sm bg-blue-500" /> Ur</span>
             <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-sm bg-amber-500" /> Kr</span>
           </span>

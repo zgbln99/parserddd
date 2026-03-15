@@ -169,9 +169,9 @@ export function Layout({ children }: { children: ReactNode }) {
             {/* Mobile menu button */}
             <button
               onClick={() => setSidebarOpen(true)}
-              className="rounded-lg p-2 text-gray-500 hover:bg-black/5 lg:hidden dark:text-gray-400 dark:hover:bg-white/5"
+              className="rounded-lg p-2.5 text-gray-500 hover:bg-black/5 lg:hidden dark:text-gray-400 dark:hover:bg-white/5 min-h-[44px] min-w-[44px] flex items-center justify-center"
             >
-              <Menu size={20} />
+              <Menu size={22} />
             </button>
 
             {/* Date filter */}
@@ -194,14 +194,14 @@ export function Layout({ children }: { children: ReactNode }) {
                 type="date"
                 value={dateFrom}
                 onChange={(e) => setDateFrom(e.target.value)}
-                className="glass-input rounded-lg px-2 py-1 text-xs outline-none dark:[color-scheme:dark]"
+                className="glass-input rounded-lg px-3 py-2 text-sm sm:text-xs sm:px-2 sm:py-1 outline-none dark:[color-scheme:dark] min-h-[44px] sm:min-h-0"
               />
               <span className="text-xs text-gray-300 dark:text-gray-600">—</span>
               <input
                 type="date"
                 value={dateTo}
                 onChange={(e) => setDateTo(e.target.value)}
-                className="glass-input rounded-lg px-2 py-1 text-xs outline-none dark:[color-scheme:dark]"
+                className="glass-input rounded-lg px-3 py-2 text-sm sm:text-xs sm:px-2 sm:py-1 outline-none dark:[color-scheme:dark] min-h-[44px] sm:min-h-0"
               />
               {(dateFrom || dateTo) && (
                 <button
@@ -227,7 +227,7 @@ export function Layout({ children }: { children: ReactNode }) {
         </header>
 
         {/* Content */}
-        <main className="flex-1 px-4 py-6 pb-20 sm:px-6 lg:px-8 lg:pb-6">
+        <main className="flex-1 px-4 py-6 pb-24 sm:px-6 lg:px-8 lg:pb-6">
           <div className="mx-auto max-w-[1400px] animate-fade-in">
             {children}
           </div>
@@ -243,23 +243,23 @@ export function Layout({ children }: { children: ReactNode }) {
                 end={to === '/'}
                 className={({ isActive }) =>
                   clsx(
-                    'flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] font-medium transition-colors',
+                    'flex flex-1 flex-col items-center gap-1 py-3 text-xs font-medium transition-colors min-h-[56px] justify-center',
                     isActive
                       ? 'text-blue-600 dark:text-blue-400'
                       : 'text-gray-400 dark:text-gray-500',
                   )
                 }
               >
-                <Icon size={20} />
+                <Icon size={22} />
                 <span className="truncate">{t(labelKey)}</span>
               </NavLink>
             ))}
             {navItems.length > 5 && (
               <button
                 onClick={() => setSidebarOpen(true)}
-                className="flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] font-medium text-gray-400 dark:text-gray-500"
+                className="flex flex-1 flex-col items-center gap-1 py-3 text-xs font-medium text-gray-400 dark:text-gray-500 min-h-[56px] justify-center"
               >
-                <Menu size={20} />
+                <Menu size={22} />
                 <span>{t('navMore')}</span>
               </button>
             )}

@@ -149,7 +149,7 @@ export function VehiclesPage() {
 
       {/* Step 1: Vehicle selector + period + generate */}
       <Card className="mb-6 p-5">
-        <div className="flex flex-wrap items-end gap-4">
+        <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-end gap-4">
           {/* Vehicle selector */}
           <div className="min-w-[250px] flex-1">
             <label className="mb-1 block text-sm font-medium text-gray-600 dark:text-gray-400">
@@ -173,7 +173,7 @@ export function VehiclesPage() {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder={locale === 'de' ? 'Fahrzeug suchen...' : 'Szukaj pojazdu...'}
-                  className="w-full glass-input rounded-xl py-2 pl-9 pr-3 text-sm outline-none"
+                  className="w-full glass-input rounded-xl py-2 pl-9 pr-3 text-sm outline-none min-h-[44px]"
                 />
               </div>
             )}
@@ -188,7 +188,7 @@ export function VehiclesPage() {
               type="month"
               value={selectedPeriod || defaultPeriod}
               onChange={(e) => setSelectedPeriod(e.target.value)}
-              className="glass-input rounded-xl px-3 py-2 text-sm outline-none"
+              className="glass-input rounded-xl px-3 py-2 text-sm outline-none min-h-[44px]"
             />
           </div>
 
@@ -196,7 +196,7 @@ export function VehiclesPage() {
           <button
             onClick={handleGenerate}
             disabled={loading || !selectedVehicleId}
-            className="flex items-center gap-2 rounded-xl bg-primary-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-primary-700 disabled:opacity-50"
+            className="flex items-center justify-center gap-2 rounded-xl bg-primary-600 px-5 py-2 min-h-[44px] text-sm font-semibold text-white transition hover:bg-primary-700 disabled:opacity-50"
           >
             {loading ? <RefreshCw size={14} className="animate-spin" /> : <Calendar size={14} />}
             {loading ? t('vehiclesLoading') : t('vehiclesGenerate')}
@@ -206,7 +206,7 @@ export function VehiclesPage() {
           {activity && (
             <button
               onClick={handlePrint}
-              className="flex items-center gap-2 rounded-xl bg-gray-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-gray-700"
+              className="flex items-center justify-center gap-2 rounded-xl bg-gray-600 px-5 py-2 min-h-[44px] text-sm font-semibold text-white transition hover:bg-gray-700"
             >
               <Printer size={14} />
               {t('vehiclesPrint')}
@@ -325,7 +325,7 @@ export function VehiclesPage() {
       {activity && period && (
         <>
           {/* Summary cards */}
-          <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <Card className="p-4 text-center">
               <Truck size={20} className="mx-auto mb-1 text-primary-500" />
               <p className="text-lg font-bold">{activity.vehicle_name}</p>

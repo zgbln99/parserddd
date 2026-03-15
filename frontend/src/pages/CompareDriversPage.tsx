@@ -384,7 +384,7 @@ export function CompareDriversPage() {
       {/* Driver selection */}
       <Card className="p-5">
         <div className="mb-3 flex flex-wrap items-center gap-3">
-          <div className="relative min-w-[200px] flex-1 sm:max-w-xs">
+          <div className="relative w-full sm:min-w-[200px] flex-1 sm:max-w-xs">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
               type="text"
@@ -401,7 +401,7 @@ export function CompareDriversPage() {
           <button
             onClick={handleGenerate}
             disabled={selected.size < 2 || comparing}
-            className="flex items-center gap-2 rounded-lg bg-gradient-to-r from-blue-500 to-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:brightness-110 disabled:opacity-50"
+            className="flex min-h-[44px] items-center gap-2 rounded-lg bg-gradient-to-r from-blue-500 to-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:brightness-110 disabled:opacity-50"
           >
             <Play size={14} />
             {comparing ? t('compareLoading') : t('compareGenerate')}
@@ -409,11 +409,11 @@ export function CompareDriversPage() {
         </div>
 
         <div className="max-h-[280px] overflow-y-auto rounded-lg border border-white/20 dark:border-white/5">
-          <div className="grid grid-cols-2 gap-px bg-black/[0.04] sm:grid-cols-3 lg:grid-cols-4 dark:bg-white/5">
+          <div className="grid grid-cols-1 gap-1 bg-black/[0.04] sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 dark:bg-white/5">
             {filtered.map((d) => (
               <label
                 key={d.name}
-                className={`flex cursor-pointer items-center gap-2.5 bg-white/50 px-3 py-2.5 transition hover:bg-blue-50/50 dark:bg-white/5 dark:hover:bg-blue-900/10 ${
+                className={`flex min-h-[44px] cursor-pointer items-center gap-2.5 rounded-lg bg-white/50 px-3 py-2.5 transition hover:bg-blue-50/50 dark:bg-white/5 dark:hover:bg-blue-900/10 ${
                   selected.has(d.name) ? 'ring-2 ring-inset ring-blue-400 dark:ring-blue-600' : ''
                 }`}
               >
@@ -421,11 +421,11 @@ export function CompareDriversPage() {
                   type="checkbox"
                   checked={selected.has(d.name)}
                   onChange={() => toggleSelect(d.name)}
-                  className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                 />
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium">{d.name}</p>
-                  <p className="truncate text-[10px] text-gray-400">{d.file_count} {t('files')}</p>
+                  <p className="truncate text-xs text-gray-400">{d.file_count} {t('files')}</p>
                 </div>
               </label>
             ))}
@@ -445,7 +445,7 @@ export function CompareDriversPage() {
       {results && !comparing && results.length > 0 && (
         <>
           {/* Stats summary */}
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {driverStats.map((ds) => (
               <Card key={ds.name} className="p-4">
                 <p className="text-sm font-bold">{ds.name}</p>
@@ -483,9 +483,9 @@ export function CompareDriversPage() {
                     {results.map((r) => (
                       <th key={r.driver_name} className="border-l border-white/10 dark:border-white/5" colSpan={3}>
                         <div className="flex">
-                          <span className="flex-1 px-2 py-1.5 text-center text-[10px] font-semibold uppercase text-emerald-600 dark:text-emerald-400">{t('compareStart')}</span>
-                          <span className="flex-1 px-2 py-1.5 text-center text-[10px] font-semibold uppercase text-rose-500 dark:text-rose-400">{t('compareEnd')}</span>
-                          <span className="flex-1 px-2 py-1.5 text-center text-[10px] font-semibold uppercase text-gray-500 dark:text-gray-400">{t('compareDuration')}</span>
+                          <span className="flex-1 px-2 py-1.5 text-center text-xs font-semibold uppercase text-emerald-600 dark:text-emerald-400">{t('compareStart')}</span>
+                          <span className="flex-1 px-2 py-1.5 text-center text-xs font-semibold uppercase text-rose-500 dark:text-rose-400">{t('compareEnd')}</span>
+                          <span className="flex-1 px-2 py-1.5 text-center text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t('compareDuration')}</span>
                         </div>
                       </th>
                     ))}
@@ -538,14 +538,14 @@ export function CompareDriversPage() {
           <div className="flex justify-center gap-3 pt-2">
             <button
               onClick={handleExportPdf}
-              className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:brightness-110"
+              className="flex min-h-[44px] items-center gap-2 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:brightness-110"
             >
               <FileDown size={16} />
               {t('compareExportPdf')}
             </button>
             <button
               onClick={handlePrint}
-              className="flex items-center gap-2 rounded-xl border border-white/30 dark:border-white/10 px-5 py-2.5 text-sm font-semibold text-gray-600 transition hover:bg-black/[0.03] dark:text-gray-400 dark:hover:bg-white/5"
+              className="flex min-h-[44px] items-center gap-2 rounded-xl border border-white/30 dark:border-white/10 px-5 py-2.5 text-sm font-semibold text-gray-600 transition hover:bg-black/[0.03] dark:text-gray-400 dark:hover:bg-white/5"
             >
               <Printer size={16} />
               {t('comparePrint')}

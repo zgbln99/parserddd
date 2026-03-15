@@ -32,16 +32,16 @@ export function Modal({ open, onClose, title, children, wide }: ModalProps) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4 pt-[8vh] backdrop-blur-md animate-fade-in"
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4 pt-4 sm:pt-[8vh] backdrop-blur-md animate-fade-in"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className={`relative w-full ${wide ? 'max-w-5xl' : 'max-w-3xl'} mb-12 glass-card rounded-2xl animate-scale-in`}>
+      <div className={`relative w-[calc(100%-2rem)] ${wide ? 'sm:max-w-5xl' : 'sm:max-w-3xl'} mb-12 glass-card rounded-2xl animate-scale-in`}>
         {title && (
           <div className="flex items-center justify-between border-b border-white/20 px-6 py-4 dark:border-white/5">
             <h3 className="text-lg font-bold">{title}</h3>
             <button
               onClick={onClose}
-              className="rounded-xl p-2 text-gray-400 transition-all hover:bg-black/5 hover:text-gray-600 dark:hover:bg-white/5 dark:hover:text-gray-300"
+              className="rounded-xl min-h-[44px] min-w-[44px] flex items-center justify-center text-gray-400 transition-all hover:bg-black/5 hover:text-gray-600 dark:hover:bg-white/5 dark:hover:text-gray-300"
             >
               <X size={18} />
             </button>

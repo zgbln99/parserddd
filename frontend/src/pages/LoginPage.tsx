@@ -56,7 +56,7 @@ export function LoginPage() {
 
       <form
         onSubmit={handleSubmit}
-        className="relative w-full max-w-sm glass-card rounded-3xl p-8 animate-scale-in"
+        className="relative w-[calc(100%-1rem)] sm:w-full max-w-sm glass-card rounded-3xl p-5 sm:p-8 animate-scale-in"
       >
         <div className="mb-8 text-center">
           {/* Icon */}

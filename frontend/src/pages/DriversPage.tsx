@@ -130,8 +130,8 @@ export function DriversPage() {
       <h1 className="mb-6 text-2xl font-bold tracking-tight">{t('driversTitle')}</h1>
 
       {/* Toolbar */}
-      <div className="mb-4 flex flex-wrap items-center gap-3">
-        <div className="relative min-w-[200px] flex-1 sm:max-w-xs">
+      <div className="mb-4 flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3">
+        <div className="relative w-full sm:max-w-xs">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
             type="text"
@@ -141,10 +141,10 @@ export function DriversPage() {
             className="glass-input w-full rounded-xl py-2 pl-9 pr-3 text-sm outline-none"
           />
         </div>
-        <div className="flex-1" />
+        <div className="hidden sm:block flex-1" />
         <button
           onClick={() => { setShowAddDriver(true); setNewDriverName(''); setAddDriverError(''); }}
-          className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:brightness-110"
+          className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 px-4 py-2 min-h-[44px] text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:brightness-110"
         >
           <UserPlus size={14} />
           {t('driversAddDriver')}
@@ -152,7 +152,7 @@ export function DriversPage() {
         <button
           onClick={() => load(true)}
           disabled={loading}
-          className="flex items-center gap-2 rounded-xl border border-white/30 dark:border-white/10 bg-white/50 dark:bg-white/5 px-4 py-2 text-sm font-medium transition hover:bg-black/[0.03] dark:hover:bg-white/5 backdrop-blur-sm"
+          className="flex items-center justify-center gap-2 rounded-xl border border-white/30 dark:border-white/10 bg-white/50 dark:bg-white/5 px-4 py-2 min-h-[44px] text-sm font-medium transition hover:bg-black/[0.03] dark:hover:bg-white/5 backdrop-blur-sm"
         >
           <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
           {t('refresh')}
@@ -187,7 +187,7 @@ export function DriversPage() {
           <p>{error}</p>
           <button
             onClick={() => { setError(''); load(); }}
-            className="mt-2 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:brightness-110"
+            className="mt-2 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 px-4 py-2 min-h-[44px] text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:brightness-110"
           >
             {t('tryAgain')}
           </button>
@@ -252,7 +252,7 @@ export function DriversPage() {
               <button
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page <= 1}
-                className="rounded-lg px-3 py-1 font-medium transition hover:bg-black/5 disabled:opacity-30 dark:hover:bg-white/5"
+                className="rounded-lg px-3 py-1 min-h-[44px] font-medium transition hover:bg-black/5 disabled:opacity-30 dark:hover:bg-white/5"
               >
                 {t('pagePrev')}
               </button>
@@ -260,7 +260,7 @@ export function DriversPage() {
               <button
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={page >= totalPages}
-                className="rounded-lg px-3 py-1 font-medium transition hover:bg-black/5 disabled:opacity-30 dark:hover:bg-white/5"
+                className="rounded-lg px-3 py-1 min-h-[44px] font-medium transition hover:bg-black/5 disabled:opacity-30 dark:hover:bg-white/5"
               >
                 {t('pageNext')}
               </button>
@@ -290,14 +290,14 @@ export function DriversPage() {
           <div className="flex justify-end gap-2">
             <button
               onClick={() => setShowAddDriver(false)}
-              className="rounded-lg border border-white/30 dark:border-white/10 px-4 py-2 text-sm font-medium transition hover:bg-black/[0.03] dark:hover:bg-white/5"
+              className="rounded-lg border border-white/30 dark:border-white/10 px-4 py-2 min-h-[44px] text-sm font-medium transition hover:bg-black/[0.03] dark:hover:bg-white/5"
             >
               {t('cancel')}
             </button>
             <button
               onClick={handleAddDriver}
               disabled={!newDriverName.trim() || addingDriver}
-              className="rounded-lg bg-gradient-to-r from-blue-500 to-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:brightness-110 disabled:opacity-50"
+              className="rounded-lg bg-gradient-to-r from-blue-500 to-blue-600 px-4 py-2 min-h-[44px] text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:brightness-110 disabled:opacity-50"
             >
               {addingDriver ? t('loading') : t('save')}
             </button>
@@ -324,7 +324,7 @@ export function DriversPage() {
                   <span className="text-xs text-gray-400">{formatBytes(f.size)}</span>
                   <button
                     onClick={(e) => { e.stopPropagation(); analyzeFile(f); }}
-                    className="rounded-lg border border-primary-200 px-3 py-1 text-xs font-semibold text-primary-600 transition hover:bg-primary-50 dark:border-primary-800 dark:text-primary-400 dark:hover:bg-primary-900/20"
+                    className="rounded-lg border border-primary-200 px-3 py-1 min-h-[44px] text-xs font-semibold text-primary-600 transition hover:bg-primary-50 dark:border-primary-800 dark:text-primary-400 dark:hover:bg-primary-900/20"
                   >
                     {t('detailAnalyze')}
                   </button>

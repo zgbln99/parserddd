@@ -191,7 +191,7 @@ export function SettlementPage() {
           </div>
           <button
             onClick={loading ? () => { cancelRef.current = true; } : handleGenerate}
-            className={`flex items-center gap-2 rounded-xl px-5 py-2 text-sm font-semibold text-white transition ${
+            className={`flex min-h-[44px] items-center gap-2 rounded-xl px-5 py-2 text-sm font-semibold text-white transition ${
               loading ? 'bg-rose-600 hover:bg-rose-700' : 'bg-primary-600 hover:bg-primary-700'
             }`}
           >
@@ -202,7 +202,7 @@ export function SettlementPage() {
             <button
               onClick={handleExportDatev}
               disabled={exporting}
-              className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-emerald-500/20 transition hover:brightness-110 disabled:opacity-50"
+              className="flex min-h-[44px] items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-emerald-500/20 transition hover:brightness-110 disabled:opacity-50"
             >
               <Download size={14} />
               {exporting ? t('loading') : t('settlementExportDatev')}
@@ -257,7 +257,7 @@ export function SettlementPage() {
       {drivers.length > 0 && period && (
         <>
           {/* Summary cards */}
-          <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+          <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
             <Card className="p-4 text-center">
               <Users size={20} className="mx-auto mb-1 text-primary-500" />
               <p className="text-2xl font-bold">{drivers.length}</p>
