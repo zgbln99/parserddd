@@ -3,7 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Users, FileText, RefreshCw, Sun, Moon, Globe, LogOut,
   Calendar, X, Shield, UserCog, GitCompareArrows, Receipt, Truck,
-  Menu, ChevronLeft,
+  Menu, ChevronLeft, ShieldAlert,
 } from 'lucide-react';
 import { useI18n, type Locale } from '../i18n';
 import { useTheme } from '../hooks/useTheme';
@@ -16,6 +16,7 @@ const baseNavItems = [
   { to: '/', icon: LayoutDashboard, labelKey: 'navDashboard' as const },
   { to: '/drivers', icon: Users, labelKey: 'navDrivers' as const },
   { to: '/reader', icon: FileText, labelKey: 'navReader' as const },
+  { to: '/verstosse', icon: ShieldAlert, labelKey: 'navVerstosse' as const },
 ];
 
 export function Layout({ children }: { children: ReactNode }) {

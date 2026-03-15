@@ -345,6 +345,17 @@ export const pl = {
   complianceWarnings: 'Ostrzeżenia',
   complianceNoViolations: 'Brak naruszeń — wszystkie przepisy spełnione',
   verstosseReport: 'Dokument naruszeń',
+  navVerstosse: 'Naruszenia',
+  verstosseTitle: 'Naruszenia — Verstöße',
+  verstosseSubtitle: 'Analiza naruszeń przepisów EU 561/2006, ArbZG i FPersV',
+  verstosseSelectDrivers: 'Wybierz kierowców do analizy',
+  verstosseGenerate: 'Analizuj naruszenia',
+  verstosseNoData: 'Wybierz kierowców i kliknij Analizuj',
+  verstosseDriversAnalyzed: 'kierowców przeanalizowanych',
+  verstosseTotalViolations: 'naruszeń łącznie',
+  verstosseFahrerFines: 'Kary kierowca',
+  verstosseUnternehmenFines: 'Kary firma',
+  verstosseExportAll: 'Eksport wszystkich PDF',
 
   // Offline
   offlineMode: 'Tryb offline — dane z cache',

@@ -6,14 +6,14 @@ import type { DriverConfig, MonthlyDays } from '../lib/api';
 import { Badge } from '../components/Badge';
 import { Spinner } from '../components/Spinner';
 import { BarChart } from '../components/BarChart';
-import { Download, FileText, ClipboardCopy, Check, Printer, BarChart3, UtensilsCrossed, Table2, Settings, CalendarDays, Sheet, ShieldCheck } from 'lucide-react';
+import { Download, FileText, ClipboardCopy, Check, Printer, BarChart3, UtensilsCrossed, Table2, Settings, CalendarDays, Sheet } from 'lucide-react';
 import type { AnalysisResult, ShiftDetail } from '../types';
 import { DriverConfigEditor } from './DriverConfigEditor';
 import { useAuth } from '../hooks/useAuth';
 import { minutesToHm } from '../lib/utils';
 import { exportToXlsx, generateGoogleSheetsUrl } from '../lib/xlsx-export';
 import { useToast } from '../components/Toast';
-import { generateAnalysisPdf, analyzeCompliance, generateCompliancePdf, generateVerstossePdf } from '../lib/pdf-generator';
+import { generateAnalysisPdf } from '../lib/pdf-generator';
 
 function fmtNight(minutes: number, hm: string) {
   const decimal = (minutes / 60).toFixed(2);
@@ -181,23 +181,6 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
 
   const handlePdfExport = () => {
     generateAnalysisPdf(di.driver_name || 'Fahrer', di.card_number || '', s as any, shifts as any);
-  };
-
-  const handleComplianceReport = () => {
-    const report = analyzeCompliance(di.driver_name || 'Fahrer', di.card_number || '', shifts as any);
-    generateCompliancePdf(report);
-    const msg = locale === 'de'
-      ? `Compliance-Score: ${report.score}% — ${report.violations.length} Feststellungen`
-      : `Compliance score: ${report.score}% — ${report.violations.length} ustaleń`;
-    toast(msg, report.score >= 80 ? 'success' : 'error');
-  };
-
-  const handleVerstoesse = async () => {
-    const result = await generateVerstossePdf(di.driver_name || 'Fahrer', di.card_number || '', shifts as any);
-    const msg = locale === 'de'
-      ? `Verstöße-Dokument: ${result.totalEntries} Verstöße · Bußgeld Fahrer: ${result.totalFahrer.toFixed(2)} € · Unternehmen: ${result.totalUnternehmen.toFixed(2)} €`
-      : `Dokument naruszeń: ${result.totalEntries} naruszeń · Kara kierowca: ${result.totalFahrer.toFixed(2)} € · Firma: ${result.totalUnternehmen.toFixed(2)} €`;
-    toast(msg, result.totalEntries > 0 ? 'error' : 'success');
   };
 
   const handleDatevExport = () => {
@@ -762,20 +745,6 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
         >
           <Printer size={16} />
           {t('analysisPrint')}
-        </button>
-        <button
-          onClick={handleComplianceReport}
-          className="flex min-h-[44px] items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-5 py-2.5 text-sm font-semibold text-red-700 transition hover:bg-red-100 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/30"
-        >
-          <ShieldCheck size={16} />
-          {t('complianceReport')}
-        </button>
-        <button
-          onClick={handleVerstoesse}
-          className="flex min-h-[44px] items-center gap-2 rounded-xl bg-gradient-to-r from-red-600 to-orange-600 px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-red-500/20 transition hover:brightness-110"
-        >
-          <ShieldCheck size={16} />
-          {t('verstosseReport')}
         </button>
       </div>
     </div>

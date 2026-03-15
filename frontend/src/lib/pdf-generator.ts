@@ -1234,7 +1234,7 @@ export async function generateVerstossePdf(
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(10);
   doc.setTextColor(60, 60, 60);
-  doc.text('Szczegóły naruszenia', W - M, 10, { align: 'right' });
+  doc.text('Verstöße-Dokument', W - M, 10, { align: 'right' });
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.5);
@@ -1288,8 +1288,8 @@ export async function generateVerstossePdf(
       `${totalUnternehmen.toFixed(2).replace('.', ',')} €`,
     ]],
     styles: {
-      fontSize: 7.5,
-      cellPadding: 2.5,
+      fontSize: 6.5,
+      cellPadding: 1.8,
       lineWidth: 0.2,
       lineColor: [180, 180, 180],
       textColor: [40, 40, 40],
@@ -1298,13 +1298,13 @@ export async function generateVerstossePdf(
       fillColor: [230, 230, 230],
       textColor: [30, 30, 30],
       fontStyle: 'bold',
-      fontSize: 7.5,
+      fontSize: 6.5,
     },
     footStyles: {
       fillColor: [245, 245, 245],
       textColor: [30, 30, 30],
       fontStyle: 'bold',
-      fontSize: 7.5,
+      fontSize: 6.5,
     },
     alternateRowStyles: { fillColor: [255, 255, 255] },
     columnStyles: {
@@ -1320,79 +1320,6 @@ export async function generateVerstossePdf(
     margin: { left: M, right: M },
     tableLineColor: [180, 180, 180],
     tableLineWidth: 0.2,
-  });
-
-  y = (doc as any).lastAutoTable.finalY + 6;
-
-  // ═══ DETAIL TABLE ═══
-  const detailHead = [[
-    'Datum', 'Zeit', 'Beschreibung', 'Rechtliche Grundlagen',
-    'Bußgeld Fahrer', 'Bußgeld Unternehmen', 'Kategorie',
-  ]];
-
-  // Totals sub-header row
-  const detailBody: string[][] = [];
-
-  // Add totals as first row (like in screenshot)
-  detailBody.push([
-    '', '', '', '',
-    `${totalFahrer.toFixed(2).replace('.', ',')} €`,
-    `${totalUnternehmen.toFixed(2).replace('.', ',')} €`,
-    '',
-  ]);
-
-  for (const e of entries) {
-    detailBody.push([
-      e.datum,
-      e.zeit,
-      e.beschreibung,
-      e.rechtsgrundlage,
-      `${e.bussgeldFahrer.toFixed(2).replace('.', ',')} €`,
-      `${e.bussgeldUnternehmen.toFixed(2).replace('.', ',')} €`,
-      e.kategorie,
-    ]);
-  }
-
-  autoTable(doc, {
-    startY: y,
-    head: detailHead,
-    body: detailBody,
-    styles: {
-      fontSize: 7,
-      cellPadding: 2,
-      lineWidth: 0.15,
-      lineColor: [200, 200, 200],
-      textColor: [40, 40, 40],
-      overflow: 'linebreak',
-    },
-    headStyles: {
-      fillColor: [230, 230, 230],
-      textColor: [30, 30, 30],
-      fontStyle: 'bold',
-      fontSize: 7,
-      cellPadding: 2.5,
-    },
-    alternateRowStyles: { fillColor: [252, 252, 252] },
-    columnStyles: {
-      0: { cellWidth: 22 },
-      1: { cellWidth: 22 },
-      2: { cellWidth: 80 },
-      3: { cellWidth: 45 },
-      4: { halign: 'right', cellWidth: 26 },
-      5: { halign: 'right', cellWidth: 32 },
-      6: { halign: 'center', cellWidth: 18 },
-    },
-    didParseCell: (data: any) => {
-      if (data.section !== 'body') return;
-      // First row is totals — bold
-      if (data.row.index === 0) {
-        data.cell.styles.fontStyle = 'bold';
-        data.cell.styles.fillColor = [245, 245, 245];
-      }
-    },
-    margin: { left: M, right: M },
-    tableLineColor: [200, 200, 200],
-    tableLineWidth: 0.15,
   });
 
   y = (doc as any).lastAutoTable.finalY + 6;

@@ -347,6 +347,17 @@ export const de: Record<TranslationKey, string> = {
   complianceWarnings: 'Warnungen',
   complianceNoViolations: 'Keine Verstöße — alle Vorschriften eingehalten',
   verstosseReport: 'Verstöße-Dokument',
+  navVerstosse: 'Verstöße',
+  verstosseTitle: 'Verstöße-Analyse',
+  verstosseSubtitle: 'Analyse der Verstöße gegen EU 561/2006, ArbZG und FPersV',
+  verstosseSelectDrivers: 'Fahrer zur Analyse auswählen',
+  verstosseGenerate: 'Verstöße analysieren',
+  verstosseNoData: 'Fahrer auswählen und Analysieren klicken',
+  verstosseDriversAnalyzed: 'Fahrer analysiert',
+  verstosseTotalViolations: 'Verstöße gesamt',
+  verstosseFahrerFines: 'Bußgeld Fahrer',
+  verstosseUnternehmenFines: 'Bußgeld Unternehmen',
+  verstosseExportAll: 'Alle PDFs exportieren',
 
   // Offline
   offlineMode: 'Offline-Modus — Daten aus Cache',
