@@ -28,6 +28,33 @@ const LOGO_URL = 'https://lfrfrp.stripocdn.email/content/guids/CABINET_862a1b05e
 
 let cachedLogo: string | null = null;
 
+// ── Unicode font for multi-language PDF (Polish, Greek, etc.) ──
+// DejaVu Sans - reliable Unicode font covering Latin Extended + Greek + Cyrillic
+const UNICODE_FONT_URL = 'https://cdn.jsdelivr.net/npm/dejavu-fonts-ttf@2.37.3/ttf/DejaVuSans.ttf';
+let cachedFontBase64: string | null = null;
+
+async function loadUnicodeFont(): Promise<string | null> {
+  if (cachedFontBase64) return cachedFontBase64;
+  try {
+    const res = await fetch(UNICODE_FONT_URL);
+    if (!res.ok) return null;
+    const buf = await res.arrayBuffer();
+    const bytes = new Uint8Array(buf);
+    let binary = '';
+    for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+    cachedFontBase64 = btoa(binary);
+    return cachedFontBase64;
+  } catch { return null; }
+}
+
+function registerFont(doc: jsPDF, fontBase64: string) {
+  doc.addFileToVFS('UnicodeFont.ttf', fontBase64);
+  doc.addFont('UnicodeFont.ttf', 'UnicodeFont', 'normal');
+  // Use same file for bold (will render as regular, but avoids missing font errors)
+  doc.addFileToVFS('UnicodeFont-Bold.ttf', fontBase64);
+  doc.addFont('UnicodeFont-Bold.ttf', 'UnicodeFont', 'bold');
+}
+
 async function loadLogo(): Promise<string | null> {
   if (cachedLogo) return cachedLogo;
   try {
@@ -1355,6 +1382,14 @@ export async function generateVerstossePdf(
   const L = verstosseI18n[lang];
 
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+
+  // Load Unicode font for Polish/Greek support
+  const fontBase64 = await loadUnicodeFont();
+  const fontFamily = fontBase64 ? 'UnicodeFont' : 'helvetica';
+  if (fontBase64) {
+    registerFont(doc, fontBase64);
+    doc.setFont('UnicodeFont', 'normal');
+  }
   const W = doc.internal.pageSize.getWidth();
   const H = doc.internal.pageSize.getHeight();
   const M = 12;
@@ -1366,29 +1401,29 @@ export async function generateVerstossePdf(
   for (const e of entries) { totalFahrer += e.bussgeldFahrer; totalUnternehmen += e.bussgeldUnternehmen; }
 
   // ═══ PAGE HEADER ═══
-  doc.setFont('helvetica', 'bold');
+  doc.setFont(fontFamily, 'bold');
   doc.setFontSize(10);
   doc.setTextColor(60, 60, 60);
   doc.text(L.docTitle, W - M, 10, { align: 'right' });
 
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8.5);
+  doc.setFont(fontFamily, 'normal');
+  doc.setFontSize(8);
   doc.setTextColor(40, 40, 40);
-  doc.text(`${L.driver}: ${driverName}`, W - M, 16, { align: 'right' });
-  doc.text(`${L.cardNr}: ${cardNumber}`, W - M, 21, { align: 'right' });
+  doc.text(`${L.driver}: ${driverName}`, W - M, 15, { align: 'right' });
+  doc.text(`${L.cardNr}: ${cardNumber}`, W - M, 19.5, { align: 'right' });
 
   // Left-aligned header
-  doc.setFont('helvetica', 'bold');
+  doc.setFont(fontFamily, 'bold');
   doc.setFontSize(10);
   doc.setTextColor(40, 40, 40);
   doc.text(L.violationDetails, M, 10);
 
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8.5);
-  doc.text(`${L.selectedPeriod} ${period}`, M, 16);
-  doc.text(`${L.createdAt} ${erstelltAm}`, M, 21);
+  doc.setFont(fontFamily, 'normal');
+  doc.setFontSize(8);
+  doc.text(`${L.selectedPeriod} ${period}`, M, 15);
+  doc.text(`${L.createdAt} ${erstelltAm}`, M, 19.5);
 
-  let y = 26;
+  let y = 24;
 
   // ═══ SUMMARY TABLE ═══
   const summHead = [[
@@ -1400,8 +1435,8 @@ export async function generateVerstossePdf(
   const summBody = types.map((t) => [
     t.beschreibung,
     String(t.msi), String(t.vsi), String(t.si), String(t.mi), String(t.anzahl),
-    `${t.bussgeldFahrer.toFixed(2).replace('.', ',')} €`,
-    `${t.bussgeldUnternehmen.toFixed(2).replace('.', ',')} €`,
+    `${t.bussgeldFahrer.toFixed(2).replace('.', ',')} \u20AC`,
+    `${t.bussgeldUnternehmen.toFixed(2).replace('.', ',')} \u20AC`,
   ]);
 
   const totalAnzahl = entries.length;
@@ -1417,12 +1452,13 @@ export async function generateVerstossePdf(
     foot: [[
       { content: L.total, styles: { halign: 'right' as const, fontStyle: 'bold' as const } },
       String(totalMsi), String(totalVsi), String(totalSi), String(totalMi), String(totalAnzahl),
-      `${totalFahrer.toFixed(2).replace('.', ',')} €`,
-      `${totalUnternehmen.toFixed(2).replace('.', ',')} €`,
+      `${totalFahrer.toFixed(2).replace('.', ',')} \u20AC`,
+      `${totalUnternehmen.toFixed(2).replace('.', ',')} \u20AC`,
     ]],
     styles: {
-      fontSize: 6.5,
-      cellPadding: 1.8,
+      font: fontFamily,
+      fontSize: 6,
+      cellPadding: { top: 0.8, bottom: 0.8, left: 1.5, right: 1.5 },
       lineWidth: 0.2,
       lineColor: [180, 180, 180],
       textColor: [40, 40, 40],
@@ -1431,13 +1467,13 @@ export async function generateVerstossePdf(
       fillColor: [230, 230, 230],
       textColor: [30, 30, 30],
       fontStyle: 'bold',
-      fontSize: 6.5,
+      fontSize: 6,
     },
     footStyles: {
       fillColor: [245, 245, 245],
       textColor: [30, 30, 30],
       fontStyle: 'bold',
-      fontSize: 6.5,
+      fontSize: 6,
     },
     alternateRowStyles: { fillColor: [255, 255, 255] },
     columnStyles: {
@@ -1455,7 +1491,7 @@ export async function generateVerstossePdf(
     tableLineWidth: 0.2,
   });
 
-  y = (doc as any).lastAutoTable.finalY + 5;
+  y = (doc as any).lastAutoTable.finalY + 4;
 
   // ═══ DETAIL TABLE ═══
   const detailHead = [[
@@ -1468,8 +1504,8 @@ export async function generateVerstossePdf(
   // Totals as first row
   detailBody.push([
     '', '', '', '',
-    `${totalFahrer.toFixed(2).replace('.', ',')} €`,
-    `${totalUnternehmen.toFixed(2).replace('.', ',')} €`,
+    `${totalFahrer.toFixed(2).replace('.', ',')} \u20AC`,
+    `${totalUnternehmen.toFixed(2).replace('.', ',')} \u20AC`,
     '',
   ]);
 
@@ -1479,8 +1515,8 @@ export async function generateVerstossePdf(
       e.zeit,
       e.beschreibung,
       e.rechtsgrundlage,
-      `${e.bussgeldFahrer.toFixed(2).replace('.', ',')} €`,
-      `${e.bussgeldUnternehmen.toFixed(2).replace('.', ',')} €`,
+      `${e.bussgeldFahrer.toFixed(2).replace('.', ',')} \u20AC`,
+      `${e.bussgeldUnternehmen.toFixed(2).replace('.', ',')} \u20AC`,
       e.kategorie,
     ]);
   }
@@ -1490,8 +1526,9 @@ export async function generateVerstossePdf(
     head: detailHead,
     body: detailBody,
     styles: {
-      fontSize: 6,
-      cellPadding: { top: 1, bottom: 1, left: 1.5, right: 1.5 },
+      font: fontFamily,
+      fontSize: 5.5,
+      cellPadding: { top: 0.6, bottom: 0.6, left: 1.2, right: 1.2 },
       lineWidth: 0.15,
       lineColor: [200, 200, 200],
       textColor: [40, 40, 40],
@@ -1501,8 +1538,8 @@ export async function generateVerstossePdf(
       fillColor: [230, 230, 230],
       textColor: [30, 30, 30],
       fontStyle: 'bold',
-      fontSize: 6,
-      cellPadding: { top: 1.5, bottom: 1.5, left: 1.5, right: 1.5 },
+      fontSize: 5.5,
+      cellPadding: { top: 1, bottom: 1, left: 1.2, right: 1.2 },
     },
     alternateRowStyles: { fillColor: [252, 252, 252] },
     columnStyles: {
@@ -1526,42 +1563,42 @@ export async function generateVerstossePdf(
     tableLineWidth: 0.15,
   });
 
-  y = (doc as any).lastAutoTable.finalY + 4;
+  y = (doc as any).lastAutoTable.finalY + 3;
 
   // ═══ LEGAL DISCLAIMER TEXT ═══
   const disclaimerTexts = [L.disclaimer1, L.disclaimer2, L.disclaimer3];
 
   // Check if we need a new page for the disclaimer + signature
-  const neededSpace = 50;
-  if (y + neededSpace > H - 15) {
+  const neededSpace = 45;
+  if (y + neededSpace > H - 12) {
     doc.addPage('a4', 'landscape');
-    y = 15;
+    y = 12;
   }
 
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(6);
+  doc.setFont(fontFamily, 'normal');
+  doc.setFontSize(5.5);
   doc.setTextColor(50, 50, 50);
 
   for (const txt of disclaimerTexts) {
     const lines = doc.splitTextToSize(txt, W - 2 * M);
     doc.text(lines, M, y);
-    y += lines.length * 2.8 + 1.5;
+    y += lines.length * 2.5 + 1;
   }
 
-  y += 3;
+  y += 2;
 
   // ═══ BEMERKUNG + SIGNATURE (3 columns) ═══
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
+  doc.setFont(fontFamily, 'bold');
+  doc.setFontSize(7);
   doc.setTextColor(30, 30, 30);
   doc.text(L.remark, M, y);
-  y += 6;
+  y += 5;
 
   // Remark line (full width)
   doc.setDrawColor(40, 40, 40);
   doc.setLineWidth(0.2);
   doc.line(M, y, W - M, y);
-  y += 10;
+  y += 8;
 
   // 3 signature columns
   const colW = (W - 2 * M) / 3;
@@ -1574,9 +1611,9 @@ export async function generateVerstossePdf(
   doc.line(col1, y, col1 + lineLen, y);
   doc.line(col2 + 7, y, col2 + 7 + lineLen, y);
   doc.line(col3 + 14, y, col3 + 14 + lineLen, y);
-  y += 4;
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7);
+  y += 3;
+  doc.setFont(fontFamily, 'normal');
+  doc.setFontSize(6);
   doc.setTextColor(100, 100, 100);
   doc.text(L.placeDate, col1, y);
   doc.text(L.signDriver, col2 + 7, y);
@@ -1586,11 +1623,11 @@ export async function generateVerstossePdf(
   const pages = doc.getNumberOfPages();
   for (let i = 1; i <= pages; i++) {
     doc.setPage(i);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7);
+    doc.setFont(fontFamily, 'normal');
+    doc.setFontSize(6);
     doc.setTextColor(100, 100, 100);
-    doc.text('LTS Logistik GmbH — Tachoprüfung', M, H - 6);
-    doc.text(`${L.pageOf} ${i} / ${pages}`, W - M, H - 6, { align: 'right' });
+    doc.text('LTS Logistik GmbH \u2014 Tachopru\u0308fung', M, H - 5);
+    doc.text(`${L.pageOf} ${i} / ${pages}`, W - M, H - 5, { align: 'right' });
   }
 
   doc.save(`Verstoesse_${safeName(driverName)}_${new Date().toISOString().slice(0, 10)}.pdf`);
