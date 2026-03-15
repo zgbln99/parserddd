@@ -126,7 +126,7 @@ export function DriversPage() {
   ];
 
   return (
-    <div>
+    <div className="animate-slide-up">
       <h1 className="mb-6 text-2xl font-bold tracking-tight">{t('driversTitle')}</h1>
 
       {/* Toolbar */}

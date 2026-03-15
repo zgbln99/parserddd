@@ -96,7 +96,7 @@ export function ReaderPage() {
   };
 
   return (
-    <div>
+    <div className="animate-slide-up">
       <h1 className="mb-6 text-2xl font-bold tracking-tight">{t('readerTitle')}</h1>
 
       {/* Upload zone */}

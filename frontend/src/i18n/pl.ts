@@ -33,6 +33,7 @@ export const pl = {
   navDrivers: 'Kierowcy',
   navReader: 'Czytnik kart',
   navSync: 'Monitor sync',
+  navMore: 'Więcej',
   navSettings: 'Ustawienia',
 
   // Dashboard

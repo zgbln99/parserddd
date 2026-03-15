@@ -152,7 +152,7 @@ export function VehiclesPage() {
   const totalMinutes = activity ? activity.days.reduce((s, d) => s + d.duration_minutes, 0) : 0;
 
   return (
-    <div>
+    <div className="animate-slide-up">
       <h1 className="mb-1 text-2xl font-bold tracking-tight">{t('vehiclesTitle')}</h1>
       <p className="mb-6 text-sm text-gray-500 dark:text-gray-400">{t('vehiclesSubtitle')}</p>
 

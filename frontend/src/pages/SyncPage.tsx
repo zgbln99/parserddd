@@ -57,7 +57,7 @@ export function SyncPage() {
   };
 
   return (
-    <div>
+    <div className="animate-slide-up">
       <h1 className="mb-6 text-2xl font-bold tracking-tight">{t('syncTitle')}</h1>
 
       {history.length === 0 ? (

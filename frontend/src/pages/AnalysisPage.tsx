@@ -41,7 +41,7 @@ export function AnalysisPage() {
   };
 
   return (
-    <div>
+    <div className="animate-slide-up">
       {/* Header with back button */}
       <div className="mb-6 flex items-center gap-4">
         <button

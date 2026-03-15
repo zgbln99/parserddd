@@ -35,6 +35,7 @@ export const de: Record<TranslationKey, string> = {
   navDrivers: 'Fahrer',
   navReader: 'Kartenleser',
   navSync: 'Sync-Monitor',
+  navMore: 'Mehr',
   navSettings: 'Einstellungen',
 
   // Dashboard

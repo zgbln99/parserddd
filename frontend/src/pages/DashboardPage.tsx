@@ -129,7 +129,7 @@ export function DashboardPage() {
       <h1 className="mb-6 text-2xl font-bold tracking-tight">{t('dashTitle')}</h1>
 
       {/* Stats */}
-      <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mb-6 grid gap-4 animate-slide-up sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           label={t('dashDrivers')}
           value={data.driver_count}
