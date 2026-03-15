@@ -32,6 +32,12 @@ export interface DriverInfo {
   birth_date: string;
 }
 
+export interface TimeSegment {
+  start: string;
+  end: string;
+  duration_minutes: number;
+}
+
 export interface ShiftDetail {
   shift_start: string;
   shift_end: string;
@@ -58,6 +64,8 @@ export interface ShiftDetail {
   vehicles: string[];
   manual_minutes: number;
   manual_hm: string;
+  driving_segments?: TimeSegment[];
+  break_segments?: TimeSegment[];
 }
 
 export interface AnalysisSummary {
@@ -85,11 +93,27 @@ export interface AnalysisSummary {
   total_manual_minutes: number;
 }
 
+export interface CardPlace {
+  date: string;
+  country: string;
+  region: string;
+  type: string;
+}
+
+export interface CardEvent {
+  event_type?: string;
+  begin_time?: string;
+  end_time?: string;
+  [key: string]: unknown;
+}
+
 export interface AnalysisResult {
   driver_info: DriverInfo;
   vehicles: { plate: string; first_use: string; last_use: string }[];
   summary: AnalysisSummary;
   shift_details: ShiftDetail[];
+  card_places?: CardPlace[];
+  card_events?: CardEvent[];
   source_file?: string;
   error?: string;
 }

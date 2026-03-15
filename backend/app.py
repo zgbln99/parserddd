@@ -539,6 +539,42 @@ def get_activity_records(data):
     return records
 
 
+def get_card_places(data):
+    """Extract card_places (country entries at start/end of daily work) from DDD data."""
+    places = []
+    for key in ['card_places_1', 'card_places_2',
+                'card_places_daily_work_periods_1', 'card_places_daily_work_periods_2']:
+        block = data.get(key)
+        if not block:
+            continue
+        records = block if isinstance(block, list) else block.get('place_records', block.get('records', []))
+        if isinstance(records, list):
+            for rec in records:
+                place = {
+                    'date': rec.get('entry_time', rec.get('date', '')),
+                    'country': rec.get('country', rec.get('entry_country', '')),
+                    'region': rec.get('region', rec.get('entry_region', '')),
+                    'type': rec.get('type', ''),  # 'start' or 'end'
+                }
+                if place['date'] and place['country']:
+                    places.append(place)
+    return places
+
+
+def get_card_events(data):
+    """Extract card events and faults from DDD data."""
+    events = []
+    for key in ['card_events_and_faults_1', 'card_events_and_faults_2']:
+        block = data.get(key)
+        if not block:
+            continue
+        for event_list_key in ['card_event_records', 'event_records', 'events']:
+            event_list = block.get(event_list_key, [])
+            if isinstance(event_list, list):
+                events.extend(event_list)
+    return events
+
+
 def get_vehicle_records(data):
     vehicles = []
     seen = set()
@@ -697,6 +733,8 @@ def analyze_card(data):
     driver_info = get_driver_info(data)
     records = get_activity_records(data)
     vehicles = get_vehicle_records(data)
+    places = get_card_places(data)
+    card_events = get_card_events(data)
     timeline = build_timeline(records)
     shifts = detect_shifts(timeline)
 
@@ -751,6 +789,23 @@ def analyze_card(data):
                 day_plates.append(v['plate'])
         unique_plates = list(dict.fromkeys(day_plates))
 
+        # Build driving and break segments for Art. 7 continuous driving checks
+        driving_segments = []
+        break_segments = []
+        for s_start, s_end, wt, _m in shift_intervals:
+            seg_min = int(round((s_end - s_start).total_seconds() / 60))
+            if seg_min <= 0:
+                continue
+            seg = {
+                'start': s_start.strftime('%Y-%m-%d %H:%M'),
+                'end': s_end.strftime('%Y-%m-%d %H:%M'),
+                'duration_minutes': seg_min,
+            }
+            if wt == 3:  # driving
+                driving_segments.append(seg)
+            elif wt == 0:  # break/rest
+                break_segments.append(seg)
+
         weekday_names = ['Pn', 'Wt', 'Śr', 'Cz', 'Pt', 'So', 'Nd']
         shift_details.append({
             'shift_start': shift_start.strftime('%Y-%m-%d %H:%M'),
@@ -778,6 +833,8 @@ def analyze_card(data):
             'vehicles': unique_plates,
             'manual_minutes': manual_minutes,
             'manual_hm': minutes_to_hm(manual_minutes),
+            'driving_segments': driving_segments,
+            'break_segments': break_segments,
         })
 
     total_night = total_n25 + total_n40
@@ -809,6 +866,8 @@ def analyze_card(data):
             'total_manual_minutes': total_manual,
         },
         'shift_details': shift_details,
+        'card_places': places,
+        'card_events': card_events,
     }
 
 
