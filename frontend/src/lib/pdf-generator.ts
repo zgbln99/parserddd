@@ -814,6 +814,13 @@ export async function generateCompliancePdf(report: ComplianceReport) {
 /** Violation severity categories per EU regulation */
 type VerstossKategorie = 'MSI' | 'VSI' | 'SI' | 'MI' | '-';
 
+/** Format Euro amount with consistent alignment: "1.234,50 €" */
+function fmtEur(val: number): string {
+  const parts = val.toFixed(2).split('.');
+  const intPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  return `${intPart},${parts[1]} \u20AC`;
+}
+
 interface VerstossEntry {
   datum: string;        // DD.MM.YYYY
   zeit: string;         // HH:MM or HH:MM - HH:MM
@@ -857,8 +864,10 @@ export function analyzeVerstoesse(
   driverName: string,
   cardNumber: string,
   shifts: Shift[],
+  lang: VerstosseLang = 'de',
 ): { entries: VerstossEntry[]; types: VerstossType[]; period: string } {
   const entries: VerstossEntry[] = [];
+  const V = violationTexts[lang];
 
   const fmtDatum = (iso: string) => {
     const [y, m, d] = iso.split('-');
@@ -908,7 +917,7 @@ export function analyzeVerstoesse(
     if ((s.manual_minutes || 0) > 0) {
       entries.push({
         datum, zeit: startTime,
-        beschreibung: `Landeingabe zu Schichtbeginn fehlt oder zu spät erfolgt`,
+        beschreibung: V.manualEntry(),
         rechtsgrundlage: 'EU VO 165/2014 Art. 34, FPersVO § 23 Abs 2',
         bussgeldFahrer: 37.50, bussgeldUnternehmen: 0, kategorie: 'MI',
       });
@@ -919,7 +928,7 @@ export function analyzeVerstoesse(
       const diffMin = s.duration_minutes - s.driving_minutes - s.break_minutes - (s.avail_minutes || 0);
       entries.push({
         datum, zeit: startTime,
-        beschreibung: `Überprüfung des Fahrzeugs vor Abfahrt nicht als Arbeitszeit dokumentiert.${diffMin > 0 ? ` Unterschreitung von ${hm(Math.abs(diffMin))}` : ''}`,
+        beschreibung: V.vehicleCheck(diffMin > 0 ? hm(Math.abs(diffMin)) : ''),
         rechtsgrundlage: 'EU VO 165/2014 Art. 34',
         bussgeldFahrer: 50, bussgeldUnternehmen: 0, kategorie: 'VSI',
       });
@@ -932,7 +941,7 @@ export function analyzeVerstoesse(
       const k = lenkzeitKat(ueber);
       entries.push({
         datum, zeit: startTime,
-        beschreibung: `Tägliche Lenkzeit von ${s.driving_minutes > 600 ? '10' : '9'} Stunden überschritten. Überschreitung von ${hm(ueber)}`,
+        beschreibung: V.dailyDriving(s.driving_minutes > 600 ? '10' : '9', hm(ueber)),
         rechtsgrundlage: 'VO (EG) Nr. 561/2006 Art. 6 Abs. 1',
         bussgeldFahrer: k.fahrer, bussgeldUnternehmen: k.unt, kategorie: k.kat,
       });
@@ -944,7 +953,7 @@ export function analyzeVerstoesse(
       const k = pauseKat(shortfall);
       entries.push({
         datum, zeit: zeitRange,
-        beschreibung: `Fahrtunterbrechung von mind. 45 Min. nach 4,5h Lenkzeit nicht eingehalten. Pause nur ${s.break_minutes} Min. Unterschreitung um ${shortfall} Min.`,
+        beschreibung: V.breakAfterDriving(s.break_minutes, shortfall),
         rechtsgrundlage: 'VO (EG) Nr. 561/2006 Art. 7',
         bussgeldFahrer: k.fahrer, bussgeldUnternehmen: k.unt, kategorie: k.kat,
       });
@@ -956,7 +965,7 @@ export function analyzeVerstoesse(
       const shortfall = 30 - s.break_minutes;
       entries.push({
         datum, zeit: zeitRange,
-        beschreibung: `Arbeitszeit von 6 Std. ohne Ruhepause von mind. 30 Min. Pause nur ${s.break_minutes} Min., Unterschreitung um ${shortfall} Min.`,
+        beschreibung: V.breakAfter6h(s.break_minutes, shortfall),
         rechtsgrundlage: 'ArbZG § 4',
         bussgeldFahrer: 0, bussgeldUnternehmen: 60, kategorie: '-',
       });
@@ -964,7 +973,7 @@ export function analyzeVerstoesse(
     if (s.duration_minutes > 540 && s.break_minutes < 45) {
       entries.push({
         datum, zeit: zeitRange,
-        beschreibung: `Arbeitszeit über 9 Std. ohne Ruhepause von mind. 45 Min. Pause nur ${s.break_minutes} Min.`,
+        beschreibung: V.breakAfter9h(s.break_minutes),
         rechtsgrundlage: 'ArbZG § 4',
         bussgeldFahrer: 0, bussgeldUnternehmen: 120, kategorie: '-',
       });
@@ -976,7 +985,7 @@ export function analyzeVerstoesse(
       const busUnt = ueber > 120 ? 250 : ueber > 60 ? 150 : 75;
       entries.push({
         datum, zeit: zeitRange,
-        beschreibung: `Tägliche Arbeitszeit von 10 Stunden überschritten. Überschreitung von ${hm(ueber)}`,
+        beschreibung: V.dailyWorkExceeded(hm(ueber)),
         rechtsgrundlage: 'ArbZG § 3',
         bussgeldFahrer: 0, bussgeldUnternehmen: busUnt, kategorie: '-',
       });
@@ -986,7 +995,7 @@ export function analyzeVerstoesse(
     if ((s.night_25_minutes + s.night_40_minutes) > 0 && s.duration_minutes > 600) {
       entries.push({
         datum, zeit: zeitRange,
-        beschreibung: `Tägliche Arbeitszeit bei Nachtarbeit von 10 Stunden überschritten. Arbeitszeit ${hm(s.duration_minutes)}`,
+        beschreibung: V.nightWork(hm(s.duration_minutes)),
         rechtsgrundlage: 'Richtlinie 2002/15/EG Art. 7',
         bussgeldFahrer: 0, bussgeldUnternehmen: 150, kategorie: 'SI',
       });
@@ -1014,7 +1023,7 @@ export function analyzeVerstoesse(
       const k = ruhezeitKat(shortfall);
       entries.push({
         datum: fmtDatum(shifts[i].shift_date), zeit: fmtTime(cs),
-        beschreibung: `Tägliche Ruhezeit unterschritten. Ruhezeit nur ${hm(restMin)} (Minimum 11h, reduziert 9h). Unterschreitung um ${hm(shortfall)}`,
+        beschreibung: V.dailyRestBelow9h(hm(restMin), hm(shortfall)),
         rechtsgrundlage: 'VO (EG) Nr. 561/2006 Art. 8 Abs. 2',
         bussgeldFahrer: k.fahrer, bussgeldUnternehmen: k.unt, kategorie: k.kat,
       });
@@ -1026,14 +1035,14 @@ export function analyzeVerstoesse(
         const k = ruhezeitKat(shortfall);
         entries.push({
           datum: fmtDatum(shifts[i].shift_date), zeit: fmtTime(cs),
-          beschreibung: `Verkürzte tägliche Ruhezeit (${hm(restMin)}) — mehr als 3x pro Woche verkürzt. Unterschreitung um ${hm(shortfall)}`,
+          beschreibung: V.reducedRestOver3x(hm(restMin), hm(shortfall)),
           rechtsgrundlage: 'VO (EG) Nr. 561/2006 Art. 8 Abs. 2',
           bussgeldFahrer: 250, bussgeldUnternehmen: 750, kategorie: 'SI',
         });
       } else {
         entries.push({
           datum: fmtDatum(shifts[i].shift_date), zeit: fmtTime(cs),
-          beschreibung: `Verkürzte tägliche Ruhezeit (${hm(restMin)} statt 11h). Reduzierung Nr. ${reducedDailyRestCount}/3 erlaubt`,
+          beschreibung: V.reducedRestAllowed(hm(restMin), reducedDailyRestCount),
           rechtsgrundlage: 'VO (EG) Nr. 561/2006 Art. 8 Abs. 2',
           bussgeldFahrer: 0, bussgeldUnternehmen: 0, kategorie: 'MI',
         });
@@ -1065,8 +1074,8 @@ export function analyzeVerstoesse(
       const kat: VerstossKategorie = ueber > 8 * 60 ? 'VSI' : ueber > 4 * 60 ? 'SI' : 'MI';
       const fahrer = ueber > 8 * 60 ? 500 : ueber > 4 * 60 ? 250 : 100;
       entries.push({
-        datum: fmtDatum(weekStart), zeit: `KW (${data.dates.length} Tage)`,
-        beschreibung: `Wöchentliche Lenkzeit von 56 Stunden überschritten. Lenkzeit ${hm(data.total)}, Überschreitung ${hm(ueber)}`,
+        datum: fmtDatum(weekStart), zeit: V.calendarWeek(data.dates.length),
+        beschreibung: V.weeklyDriving(hm(data.total), hm(ueber)),
         rechtsgrundlage: 'VO (EG) Nr. 561/2006 Art. 6 Abs. 2',
         bussgeldFahrer: fahrer, bussgeldUnternehmen: fahrer * 3, kategorie: kat,
       });
@@ -1082,8 +1091,8 @@ export function analyzeVerstoesse(
     });
     if (extended.length > 2) {
       entries.push({
-        datum: fmtDatum(weekStart), zeit: `KW`,
-        beschreibung: `Verlängerung der täglichen Lenkzeit auf 10h mehr als 2x in der Woche (${extended.length}x statt max. 2x)`,
+        datum: fmtDatum(weekStart), zeit: V.calendarWeekShort(),
+        beschreibung: V.extendedDrivingOver2x(extended.length),
         rechtsgrundlage: 'VO (EG) Nr. 561/2006 Art. 6 Abs. 1',
         bussgeldFahrer: 100, bussgeldUnternehmen: 300, kategorie: 'SI',
       });
@@ -1104,8 +1113,8 @@ export function analyzeVerstoesse(
       const kat: VerstossKategorie = ueber > 10 * 60 ? 'VSI' : ueber > 4 * 60 ? 'SI' : 'MI';
       const fahrer = ueber > 10 * 60 ? 500 : ueber > 4 * 60 ? 250 : 100;
       entries.push({
-        datum: fmtDatum(weekKeys[i]), zeit: 'Doppelwoche',
-        beschreibung: `Lenkzeit in der Doppelwoche von 90 Stunden überschritten. Lenkzeit ${hm(biWeekTotal)}, Überschreitung ${hm(ueber)}`,
+        datum: fmtDatum(weekKeys[i]), zeit: V.biWeek(),
+        beschreibung: V.biWeeklyDriving(hm(biWeekTotal), hm(ueber)),
         rechtsgrundlage: 'VO (EG) Nr. 561/2006 Art. 6 Abs. 3',
         bussgeldFahrer: fahrer, bussgeldUnternehmen: fahrer * 3, kategorie: kat,
       });
@@ -1142,7 +1151,7 @@ export function analyzeVerstoesse(
           const kat: VerstossKategorie = shortfall >= 4 * 60 ? 'VSI' : shortfall >= 2 * 60 ? 'SI' : 'MI';
           entries.push({
             datum: fmtDatum(restDate), zeit: `${hm(gap.restMin)}`,
-            beschreibung: `Verkürzte wöchentliche Ruhezeit. Nur ${hm(gap.restMin)} statt 45h. Ausgleich innerhalb von 3 Wochen erforderlich`,
+            beschreibung: V.reducedWeeklyRest(hm(gap.restMin)),
             rechtsgrundlage: 'VO (EG) Nr. 561/2006 Art. 8 Abs. 6',
             bussgeldFahrer: kat === 'VSI' ? 500 : kat === 'SI' ? 250 : 100,
             bussgeldUnternehmen: 0,
@@ -1157,7 +1166,7 @@ export function analyzeVerstoesse(
         if (daysSince > 6) {
           entries.push({
             datum: fmtDatum(gapDate), zeit: '',
-            beschreibung: `Keine wöchentliche Ruhezeit innerhalb von 6 x 24h. Letzte wöchentliche Ruhezeit vor ${Math.round(daysSince)} Tagen`,
+            beschreibung: V.noWeeklyRest(Math.round(daysSince)),
             rechtsgrundlage: 'VO (EG) Nr. 561/2006 Art. 8 Abs. 6',
             bussgeldFahrer: 500, bussgeldUnternehmen: 1500, kategorie: 'VSI',
           });
@@ -1184,8 +1193,8 @@ export function analyzeVerstoesse(
     if (weekWorkMin > 60 * 60) {
       const ueber = weekWorkMin - 60 * 60;
       entries.push({
-        datum: fmtDatum(weekStart), zeit: `KW (${weekShifts.length} Tage)`,
-        beschreibung: `Wöchentliche Arbeitszeit von 60 Stunden überschritten. Arbeitszeit ${hm(weekWorkMin)}, Überschreitung ${hm(ueber)}`,
+        datum: fmtDatum(weekStart), zeit: V.calendarWeek(weekShifts.length),
+        beschreibung: V.weeklyWorkExceeded(hm(weekWorkMin), hm(ueber)),
         rechtsgrundlage: 'Richtlinie 2002/15/EG Art. 4, ArbZG § 3',
         bussgeldFahrer: 0, bussgeldUnternehmen: ueber > 120 ? 500 : 250, kategorie: ueber > 120 ? 'VSI' : 'SI',
       });
@@ -1247,6 +1256,120 @@ export function analyzeVerstoesse(
  * - Signature area (Bemerkung)
  */
 export type VerstosseLang = 'de' | 'pl' | 'en' | 'el';
+
+// ── Violation description translations ──
+// Each violation gets a function that takes dynamic params and returns a translated string.
+const violationTexts: Record<VerstosseLang, {
+  manualEntry: () => string;
+  vehicleCheck: (shortfall: string) => string;
+  dailyDriving: (limit: string, excess: string) => string;
+  breakAfterDriving: (breakMin: number, shortfall: number) => string;
+  breakAfter6h: (breakMin: number, shortfall: number) => string;
+  breakAfter9h: (breakMin: number) => string;
+  dailyWorkExceeded: (excess: string) => string;
+  nightWork: (workTime: string) => string;
+  dailyRestBelow9h: (restTime: string, shortfall: string) => string;
+  reducedRestOver3x: (restTime: string, shortfall: string) => string;
+  reducedRestAllowed: (restTime: string, count: number) => string;
+  weeklyDriving: (total: string, excess: string) => string;
+  extendedDrivingOver2x: (count: number) => string;
+  biWeeklyDriving: (total: string, excess: string) => string;
+  reducedWeeklyRest: (restTime: string) => string;
+  noWeeklyRest: (days: number) => string;
+  weeklyWorkExceeded: (total: string, excess: string) => string;
+  calendarWeek: (days: number) => string;
+  calendarWeekShort: () => string;
+  biWeek: () => string;
+}> = {
+  de: {
+    manualEntry: () => 'Landeingabe zu Schichtbeginn fehlt oder zu sp\u00e4t erfolgt',
+    vehicleCheck: (s) => `\u00dcberpr\u00fcfung des Fahrzeugs vor Abfahrt nicht als Arbeitszeit dokumentiert.${s ? ` Unterschreitung von ${s}` : ''}`,
+    dailyDriving: (limit, excess) => `T\u00e4gliche Lenkzeit von ${limit} Stunden \u00fcberschritten. \u00dcberschreitung von ${excess}`,
+    breakAfterDriving: (bm, sf) => `Fahrtunterbrechung von mind. 45 Min. nach 4,5h Lenkzeit nicht eingehalten. Pause nur ${bm} Min. Unterschreitung um ${sf} Min.`,
+    breakAfter6h: (bm, sf) => `Arbeitszeit von 6 Std. ohne Ruhepause von mind. 30 Min. Pause nur ${bm} Min., Unterschreitung um ${sf} Min.`,
+    breakAfter9h: (bm) => `Arbeitszeit \u00fcber 9 Std. ohne Ruhepause von mind. 45 Min. Pause nur ${bm} Min.`,
+    dailyWorkExceeded: (excess) => `T\u00e4gliche Arbeitszeit von 10 Stunden \u00fcberschritten. \u00dcberschreitung von ${excess}`,
+    nightWork: (wt) => `T\u00e4gliche Arbeitszeit bei Nachtarbeit von 10 Stunden \u00fcberschritten. Arbeitszeit ${wt}`,
+    dailyRestBelow9h: (rt, sf) => `T\u00e4gliche Ruhezeit unterschritten. Ruhezeit nur ${rt} (Minimum 11h, reduziert 9h). Unterschreitung um ${sf}`,
+    reducedRestOver3x: (rt, sf) => `Verk\u00fcrzte t\u00e4gliche Ruhezeit (${rt}) \u2014 mehr als 3x pro Woche verk\u00fcrzt. Unterschreitung um ${sf}`,
+    reducedRestAllowed: (rt, n) => `Verk\u00fcrzte t\u00e4gliche Ruhezeit (${rt} statt 11h). Reduzierung Nr. ${n}/3 erlaubt`,
+    weeklyDriving: (t, e) => `W\u00f6chentliche Lenkzeit von 56 Stunden \u00fcberschritten. Lenkzeit ${t}, \u00dcberschreitung ${e}`,
+    extendedDrivingOver2x: (n) => `Verl\u00e4ngerung der t\u00e4glichen Lenkzeit auf 10h mehr als 2x in der Woche (${n}x statt max. 2x)`,
+    biWeeklyDriving: (t, e) => `Lenkzeit in der Doppelwoche von 90 Stunden \u00fcberschritten. Lenkzeit ${t}, \u00dcberschreitung ${e}`,
+    reducedWeeklyRest: (rt) => `Verk\u00fcrzte w\u00f6chentliche Ruhezeit. Nur ${rt} statt 45h. Ausgleich innerhalb von 3 Wochen erforderlich`,
+    noWeeklyRest: (d) => `Keine w\u00f6chentliche Ruhezeit innerhalb von 6 x 24h. Letzte w\u00f6chentliche Ruhezeit vor ${d} Tagen`,
+    weeklyWorkExceeded: (t, e) => `W\u00f6chentliche Arbeitszeit von 60 Stunden \u00fcberschritten. Arbeitszeit ${t}, \u00dcberschreitung ${e}`,
+    calendarWeek: (d) => `KW (${d} Tage)`,
+    calendarWeekShort: () => 'KW',
+    biWeek: () => 'Doppelwoche',
+  },
+  pl: {
+    manualEntry: () => 'Brak wpisu kraju na pocz\u0105tku zmiany lub wpis op\u00f3\u017aniony',
+    vehicleCheck: (s) => `Kontrola pojazdu przed wyjazdem nie udokumentowana jako czas pracy.${s ? ` Brakuje ${s}` : ''}`,
+    dailyDriving: (limit, excess) => `Przekroczenie dziennego czasu prowadzenia ${limit} godzin. Przekroczenie o ${excess}`,
+    breakAfterDriving: (bm, sf) => `Przerwa min. 45 min. po 4,5h jazdy nie zosta\u0142a zachowana. Przerwa tylko ${bm} min. Brakuje ${sf} min.`,
+    breakAfter6h: (bm, sf) => `Czas pracy 6 godz. bez przerwy min. 30 min. Przerwa tylko ${bm} min., brakuje ${sf} min.`,
+    breakAfter9h: (bm) => `Czas pracy ponad 9 godz. bez przerwy min. 45 min. Przerwa tylko ${bm} min.`,
+    dailyWorkExceeded: (excess) => `Przekroczenie dziennego czasu pracy 10 godzin. Przekroczenie o ${excess}`,
+    nightWork: (wt) => `Przekroczenie dziennego czasu pracy przy pracy nocnej 10 godzin. Czas pracy ${wt}`,
+    dailyRestBelow9h: (rt, sf) => `Dzienny czas odpoczynku zbyt kr\u00f3tki. Odpoczynek tylko ${rt} (minimum 11h, skr\u00f3cony 9h). Brakuje ${sf}`,
+    reducedRestOver3x: (rt, sf) => `Skr\u00f3cony dzienny odpoczynek (${rt}) \u2014 ponad 3x w tygodniu. Brakuje ${sf}`,
+    reducedRestAllowed: (rt, n) => `Skr\u00f3cony dzienny odpoczynek (${rt} zamiast 11h). Skr\u00f3cenie nr ${n}/3 dozwolone`,
+    weeklyDriving: (t, e) => `Przekroczenie tygodniowego czasu prowadzenia 56 godzin. Czas prowadzenia ${t}, przekroczenie ${e}`,
+    extendedDrivingOver2x: (n) => `Wyd\u0142u\u017cenie dziennego czasu prowadzenia do 10h ponad 2x w tygodniu (${n}x zamiast max. 2x)`,
+    biWeeklyDriving: (t, e) => `Przekroczenie czasu prowadzenia w podw\u00f3jnym tygodniu 90 godzin. Czas prowadzenia ${t}, przekroczenie ${e}`,
+    reducedWeeklyRest: (rt) => `Skr\u00f3cony tygodniowy odpoczynek. Tylko ${rt} zamiast 45h. Wyr\u00f3wnanie w ci\u0105gu 3 tygodni wymagane`,
+    noWeeklyRest: (d) => `Brak tygodniowego odpoczynku w ci\u0105gu 6 x 24h. Ostatni tygodniowy odpoczynek ${d} dni temu`,
+    weeklyWorkExceeded: (t, e) => `Przekroczenie tygodniowego czasu pracy 60 godzin. Czas pracy ${t}, przekroczenie ${e}`,
+    calendarWeek: (d) => `Tydz. (${d} dni)`,
+    calendarWeekShort: () => 'Tydz.',
+    biWeek: () => 'Podw. tydz.',
+  },
+  en: {
+    manualEntry: () => 'Country entry at shift start missing or delayed',
+    vehicleCheck: (s) => `Vehicle check before departure not documented as working time.${s ? ` Shortfall of ${s}` : ''}`,
+    dailyDriving: (limit, excess) => `Daily driving time of ${limit} hours exceeded. Excess of ${excess}`,
+    breakAfterDriving: (bm, sf) => `Break of min. 45 min. after 4.5h driving not observed. Break only ${bm} min. Shortfall ${sf} min.`,
+    breakAfter6h: (bm, sf) => `Working time of 6h without rest break of min. 30 min. Break only ${bm} min., shortfall ${sf} min.`,
+    breakAfter9h: (bm) => `Working time over 9h without rest break of min. 45 min. Break only ${bm} min.`,
+    dailyWorkExceeded: (excess) => `Daily working time of 10 hours exceeded. Excess of ${excess}`,
+    nightWork: (wt) => `Daily working time for night work of 10 hours exceeded. Working time ${wt}`,
+    dailyRestBelow9h: (rt, sf) => `Daily rest period insufficient. Rest only ${rt} (minimum 11h, reduced 9h). Shortfall of ${sf}`,
+    reducedRestOver3x: (rt, sf) => `Reduced daily rest (${rt}) \u2014 more than 3x per week. Shortfall of ${sf}`,
+    reducedRestAllowed: (rt, n) => `Reduced daily rest (${rt} instead of 11h). Reduction no. ${n}/3 permitted`,
+    weeklyDriving: (t, e) => `Weekly driving time of 56 hours exceeded. Driving time ${t}, excess ${e}`,
+    extendedDrivingOver2x: (n) => `Extension of daily driving time to 10h more than 2x per week (${n}x instead of max. 2x)`,
+    biWeeklyDriving: (t, e) => `Bi-weekly driving time of 90 hours exceeded. Driving time ${t}, excess ${e}`,
+    reducedWeeklyRest: (rt) => `Reduced weekly rest. Only ${rt} instead of 45h. Compensation within 3 weeks required`,
+    noWeeklyRest: (d) => `No weekly rest within 6 x 24h. Last weekly rest ${d} days ago`,
+    weeklyWorkExceeded: (t, e) => `Weekly working time of 60 hours exceeded. Working time ${t}, excess ${e}`,
+    calendarWeek: (d) => `CW (${d} days)`,
+    calendarWeekShort: () => 'CW',
+    biWeek: () => 'Bi-week',
+  },
+  el: {
+    manualEntry: () => '\u039b\u03b5\u03af\u03c0\u03b5\u03b9 \u03b7 \u03ba\u03b1\u03c4\u03b1\u03c7\u03ce\u03c1\u03b7\u03c3\u03b7 \u03c7\u03ce\u03c1\u03b1\u03c2 \u03c3\u03c4\u03b7\u03bd \u03ad\u03bd\u03b1\u03c1\u03be\u03b7 \u03b2\u03ac\u03c1\u03b4\u03b9\u03b1\u03c2 \u03ae \u03b5\u03af\u03bd\u03b1\u03b9 \u03ba\u03b1\u03b8\u03c5\u03c3\u03c4\u03b5\u03c1\u03b7\u03bc\u03ad\u03bd\u03b7',
+    vehicleCheck: (s) => `\u0388\u03bb\u03b5\u03b3\u03c7\u03bf\u03c2 \u03bf\u03c7\u03ae\u03bc\u03b1\u03c4\u03bf\u03c2 \u03c0\u03c1\u03b9\u03bd \u03c4\u03b7\u03bd \u03b1\u03bd\u03b1\u03c7\u03ce\u03c1\u03b7\u03c3\u03b7 \u03b4\u03b5\u03bd \u03ba\u03b1\u03c4\u03b1\u03b3\u03c1\u03ac\u03c6\u03b7\u03ba\u03b5 \u03c9\u03c2 \u03c7\u03c1\u03cc\u03bd\u03bf\u03c2 \u03b5\u03c1\u03b3\u03b1\u03c3\u03af\u03b1\u03c2.${s ? ` \u0388\u03bb\u03bb\u03b5\u03b9\u03c8\u03b7 ${s}` : ''}`,
+    dailyDriving: (limit, excess) => `\u03a5\u03c0\u03ad\u03c1\u03b2\u03b1\u03c3\u03b7 \u03b7\u03bc\u03b5\u03c1\u03ae\u03c3\u03b9\u03bf\u03c5 \u03c7\u03c1\u03cc\u03bd\u03bf\u03c5 \u03bf\u03b4\u03ae\u03b3\u03b7\u03c3\u03b7\u03c2 ${limit} \u03c9\u03c1\u03ce\u03bd. \u03a5\u03c0\u03ad\u03c1\u03b2\u03b1\u03c3\u03b7 \u03ba\u03b1\u03c4\u03ac ${excess}`,
+    breakAfterDriving: (bm, sf) => `\u0394\u03b9\u03ac\u03bb\u03b5\u03b9\u03bc\u03bc\u03b1 \u03c4\u03bf\u03c5\u03bb. 45 \u03bb\u03b5\u03c0. \u03bc\u03b5\u03c4\u03ac \u03b1\u03c0\u03cc 4,5\u03c9 \u03bf\u03b4\u03ae\u03b3\u03b7\u03c3\u03b7\u03c2 \u03b4\u03b5\u03bd \u03c4\u03b7\u03c1\u03ae\u03b8\u03b7\u03ba\u03b5. \u0394\u03b9\u03ac\u03bb\u03b5\u03b9\u03bc\u03bc\u03b1 \u03bc\u03cc\u03bd\u03bf ${bm} \u03bb\u03b5\u03c0. \u0388\u03bb\u03bb\u03b5\u03b9\u03c8\u03b7 ${sf} \u03bb\u03b5\u03c0.`,
+    breakAfter6h: (bm, sf) => `\u03a7\u03c1\u03cc\u03bd\u03bf\u03c2 \u03b5\u03c1\u03b3\u03b1\u03c3\u03af\u03b1\u03c2 6 \u03c9\u03c1. \u03c7\u03c9\u03c1\u03af\u03c2 \u03b4\u03b9\u03ac\u03bb\u03b5\u03b9\u03bc\u03bc\u03b1 \u03c4\u03bf\u03c5\u03bb. 30 \u03bb\u03b5\u03c0. \u0394\u03b9\u03ac\u03bb\u03b5\u03b9\u03bc\u03bc\u03b1 \u03bc\u03cc\u03bd\u03bf ${bm} \u03bb\u03b5\u03c0., \u03ad\u03bb\u03bb\u03b5\u03b9\u03c8\u03b7 ${sf} \u03bb\u03b5\u03c0.`,
+    breakAfter9h: (bm) => `\u03a7\u03c1\u03cc\u03bd\u03bf\u03c2 \u03b5\u03c1\u03b3\u03b1\u03c3\u03af\u03b1\u03c2 \u03ac\u03bd\u03c9 9 \u03c9\u03c1. \u03c7\u03c9\u03c1\u03af\u03c2 \u03b4\u03b9\u03ac\u03bb\u03b5\u03b9\u03bc\u03bc\u03b1 \u03c4\u03bf\u03c5\u03bb. 45 \u03bb\u03b5\u03c0. \u0394\u03b9\u03ac\u03bb\u03b5\u03b9\u03bc\u03bc\u03b1 \u03bc\u03cc\u03bd\u03bf ${bm} \u03bb\u03b5\u03c0.`,
+    dailyWorkExceeded: (excess) => `\u03a5\u03c0\u03ad\u03c1\u03b2\u03b1\u03c3\u03b7 \u03b7\u03bc\u03b5\u03c1\u03ae\u03c3\u03b9\u03bf\u03c5 \u03c7\u03c1\u03cc\u03bd\u03bf\u03c5 \u03b5\u03c1\u03b3\u03b1\u03c3\u03af\u03b1\u03c2 10 \u03c9\u03c1\u03ce\u03bd. \u03a5\u03c0\u03ad\u03c1\u03b2\u03b1\u03c3\u03b7 \u03ba\u03b1\u03c4\u03ac ${excess}`,
+    nightWork: (wt) => `\u03a5\u03c0\u03ad\u03c1\u03b2\u03b1\u03c3\u03b7 \u03b7\u03bc\u03b5\u03c1\u03ae\u03c3\u03b9\u03bf\u03c5 \u03c7\u03c1\u03cc\u03bd\u03bf\u03c5 \u03b5\u03c1\u03b3\u03b1\u03c3\u03af\u03b1\u03c2 \u03bd\u03c5\u03c7\u03c4. \u03b5\u03c1\u03b3\u03b1\u03c3\u03af\u03b1\u03c2 10 \u03c9\u03c1\u03ce\u03bd. \u03a7\u03c1\u03cc\u03bd\u03bf\u03c2 \u03b5\u03c1\u03b3. ${wt}`,
+    dailyRestBelow9h: (rt, sf) => `\u0391\u03bd\u03b5\u03c0\u03b1\u03c1\u03ba\u03ae\u03c2 \u03b7\u03bc\u03b5\u03c1\u03ae\u03c3\u03b9\u03b1 \u03b1\u03bd\u03ac\u03c0\u03b1\u03c5\u03c3\u03b7. \u0391\u03bd\u03ac\u03c0\u03b1\u03c5\u03c3\u03b7 \u03bc\u03cc\u03bd\u03bf ${rt} (\u03b5\u03bb\u03ac\u03c7. 11\u03c9, \u03bc\u03b5\u03b9\u03c9\u03bc. 9\u03c9). \u0388\u03bb\u03bb\u03b5\u03b9\u03c8\u03b7 ${sf}`,
+    reducedRestOver3x: (rt, sf) => `\u039c\u03b5\u03b9\u03c9\u03bc\u03ad\u03bd\u03b7 \u03b7\u03bc\u03b5\u03c1\u03ae\u03c3\u03b9\u03b1 \u03b1\u03bd\u03ac\u03c0\u03b1\u03c5\u03c3\u03b7 (${rt}) \u2014 \u03c0\u03ac\u03bd\u03c9 \u03b1\u03c0\u03cc 3\u03c6/\u03b5\u03b2\u03b4. \u0388\u03bb\u03bb\u03b5\u03b9\u03c8\u03b7 ${sf}`,
+    reducedRestAllowed: (rt, n) => `\u039c\u03b5\u03b9\u03c9\u03bc\u03ad\u03bd\u03b7 \u03b7\u03bc\u03b5\u03c1\u03ae\u03c3\u03b9\u03b1 \u03b1\u03bd\u03ac\u03c0\u03b1\u03c5\u03c3\u03b7 (${rt} \u03b1\u03bd\u03c4\u03af 11\u03c9). \u039c\u03b5\u03af\u03c9\u03c3\u03b7 \u03b1\u03c1. ${n}/3 \u03b5\u03c0\u03b9\u03c4\u03c1\u03ad\u03c0\u03b5\u03c4\u03b1\u03b9`,
+    weeklyDriving: (t, e) => `\u03a5\u03c0\u03ad\u03c1\u03b2\u03b1\u03c3\u03b7 \u03b5\u03b2\u03b4\u03bf\u03bc\u03b1\u03b4\u03b9\u03b1\u03af\u03bf\u03c5 \u03c7\u03c1\u03cc\u03bd\u03bf\u03c5 \u03bf\u03b4\u03ae\u03b3\u03b7\u03c3\u03b7\u03c2 56 \u03c9\u03c1\u03ce\u03bd. \u03a7\u03c1. \u03bf\u03b4\u03ae\u03b3\u03b7\u03c3\u03b7\u03c2 ${t}, \u03c5\u03c0\u03ad\u03c1\u03b2. ${e}`,
+    extendedDrivingOver2x: (n) => `\u03a0\u03b1\u03c1\u03ac\u03c4\u03b1\u03c3\u03b7 \u03b7\u03bc\u03b5\u03c1\u03ae\u03c3\u03b9\u03bf\u03c5 \u03c7\u03c1\u03cc\u03bd\u03bf\u03c5 \u03bf\u03b4\u03ae\u03b3\u03b7\u03c3\u03b7\u03c2 \u03c3\u03b5 10\u03c9 \u03c0\u03ac\u03bd\u03c9 \u03b1\u03c0\u03cc 2\u03c6/\u03b5\u03b2\u03b4. (${n}\u03c6 \u03b1\u03bd\u03c4\u03af \u03bc\u03ad\u03b3. 2\u03c6)`,
+    biWeeklyDriving: (t, e) => `\u03a5\u03c0\u03ad\u03c1\u03b2\u03b1\u03c3\u03b7 \u03c7\u03c1\u03cc\u03bd\u03bf\u03c5 \u03bf\u03b4\u03ae\u03b3\u03b7\u03c3\u03b7\u03c2 \u03b4\u03b9\u03c0\u03bb\u03ae\u03c2 \u03b5\u03b2\u03b4\u03bf\u03bc\u03ac\u03b4\u03b1\u03c2 90 \u03c9\u03c1\u03ce\u03bd. \u03a7\u03c1. \u03bf\u03b4\u03ae\u03b3. ${t}, \u03c5\u03c0\u03ad\u03c1\u03b2. ${e}`,
+    reducedWeeklyRest: (rt) => `\u039c\u03b5\u03b9\u03c9\u03bc\u03ad\u03bd\u03b7 \u03b5\u03b2\u03b4\u03bf\u03bc\u03b1\u03b4\u03b9\u03b1\u03af\u03b1 \u03b1\u03bd\u03ac\u03c0\u03b1\u03c5\u03c3\u03b7. \u039c\u03cc\u03bd\u03bf ${rt} \u03b1\u03bd\u03c4\u03af 45\u03c9. \u0391\u03bd\u03c4\u03b9\u03c3\u03c4\u03ac\u03b8\u03bc\u03b9\u03c3\u03b7 \u03b5\u03bd\u03c4\u03cc\u03c2 3 \u03b5\u03b2\u03b4.`,
+    noWeeklyRest: (d) => `\u039a\u03b1\u03bc\u03af\u03b1 \u03b5\u03b2\u03b4\u03bf\u03bc\u03b1\u03b4\u03b9\u03b1\u03af\u03b1 \u03b1\u03bd\u03ac\u03c0\u03b1\u03c5\u03c3\u03b7 \u03b5\u03bd\u03c4\u03cc\u03c2 6 x 24\u03c9. \u03a4\u03b5\u03bb\u03b5\u03c5\u03c4\u03b1\u03af\u03b1 \u03b5\u03b2\u03b4. \u03b1\u03bd\u03ac\u03c0\u03b1\u03c5\u03c3\u03b7 ${d} \u03b7\u03bc. \u03c0\u03c1\u03b9\u03bd`,
+    weeklyWorkExceeded: (t, e) => `\u03a5\u03c0\u03ad\u03c1\u03b2\u03b1\u03c3\u03b7 \u03b5\u03b2\u03b4\u03bf\u03bc\u03b1\u03b4\u03b9\u03b1\u03af\u03bf\u03c5 \u03c7\u03c1\u03cc\u03bd\u03bf\u03c5 \u03b5\u03c1\u03b3\u03b1\u03c3\u03af\u03b1\u03c2 60 \u03c9\u03c1\u03ce\u03bd. \u03a7\u03c1. \u03b5\u03c1\u03b3. ${t}, \u03c5\u03c0\u03ad\u03c1\u03b2. ${e}`,
+    calendarWeek: (d) => `\u0395\u0392\u0394 (${d} \u03b7\u03bc.)`,
+    calendarWeekShort: () => '\u0395\u0392\u0394',
+    biWeek: () => '\u0394\u03b9\u03c0\u03bb\u03ae \u03b5\u03b2\u03b4.',
+  },
+};
 
 const verstosseI18n: Record<VerstosseLang, {
   docTitle: string;
@@ -1386,7 +1509,7 @@ export async function generateVerstossePdf(
   shifts: Shift[],
   lang: VerstosseLang = 'de',
 ) {
-  const { entries, types, period } = analyzeVerstoesse(driverName, cardNumber, shifts);
+  const { entries, types, period } = analyzeVerstoesse(driverName, cardNumber, shifts, lang);
   const L = verstosseI18n[lang];
 
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
@@ -1443,8 +1566,8 @@ export async function generateVerstossePdf(
   const summBody = types.map((t) => [
     t.beschreibung,
     String(t.msi), String(t.vsi), String(t.si), String(t.mi), String(t.anzahl),
-    `${t.bussgeldFahrer.toFixed(2).replace('.', ',')} \u20AC`,
-    `${t.bussgeldUnternehmen.toFixed(2).replace('.', ',')} \u20AC`,
+    fmtEur(t.bussgeldFahrer),
+    fmtEur(t.bussgeldUnternehmen),
   ]);
 
   const totalAnzahl = entries.length;
@@ -1460,8 +1583,8 @@ export async function generateVerstossePdf(
     foot: [[
       { content: L.total, styles: { halign: 'right' as const, fontStyle: 'bold' as const } },
       String(totalMsi), String(totalVsi), String(totalSi), String(totalMi), String(totalAnzahl),
-      `${totalFahrer.toFixed(2).replace('.', ',')} \u20AC`,
-      `${totalUnternehmen.toFixed(2).replace('.', ',')} \u20AC`,
+      fmtEur(totalFahrer),
+      fmtEur(totalUnternehmen),
     ]],
     styles: {
       font: fontFamily,
@@ -1512,8 +1635,8 @@ export async function generateVerstossePdf(
   // Totals as first row
   detailBody.push([
     '', '', '', '',
-    `${totalFahrer.toFixed(2).replace('.', ',')} \u20AC`,
-    `${totalUnternehmen.toFixed(2).replace('.', ',')} \u20AC`,
+    fmtEur(totalFahrer),
+    fmtEur(totalUnternehmen),
     '',
   ]);
 
@@ -1523,8 +1646,8 @@ export async function generateVerstossePdf(
       e.zeit,
       e.beschreibung,
       e.rechtsgrundlage,
-      `${e.bussgeldFahrer.toFixed(2).replace('.', ',')} \u20AC`,
-      `${e.bussgeldUnternehmen.toFixed(2).replace('.', ',')} \u20AC`,
+      fmtEur(e.bussgeldFahrer),
+      fmtEur(e.bussgeldUnternehmen),
       e.kategorie,
     ]);
   }

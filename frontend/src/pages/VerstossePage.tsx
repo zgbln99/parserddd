@@ -121,7 +121,7 @@ export function VerstossePage() {
 
         const driverName = driver.name;
         const cardNum = driver.card_number || analysis.driver_info?.card_number || '';
-        const result = analyzeVerstoesse(driverName, cardNum, shifts as any);
+        const result = analyzeVerstoesse(driverName, cardNum, shifts as any, pdfLang);
         const tFahrer = result.entries.reduce((s: number, v: any) => s + v.bussgeldFahrer, 0);
         const tUnternehmen = result.entries.reduce((s: number, v: any) => s + v.bussgeldUnternehmen, 0);
 
