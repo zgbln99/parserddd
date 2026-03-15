@@ -301,6 +301,12 @@ export const pl = {
   timeJustNow: 'przed chwilą',
   timeMinutes: 'min',
   timeHours: 'godz.',
+
+  // UX
+  tryAgain: 'Spróbuj ponownie',
+  noConnection: 'Brak połączenia z serwerem',
+  confirmDelete: 'Czy na pewno chcesz usunąć?',
+  unsavedChanges: 'Masz niezapisane zmiany',
 } as const;
 
 export type TranslationKey = keyof typeof pl;

@@ -303,4 +303,10 @@ export const de: Record<TranslationKey, string> = {
   timeJustNow: 'gerade eben',
   timeMinutes: 'Min.',
   timeHours: 'Std.',
+
+  // UX
+  tryAgain: 'Erneut versuchen',
+  noConnection: 'Keine Verbindung zum Server',
+  confirmDelete: 'Möchten Sie wirklich löschen?',
+  unsavedChanges: 'Sie haben ungespeicherte Änderungen',
 };
