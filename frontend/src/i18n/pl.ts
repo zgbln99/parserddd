@@ -344,6 +344,7 @@ export const pl = {
   complianceViolations: 'Naruszenia',
   complianceWarnings: 'Ostrzeżenia',
   complianceNoViolations: 'Brak naruszeń — wszystkie przepisy spełnione',
+  verstosseReport: 'Dokument naruszeń',
 
   // Offline
   offlineMode: 'Tryb offline — dane z cache',

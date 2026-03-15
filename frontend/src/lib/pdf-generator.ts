@@ -6,18 +6,22 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 // ── Brand colors ──
-const BRAND = {
-  primary: [30, 64, 175] as [number, number, number],       // indigo-800
-  primaryLight: [99, 102, 241] as [number, number, number],  // indigo-500
-  accent: [16, 185, 129] as [number, number, number],        // emerald-500
-  danger: [220, 38, 38] as [number, number, number],         // red-600
-  warning: [245, 158, 11] as [number, number, number],       // amber-500
-  success: [21, 128, 61] as [number, number, number],        // green-700
-  dark: [15, 23, 42] as [number, number, number],            // slate-900
-  gray: [100, 116, 139] as [number, number, number],         // slate-500
-  lightGray: [241, 245, 249] as [number, number, number],    // slate-100
-  white: [255, 255, 255] as [number, number, number],
-  weekendBg: [254, 242, 242] as [number, number, number],    // rose-50
+const C = {
+  primary:      [30, 64, 175]   as [number, number, number],
+  primaryLight: [99, 102, 241]  as [number, number, number],
+  accent:       [16, 185, 129]  as [number, number, number],
+  danger:       [220, 38, 38]   as [number, number, number],
+  warning:      [245, 158, 11]  as [number, number, number],
+  success:      [21, 128, 61]   as [number, number, number],
+  dark:         [15, 23, 42]    as [number, number, number],
+  gray:         [100, 116, 139] as [number, number, number],
+  lightGray:    [241, 245, 249] as [number, number, number],
+  white:        [255, 255, 255] as [number, number, number],
+  weekendBg:    [254, 242, 242] as [number, number, number],
+  purple:       [124, 58, 237]  as [number, number, number],
+  orange:       [234, 88, 12]   as [number, number, number],
+  teal:         [13, 148, 136]  as [number, number, number],
+  blue:         [37, 99, 235]   as [number, number, number],
 };
 
 const LOGO_URL = 'https://lfrfrp.stripocdn.email/content/guids/CABINET_862a1b05e2f09e6cca20d3b1bce9a4ee0b92caa7a66ee37aabdb90e233f8e4dc/images/image_6.png';
@@ -32,145 +36,202 @@ async function loadLogo(): Promise<string | null> {
     const blob = await res.blob();
     return new Promise((resolve) => {
       const reader = new FileReader();
-      reader.onload = () => {
-        cachedLogo = reader.result as string;
-        resolve(cachedLogo);
-      };
+      reader.onload = () => { cachedLogo = reader.result as string; resolve(cachedLogo); };
       reader.onerror = () => resolve(null);
       reader.readAsDataURL(blob);
     });
-  } catch {
-    return null;
-  }
+  } catch { return null; }
 }
 
-function fmtDate(): string {
-  return new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+function fmtNow(): string {
+  return new Date().toLocaleDateString('de-DE', {
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  });
 }
 
 function safeName(name: string): string {
   return name.replace(/[^a-zA-Z0-9äöüÄÖÜß _-]/g, '').trim() || 'Export';
 }
 
-interface PdfContext {
+function hm(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = Math.round(minutes % 60);
+  return `${h}:${String(m).padStart(2, '0')}`;
+}
+
+function dec(minutes: number): string {
+  return (minutes / 60).toFixed(2);
+}
+
+// ── PDF Context ──
+
+interface Ctx {
   doc: jsPDF;
-  pageW: number;
-  pageH: number;
-  margin: number;
-  logoData: string | null;
+  W: number;   // page width
+  H: number;   // page height
+  M: number;   // margin
+  logo: string | null;
 }
 
-async function createPdfContext(orientation: 'portrait' | 'landscape' = 'portrait'): Promise<PdfContext> {
+async function ctx(orientation: 'portrait' | 'landscape' = 'portrait'): Promise<Ctx> {
   const doc = new jsPDF({ orientation, unit: 'mm', format: 'a4' });
-  const logoData = await loadLogo();
-  return {
-    doc,
-    pageW: doc.internal.pageSize.getWidth(),
-    pageH: doc.internal.pageSize.getHeight(),
-    margin: 15,
-    logoData,
-  };
+  const logo = await loadLogo();
+  return { doc, W: doc.internal.pageSize.getWidth(), H: doc.internal.pageSize.getHeight(), M: 14, logo };
 }
 
-function addHeader(ctx: PdfContext, title: string, subtitle?: string) {
-  const { doc, pageW, margin, logoData } = ctx;
-  const y = margin;
+// ═══════════════════════════════════════════════════════════
+//  BRANDED HEADER
+// ═══════════════════════════════════════════════════════════
 
-  // Top accent bar
-  doc.setFillColor(...BRAND.primary);
-  doc.rect(0, 0, pageW, 3, 'F');
+function drawHeader(c: Ctx, title: string, subtitle?: string): number {
+  const { doc, W, M, logo } = c;
 
-  // Logo
-  let textX = margin;
-  if (logoData) {
+  // ── Gradient-style top bar ──
+  doc.setFillColor(...C.primary);
+  doc.rect(0, 0, W, 2.5, 'F');
+  doc.setFillColor(...C.primaryLight);
+  doc.rect(0, 2.5, W, 0.8, 'F');
+
+  let x = M;
+  const y = 7;
+
+  // ── Logo ──
+  if (logo) {
     try {
-      doc.addImage(logoData, 'PNG', margin, y + 2, 28, 12);
-      textX = margin + 32;
-    } catch {
-      // Logo failed to load, skip
-    }
+      doc.addImage(logo, 'PNG', M, y, 30, 13);
+      x = M + 34;
+    } catch { /* skip */ }
   }
 
-  // Company name
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
-  doc.setTextColor(...BRAND.gray);
-  doc.text('LTS Logistik GmbH', textX, y + 5);
-
-  // Title
-  doc.setFontSize(16);
-  doc.setTextColor(...BRAND.dark);
-  doc.text(title, textX, y + 12);
-
-  // Subtitle
-  if (subtitle) {
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(...BRAND.gray);
-    doc.text(subtitle, textX, y + 17);
-  }
-
-  // Date on right
+  // ── Company ──
+  doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
-  doc.setTextColor(...BRAND.gray);
-  doc.text(fmtDate(), pageW - margin, y + 5, { align: 'right' });
+  doc.setTextColor(...C.gray);
+  doc.text('LTS Logistik GmbH', x, y + 3);
 
-  // Separator line
-  const sepY = y + 21;
-  doc.setDrawColor(...BRAND.primaryLight);
-  doc.setLineWidth(0.5);
-  doc.line(margin, sepY, pageW - margin, sepY);
+  // ── Title ──
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(15);
+  doc.setTextColor(...C.dark);
+  doc.text(title, x, y + 10);
+
+  // ── Subtitle ──
+  if (subtitle) {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(...C.gray);
+    doc.text(subtitle, x, y + 15);
+  }
+
+  // ── Date right-aligned ──
+  doc.setFontSize(7);
+  doc.setTextColor(...C.gray);
+  doc.text(fmtNow(), W - M, y + 3, { align: 'right' });
+
+  // ── Separator ──
+  const sepY = y + 19;
+  doc.setDrawColor(...C.primary);
+  doc.setLineWidth(0.4);
+  doc.line(M, sepY, W - M, sepY);
+  doc.setDrawColor(...C.primaryLight);
+  doc.setLineWidth(0.15);
+  doc.line(M, sepY + 0.6, W - M, sepY + 0.6);
 
   return sepY + 4;
 }
 
-function addFooter(ctx: PdfContext) {
-  const { doc, pageW, pageH, margin } = ctx;
+// ═══════════════════════════════════════════════════════════
+//  BRANDED FOOTER (all pages)
+// ═══════════════════════════════════════════════════════════
+
+function drawFooter(c: Ctx) {
+  const { doc, W, H, M } = c;
   const pages = doc.getNumberOfPages();
   for (let i = 1; i <= pages; i++) {
     doc.setPage(i);
-
-    // Bottom accent bar
-    doc.setFillColor(...BRAND.primary);
-    doc.rect(0, pageH - 3, pageW, 3, 'F');
-
+    // Bottom gradient bar
+    doc.setFillColor(...C.primaryLight);
+    doc.rect(0, H - 3.3, W, 0.8, 'F');
+    doc.setFillColor(...C.primary);
+    doc.rect(0, H - 2.5, W, 2.5, 'F');
     // Footer text
-    doc.setFontSize(6.5);
+    doc.setFontSize(6);
     doc.setFont('helvetica', 'normal');
-    doc.setTextColor(...BRAND.gray);
-    doc.text('LTS Logistik GmbH — Tachoprüfung', margin, pageH - 5);
-    doc.text(`Seite ${i} / ${pages}`, pageW - margin, pageH - 5, { align: 'right' });
-    doc.text('Vertraulich — Nur zum internen Gebrauch', pageW / 2, pageH - 5, { align: 'center' });
+    doc.setTextColor(...C.gray);
+    doc.text('LTS Logistik GmbH — Tachoprüfung · Vertraulich', M, H - 5);
+    doc.text(`Seite ${i} von ${pages}  ·  ${fmtNow()}`, W - M, H - 5, { align: 'right' });
+    // Thin separator above footer
+    doc.setDrawColor(226, 232, 240);
+    doc.setLineWidth(0.2);
+    doc.line(M, H - 8, W - M, H - 8);
   }
 }
 
-function addMetricCard(doc: jsPDF, x: number, y: number, w: number, label: string, value: string, color: [number, number, number] = BRAND.primary) {
-  // Card background
+// ═══════════════════════════════════════════════════════════
+//  METRIC CARD (with accent bar)
+// ═══════════════════════════════════════════════════════════
+
+function drawCard(doc: jsPDF, x: number, y: number, w: number, h: number, label: string, value: string, color: [number, number, number]) {
+  // Outer card
   doc.setFillColor(248, 250, 252);
-  doc.roundedRect(x, y, w, 18, 2, 2, 'F');
-
-  // Left accent bar
+  doc.roundedRect(x, y, w, h, 1.5, 1.5, 'F');
+  // Accent left bar
   doc.setFillColor(...color);
-  doc.rect(x, y, 1.5, 18, 'F');
-
+  doc.roundedRect(x, y, 2, h, 1, 1, 'F');
+  doc.rect(x + 1, y, 1, h, 'F'); // fix rounding on right side of accent
   // Label
-  doc.setFontSize(6.5);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(...BRAND.gray);
-  doc.text(label.toUpperCase(), x + 5, y + 6);
-
+  doc.setFontSize(5.5);
+  doc.setTextColor(...C.gray);
+  doc.text(label.toUpperCase(), x + 5, y + 5.5);
   // Value
-  doc.setFontSize(13);
-  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(12);
   doc.setTextColor(...color);
-  doc.text(value, x + 5, y + 14);
+  doc.text(value, x + 5, y + h - 3.5);
 }
 
-// ═════════════════════════════════════════════════════════════════
-//  ANALYSIS PDF — Single driver report
-// ═════════════════════════════════════════════════════════════════
+// 2-line card for compact grids
+function drawCard2(doc: jsPDF, x: number, y: number, w: number, label: string, mainVal: string, subVal: string, color: [number, number, number]) {
+  const h = 20;
+  doc.setFillColor(248, 250, 252);
+  doc.roundedRect(x, y, w, h, 1.5, 1.5, 'F');
+  doc.setFillColor(...color);
+  doc.roundedRect(x, y, 2, h, 1, 1, 'F');
+  doc.rect(x + 1, y, 1, h, 'F');
+  // Label
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(5.5);
+  doc.setTextColor(...C.gray);
+  doc.text(label.toUpperCase(), x + 5, y + 5.5);
+  // Main value
+  doc.setFontSize(11);
+  doc.setTextColor(...color);
+  doc.text(mainVal, x + 5, y + 12.5);
+  // Sub-value
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6.5);
+  doc.setTextColor(...C.gray);
+  doc.text(subVal, x + 5, y + 17);
+}
 
-interface AnalysisSummary {
+// Section label
+function drawSection(doc: jsPDF, x: number, y: number, label: string): number {
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(...C.dark);
+  doc.text(label, x, y);
+  doc.setDrawColor(226, 232, 240);
+  doc.setLineWidth(0.15);
+  doc.line(x, y + 1.5, x + 40, y + 1.5);
+  return y + 4;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  TYPES
+// ═══════════════════════════════════════════════════════════════
+
+interface Summary {
   total_work_hm: string;
   total_work_minutes: number;
   total_driving_hm: string;
@@ -187,9 +248,11 @@ interface AnalysisSummary {
   total_manual_minutes?: number;
   total_avail_hm?: string;
   total_avail_minutes?: number;
+  total_night_hm?: string;
+  total_night_minutes?: number;
 }
 
-interface ShiftRow {
+interface Shift {
   shift_start: string;
   shift_end: string;
   shift_date: string;
@@ -208,117 +271,159 @@ interface ShiftRow {
   night_40_hm: string;
   has_diet: boolean;
   vehicles: string[];
+  manual_minutes?: number;
+  manual_hm?: string;
+  avail_minutes?: number;
+  avail_hm?: string;
 }
+
+// ═══════════════════════════════════════════════════════════════
+//  1) ANALYSIS PDF — Single driver Fahreranalyse
+// ═══════════════════════════════════════════════════════════════
 
 export async function generateAnalysisPdf(
   driverName: string,
   cardNumber: string,
-  summary: AnalysisSummary,
-  shifts: ShiftRow[],
+  summary: Summary,
+  shifts: Shift[],
 ) {
-  const ctx = await createPdfContext('portrait');
-  const { doc, pageW, margin } = ctx;
+  const c = await ctx('portrait');
+  const { doc, W, M } = c;
 
-  const startY = addHeader(ctx, driverName, `Kartennr: ${cardNumber} — ${shifts.length} Schichten`);
+  // ── Period from shifts ──
+  const periodStr = shifts.length > 0
+    ? `${shifts[0].shift_date} – ${shifts[shifts.length - 1].shift_date}`
+    : '';
 
-  // ── Metric cards ──
-  const cardW = (pageW - 2 * margin - 8) / 3;
-  let y = startY + 2;
+  let y = drawHeader(c, `Fahreranalyse: ${driverName}`, `Kartennr. ${cardNumber}  ·  ${periodStr}  ·  ${shifts.length} Schichten`);
 
-  addMetricCard(doc, margin, y, cardW, 'Arbeitszeit', summary.total_work_hm, BRAND.primary);
-  addMetricCard(doc, margin + cardW + 4, y, cardW, 'Lenkzeit', summary.total_driving_hm, BRAND.accent);
-  addMetricCard(doc, margin + 2 * (cardW + 4), y, cardW, 'Pausen', summary.total_break_hm, BRAND.gray);
+  // ── Row 1: Main metrics (3 cards) ──
+  const cw3 = (W - 2 * M - 8) / 3;
+  y += 1;
+  drawCard2(doc, M, y, cw3, 'Arbeitszeit', summary.total_work_hm, `${dec(summary.total_work_minutes)}h dezimal`, C.primary);
+  drawCard2(doc, M + cw3 + 4, y, cw3, 'Lenkzeit', summary.total_driving_hm, `${dec(summary.total_driving_minutes)}h dezimal`, C.accent);
+  drawCard2(doc, M + 2 * (cw3 + 4), y, cw3, 'Pausen', summary.total_break_hm, `${dec(summary.total_break_minutes)}h dezimal`, C.gray);
+  y += 23;
 
-  y += 22;
+  // ── Row 2: Night + Spesen + Manual + Bereitschaft (4 cards) ──
+  const cw4 = (W - 2 * M - 12) / 4;
+  drawCard2(doc, M, y, cw4, 'Nacht 25%', `${dec(summary.night_25_minutes)}h`, summary.night_25_hm, C.primaryLight);
+  drawCard2(doc, M + (cw4 + 4), y, cw4, 'Nacht 40%', `${dec(summary.night_40_minutes)}h`, summary.night_40_hm, C.purple);
+  drawCard2(doc, M + 2 * (cw4 + 4), y, cw4, 'Spesen', String(summary.diet_count), `Schichten mit Spesen`, C.warning);
+  const manualMin = summary.total_manual_minutes || 0;
+  drawCard2(doc, M + 3 * (cw4 + 4), y, cw4, 'Manual', summary.total_manual_hm || hm(manualMin), `${dec(manualMin)}h dezimal`, C.orange);
+  y += 23;
 
-  addMetricCard(doc, margin, y, cardW, 'Nacht 25%', `${(summary.night_25_minutes / 60).toFixed(2)}h (${summary.night_25_hm})`, BRAND.primaryLight);
-  addMetricCard(doc, margin + cardW + 4, y, cardW, 'Nacht 40%', `${(summary.night_40_minutes / 60).toFixed(2)}h (${summary.night_40_hm})`, [124, 58, 237]);
-  addMetricCard(doc, margin + 2 * (cardW + 4), y, cardW, 'Diäten', String(summary.diet_count), BRAND.warning);
+  // ── Row 3: Bereitschaft + Nacht gesamt + Schichten ──
+  const cw3b = (W - 2 * M - 8) / 3;
+  const availMin = summary.total_avail_minutes || 0;
+  drawCard(doc, M, y, cw3b, 16, 'Bereitschaft', summary.total_avail_hm || hm(availMin), C.teal);
+  const nightTotal = summary.total_night_minutes || (summary.night_25_minutes + summary.night_40_minutes);
+  drawCard(doc, M + cw3b + 4, y, cw3b, 16, 'Nacht gesamt', summary.total_night_hm || hm(nightTotal), C.blue);
+  drawCard(doc, M + 2 * (cw3b + 4), y, cw3b, 16, 'Schichten', String(summary.total_shifts), C.dark);
+  y += 20;
 
-  y += 24;
+  // ── Vehicles ──
+  const allVehicles = [...new Set(shifts.flatMap((s) => s.vehicles))];
+  if (allVehicles.length > 0) {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.setTextColor(...C.gray);
+    doc.text(`Fahrzeuge: ${allVehicles.join('  ·  ')}`, M, y);
+    y += 4;
+  }
 
   // ── Shifts table ──
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(...BRAND.dark);
-  doc.text('Schichtübersicht', margin, y);
-  y += 3;
+  y = drawSection(doc, M, y + 1, 'Schichtübersicht');
 
-  const tableHead = [['Tag', 'Datum', 'Start', 'Ende', 'Dauer', 'Fahrt', 'Arbeit', 'Pause', 'N25%', 'N40%', 'Diät']];
+  const hasManual = shifts.some((s) => (s.manual_minutes || 0) > 0);
 
-  const tableBody = shifts.map((s) => [
-    s.weekday,
-    s.shift_date,
-    s.shift_start?.split(' ')[1] || s.shift_start,
-    s.shift_end?.split(' ')[1] || s.shift_end,
-    s.duration_hm,
-    s.driving_hm,
-    s.work_only_hm,
-    s.break_hm,
-    (s.night_25_minutes / 60).toFixed(2),
-    (s.night_40_minutes / 60).toFixed(2),
-    s.has_diet ? 'JA' : '—',
-  ]);
+  const head = hasManual
+    ? [['Tag', 'Datum', 'Start', 'Ende', 'Dauer', 'Fahrt', 'Arbeit', 'Pause', 'Manual', 'N25%', 'N40%', 'Spesen']]
+    : [['Tag', 'Datum', 'Start', 'Ende', 'Dauer', 'Fahrt', 'Arbeit', 'Pause', 'N25%', 'N40%', 'Spesen']];
+
+  const body = shifts.map((s) => {
+    const row = [
+      s.weekday,
+      s.shift_date,
+      s.shift_start?.split(' ')[1] || s.shift_start,
+      s.shift_end?.split(' ')[1] || s.shift_end,
+      s.duration_hm,
+      s.driving_hm,
+      s.work_only_hm,
+      s.break_hm,
+    ];
+    if (hasManual) row.push(s.manual_hm || '—');
+    row.push(dec(s.night_25_minutes), dec(s.night_40_minutes), s.has_diet ? 'JA' : '—');
+    return row;
+  });
+
+  // Totals foot row
+  const totalManual = shifts.reduce((a, s) => a + (s.manual_minutes || 0), 0);
+  const totalN25 = shifts.reduce((a, s) => a + s.night_25_minutes, 0);
+  const totalN40 = shifts.reduce((a, s) => a + s.night_40_minutes, 0);
+  const totalSpesen = shifts.filter((s) => s.has_diet).length;
+  const foot = [
+    '', 'SUMME', '', '',
+    summary.total_work_hm,
+    summary.total_driving_hm,
+    '',
+    summary.total_break_hm,
+  ];
+  if (hasManual) foot.push(hm(totalManual));
+  foot.push(dec(totalN25), dec(totalN40), String(totalSpesen));
+
+  const spesenCol = hasManual ? 11 : 10;
 
   autoTable(doc, {
     startY: y,
-    head: tableHead,
-    body: tableBody,
-    styles: {
-      fontSize: 7.5,
-      cellPadding: 2,
-      lineWidth: 0.1,
-      lineColor: [226, 232, 240],
-    },
-    headStyles: {
-      fillColor: BRAND.primary,
-      textColor: 255,
-      fontStyle: 'bold',
-      fontSize: 7,
-      cellPadding: 3,
-    },
+    head,
+    body,
+    foot: [foot],
+    styles: { fontSize: 7, cellPadding: 1.8, lineWidth: 0.1, lineColor: [226, 232, 240], valign: 'middle' },
+    headStyles: { fillColor: C.primary, textColor: 255, fontStyle: 'bold', fontSize: 6.5, cellPadding: 2.5 },
+    footStyles: { fillColor: C.primary, textColor: 255, fontStyle: 'bold', fontSize: 7 },
     alternateRowStyles: { fillColor: [248, 250, 252] },
     columnStyles: {
-      0: { fontStyle: 'bold', cellWidth: 12 },
-      4: { fontStyle: 'bold' },
-      10: { halign: 'center' },
+      0: { fontStyle: 'bold', cellWidth: 10 },
+      1: { cellWidth: 18 },
+      4: { fontStyle: 'bold', halign: 'center' },
+      5: { halign: 'center' },
+      6: { halign: 'center' },
+      7: { halign: 'center' },
+      ...(hasManual ? { 8: { halign: 'center' } } : {}),
+      [spesenCol - 2]: { halign: 'right' },
+      [spesenCol - 1]: { halign: 'right' },
+      [spesenCol]: { halign: 'center', fontStyle: 'bold' },
     },
     didParseCell: (data: any) => {
       if (data.section !== 'body') return;
       const shift = shifts[data.row.index];
       if (!shift) return;
-      // Weekend rows
       const wd = shift.weekday;
       if (['So', 'Nd', 'Sa', 'Su'].includes(wd)) {
-        data.cell.styles.fillColor = BRAND.weekendBg;
+        data.cell.styles.fillColor = C.weekendBg;
       }
-      // Diet YES green
-      if (data.column.index === 10 && shift.has_diet) {
-        data.cell.styles.textColor = BRAND.success;
+      if (data.column.index === spesenCol && shift.has_diet) {
+        data.cell.styles.textColor = C.success;
+        data.cell.styles.fontStyle = 'bold';
+      }
+      // Manual highlight
+      if (hasManual && data.column.index === 8 && (shift.manual_minutes || 0) > 0) {
+        data.cell.styles.textColor = C.orange;
         data.cell.styles.fontStyle = 'bold';
       }
     },
-    margin: { left: margin, right: margin },
+    margin: { left: M, right: M },
   });
 
-  // ── Vehicle info ──
-  const allVehicles = [...new Set(shifts.flatMap((s) => s.vehicles))];
-  if (allVehicles.length > 0) {
-    const finalY = (doc as any).lastAutoTable.finalY + 6;
-    doc.setFontSize(7);
-    doc.setTextColor(...BRAND.gray);
-    doc.text(`Fahrzeuge: ${allVehicles.join(', ')}`, margin, finalY);
-  }
-
-  addFooter(ctx);
-
-  const fileName = `${safeName(driverName)}_Analyse_${new Date().toISOString().slice(0, 10)}.pdf`;
-  doc.save(fileName);
+  drawFooter(c);
+  doc.save(`Fahreranalyse_${safeName(driverName)}_${new Date().toISOString().slice(0, 10)}.pdf`);
 }
 
-// ═════════════════════════════════════════════════════════════════
-//  SETTLEMENT PDF — Monthly batch report
-// ═════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
+//  2) SETTLEMENT PDF — Monatsabrechnung
+// ═══════════════════════════════════════════════════════════════
 
 interface SettlementDriverData {
   driver_name: string;
@@ -344,39 +449,40 @@ interface SettlementDriverData {
 }
 
 export async function generateSettlementPdf(period: string, drivers: SettlementDriverData[]) {
-  const ctx = await createPdfContext('landscape');
-  const { doc, pageW, margin } = ctx;
+  const c = await ctx('landscape');
+  const { doc, W, M } = c;
 
   const [year, mon] = period.split('-');
   const monthNames = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
   const monthLabel = `${monthNames[parseInt(mon) - 1]} ${year}`;
 
-  const startY = addHeader(ctx, `Monatsabrechnung — ${monthLabel}`, `${drivers.length} Fahrer · Abrechnungszeitraum ${period}`);
+  let y = drawHeader(c, `Monatsabrechnung — ${monthLabel}`, `${drivers.length} Fahrer  ·  Abrechnungszeitraum ${period}`);
 
-  // ── Totals summary ──
-  let totalWork = 0, totalN25 = 0, totalN40 = 0, totalDiets = 0, totalVma = 0, totalShifts = 0;
+  // ── Totals ──
+  let tWork = 0, tN25 = 0, tN40 = 0, tSpesen = 0, tVma = 0, tShifts = 0;
   for (const d of drivers) {
-    totalWork += d.summary.total_work_minutes;
-    totalN25 += d.summary.night_25_minutes;
-    totalN40 += d.summary.night_40_minutes;
-    totalDiets += d.summary.effective_diet_count;
-    totalVma += d.summary.vma_amount;
-    totalShifts += d.summary.total_shifts;
+    tWork += d.summary.total_work_minutes;
+    tN25 += d.summary.night_25_minutes;
+    tN40 += d.summary.night_40_minutes;
+    tSpesen += d.summary.effective_diet_count;
+    tVma += d.summary.vma_amount;
+    tShifts += d.summary.total_shifts;
   }
 
-  const cardW2 = (pageW - 2 * margin - 20) / 6;
-  let y = startY + 2;
-  addMetricCard(doc, margin, y, cardW2, 'Fahrer', String(drivers.length), BRAND.primary);
-  addMetricCard(doc, margin + (cardW2 + 4) * 1, y, cardW2, 'Schichten', String(totalShifts), BRAND.accent);
-  addMetricCard(doc, margin + (cardW2 + 4) * 2, y, cardW2, 'Arbeitszeit', `${Math.floor(totalWork / 60)}:${String(totalWork % 60).padStart(2, '0')}`, BRAND.primaryLight);
-  addMetricCard(doc, margin + (cardW2 + 4) * 3, y, cardW2, 'Nacht 25%', (totalN25 / 60).toFixed(2), [124, 58, 237]);
-  addMetricCard(doc, margin + (cardW2 + 4) * 4, y, cardW2, 'Nacht 40%', (totalN40 / 60).toFixed(2), BRAND.danger);
-  addMetricCard(doc, margin + (cardW2 + 4) * 5, y, cardW2, 'VMA Summe', `${totalVma.toFixed(2)} €`, BRAND.warning);
-
-  y += 24;
+  const cw6 = (W - 2 * M - 20) / 6;
+  y += 1;
+  drawCard(doc, M, y, cw6, 16, 'Fahrer', String(drivers.length), C.primary);
+  drawCard(doc, M + (cw6 + 4), y, cw6, 16, 'Schichten', String(tShifts), C.accent);
+  drawCard(doc, M + 2 * (cw6 + 4), y, cw6, 16, 'Arbeitszeit', hm(tWork), C.primaryLight);
+  drawCard(doc, M + 3 * (cw6 + 4), y, cw6, 16, 'Nacht 25%', dec(tN25), C.purple);
+  drawCard(doc, M + 4 * (cw6 + 4), y, cw6, 16, 'Nacht 40%', dec(tN40), C.danger);
+  drawCard(doc, M + 5 * (cw6 + 4), y, cw6, 16, 'VMA Summe', `${tVma.toFixed(2)} €`, C.warning);
+  y += 20;
 
   // ── Drivers table ──
-  const head = [['Nr', 'Fahrer', 'Pers.Nr.', 'Schichten', 'Arbeitszeit', 'Lenkzeit', 'N25%', 'N40%', 'Diäten', 'Satz €', 'VMA €']];
+  y = drawSection(doc, M, y, 'Fahrerübersicht');
+
+  const head = [['Nr', 'Fahrer', 'Pers.Nr.', 'Schichten', 'AZ', 'Lenk.', 'N25%', 'N40%', 'Spesen', 'Satz €', 'VMA €']];
   const body = drivers.map((d, i) => [
     String(i + 1),
     d.driver_name,
@@ -384,8 +490,8 @@ export async function generateSettlementPdf(period: string, drivers: SettlementD
     String(d.summary.total_shifts),
     d.summary.total_work_hm,
     d.summary.total_driving_hm,
-    (d.summary.night_25_minutes / 60).toFixed(2),
-    (d.summary.night_40_minutes / 60).toFixed(2),
+    dec(d.summary.night_25_minutes),
+    dec(d.summary.night_40_minutes),
     String(d.summary.effective_diet_count),
     d.diet_rate.toFixed(2),
     d.summary.vma_amount.toFixed(2),
@@ -395,19 +501,13 @@ export async function generateSettlementPdf(period: string, drivers: SettlementD
     startY: y,
     head,
     body,
-    styles: {
-      fontSize: 7.5,
-      cellPadding: 2.5,
-      lineWidth: 0.1,
-      lineColor: [226, 232, 240],
-    },
-    headStyles: {
-      fillColor: BRAND.primary,
-      textColor: 255,
-      fontStyle: 'bold',
-      fontSize: 7,
-      cellPadding: 3,
-    },
+    foot: [[
+      '', 'SUMME', '', String(tShifts), hm(tWork), '',
+      dec(tN25), dec(tN40), String(tSpesen), '', tVma.toFixed(2),
+    ]],
+    styles: { fontSize: 7.5, cellPadding: 2.2, lineWidth: 0.1, lineColor: [226, 232, 240] },
+    headStyles: { fillColor: C.primary, textColor: 255, fontStyle: 'bold', fontSize: 7, cellPadding: 2.8 },
+    footStyles: { fillColor: C.primary, textColor: 255, fontStyle: 'bold', fontSize: 8 },
     alternateRowStyles: { fillColor: [248, 250, 252] },
     columnStyles: {
       0: { halign: 'center', cellWidth: 10 },
@@ -421,33 +521,16 @@ export async function generateSettlementPdf(period: string, drivers: SettlementD
       9: { halign: 'right' },
       10: { halign: 'right', fontStyle: 'bold' },
     },
-    // Totals row
-    foot: [[
-      '', 'SUMME', '', String(totalShifts),
-      `${Math.floor(totalWork / 60)}:${String(totalWork % 60).padStart(2, '0')}`,
-      '',
-      (totalN25 / 60).toFixed(2),
-      (totalN40 / 60).toFixed(2),
-      String(totalDiets),
-      '',
-      totalVma.toFixed(2),
-    ]],
-    footStyles: {
-      fillColor: [30, 64, 175],
-      textColor: 255,
-      fontStyle: 'bold',
-      fontSize: 8,
-    },
-    margin: { left: margin, right: margin },
+    margin: { left: M, right: M },
   });
 
-  addFooter(ctx);
+  drawFooter(c);
   doc.save(`Abrechnung_${period}.pdf`);
 }
 
-// ═════════════════════════════════════════════════════════════════
-//  COMPLIANCE PDF — EU 561/2006 driving time violations
-// ═════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
+//  3) COMPLIANCE PDF — EU 561/2006
+// ═══════════════════════════════════════════════════════════════
 
 export interface ComplianceViolation {
   date: string;
@@ -465,16 +548,13 @@ export interface ComplianceReport {
   period: string;
   totalShifts: number;
   violations: ComplianceViolation[];
-  score: number; // 0–100
+  score: number;
 }
 
-/**
- * Analyze shifts for EU 561/2006 compliance violations
- */
 export function analyzeCompliance(
   driverName: string,
   cardNumber: string,
-  shifts: ShiftRow[],
+  shifts: Shift[],
 ): ComplianceReport {
   const violations: ComplianceViolation[] = [];
   const period = shifts.length > 0
@@ -482,200 +562,149 @@ export function analyzeCompliance(
     : '';
 
   for (const s of shifts) {
-    // Daily driving limit: 9h (540 min), can extend to 10h twice/week
     if (s.driving_minutes > 600) {
-      violations.push({
-        date: s.shift_date,
-        weekday: s.weekday,
-        type: 'daily_driving',
+      violations.push({ date: s.shift_date, weekday: s.weekday, type: 'daily_driving',
         description: 'Tägliche Lenkzeit über 10h (absolutes Maximum)',
-        actual: `${(s.driving_minutes / 60).toFixed(1)}h`,
-        limit: '10:00h',
-        severity: 'violation',
-      });
+        actual: `${dec(s.driving_minutes)}h`, limit: '10:00h', severity: 'violation' });
     } else if (s.driving_minutes > 540) {
-      violations.push({
-        date: s.shift_date,
-        weekday: s.weekday,
-        type: 'daily_driving',
-        description: 'Tägliche Lenkzeit über 9h (max. 2x pro Woche erlaubt)',
-        actual: `${(s.driving_minutes / 60).toFixed(1)}h`,
-        limit: '9:00h',
-        severity: 'warning',
-      });
+      violations.push({ date: s.shift_date, weekday: s.weekday, type: 'daily_driving',
+        description: 'Tägliche Lenkzeit über 9h (max. 2x pro Woche)',
+        actual: `${dec(s.driving_minutes)}h`, limit: '9:00h', severity: 'warning' });
     }
 
-    // Daily work limit: 10h max (ArbZG §3), up to 10h only with compensation
     if (s.duration_minutes > 660) {
-      violations.push({
-        date: s.shift_date,
-        weekday: s.weekday,
-        type: 'daily_work',
+      violations.push({ date: s.shift_date, weekday: s.weekday, type: 'daily_work',
         description: 'Tägliche Arbeitszeit über 11h',
-        actual: `${(s.duration_minutes / 60).toFixed(1)}h`,
-        limit: '10:00h',
-        severity: 'violation',
-      });
+        actual: `${dec(s.duration_minutes)}h`, limit: '10:00h', severity: 'violation' });
     } else if (s.duration_minutes > 600) {
-      violations.push({
-        date: s.shift_date,
-        weekday: s.weekday,
-        type: 'daily_work',
+      violations.push({ date: s.shift_date, weekday: s.weekday, type: 'daily_work',
         description: 'Tägliche Arbeitszeit über 10h (Ausgleich erforderlich)',
-        actual: `${(s.duration_minutes / 60).toFixed(1)}h`,
-        limit: '10:00h',
-        severity: 'warning',
-      });
+        actual: `${dec(s.duration_minutes)}h`, limit: '10:00h', severity: 'warning' });
     }
 
-    // Break requirement: 45min after 4.5h driving (can split 15+30)
     if (s.driving_minutes > 270 && s.break_minutes < 45) {
-      violations.push({
-        date: s.shift_date,
-        weekday: s.weekday,
-        type: 'short_break',
+      violations.push({ date: s.shift_date, weekday: s.weekday, type: 'short_break',
         description: 'Pause unter 45min bei über 4,5h Lenkzeit',
-        actual: `${s.break_minutes}min`,
-        limit: '45min',
-        severity: 'violation',
-      });
+        actual: `${s.break_minutes}min`, limit: '45min', severity: 'violation' });
     }
   }
 
-  // Weekly driving check (aggregate per week)
+  // Weekly driving
   const weekMap = new Map<string, number>();
   for (const s of shifts) {
     const d = new Date(s.shift_date);
-    const weekStart = new Date(d);
-    weekStart.setDate(d.getDate() - d.getDay());
-    const weekKey = weekStart.toISOString().slice(0, 10);
-    weekMap.set(weekKey, (weekMap.get(weekKey) || 0) + s.driving_minutes);
+    const ws = new Date(d); ws.setDate(d.getDate() - d.getDay());
+    const k = ws.toISOString().slice(0, 10);
+    weekMap.set(k, (weekMap.get(k) || 0) + s.driving_minutes);
   }
-  for (const [weekStart, totalMin] of weekMap) {
-    if (totalMin > 56 * 60) {
-      violations.push({
-        date: weekStart,
-        weekday: 'KW',
-        type: 'weekly_driving',
+  for (const [wk, mins] of weekMap) {
+    if (mins > 56 * 60) {
+      violations.push({ date: wk, weekday: 'KW', type: 'weekly_driving',
         description: 'Wöchentliche Lenkzeit über 56h',
-        actual: `${(totalMin / 60).toFixed(1)}h`,
-        limit: '56:00h',
-        severity: 'violation',
-      });
+        actual: `${dec(mins)}h`, limit: '56:00h', severity: 'violation' });
     }
   }
 
-  // Rest period check: minimum 11h between shifts
+  // Rest periods
   for (let i = 1; i < shifts.length; i++) {
-    const prevEnd = shifts[i - 1].shift_end;
-    const currStart = shifts[i].shift_start;
-    if (prevEnd && currStart) {
-      const prev = new Date(prevEnd.replace(' ', 'T'));
-      const curr = new Date(currStart.replace(' ', 'T'));
-      const restMinutes = (curr.getTime() - prev.getTime()) / 60000;
-      if (restMinutes > 0 && restMinutes < 9 * 60) {
-        violations.push({
-          date: shifts[i].shift_date,
-          weekday: shifts[i].weekday,
-          type: 'rest_period',
-          description: 'Ruhezeit unter 9h (Minimum: 11h, reduziert 9h max 3x/Woche)',
-          actual: `${(restMinutes / 60).toFixed(1)}h`,
-          limit: '11:00h (9:00h)',
-          severity: 'violation',
-        });
-      } else if (restMinutes >= 9 * 60 && restMinutes < 11 * 60) {
-        violations.push({
-          date: shifts[i].shift_date,
-          weekday: shifts[i].weekday,
-          type: 'rest_period',
-          description: 'Verkürzte Ruhezeit (9–11h, max 3x pro Woche erlaubt)',
-          actual: `${(restMinutes / 60).toFixed(1)}h`,
-          limit: '11:00h',
-          severity: 'warning',
-        });
+    const pe = shifts[i - 1].shift_end;
+    const cs = shifts[i].shift_start;
+    if (pe && cs) {
+      const prev = new Date(pe.replace(' ', 'T'));
+      const curr = new Date(cs.replace(' ', 'T'));
+      const rest = (curr.getTime() - prev.getTime()) / 60000;
+      if (rest > 0 && rest < 9 * 60) {
+        violations.push({ date: shifts[i].shift_date, weekday: shifts[i].weekday, type: 'rest_period',
+          description: 'Ruhezeit unter 9h (Min: 11h, reduziert 9h max 3x/Woche)',
+          actual: `${dec(rest)}h`, limit: '11:00h (9:00h)', severity: 'violation' });
+      } else if (rest >= 9 * 60 && rest < 11 * 60) {
+        violations.push({ date: shifts[i].shift_date, weekday: shifts[i].weekday, type: 'rest_period',
+          description: 'Verkürzte Ruhezeit (9–11h, max 3x pro Woche)',
+          actual: `${dec(rest)}h`, limit: '11:00h', severity: 'warning' });
       }
     }
   }
 
-  // Score: 100 minus penalties
-  const vCount = violations.filter((v) => v.severity === 'violation').length;
-  const wCount = violations.filter((v) => v.severity === 'warning').length;
-  const score = Math.max(0, 100 - vCount * 15 - wCount * 5);
-
+  const vC = violations.filter((v) => v.severity === 'violation').length;
+  const wC = violations.filter((v) => v.severity === 'warning').length;
+  const score = Math.max(0, 100 - vC * 15 - wC * 5);
   violations.sort((a, b) => a.date.localeCompare(b.date));
 
-  return {
-    driverName,
-    cardNumber,
-    period,
-    totalShifts: shifts.length,
-    violations,
-    score,
-  };
+  return { driverName, cardNumber, period, totalShifts: shifts.length, violations, score };
 }
 
 export async function generateCompliancePdf(report: ComplianceReport) {
-  const ctx = await createPdfContext('portrait');
-  const { doc, pageW, margin } = ctx;
+  const c = await ctx('portrait');
+  const { doc, W, M } = c;
 
   const vCount = report.violations.filter((v) => v.severity === 'violation').length;
   const wCount = report.violations.filter((v) => v.severity === 'warning').length;
+  const scoreColor = report.score >= 80 ? C.success : report.score >= 50 ? C.warning : C.danger;
 
-  const scoreColor = report.score >= 80 ? BRAND.success : report.score >= 50 ? BRAND.warning : BRAND.danger;
+  let y = drawHeader(c, `Compliance-Bericht`, `${report.driverName}  ·  ${report.cardNumber}  ·  ${report.period}`);
 
-  const startY = addHeader(ctx, `Compliance-Bericht: ${report.driverName}`, `${report.cardNumber} — ${report.period} — EU 561/2006 & ArbZG`);
+  // ── Score card (large) ──
+  y += 1;
+  const cw4 = (W - 2 * M - 12) / 4;
 
-  // ── Score and stats ──
-  let y = startY + 2;
-  const cardW = (pageW - 2 * margin - 12) / 4;
-
-  // Score card (larger)
+  // Big score
   doc.setFillColor(248, 250, 252);
-  doc.roundedRect(margin, y, cardW, 24, 2, 2, 'F');
+  doc.roundedRect(M, y, cw4, 26, 2, 2, 'F');
   doc.setFillColor(...scoreColor);
-  doc.rect(margin, y, 2, 24, 'F');
-  doc.setFontSize(6.5);
+  doc.roundedRect(M, y, 2.5, 26, 1.2, 1.2, 'F');
+  doc.rect(M + 1.5, y, 1, 26, 'F');
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(...BRAND.gray);
-  doc.text('COMPLIANCE SCORE', margin + 6, y + 6);
-  doc.setFontSize(20);
+  doc.setFontSize(5.5);
+  doc.setTextColor(...C.gray);
+  doc.text('COMPLIANCE SCORE', M + 6, y + 6);
+  doc.setFontSize(22);
   doc.setTextColor(...scoreColor);
-  doc.text(`${report.score}%`, margin + 6, y + 18);
+  doc.text(`${report.score}%`, M + 6, y + 19);
+  // Status text
+  doc.setFontSize(6);
+  doc.setTextColor(...C.gray);
+  doc.text(report.score >= 80 ? 'GUT' : report.score >= 50 ? 'PRÜFEN' : 'KRITISCH', M + 6, y + 23.5);
 
-  addMetricCard(doc, margin + cardW + 4, y + 3, cardW, 'Schichten', String(report.totalShifts), BRAND.primary);
-  addMetricCard(doc, margin + 2 * (cardW + 4), y + 3, cardW, 'Verstöße', String(vCount), BRAND.danger);
-  addMetricCard(doc, margin + 3 * (cardW + 4), y + 3, cardW, 'Warnungen', String(wCount), BRAND.warning);
+  drawCard(doc, M + cw4 + 4, y + 4, cw4, 18, 'Gepr. Schichten', String(report.totalShifts), C.primary);
+  drawCard(doc, M + 2 * (cw4 + 4), y + 4, cw4, 18, 'Verstöße', String(vCount), C.danger);
+  drawCard(doc, M + 3 * (cw4 + 4), y + 4, cw4, 18, 'Warnungen', String(wCount), C.warning);
 
   y += 30;
 
-  if (report.violations.length === 0) {
-    // ── All clear ──
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(...BRAND.success);
-    doc.text('✓ Keine Verstöße festgestellt', pageW / 2, y + 10, { align: 'center' });
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(...BRAND.gray);
-    doc.text('Alle Lenk- und Ruhezeiten entsprechen den Vorschriften.', pageW / 2, y + 16, { align: 'center' });
-  } else {
-    // ── Violations table ──
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(...BRAND.dark);
-    doc.text('Festgestellte Verstöße und Warnungen', margin, y);
-    y += 3;
+  // ── EU regulation reference ──
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6.5);
+  doc.setTextColor(...C.gray);
+  doc.text('Prüfung gem. VO (EG) Nr. 561/2006, Richtlinie 2002/15/EG, ArbZG §3, FPersV', M, y);
+  y += 5;
 
-    const head = [['', 'Datum', 'Tag', 'Typ', 'Beschreibung', 'IST', 'Grenze']];
-    const body = report.violations.map((v) => [
-      v.severity === 'violation' ? '⚠' : '⚡',
+  if (report.violations.length === 0) {
+    y += 8;
+    doc.setFillColor(240, 253, 244);
+    doc.roundedRect(M, y, W - 2 * M, 22, 3, 3, 'F');
+    doc.setFillColor(...C.success);
+    doc.roundedRect(M, y, 3, 22, 1.5, 1.5, 'F');
+    doc.rect(M + 1.5, y, 1.5, 22, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.setTextColor(...C.success);
+    doc.text('Keine Verstöße festgestellt', M + 10, y + 10);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(...C.gray);
+    doc.text('Alle Lenk- und Ruhezeiten entsprechen den gesetzlichen Vorschriften.', M + 10, y + 17);
+  } else {
+    y = drawSection(doc, M, y, 'Festgestellte Verstöße und Warnungen');
+
+    const head = [['', 'Datum', 'Tag', 'Kategorie', 'Beschreibung', 'IST-Wert', 'Grenzwert']];
+    const tbody = report.violations.map((v) => [
+      v.severity === 'violation' ? '!' : '~',
       v.date,
       v.weekday,
       v.type === 'daily_driving' ? 'Lenkzeit'
         : v.type === 'daily_work' ? 'Arbeitszeit'
         : v.type === 'short_break' ? 'Pause'
-        : v.type === 'rest_period' ? 'Ruhezeit'
-        : 'Woche',
+        : v.type === 'rest_period' ? 'Ruhezeit' : 'Woche',
       v.description,
       v.actual,
       v.limit,
@@ -684,23 +713,12 @@ export async function generateCompliancePdf(report: ComplianceReport) {
     autoTable(doc, {
       startY: y,
       head,
-      body,
-      styles: {
-        fontSize: 7,
-        cellPadding: 2.5,
-        lineWidth: 0.1,
-        lineColor: [226, 232, 240],
-      },
-      headStyles: {
-        fillColor: BRAND.dark,
-        textColor: 255,
-        fontStyle: 'bold',
-        fontSize: 6.5,
-        cellPadding: 3,
-      },
+      body: tbody,
+      styles: { fontSize: 7, cellPadding: 2.2, lineWidth: 0.1, lineColor: [226, 232, 240] },
+      headStyles: { fillColor: C.dark, textColor: 255, fontStyle: 'bold', fontSize: 6.5, cellPadding: 2.8 },
       alternateRowStyles: { fillColor: [248, 250, 252] },
       columnStyles: {
-        0: { halign: 'center', cellWidth: 8 },
+        0: { halign: 'center', cellWidth: 6, fontStyle: 'bold' },
         1: { cellWidth: 20 },
         2: { cellWidth: 10, halign: 'center' },
         3: { cellWidth: 20, fontStyle: 'bold' },
@@ -711,30 +729,33 @@ export async function generateCompliancePdf(report: ComplianceReport) {
         if (data.section !== 'body') return;
         const v = report.violations[data.row.index];
         if (!v) return;
-        if (v.severity === 'violation') {
-          if (data.column.index === 0 || data.column.index === 5) {
-            data.cell.styles.textColor = BRAND.danger;
-            data.cell.styles.fontStyle = 'bold';
-          }
-        } else {
-          if (data.column.index === 0 || data.column.index === 5) {
-            data.cell.styles.textColor = BRAND.warning;
-            data.cell.styles.fontStyle = 'bold';
-          }
+        const isViol = v.severity === 'violation';
+        if (data.column.index === 0) {
+          data.cell.styles.textColor = isViol ? C.danger : C.warning;
+        }
+        if (data.column.index === 5) {
+          data.cell.styles.textColor = isViol ? C.danger : C.warning;
+        }
+        // Full row tint for violations
+        if (isViol && data.row.index % 2 === 0) {
+          data.cell.styles.fillColor = [254, 242, 242];
         }
       },
-      margin: { left: margin, right: margin },
+      margin: { left: M, right: M },
     });
 
-    // ── Legend ──
-    const legendY = (doc as any).lastAutoTable.finalY + 8;
-    doc.setFontSize(7);
+    // ── Legal reference ──
+    const legY = (doc as any).lastAutoTable.finalY + 8;
+    doc.setDrawColor(226, 232, 240);
+    doc.setLineWidth(0.15);
+    doc.line(M, legY - 2, W - M, legY - 2);
     doc.setFont('helvetica', 'bold');
-    doc.setTextColor(...BRAND.dark);
-    doc.text('Rechtsgrundlage:', margin, legendY);
+    doc.setFontSize(7);
+    doc.setTextColor(...C.dark);
+    doc.text('Rechtsgrundlage', M, legY + 1);
     doc.setFont('helvetica', 'normal');
-    doc.setTextColor(...BRAND.gray);
     doc.setFontSize(6.5);
+    doc.setTextColor(...C.gray);
     const laws = [
       'VO (EG) Nr. 561/2006 — Lenk- und Ruhezeiten im Straßenverkehr',
       'Richtlinie 2002/15/EG — Arbeitszeit im Straßentransport',
@@ -742,10 +763,489 @@ export async function generateCompliancePdf(report: ComplianceReport) {
       'FPersV — Fahrpersonalverordnung',
     ];
     laws.forEach((law, i) => {
-      doc.text(`• ${law}`, margin + 2, legendY + 5 + i * 4);
+      doc.text(`·  ${law}`, M + 2, legY + 5 + i * 3.5);
     });
   }
 
-  addFooter(ctx);
+  drawFooter(c);
   doc.save(`Compliance_${safeName(report.driverName)}_${new Date().toISOString().slice(0, 10)}.pdf`);
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  4) VERSTÖSSE PDF — Official violation document with signature
+//     Matches transitet.eu format exactly
+// ═══════════════════════════════════════════════════════════════
+
+/** Violation severity categories per EU regulation */
+type VerstossKategorie = 'MSI' | 'VSI' | 'SI' | 'MI' | '-';
+
+interface VerstossEntry {
+  datum: string;        // DD.MM.YYYY
+  zeit: string;         // HH:MM or HH:MM - HH:MM
+  beschreibung: string;
+  rechtsgrundlage: string;
+  bussgeldFahrer: number;
+  bussgeldUnternehmen: number;
+  kategorie: VerstossKategorie;
+}
+
+interface VerstossType {
+  beschreibung: string;
+  msi: number;
+  vsi: number;
+  si: number;
+  mi: number;
+  anzahl: number;
+  bussgeldFahrer: number;
+  bussgeldUnternehmen: number;
+}
+
+/**
+ * Analyze shifts and produce Verstöße entries following EU VO 165/2014, FPersV, ArbZG
+ */
+export function analyzeVerstoesse(
+  driverName: string,
+  cardNumber: string,
+  shifts: Shift[],
+): { entries: VerstossEntry[]; types: VerstossType[]; period: string } {
+  const entries: VerstossEntry[] = [];
+
+  const fmtDatum = (iso: string) => {
+    const [y, m, d] = iso.split('-');
+    return `${d}.${m}.${y}`;
+  };
+
+  const fmtTime = (dt: string) => {
+    if (!dt) return '';
+    const parts = dt.split(' ');
+    return parts.length > 1 ? parts[1].slice(0, 5) : dt.slice(0, 5);
+  };
+
+  for (const s of shifts) {
+    const datum = fmtDatum(s.shift_date);
+    const startTime = fmtTime(s.shift_start);
+
+    // 1) Landeingabe zu Schichtbeginn fehlt oder zu spät erfolgt (Manual entry missing/late)
+    if ((s.manual_minutes || 0) > 0) {
+      entries.push({
+        datum,
+        zeit: startTime,
+        beschreibung: 'Landeingabe zu Schichtbeginn fehlt oder zu spät erfolgt',
+        rechtsgrundlage: 'EU VO 165/2014 Art. 34, FPersVO § 23 Abs 2',
+        bussgeldFahrer: 37.50,
+        bussgeldUnternehmen: 0,
+        kategorie: 'MI',
+      });
+    }
+
+    // 2) Überprüfung des Fahrzeugs vor Abfahrt nicht als Arbeitszeit dokumentiert
+    // Detect: shift starts with driving (no work_only before driving)
+    if (s.driving_minutes > 0 && s.work_only_minutes <= 0 && s.duration_minutes > 30) {
+      const diffMin = Math.abs(s.duration_minutes - s.driving_minutes - s.break_minutes);
+      entries.push({
+        datum,
+        zeit: startTime,
+        beschreibung: `Überprüfung des Fahrzeugs vor Abfahrt nicht als Arbeitszeit dokumentiert.${diffMin > 0 ? ` Unterschreitung von ${hm(diffMin)}` : ''}`,
+        rechtsgrundlage: 'EU VO 165/2014 Art. 34',
+        bussgeldFahrer: 50.00,
+        bussgeldUnternehmen: 0,
+        kategorie: 'VSI',
+      });
+    }
+
+    // 3) Arbeitszeit von 6 Std. bis zum Einlegen einer Pause von mind. 15 Minuten überschritten
+    if (s.duration_minutes > 360 && s.break_minutes < 15) {
+      const ueberschreitung = s.duration_minutes - 360;
+      entries.push({
+        datum,
+        zeit: `${startTime} - ${fmtTime(s.shift_end)}`,
+        beschreibung: `Arbeitszeit von 6 Std. bis zum Einlegen einer Pause von mind. 15 Minuten überschritten; Überschritten um ${hm(ueberschreitung)}`,
+        rechtsgrundlage: 'ArbZG, § 4',
+        bussgeldFahrer: 0,
+        bussgeldUnternehmen: 50.00,
+        kategorie: '-',
+      });
+    }
+
+    // 4) Tägliche Lenkzeit überschritten (> 9h / > 10h)
+    if (s.driving_minutes > 600) {
+      const ueber = s.driving_minutes - 600;
+      entries.push({
+        datum,
+        zeit: startTime,
+        beschreibung: `Tägliche Lenkzeit von 10 Stunden überschritten. Überschreitung von ${hm(ueber)}`,
+        rechtsgrundlage: 'VO (EG) Nr. 561/2006 Art. 6',
+        bussgeldFahrer: 120.00,
+        bussgeldUnternehmen: 0,
+        kategorie: 'SI',
+      });
+    } else if (s.driving_minutes > 540) {
+      const ueber = s.driving_minutes - 540;
+      entries.push({
+        datum,
+        zeit: startTime,
+        beschreibung: `Tägliche Lenkzeit von 9 Stunden überschritten (max. 2x/Woche 10h erlaubt). Überschreitung von ${hm(ueber)}`,
+        rechtsgrundlage: 'VO (EG) Nr. 561/2006 Art. 6',
+        bussgeldFahrer: 60.00,
+        bussgeldUnternehmen: 0,
+        kategorie: 'MI',
+      });
+    }
+
+    // 5) Pausenverstoß: > 4,5h Lenkzeit ohne 45min Pause
+    if (s.driving_minutes > 270 && s.break_minutes < 45) {
+      entries.push({
+        datum,
+        zeit: startTime,
+        beschreibung: `Pause von 45 Min. nach 4,5h Lenkzeit nicht eingehalten. Pause nur ${s.break_minutes} Min.`,
+        rechtsgrundlage: 'VO (EG) Nr. 561/2006 Art. 7',
+        bussgeldFahrer: 100.00,
+        bussgeldUnternehmen: 0,
+        kategorie: 'VSI',
+      });
+    }
+
+    // 6) Tägliche Arbeitszeit > 10h
+    if (s.duration_minutes > 600) {
+      const ueber = s.duration_minutes - 600;
+      entries.push({
+        datum,
+        zeit: `${startTime} - ${fmtTime(s.shift_end)}`,
+        beschreibung: `Tägliche Arbeitszeit von 10 Stunden überschritten. Überschreitung von ${hm(ueber)}`,
+        rechtsgrundlage: 'ArbZG § 3',
+        bussgeldFahrer: 0,
+        bussgeldUnternehmen: 75.00,
+        kategorie: '-',
+      });
+    }
+  }
+
+  // Rest period violations between shifts
+  for (let i = 1; i < shifts.length; i++) {
+    const pe = shifts[i - 1].shift_end;
+    const cs = shifts[i].shift_start;
+    if (pe && cs) {
+      const prev = new Date(pe.replace(' ', 'T'));
+      const curr = new Date(cs.replace(' ', 'T'));
+      const rest = (curr.getTime() - prev.getTime()) / 60000;
+      if (rest > 0 && rest < 9 * 60) {
+        entries.push({
+          datum: fmtDatum(shifts[i].shift_date),
+          zeit: fmtTime(cs),
+          beschreibung: `Tägliche Ruhezeit von 11 Stunden unterschritten. Ruhezeit nur ${hm(rest)}`,
+          rechtsgrundlage: 'VO (EG) Nr. 561/2006 Art. 8',
+          bussgeldFahrer: 150.00,
+          bussgeldUnternehmen: 0,
+          kategorie: 'VSI',
+        });
+      }
+    }
+  }
+
+  // Sort by date
+  entries.sort((a, b) => {
+    const [da, ma, ya] = a.datum.split('.');
+    const [db, mb, yb] = b.datum.split('.');
+    return `${ya}${ma}${da}`.localeCompare(`${yb}${mb}${db}`);
+  });
+
+  // Aggregate types
+  const typeMap = new Map<string, VerstossType>();
+  for (const e of entries) {
+    // Use first sentence of description as the type key
+    const key = e.beschreibung.split('.')[0].split(';')[0];
+    if (!typeMap.has(key)) {
+      typeMap.set(key, {
+        beschreibung: key,
+        msi: 0, vsi: 0, si: 0, mi: 0,
+        anzahl: 0,
+        bussgeldFahrer: 0,
+        bussgeldUnternehmen: 0,
+      });
+    }
+    const t = typeMap.get(key)!;
+    t.anzahl += 1;
+    t.bussgeldFahrer += e.bussgeldFahrer;
+    t.bussgeldUnternehmen += e.bussgeldUnternehmen;
+    if (e.kategorie === 'MSI') t.msi += 1;
+    else if (e.kategorie === 'VSI') t.vsi += 1;
+    else if (e.kategorie === 'SI') t.si += 1;
+    else if (e.kategorie === 'MI') t.mi += 1;
+  }
+
+  const period = shifts.length > 0
+    ? `${fmtDatum(shifts[0].shift_date)} - ${fmtDatum(shifts[shifts.length - 1].shift_date)}`
+    : '';
+
+  return { entries, types: Array.from(typeMap.values()), period };
+}
+
+/**
+ * Generate Verstöße PDF matching the official transitet.eu format:
+ * - Summary table with violation categories + fines
+ * - Detailed violation list with legal references
+ * - Legal disclaimer paragraphs
+ * - Signature area (Bemerkung)
+ */
+export async function generateVerstossePdf(
+  driverName: string,
+  cardNumber: string,
+  shifts: Shift[],
+) {
+  const { entries, types, period } = analyzeVerstoesse(driverName, cardNumber, shifts);
+
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+  const W = doc.internal.pageSize.getWidth();
+  const H = doc.internal.pageSize.getHeight();
+  const M = 12;
+  const now = new Date();
+  const erstelltAm = `${String(now.getDate()).padStart(2, '0')}.${String(now.getMonth() + 1).padStart(2, '0')}.${now.getFullYear()}, ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+  // ── Totals ──
+  let totalFahrer = 0, totalUnternehmen = 0;
+  for (const e of entries) { totalFahrer += e.bussgeldFahrer; totalUnternehmen += e.bussgeldUnternehmen; }
+
+  // ═══ PAGE HEADER ═══
+  // Right-aligned header info
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
+  doc.setTextColor(60, 60, 60);
+  doc.text('Szczegóły naruszenia', W - M, 10, { align: 'right' });
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.5);
+  doc.setTextColor(40, 40, 40);
+  doc.text(`Fahrer: ${driverName}`, W - M, 16, { align: 'right' });
+  doc.text(`Karten-Nr.: ${cardNumber}`, W - M, 21, { align: 'right' });
+  doc.text('Gruppe: Alle', W - M, 26, { align: 'right' });
+
+  // Left-aligned header
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
+  doc.setTextColor(40, 40, 40);
+  doc.text('Verstöße Details:', M, 10);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.5);
+  doc.text(`Selektierte Periode ${period}`, M, 16);
+  doc.text(`Erstellt am ${erstelltAm}`, M, 21);
+
+  let y = 28;
+
+  // ═══ SUMMARY TABLE ═══
+  // "Verstöße nach EU-Recht, der FPersV und dem ArbZG mit Bußgeldhöhe."
+  const summHead = [[
+    { content: 'Verstöße nach EU-Recht, der FPersV und dem ArbZG mit Bußgeldhöhe.', colSpan: 1 },
+    'MSI', 'VSI', 'SI', 'MI', 'Anzahl',
+    'Bußgeld Fahrer', 'Bußgeld Unternehmen',
+  ]];
+
+  const summBody = types.map((t) => [
+    t.beschreibung,
+    String(t.msi), String(t.vsi), String(t.si), String(t.mi), String(t.anzahl),
+    `${t.bussgeldFahrer.toFixed(2).replace('.', ',')} €`,
+    `${t.bussgeldUnternehmen.toFixed(2).replace('.', ',')} €`,
+  ]);
+
+  const totalAnzahl = entries.length;
+  const totalMsi = types.reduce((a, t) => a + t.msi, 0);
+  const totalVsi = types.reduce((a, t) => a + t.vsi, 0);
+  const totalSi = types.reduce((a, t) => a + t.si, 0);
+  const totalMi = types.reduce((a, t) => a + t.mi, 0);
+
+  autoTable(doc, {
+    startY: y,
+    head: summHead,
+    body: summBody,
+    foot: [[
+      { content: 'Gesamt', styles: { halign: 'right' as const, fontStyle: 'bold' as const } },
+      String(totalMsi), String(totalVsi), String(totalSi), String(totalMi), String(totalAnzahl),
+      `${totalFahrer.toFixed(2).replace('.', ',')} €`,
+      `${totalUnternehmen.toFixed(2).replace('.', ',')} €`,
+    ]],
+    styles: {
+      fontSize: 7.5,
+      cellPadding: 2.5,
+      lineWidth: 0.2,
+      lineColor: [180, 180, 180],
+      textColor: [40, 40, 40],
+    },
+    headStyles: {
+      fillColor: [230, 230, 230],
+      textColor: [30, 30, 30],
+      fontStyle: 'bold',
+      fontSize: 7.5,
+    },
+    footStyles: {
+      fillColor: [245, 245, 245],
+      textColor: [30, 30, 30],
+      fontStyle: 'bold',
+      fontSize: 7.5,
+    },
+    alternateRowStyles: { fillColor: [255, 255, 255] },
+    columnStyles: {
+      0: { cellWidth: 95 },
+      1: { halign: 'center', cellWidth: 14 },
+      2: { halign: 'center', cellWidth: 14 },
+      3: { halign: 'center', cellWidth: 14 },
+      4: { halign: 'center', cellWidth: 14 },
+      5: { halign: 'center', cellWidth: 16, fontStyle: 'bold' },
+      6: { halign: 'right', cellWidth: 28 },
+      7: { halign: 'right', cellWidth: 32 },
+    },
+    margin: { left: M, right: M },
+    tableLineColor: [180, 180, 180],
+    tableLineWidth: 0.2,
+  });
+
+  y = (doc as any).lastAutoTable.finalY + 6;
+
+  // ═══ DETAIL TABLE ═══
+  const detailHead = [[
+    'Datum', 'Zeit', 'Beschreibung', 'Rechtliche Grundlagen',
+    'Bußgeld Fahrer', 'Bußgeld Unternehmen', 'Kategorie',
+  ]];
+
+  // Totals sub-header row
+  const detailBody: string[][] = [];
+
+  // Add totals as first row (like in screenshot)
+  detailBody.push([
+    '', '', '', '',
+    `${totalFahrer.toFixed(2).replace('.', ',')} €`,
+    `${totalUnternehmen.toFixed(2).replace('.', ',')} €`,
+    '',
+  ]);
+
+  for (const e of entries) {
+    detailBody.push([
+      e.datum,
+      e.zeit,
+      e.beschreibung,
+      e.rechtsgrundlage,
+      `${e.bussgeldFahrer.toFixed(2).replace('.', ',')} €`,
+      `${e.bussgeldUnternehmen.toFixed(2).replace('.', ',')} €`,
+      e.kategorie,
+    ]);
+  }
+
+  autoTable(doc, {
+    startY: y,
+    head: detailHead,
+    body: detailBody,
+    styles: {
+      fontSize: 7,
+      cellPadding: 2,
+      lineWidth: 0.15,
+      lineColor: [200, 200, 200],
+      textColor: [40, 40, 40],
+      overflow: 'linebreak',
+    },
+    headStyles: {
+      fillColor: [230, 230, 230],
+      textColor: [30, 30, 30],
+      fontStyle: 'bold',
+      fontSize: 7,
+      cellPadding: 2.5,
+    },
+    alternateRowStyles: { fillColor: [252, 252, 252] },
+    columnStyles: {
+      0: { cellWidth: 22 },
+      1: { cellWidth: 22 },
+      2: { cellWidth: 80 },
+      3: { cellWidth: 45 },
+      4: { halign: 'right', cellWidth: 26 },
+      5: { halign: 'right', cellWidth: 32 },
+      6: { halign: 'center', cellWidth: 18 },
+    },
+    didParseCell: (data: any) => {
+      if (data.section !== 'body') return;
+      // First row is totals — bold
+      if (data.row.index === 0) {
+        data.cell.styles.fontStyle = 'bold';
+        data.cell.styles.fillColor = [245, 245, 245];
+      }
+    },
+    margin: { left: M, right: M },
+    tableLineColor: [200, 200, 200],
+    tableLineWidth: 0.15,
+  });
+
+  y = (doc as any).lastAutoTable.finalY + 6;
+
+  // ═══ LEGAL DISCLAIMER TEXT ═══
+  const disclaimerTexts = [
+    'Der/Die unterzeichnende Fahrer/Fahrerin, bestätigt hiermit, dass er/sie über die hier aufgelisteten Verstöße in Kenntnis gesetzt wurde und dass er/sie belehrt und aufgefordert wurde, zukünftig die gesetzlichen Lenk- und Ruhezeiten sowie die Bestimmungen des Arbeitszeitgesetzes einzuhalten.',
+    'Wir weisen darauf hin, dass die aufgelisteten Verstöße ohne Eingabe von Toleranzen ermittelt wurden und alle aufgetretenen Verstöße gegen die Lenk- und Ruhezeiten, das Arbeitszeitgesetz und zusätzliche Prüfungen, wie fehlende Abfahrtskontrollen und fehlende Ortseingaben darstellen.',
+    'Bei Kontrollen ist es daher möglich, dass entweder Toleranzen berücksichtigt werden, oder aber nur einzelne Gesetze zur Überprüfung ausgewählt werden. Daher können die Anzahl der bei externen Kontrollen aufgelisteten Verstöße deutlich von dieser Aufstellung abweichen.',
+  ];
+
+  // Check if we need a new page for the disclaimer + signature
+  const neededSpace = 55;
+  if (y + neededSpace > H - 15) {
+    doc.addPage('a4', 'landscape');
+    y = 15;
+  }
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6.5);
+  doc.setTextColor(50, 50, 50);
+
+  for (const txt of disclaimerTexts) {
+    const lines = doc.splitTextToSize(txt, W - 2 * M);
+    doc.text(lines, M, y);
+    y += lines.length * 3 + 2;
+  }
+
+  y += 4;
+
+  // ═══ BEMERKUNG + SIGNATURE ═══
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.setTextColor(30, 30, 30);
+  doc.text('Bemerkung:', M, y);
+  y += 8;
+
+  // Signature line
+  doc.setDrawColor(40, 40, 40);
+  doc.setLineWidth(0.3);
+  doc.line(M, y, M + 80, y);
+  y += 1;
+
+  y += 8;
+  doc.setLineWidth(0.3);
+  doc.line(M, y, M + 60, y);
+  doc.line(M + 90, y, M + 150, y);
+  y += 4;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7);
+  doc.setTextColor(100, 100, 100);
+  doc.text('Ort, Datum', M, y);
+  doc.text('Unterschrift Fahrer/Fahrerin', M + 90, y);
+
+  y += 8;
+  doc.setLineWidth(0.3);
+  doc.setDrawColor(40, 40, 40);
+  doc.line(M, y, M + 60, y);
+  doc.line(M + 90, y, M + 150, y);
+  y += 4;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7);
+  doc.setTextColor(100, 100, 100);
+  doc.text('Ort, Datum', M, y);
+  doc.text('Unterschrift Disponent/Fuhrparkleiter', M + 90, y);
+
+  // ═══ FOOTER on all pages ═══
+  const pages = doc.getNumberOfPages();
+  for (let i = 1; i <= pages; i++) {
+    doc.setPage(i);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.setTextColor(100, 100, 100);
+    doc.text('LTS Logistik GmbH — Tachoprüfung', M, H - 6);
+    doc.text(`Strona ${i} z ${pages}`, W - M, H - 6, { align: 'right' });
+  }
+
+  doc.save(`Verstoesse_${safeName(driverName)}_${new Date().toISOString().slice(0, 10)}.pdf`);
+  return { totalEntries: entries.length, totalFahrer, totalUnternehmen };
 }

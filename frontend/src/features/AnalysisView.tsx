@@ -13,7 +13,7 @@ import { useAuth } from '../hooks/useAuth';
 import { minutesToHm } from '../lib/utils';
 import { exportToXlsx, generateGoogleSheetsUrl } from '../lib/xlsx-export';
 import { useToast } from '../components/Toast';
-import { generateAnalysisPdf, analyzeCompliance, generateCompliancePdf } from '../lib/pdf-generator';
+import { generateAnalysisPdf, analyzeCompliance, generateCompliancePdf, generateVerstossePdf } from '../lib/pdf-generator';
 
 function fmtNight(minutes: number, hm: string) {
   const decimal = (minutes / 60).toFixed(2);
@@ -190,6 +190,14 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
       ? `Compliance-Score: ${report.score}% — ${report.violations.length} Feststellungen`
       : `Compliance score: ${report.score}% — ${report.violations.length} ustaleń`;
     toast(msg, report.score >= 80 ? 'success' : 'error');
+  };
+
+  const handleVerstoesse = async () => {
+    const result = await generateVerstossePdf(di.driver_name || 'Fahrer', di.card_number || '', shifts as any);
+    const msg = locale === 'de'
+      ? `Verstöße-Dokument: ${result.totalEntries} Verstöße · Bußgeld Fahrer: ${result.totalFahrer.toFixed(2)} € · Unternehmen: ${result.totalUnternehmen.toFixed(2)} €`
+      : `Dokument naruszeń: ${result.totalEntries} naruszeń · Kara kierowca: ${result.totalFahrer.toFixed(2)} € · Firma: ${result.totalUnternehmen.toFixed(2)} €`;
+    toast(msg, result.totalEntries > 0 ? 'error' : 'success');
   };
 
   const handleDatevExport = () => {
@@ -761,6 +769,13 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
         >
           <ShieldCheck size={16} />
           {t('complianceReport')}
+        </button>
+        <button
+          onClick={handleVerstoesse}
+          className="flex min-h-[44px] items-center gap-2 rounded-xl bg-gradient-to-r from-red-600 to-orange-600 px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-red-500/20 transition hover:brightness-110"
+        >
+          <ShieldCheck size={16} />
+          {t('verstosseReport')}
         </button>
       </div>
     </div>

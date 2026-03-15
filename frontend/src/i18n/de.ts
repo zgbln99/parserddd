@@ -346,6 +346,7 @@ export const de: Record<TranslationKey, string> = {
   complianceViolations: 'Verstöße',
   complianceWarnings: 'Warnungen',
   complianceNoViolations: 'Keine Verstöße — alle Vorschriften eingehalten',
+  verstosseReport: 'Verstöße-Dokument',
 
   // Offline
   offlineMode: 'Offline-Modus — Daten aus Cache',
