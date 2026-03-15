@@ -3,7 +3,7 @@ import { ShieldAlert, Play, Search, Users, AlertTriangle, CheckCircle } from 'lu
 import { useI18n } from '../i18n';
 import { useDateFilter } from '../hooks/useDateFilter';
 import { fetchDrivers, analyzeDropboxFile } from '../lib/api';
-import { analyzeVerstoesse, generateVerstossePdf } from '../lib/pdf-generator';
+import { analyzeVerstoesse, generateVerstossePdf, type VerstosseLang } from '../lib/pdf-generator';
 import type { Driver, ShiftDetail } from '../types';
 import { Card } from '../components/Card';
 import { Badge } from '../components/Badge';
@@ -32,6 +32,7 @@ export function VerstossePage() {
   const [results, setResults] = useState<DriverViolationResult[]>([]);
   const [progress, setProgress] = useState({ current: 0, total: 0, name: '' });
   const [searchQuery, setSearchQuery] = useState('');
+  const [pdfLang, setPdfLang] = useState<VerstosseLang>('de');
   const cancelRef = useRef(false);
 
   // Load drivers on first render
@@ -153,7 +154,8 @@ export function VerstossePage() {
     const res = await generateVerstossePdf(
       result.driver_name,
       result.card_number,
-      result.shifts as any
+      result.shifts as any,
+      pdfLang,
     );
     const msg = locale === 'de'
       ? `Verstöße-Dokument: ${res.totalEntries} Verstöße · Bußgeld Fahrer: ${res.totalFahrer.toFixed(2)} € · Unternehmen: ${res.totalUnternehmen.toFixed(2)} €`
@@ -167,7 +169,8 @@ export function VerstossePage() {
         await generateVerstossePdf(
           result.driver_name,
           result.card_number,
-          result.shifts as any
+          result.shifts as any,
+          pdfLang,
         );
       }
     }
@@ -261,8 +264,30 @@ export function VerstossePage() {
             </div>
           )}
 
-          {/* Generate button */}
+          {/* Language + Generate */}
           <div className="flex items-center gap-3 pt-2">
+            {/* PDF language selector */}
+            <div className="flex items-center gap-1 rounded-lg border border-gray-200 bg-white p-0.5 dark:border-white/10 dark:bg-slate-800">
+              {([
+                { code: 'de' as VerstosseLang, label: 'DE', flag: '🇩🇪' },
+                { code: 'pl' as VerstosseLang, label: 'PL', flag: '🇵🇱' },
+                { code: 'en' as VerstosseLang, label: 'EN', flag: '🇬🇧' },
+                { code: 'el' as VerstosseLang, label: 'EL', flag: '🇬🇷' },
+              ]).map(({ code, label, flag }) => (
+                <button
+                  key={code}
+                  onClick={() => setPdfLang(code)}
+                  className={`flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-semibold transition ${
+                    pdfLang === code
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-white/10'
+                  }`}
+                >
+                  <span>{flag}</span>
+                  {label}
+                </button>
+              ))}
+            </div>
             <button
               onClick={handleGenerate}
               disabled={loading || selected.size === 0}

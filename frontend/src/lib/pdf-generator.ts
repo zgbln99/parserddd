@@ -1211,12 +1211,123 @@ export function analyzeVerstoesse(
  * - Legal disclaimer paragraphs
  * - Signature area (Bemerkung)
  */
+export type VerstosseLang = 'de' | 'pl' | 'en' | 'el';
+
+const verstosseI18n: Record<VerstosseLang, {
+  docTitle: string;
+  violationDetails: string;
+  driver: string;
+  cardNr: string;
+  selectedPeriod: string;
+  createdAt: string;
+  summaryHeader: string;
+  count: string;
+  fineDriver: string;
+  fineCompany: string;
+  total: string;
+  disclaimer1: string;
+  disclaimer2: string;
+  disclaimer3: string;
+  remark: string;
+  placeDate: string;
+  signDriver: string;
+  signDispatcher: string;
+  pageOf: string;
+}> = {
+  de: {
+    docTitle: 'Verstöße-Dokument',
+    violationDetails: 'Verstöße Details:',
+    driver: 'Fahrer',
+    cardNr: 'Karten-Nr.',
+    selectedPeriod: 'Selektierte Periode',
+    createdAt: 'Erstellt am',
+    summaryHeader: 'Verstöße nach EU-Recht, der FPersV und dem ArbZG mit Bußgeldhöhe.',
+    count: 'Anzahl',
+    fineDriver: 'Bußgeld Fahrer',
+    fineCompany: 'Bußgeld Unternehmen',
+    total: 'Gesamt',
+    disclaimer1: 'Der/Die unterzeichnende Fahrer/Fahrerin, bestätigt hiermit, dass er/sie über die hier aufgelisteten Verstöße in Kenntnis gesetzt wurde und dass er/sie belehrt und aufgefordert wurde, zukünftig die gesetzlichen Lenk- und Ruhezeiten sowie die Bestimmungen des Arbeitszeitgesetzes einzuhalten.',
+    disclaimer2: 'Wir weisen darauf hin, dass die aufgelisteten Verstöße ohne Eingabe von Toleranzen ermittelt wurden und alle aufgetretenen Verstöße gegen die Lenk- und Ruhezeiten, das Arbeitszeitgesetz und zusätzliche Prüfungen, wie fehlende Abfahrtskontrollen und fehlende Ortseingaben darstellen.',
+    disclaimer3: 'Bei Kontrollen ist es daher möglich, dass entweder Toleranzen berücksichtigt werden, oder aber nur einzelne Gesetze zur Überprüfung ausgewählt werden. Daher können die Anzahl der bei externen Kontrollen aufgelisteten Verstöße deutlich von dieser Aufstellung abweichen.',
+    remark: 'Bemerkung:',
+    placeDate: 'Ort, Datum',
+    signDriver: 'Unterschrift Fahrer/Fahrerin',
+    signDispatcher: 'Unterschrift Disponent/Fuhrparkleiter',
+    pageOf: 'Seite',
+  },
+  pl: {
+    docTitle: 'Dokument naruszeń',
+    violationDetails: 'Szczegóły naruszeń:',
+    driver: 'Kierowca',
+    cardNr: 'Nr karty',
+    selectedPeriod: 'Wybrany okres',
+    createdAt: 'Utworzono',
+    summaryHeader: 'Naruszenia wg prawa UE, FPersV i ArbZG z wysokością kar.',
+    count: 'Ilość',
+    fineDriver: 'Kara kierowca',
+    fineCompany: 'Kara firma',
+    total: 'Razem',
+    disclaimer1: 'Niżej podpisany kierowca potwierdza niniejszym, że został poinformowany o wymienionych tutaj naruszeniach oraz że został pouczony i wezwany do przestrzegania w przyszłości ustawowych czasów prowadzenia pojazdu i odpoczynku oraz przepisów ustawy o czasie pracy.',
+    disclaimer2: 'Zwracamy uwagę, że wymienione naruszenia zostały ustalone bez uwzględnienia tolerancji i obejmują wszystkie stwierdzone naruszenia dotyczące czasów prowadzenia pojazdu i odpoczynku, ustawy o czasie pracy oraz dodatkowych kontroli, takich jak brakujące kontrole przed wyjazdem i brakujące wpisy miejscowości.',
+    disclaimer3: 'Podczas kontroli drogowych możliwe jest, że zostaną uwzględnione tolerancje lub że zostaną sprawdzone tylko wybrane przepisy. Dlatego liczba naruszeń stwierdzonych podczas kontroli zewnętrznych może znacznie odbiegać od niniejszego zestawienia.',
+    remark: 'Uwagi:',
+    placeDate: 'Miejscowość, data',
+    signDriver: 'Podpis kierowcy',
+    signDispatcher: 'Podpis dyspozytora/kierownika floty',
+    pageOf: 'Strona',
+  },
+  en: {
+    docTitle: 'Violations Document',
+    violationDetails: 'Violation Details:',
+    driver: 'Driver',
+    cardNr: 'Card No.',
+    selectedPeriod: 'Selected period',
+    createdAt: 'Created on',
+    summaryHeader: 'Violations under EU law, FPersV and ArbZG with fine amounts.',
+    count: 'Count',
+    fineDriver: 'Fine Driver',
+    fineCompany: 'Fine Company',
+    total: 'Total',
+    disclaimer1: 'The undersigned driver hereby confirms that he/she has been informed about the violations listed herein and that he/she has been instructed and requested to comply with the statutory driving and rest times as well as the provisions of the Working Time Act in the future.',
+    disclaimer2: 'We point out that the listed violations were determined without input of tolerances and represent all violations that occurred against driving and rest times, the Working Time Act and additional checks, such as missing departure checks and missing location entries.',
+    disclaimer3: 'During inspections, it is possible that tolerances are taken into account or that only individual laws are selected for review. Therefore, the number of violations listed during external inspections may differ significantly from this compilation.',
+    remark: 'Remarks:',
+    placeDate: 'Place, Date',
+    signDriver: 'Driver Signature',
+    signDispatcher: 'Dispatcher/Fleet Manager Signature',
+    pageOf: 'Page',
+  },
+  el: {
+    docTitle: 'Έγγραφο Παραβάσεων',
+    violationDetails: 'Λεπτομέρειες Παραβάσεων:',
+    driver: 'Οδηγός',
+    cardNr: 'Αρ. Κάρτας',
+    selectedPeriod: 'Επιλεγμένη περίοδος',
+    createdAt: 'Δημιουργήθηκε',
+    summaryHeader: 'Παραβάσεις σύμφωνα με το δίκαιο της ΕΕ, FPersV και ArbZG με ύψος προστίμων.',
+    count: 'Αριθμός',
+    fineDriver: 'Πρόστιμο Οδηγού',
+    fineCompany: 'Πρόστιμο Εταιρείας',
+    total: 'Σύνολο',
+    disclaimer1: 'Ο/Η υπογράφων/ουσα οδηγός επιβεβαιώνει ότι ενημερώθηκε για τις παραβάσεις που αναφέρονται στο παρόν και ότι του/της ζητήθηκε να τηρεί στο μέλλον τους νόμιμους χρόνους οδήγησης και ανάπαυσης καθώς και τις διατάξεις του νόμου περί χρόνου εργασίας.',
+    disclaimer2: 'Επισημαίνουμε ότι οι αναφερόμενες παραβάσεις προσδιορίστηκαν χωρίς ανοχές και αντιπροσωπεύουν όλες τις παραβάσεις που σημειώθηκαν σχετικά με τους χρόνους οδήγησης και ανάπαυσης, τον νόμο περί χρόνου εργασίας και πρόσθετους ελέγχους.',
+    disclaimer3: 'Κατά τη διάρκεια ελέγχων, είναι πιθανό να ληφθούν υπόψη ανοχές ή να επιλεγούν μόνο μεμονωμένοι νόμοι προς εξέταση. Ως εκ τούτου, ο αριθμός των παραβάσεων κατά τους εξωτερικούς ελέγχους μπορεί να διαφέρει σημαντικά.',
+    remark: 'Παρατηρήσεις:',
+    placeDate: 'Τόπος, Ημερομηνία',
+    signDriver: 'Υπογραφή Οδηγού',
+    signDispatcher: 'Υπογραφή Διαχειριστή Στόλου',
+    pageOf: 'Σελίδα',
+  },
+};
+
 export async function generateVerstossePdf(
   driverName: string,
   cardNumber: string,
   shifts: Shift[],
+  lang: VerstosseLang = 'de',
 ) {
   const { entries, types, period } = analyzeVerstoesse(driverName, cardNumber, shifts);
+  const L = verstosseI18n[lang];
 
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
   const W = doc.internal.pageSize.getWidth();
@@ -1230,38 +1341,35 @@ export async function generateVerstossePdf(
   for (const e of entries) { totalFahrer += e.bussgeldFahrer; totalUnternehmen += e.bussgeldUnternehmen; }
 
   // ═══ PAGE HEADER ═══
-  // Right-aligned header info
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(10);
   doc.setTextColor(60, 60, 60);
-  doc.text('Verstöße-Dokument', W - M, 10, { align: 'right' });
+  doc.text(L.docTitle, W - M, 10, { align: 'right' });
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.5);
   doc.setTextColor(40, 40, 40);
-  doc.text(`Fahrer: ${driverName}`, W - M, 16, { align: 'right' });
-  doc.text(`Karten-Nr.: ${cardNumber}`, W - M, 21, { align: 'right' });
-  doc.text('Gruppe: Alle', W - M, 26, { align: 'right' });
+  doc.text(`${L.driver}: ${driverName}`, W - M, 16, { align: 'right' });
+  doc.text(`${L.cardNr}: ${cardNumber}`, W - M, 21, { align: 'right' });
 
   // Left-aligned header
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(10);
   doc.setTextColor(40, 40, 40);
-  doc.text('Verstöße Details:', M, 10);
+  doc.text(L.violationDetails, M, 10);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.5);
-  doc.text(`Selektierte Periode ${period}`, M, 16);
-  doc.text(`Erstellt am ${erstelltAm}`, M, 21);
+  doc.text(`${L.selectedPeriod} ${period}`, M, 16);
+  doc.text(`${L.createdAt} ${erstelltAm}`, M, 21);
 
-  let y = 28;
+  let y = 26;
 
   // ═══ SUMMARY TABLE ═══
-  // "Verstöße nach EU-Recht, der FPersV und dem ArbZG mit Bußgeldhöhe."
   const summHead = [[
-    { content: 'Verstöße nach EU-Recht, der FPersV und dem ArbZG mit Bußgeldhöhe.', colSpan: 1 },
-    'MSI', 'VSI', 'SI', 'MI', 'Anzahl',
-    'Bußgeld Fahrer', 'Bußgeld Unternehmen',
+    { content: L.summaryHeader, colSpan: 1 },
+    'MSI', 'VSI', 'SI', 'MI', L.count,
+    L.fineDriver, L.fineCompany,
   ]];
 
   const summBody = types.map((t) => [
@@ -1282,7 +1390,7 @@ export async function generateVerstossePdf(
     head: summHead,
     body: summBody,
     foot: [[
-      { content: 'Gesamt', styles: { halign: 'right' as const, fontStyle: 'bold' as const } },
+      { content: L.total, styles: { halign: 'right' as const, fontStyle: 'bold' as const } },
       String(totalMsi), String(totalVsi), String(totalSi), String(totalMi), String(totalAnzahl),
       `${totalFahrer.toFixed(2).replace('.', ',')} €`,
       `${totalUnternehmen.toFixed(2).replace('.', ',')} €`,
@@ -1325,11 +1433,7 @@ export async function generateVerstossePdf(
   y = (doc as any).lastAutoTable.finalY + 6;
 
   // ═══ LEGAL DISCLAIMER TEXT ═══
-  const disclaimerTexts = [
-    'Der/Die unterzeichnende Fahrer/Fahrerin, bestätigt hiermit, dass er/sie über die hier aufgelisteten Verstöße in Kenntnis gesetzt wurde und dass er/sie belehrt und aufgefordert wurde, zukünftig die gesetzlichen Lenk- und Ruhezeiten sowie die Bestimmungen des Arbeitszeitgesetzes einzuhalten.',
-    'Wir weisen darauf hin, dass die aufgelisteten Verstöße ohne Eingabe von Toleranzen ermittelt wurden und alle aufgetretenen Verstöße gegen die Lenk- und Ruhezeiten, das Arbeitszeitgesetz und zusätzliche Prüfungen, wie fehlende Abfahrtskontrollen und fehlende Ortseingaben darstellen.',
-    'Bei Kontrollen ist es daher möglich, dass entweder Toleranzen berücksichtigt werden, oder aber nur einzelne Gesetze zur Überprüfung ausgewählt werden. Daher können die Anzahl der bei externen Kontrollen aufgelisteten Verstöße deutlich von dieser Aufstellung abweichen.',
-  ];
+  const disclaimerTexts = [L.disclaimer1, L.disclaimer2, L.disclaimer3];
 
   // Check if we need a new page for the disclaimer + signature
   const neededSpace = 55;
@@ -1354,10 +1458,10 @@ export async function generateVerstossePdf(
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8);
   doc.setTextColor(30, 30, 30);
-  doc.text('Bemerkung:', M, y);
+  doc.text(L.remark, M, y);
   y += 8;
 
-  // Signature line
+  // Remark line
   doc.setDrawColor(40, 40, 40);
   doc.setLineWidth(0.3);
   doc.line(M, y, M + 80, y);
@@ -1371,8 +1475,8 @@ export async function generateVerstossePdf(
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
   doc.setTextColor(100, 100, 100);
-  doc.text('Ort, Datum', M, y);
-  doc.text('Unterschrift Fahrer/Fahrerin', M + 90, y);
+  doc.text(L.placeDate, M, y);
+  doc.text(L.signDriver, M + 90, y);
 
   y += 8;
   doc.setLineWidth(0.3);
@@ -1383,8 +1487,8 @@ export async function generateVerstossePdf(
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
   doc.setTextColor(100, 100, 100);
-  doc.text('Ort, Datum', M, y);
-  doc.text('Unterschrift Disponent/Fuhrparkleiter', M + 90, y);
+  doc.text(L.placeDate, M, y);
+  doc.text(L.signDispatcher, M + 90, y);
 
   // ═══ FOOTER on all pages ═══
   const pages = doc.getNumberOfPages();
@@ -1394,7 +1498,7 @@ export async function generateVerstossePdf(
     doc.setFontSize(7);
     doc.setTextColor(100, 100, 100);
     doc.text('LTS Logistik GmbH — Tachoprüfung', M, H - 6);
-    doc.text(`Strona ${i} z ${pages}`, W - M, H - 6, { align: 'right' });
+    doc.text(`${L.pageOf} ${i} / ${pages}`, W - M, H - 6, { align: 'right' });
   }
 
   doc.save(`Verstoesse_${safeName(driverName)}_${new Date().toISOString().slice(0, 10)}.pdf`);
