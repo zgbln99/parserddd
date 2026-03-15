@@ -346,6 +346,7 @@ export const pl = {
   complianceNoViolations: 'Brak naruszeń — wszystkie przepisy spełnione',
   verstosseReport: 'Dokument naruszeń',
   navVerstosse: 'Naruszenia',
+  navEU561: 'EU 561',
   verstosseTitle: 'Naruszenia — Verstöße',
   verstosseSubtitle: 'Analiza naruszeń przepisów EU 561/2006, ArbZG i FPersV',
   verstosseSelectDrivers: 'Wybierz kierowców do analizy',

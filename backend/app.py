@@ -2604,6 +2604,196 @@ def upload():
 
 
 # ---------------------------------------------------------------------------
+# EU 561 Compliance endpoints
+# ---------------------------------------------------------------------------
+
+from eu561 import (
+    analyze_eu561,
+    parse_samsara_activity,
+    parse_ddd_timeline,
+)
+
+
+@app.route('/api/eu561/analyze', methods=['POST'])
+@login_required
+def api_eu561_analyze():
+    """Analyze EU 561 compliance for a driver using Dropbox .ddd files.
+
+    Expects: {driver_name, card_number, files: [{path}]}
+    Parses all .ddd files, builds a combined timeline, and runs EU 561 analysis.
+    """
+    payload = request.get_json(silent=True) or {}
+    driver_name = payload.get('driver_name', '')
+    card_number = payload.get('card_number', '')
+    file_paths = payload.get('files', [])
+
+    if not file_paths:
+        return jsonify({'error': 'No files specified'}), 400
+
+    dbx = get_server_dropbox_client()
+    if not dbx:
+        return jsonify({'error': 'Brak połączenia z Dropbox'}), 500
+
+    # Parse all files and build combined timeline
+    all_records = []
+    for entry in file_paths:
+        fpath = entry.get('path', '') if isinstance(entry, dict) else entry
+        if not fpath:
+            continue
+        try:
+            metadata, response = dbx.files_download(fpath)
+            with tempfile.NamedTemporaryFile(suffix='.ddd', delete=False) as tmp:
+                tmp.write(response.content)
+                tmp_path = tmp.name
+            data = parse_ddd_file(tmp_path)
+            os.unlink(tmp_path)
+
+            records = get_activity_records(data)
+            all_records.extend(records)
+
+            # Extract driver info if not provided
+            if not driver_name or not card_number:
+                info = get_driver_info(data)
+                if not driver_name:
+                    driver_name = info.get('driver_name', '')
+                if not card_number:
+                    card_number = info.get('card_number', '')
+        except Exception as e:
+            continue
+
+    if not all_records:
+        return jsonify({'error': 'No activity data found in files'}), 404
+
+    timeline = parse_ddd_timeline(all_records)
+    result = analyze_eu561(timeline, driver_name=driver_name, card_number=card_number)
+    return jsonify(result)
+
+
+@app.route('/api/eu561/samsara', methods=['POST'])
+@login_required
+def api_eu561_samsara():
+    """Analyze EU 561 compliance using live Samsara tachograph-activity data.
+
+    Expects: {driver_ids: [str], start_time, end_time}
+    If driver_ids is empty, analyzes all drivers.
+    """
+    if not SAMSARA_API_TOKEN:
+        return jsonify({'error': 'Brak tokenu Samsara'}), 401
+
+    payload = request.get_json(silent=True) or {}
+    driver_ids = payload.get('driver_ids', [])
+    start_time = payload.get('start_time', '')
+    end_time = payload.get('end_time', '')
+
+    if not start_time or not end_time:
+        # Default: last 28 days
+        now = datetime.now(UTC)
+        end_time = now.strftime('%Y-%m-%dT%H:%M:%SZ')
+        start_time = (now - timedelta(days=28)).strftime('%Y-%m-%dT%H:%M:%SZ')
+
+    headers = {'Authorization': f'Bearer {SAMSARA_API_TOKEN}'}
+
+    # Fetch tachograph activity from Samsara
+    all_data = []
+    has_next = True
+    after = None
+
+    while has_next:
+        params = {'startTime': start_time, 'endTime': end_time}
+        if after:
+            params['after'] = after
+        if driver_ids:
+            params['driverIds'] = ','.join(driver_ids)
+
+        try:
+            resp = http_requests.get(
+                f'{SAMSARA_API_BASE}/fleet/drivers/tachograph-activity/history',
+                headers=headers,
+                params=params,
+                timeout=30,
+            )
+            if resp.status_code != 200:
+                return jsonify({'error': f'Samsara API error: {resp.status_code}'}), 500
+
+            body = resp.json()
+            all_data.extend(body.get('data', []))
+
+            pagination = body.get('pagination', {})
+            after = pagination.get('endCursor')
+            has_next = pagination.get('hasNextPage', False)
+        except Exception as e:
+            return jsonify({'error': f'Samsara connection error: {str(e)}'}), 500
+
+    if not all_data:
+        return jsonify({'error': 'No tachograph activity data from Samsara'}), 404
+
+    # Analyze each driver
+    results = []
+    for driver_data in all_data:
+        driver = driver_data.get('driver', {})
+        driver_name = driver.get('name', 'Unknown')
+        driver_id = driver.get('id', '')
+        activity = driver_data.get('activity', [])
+
+        if not activity:
+            continue
+
+        timeline = parse_samsara_activity(activity)
+        if not timeline:
+            continue
+
+        result = analyze_eu561(
+            timeline,
+            driver_name=driver_name,
+            card_number=driver_id,
+        )
+        result['samsara_driver_id'] = driver_id
+        results.append(result)
+
+    return jsonify({
+        'drivers': results,
+        'period': {'start': start_time, 'end': end_time},
+        'source': 'samsara_live',
+    })
+
+
+@app.route('/api/eu561/drivers')
+@login_required
+def api_eu561_drivers():
+    """List all drivers available for EU 561 analysis.
+
+    Combines Dropbox drivers (with .ddd files) and Samsara drivers.
+    """
+    drivers = []
+
+    # Dropbox drivers
+    dbx = get_server_dropbox_client()
+    if dbx:
+        try:
+            sync_folder = os.environ.get('SYNC_DEST_FOLDER', '/Samsara-DDD')
+            dbx_drivers = build_drivers_data(dbx, sync_folder)
+            for d in dbx_drivers:
+                drivers.append({
+                    'name': d['name'],
+                    'card_number': d.get('card_number', ''),
+                    'source': 'dropbox',
+                    'file_count': d.get('file_count', 0),
+                    'latest_date': d.get('latest_date', ''),
+                    'files': d.get('files', []),
+                })
+        except Exception:
+            pass
+
+    # Samsara activity availability check
+    samsara_available = bool(SAMSARA_API_TOKEN)
+
+    return jsonify({
+        'drivers': drivers,
+        'samsara_available': samsara_available,
+    })
+
+
+# ---------------------------------------------------------------------------
 # Health endpoint
 # ---------------------------------------------------------------------------
 

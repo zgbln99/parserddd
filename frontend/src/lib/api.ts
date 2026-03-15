@@ -465,3 +465,137 @@ export async function exportPdf(driverName: string, cardNumber: string, summary:
   a.click();
   URL.revokeObjectURL(url);
 }
+
+// EU 561 Compliance
+export interface EU561Infringement {
+  type: string;
+  severity: 'minor' | 'serious' | 'very_serious';
+  date?: string;
+  week?: string;
+  time?: string;
+  detail: string;
+  detail_de?: string;
+  driving_minutes?: number;
+  limit_minutes?: number;
+  rest_minutes?: number;
+  gap_minutes?: number;
+  compensation_minutes?: number;
+  count?: number;
+  limit?: number;
+}
+
+export interface EU561Day {
+  date: string;
+  driving_minutes: number;
+  driving_hm: string;
+  work_minutes: number;
+  work_hm: string;
+  rest_minutes: number;
+  rest_hm: string;
+  is_extended: boolean;
+  daily_rest_minutes: number;
+  daily_rest_hm: string;
+  infringements: EU561Infringement[];
+}
+
+export interface EU561Week {
+  week: string;
+  year: number;
+  week_nr: number;
+  driving_minutes: number;
+  driving_hm: string;
+  work_minutes: number;
+  work_hm: string;
+  weekly_rest_minutes?: number;
+  weekly_rest_hm?: string;
+  weekly_rest_start?: string;
+  weekly_rest_end?: string;
+  weekly_rest_reduced?: boolean;
+  compensation_minutes?: number;
+  compensation_hm?: string;
+  days_count: number;
+  day_dates: string[];
+  infringements: EU561Infringement[];
+}
+
+export interface EU561Compensation {
+  week: string;
+  reduced_rest_minutes: number;
+  reduced_rest_hm: string;
+  compensation_minutes: number;
+  compensation_hm: string;
+  deadline_week: string;
+  status: 'pending' | 'fulfilled' | 'overdue';
+  fulfilled_week?: string;
+}
+
+export interface EU561Remaining {
+  daily_driving_minutes: number;
+  daily_driving_hm: string;
+  daily_remaining_minutes: number;
+  daily_remaining_hm: string;
+  daily_remaining_extended_minutes: number;
+  daily_remaining_extended_hm: string;
+  can_extend_today: boolean;
+  weekly_driving_minutes: number;
+  weekly_driving_hm: string;
+  weekly_remaining_minutes: number;
+  weekly_remaining_hm: string;
+  continuous_driving_minutes: number;
+  continuous_driving_hm: string;
+  continuous_remaining_minutes: number;
+  continuous_remaining_hm: string;
+  break_needed: boolean;
+  daily_rest_needed_by: string | null;
+}
+
+export interface EU561Result {
+  driver_name: string;
+  card_number: string;
+  samsara_driver_id?: string;
+  period_start: string;
+  period_end: string;
+  days: EU561Day[];
+  weeks: EU561Week[];
+  compensations: EU561Compensation[];
+  remaining: EU561Remaining;
+  all_infringements: EU561Infringement[];
+  summary: {
+    total_infringements: number;
+    minor: number;
+    serious: number;
+    very_serious: number;
+    total_driving_minutes: number;
+    total_driving_hm: string;
+    total_work_minutes: number;
+    total_work_hm: string;
+    days_analyzed: number;
+    weeks_analyzed: number;
+  };
+}
+
+export interface EU561Driver {
+  name: string;
+  card_number: string;
+  source: string;
+  file_count: number;
+  latest_date: string;
+  files: { name: string; path: string; file_date: string }[];
+}
+
+export const fetchEU561Drivers = () =>
+  request<{ drivers: EU561Driver[]; samsara_available: boolean }>('/api/eu561/drivers');
+
+export const analyzeEU561Dropbox = (driverName: string, cardNumber: string, files: { path: string }[]) =>
+  request<EU561Result>('/api/eu561/analyze', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ driver_name: driverName, card_number: cardNumber, files }),
+  });
+
+export const analyzeEU561Samsara = (driverIds: string[], startTime?: string, endTime?: string) =>
+  request<{ drivers: EU561Result[]; period: { start: string; end: string }; source: string }>('/api/eu561/samsara', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ driver_ids: driverIds, start_time: startTime, end_time: endTime }),
+  });
