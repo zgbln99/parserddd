@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import { Upload, FileText, AlertCircle, FolderUp, Check, Search } from 'lucide-react';
+import { Upload, FileText, AlertCircle, FolderUp, Check, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { analyzeUploadedFile, fetchDrivers, saveReaderFileToDropbox } from '../lib/api';
 import { Spinner } from '../components/Spinner';
@@ -7,17 +7,30 @@ import { Card } from '../components/Card';
 import { Modal } from '../components/Modal';
 import { AnalysisView } from '../features/AnalysisView';
 import { useDateFilter } from '../hooks/useDateFilter';
+import { useToast } from '../components/Toast';
 import type { AnalysisResult, Driver } from '../types';
+
+interface FileResult {
+  file: File;
+  result: AnalysisResult | null;
+  error: string;
+  loading: boolean;
+}
 
 export function ReaderPage() {
   const { t } = useI18n();
   const { dateFrom, dateTo, setDateFrom, setDateTo } = useDateFilter();
+  const { toast } = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [originalFile, setOriginalFile] = useState<File | null>(null);
+
+  // Multi-file support
+  const [multiResults, setMultiResults] = useState<FileResult[]>([]);
+  const [activeFileIndex, setActiveFileIndex] = useState(0);
 
   // Save to Dropbox state
   const [showSaveModal, setShowSaveModal] = useState(false);
@@ -41,6 +54,7 @@ export function ReaderPage() {
     setResult(null);
     setSaved(false);
     setOriginalFile(file);
+    setMultiResults([]);
     try {
       const data = await analyzeUploadedFile(file);
       setResult(data);
@@ -50,6 +64,42 @@ export function ReaderPage() {
       setLoading(false);
     }
   }, []);
+
+  const handleMultipleFiles = useCallback(async (files: File[]) => {
+    if (files.length === 1) {
+      handleFile(files[0]);
+      return;
+    }
+    setResult(null);
+    setError('');
+    setSaved(false);
+    setOriginalFile(null);
+    setActiveFileIndex(0);
+
+    const results: FileResult[] = files.map((f) => ({
+      file: f,
+      result: null,
+      error: '',
+      loading: true,
+    }));
+    setMultiResults([...results]);
+    setLoading(true);
+
+    for (let i = 0; i < files.length; i++) {
+      try {
+        const data = await analyzeUploadedFile(files[i]);
+        results[i] = { ...results[i], result: data, loading: false };
+      } catch (e: any) {
+        results[i] = { ...results[i], error: e.message, loading: false };
+      }
+      setMultiResults([...results]);
+    }
+
+    setLoading(false);
+    const ok = results.filter((r) => r.result).length;
+    const fail = results.filter((r) => r.error).length;
+    toast(`${ok} / ${files.length} ${t('files')} OK${fail ? `, ${fail} ${t('error')}` : ''}`, ok === files.length ? 'success' : 'info');
+  }, [handleFile, toast, t]);
 
   const openSaveModal = useCallback(() => {
     setShowSaveModal(true);
@@ -84,15 +134,23 @@ export function ReaderPage() {
     (e: React.DragEvent) => {
       e.preventDefault();
       setDragging(false);
-      const file = e.dataTransfer.files[0];
-      if (file) handleFile(file);
+      const files = Array.from(e.dataTransfer.files).filter((f) => f.name.endsWith('.ddd'));
+      if (files.length > 1) {
+        handleMultipleFiles(files);
+      } else if (files[0]) {
+        handleFile(files[0]);
+      }
     },
-    [handleFile],
+    [handleFile, handleMultipleFiles],
   );
 
   const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) handleFile(file);
+    const files = Array.from(e.target.files || []);
+    if (files.length > 1) {
+      handleMultipleFiles(files);
+    } else if (files[0]) {
+      handleFile(files[0]);
+    }
   };
 
   return (
@@ -122,7 +180,7 @@ export function ReaderPage() {
               {t('readerUploadBtn')}
             </button>
           </div>
-          <input ref={fileRef} type="file" accept=".ddd" onChange={onFileChange} className="hidden" />
+          <input ref={fileRef} type="file" accept=".ddd" multiple onChange={onFileChange} className="hidden" />
         </Card>
       )}
 
@@ -193,6 +251,87 @@ export function ReaderPage() {
           <Card className="p-3 sm:p-6">
             <AnalysisView data={result} dateFrom={dateFrom} dateTo={dateTo} onDateFromChange={setDateFrom} onDateToChange={setDateTo} />
           </Card>
+        </div>
+      )}
+
+      {/* Multi-file results */}
+      {multiResults.length > 1 && (
+        <div>
+          {/* File selector tabs */}
+          <div className="mb-4 flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => setActiveFileIndex(Math.max(0, activeFileIndex - 1))}
+              disabled={activeFileIndex === 0}
+              className="rounded-lg p-2 text-gray-500 transition hover:bg-black/5 disabled:opacity-30 dark:hover:bg-white/5"
+            >
+              <ChevronLeft size={16} />
+            </button>
+            {multiResults.map((fr, i) => (
+              <button
+                key={i}
+                onClick={() => setActiveFileIndex(i)}
+                className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+                  i === activeFileIndex
+                    ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400'
+                    : fr.error
+                    ? 'text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/10'
+                    : fr.loading
+                    ? 'text-gray-400'
+                    : 'text-gray-600 hover:bg-black/5 dark:text-gray-400 dark:hover:bg-white/5'
+                }`}
+              >
+                {fr.loading ? <Spinner size="sm" /> : null}
+                {fr.file.name.replace('.ddd', '')}
+                {fr.result && <Check size={12} className="ml-1 inline text-emerald-500" />}
+                {fr.error && <AlertCircle size={12} className="ml-1 inline text-rose-500" />}
+              </button>
+            ))}
+            <button
+              onClick={() => setActiveFileIndex(Math.min(multiResults.length - 1, activeFileIndex + 1))}
+              disabled={activeFileIndex >= multiResults.length - 1}
+              className="rounded-lg p-2 text-gray-500 transition hover:bg-black/5 disabled:opacity-30 dark:hover:bg-white/5"
+            >
+              <ChevronRight size={16} />
+            </button>
+            <span className="ml-auto text-xs text-gray-400">
+              {activeFileIndex + 1} / {multiResults.length}
+            </span>
+            <button
+              onClick={() => { setMultiResults([]); setResult(null); setError(''); setSaved(false); setOriginalFile(null); }}
+              className="rounded-xl border border-white/30 dark:border-white/10 px-3 py-1.5 text-xs font-medium transition hover:bg-black/[0.03] dark:hover:bg-white/5"
+            >
+              {t('readerUploadBtn')}
+            </button>
+          </div>
+
+          {/* Active file result */}
+          {multiResults[activeFileIndex]?.loading && (
+            <Card className="py-16">
+              <div className="flex flex-col items-center gap-3 text-gray-400">
+                <Spinner size="lg" />
+                <p className="text-sm font-medium">{t('readerAnalyzing')}</p>
+              </div>
+            </Card>
+          )}
+          {multiResults[activeFileIndex]?.error && (
+            <Card className="py-12">
+              <div className="flex flex-col items-center gap-3 text-rose-500">
+                <AlertCircle size={32} />
+                <p className="text-sm">{multiResults[activeFileIndex].error}</p>
+              </div>
+            </Card>
+          )}
+          {multiResults[activeFileIndex]?.result && (
+            <Card className="p-3 sm:p-6">
+              <AnalysisView
+                data={multiResults[activeFileIndex].result!}
+                dateFrom={dateFrom}
+                dateTo={dateTo}
+                onDateFromChange={setDateFrom}
+                onDateToChange={setDateTo}
+              />
+            </Card>
+          )}
         </div>
       )}
 

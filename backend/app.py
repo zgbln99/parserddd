@@ -188,6 +188,21 @@ def _init_db():
     except Exception:
         conn.execute("ALTER TABLE driver_monthly_days ADD COLUMN absence_days TEXT NOT NULL DEFAULT '{}'")
         conn.commit()
+    # Config audit log table
+    conn.executescript('''
+        CREATE TABLE IF NOT EXISTS config_audit_log (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            card_number   TEXT NOT NULL DEFAULT '',
+            driver_name   TEXT NOT NULL DEFAULT '',
+            action        TEXT NOT NULL,
+            field_name    TEXT NOT NULL DEFAULT '',
+            old_value     TEXT NOT NULL DEFAULT '',
+            new_value     TEXT NOT NULL DEFAULT '',
+            changed_by    TEXT NOT NULL DEFAULT 'admin',
+            changed_at    TEXT NOT NULL
+        );
+    ''')
+
     conn.commit()
     conn.close()
 
@@ -329,9 +344,22 @@ def _log_activity(action: str, detail: str = ''):
         pass
 
 
-def _log_config_change(action: str, detail: str = ''):
-    """Log configuration changes with full context."""
+def _log_config_change(action: str, detail: str = '', card_number: str = '', driver_name: str = '', changes: list = None):
+    """Log configuration changes with full context and field-level diffs."""
     _log_activity(f'config_change:{action}', detail)
+    if changes:
+        now = datetime.now(UTC).isoformat()
+        try:
+            conn = _get_db()
+            for ch in changes:
+                conn.execute('''
+                    INSERT INTO config_audit_log (card_number, driver_name, action, field_name, old_value, new_value, changed_by, changed_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (card_number, driver_name, action, ch.get('field', ''), str(ch.get('old', '')), str(ch.get('new', '')), 'admin', now))
+            conn.commit()
+            conn.close()
+        except Exception:
+            pass
 
 
 def _load_config() -> dict:
@@ -1923,9 +1951,16 @@ def api_upsert_driver_config():
 
     now = datetime.now(UTC).isoformat()
     conn = _get_db()
-    existing = conn.execute('SELECT id FROM driver_config WHERE card_number = ?', (card_number,)).fetchone()
+    existing = conn.execute('SELECT * FROM driver_config WHERE card_number = ?', (card_number,)).fetchone()
 
+    changes = []
     if existing:
+        old = dict(existing)
+        field_map = {'driver_name': driver_name, 'personal_nr': personal_nr, 'double_diet': double_diet, 'diet_rate': diet_rate, 'notes': notes}
+        for field, new_val in field_map.items():
+            old_val = old.get(field, '')
+            if str(old_val) != str(new_val):
+                changes.append({'field': field, 'old': old_val, 'new': new_val})
         conn.execute('''
             UPDATE driver_config SET
                 driver_name = ?, personal_nr = ?, double_diet = ?,
@@ -1933,6 +1968,7 @@ def api_upsert_driver_config():
             WHERE card_number = ?
         ''', (driver_name, personal_nr, double_diet, diet_rate, notes, now, card_number))
     else:
+        changes.append({'field': '*', 'old': '', 'new': 'created'})
         conn.execute('''
             INSERT INTO driver_config (card_number, driver_name, personal_nr, double_diet, diet_rate, notes, created_at, updated_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -1941,7 +1977,7 @@ def api_upsert_driver_config():
     conn.commit()
     conn.close()
     _log_activity('save_driver_config', f"{card_number} — {driver_name}")
-    _log_config_change('save_driver_config', f"{card_number} — {driver_name}")
+    _log_config_change('save_driver_config', f"{card_number} — {driver_name}", card_number=card_number, driver_name=driver_name, changes=changes)
     return jsonify({'ok': True})
 
 
@@ -2029,6 +2065,30 @@ def api_delete_driver_config(config_id):
     _log_activity('delete_driver_config', f"id={config_id}")
     _log_config_change('delete_driver_config', f"id={config_id}")
     return jsonify({'ok': True})
+
+
+# --- Config audit log ---
+
+@app.route('/api/admin/config-history')
+@admin_required
+def api_config_history():
+    """Return recent config change audit log entries."""
+    card_number = request.args.get('card_number', '')
+    limit = min(int(request.args.get('limit', 100)), 500)
+    conn = _get_db()
+    if card_number:
+        rows = conn.execute(
+            'SELECT * FROM config_audit_log WHERE card_number = ? ORDER BY changed_at DESC LIMIT ?',
+            (card_number, limit)
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            'SELECT * FROM config_audit_log ORDER BY changed_at DESC LIMIT ?',
+            (limit,)
+        ).fetchall()
+    conn.close()
+    entries = [dict(r) for r in rows]
+    return jsonify({'entries': entries})
 
 
 # --- User management ---

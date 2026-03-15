@@ -5,6 +5,7 @@ import { Layout } from './components/Layout';
 import { LoginPage } from './pages/LoginPage';
 import { Spinner } from './components/Spinner';
 import { GlobalSearch } from './components/GlobalSearch';
+import { OfflineBanner } from './components/OfflineBanner';
 
 // Lazy-loaded pages for code splitting
 const DashboardPage = lazy(() => import('./pages/DashboardPage').then(m => ({ default: m.DashboardPage })));
@@ -58,6 +59,7 @@ export function App() {
 
   return (
     <>
+      <OfflineBanner />
       <GlobalSearch />
       <Suspense fallback={<PageFallback />}>
         <Routes>

@@ -324,4 +324,24 @@ export const de: Record<TranslationKey, string> = {
   // Filters
   adminFilterDate: 'Nach Datum filtern',
   adminFilterAction: 'Nach Aktion filtern',
+
+  // XLSX / Google Sheets
+  analysisExportXlsx: 'Excel-Export',
+  analysisExportGSheets: 'Google Sheets',
+  copiedToClipboard: 'In Zwischenablage kopiert',
+
+  // Multi-file
+  readerMultiFiles: 'Dateien geladen',
+  readerMultiDrop: 'Eine oder mehrere .ddd-Dateien hierher ziehen',
+
+  // Config audit
+  configHistory: 'Änderungsverlauf',
+  configHistoryEmpty: 'Kein Änderungsverlauf',
+  configChangedBy: 'Geändert von',
+  configChangedAt: 'Änderungsdatum',
+
+  // Offline
+  offlineMode: 'Offline-Modus',
+  offlineReady: 'App ist offline verfügbar',
+  offlineSyncing: 'Synchronisierung...',
 };

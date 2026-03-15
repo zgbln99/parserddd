@@ -6,11 +6,13 @@ import type { DriverConfig, MonthlyDays } from '../lib/api';
 import { Badge } from '../components/Badge';
 import { Spinner } from '../components/Spinner';
 import { BarChart } from '../components/BarChart';
-import { Download, FileText, ClipboardCopy, Check, Printer, BarChart3, UtensilsCrossed, Table2, Settings, CalendarDays } from 'lucide-react';
+import { Download, FileText, ClipboardCopy, Check, Printer, BarChart3, UtensilsCrossed, Table2, Settings, CalendarDays, Sheet } from 'lucide-react';
 import type { AnalysisResult, ShiftDetail } from '../types';
 import { DriverConfigEditor } from './DriverConfigEditor';
 import { useAuth } from '../hooks/useAuth';
 import { minutesToHm } from '../lib/utils';
+import { exportToXlsx, generateGoogleSheetsUrl } from '../lib/xlsx-export';
+import { useToast } from '../components/Toast';
 
 function fmtNight(minutes: number, hm: string) {
   const decimal = (minutes / 60).toFixed(2);
@@ -189,6 +191,17 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
       period = shifts[0].shift_date.slice(0, 7);
     }
     exportDatev(di.driver_name || 'Fahrer', di.card_number || '', s, shifts, period);
+  };
+
+  const { toast } = useToast();
+
+  const handleXlsxExport = () => {
+    exportToXlsx(di.driver_name || 'driver', di.card_number || '', s as any, shifts as any);
+  };
+
+  const handleGoogleSheetsExport = () => {
+    generateGoogleSheetsUrl(di.driver_name || 'driver', s as any, shifts as any);
+    toast(locale === 'de' ? 'In Zwischenablage kopiert — in Google Sheets einfügen' : 'Skopiowano do schowka — wklej w Google Sheets', 'success');
   };
 
   const [showChart, setShowChart] = useState(false);
@@ -691,8 +704,15 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
       {/* Export */}
       <div className="flex flex-wrap justify-center gap-3 pt-2">
         <button
-          onClick={handleExport}
+          onClick={handleXlsxExport}
           className="flex min-h-[44px] items-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-primary-700 dark:bg-primary-500 dark:hover:bg-primary-600"
+        >
+          <Download size={16} />
+          {t('analysisExportXlsx')}
+        </button>
+        <button
+          onClick={handleExport}
+          className="flex min-h-[44px] items-center gap-2 rounded-xl border border-primary-200 px-5 py-2.5 text-sm font-semibold text-primary-600 transition hover:bg-primary-50 dark:border-primary-800 dark:text-primary-400 dark:hover:bg-primary-900/20"
         >
           <Download size={16} />
           {t('analysisExportCsv')}
@@ -710,6 +730,13 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
         >
           <Table2 size={16} />
           {t('analysisExportDatev')}
+        </button>
+        <button
+          onClick={handleGoogleSheetsExport}
+          className="flex min-h-[44px] items-center gap-2 rounded-xl border border-green-200 bg-green-50 px-5 py-2.5 text-sm font-semibold text-green-700 transition hover:bg-green-100 dark:border-green-800 dark:bg-green-900/20 dark:text-green-400 dark:hover:bg-green-900/30"
+        >
+          <Sheet size={16} />
+          {t('analysisExportGSheets')}
         </button>
         <button
           onClick={handlePrint}

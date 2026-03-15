@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Settings, Save, X } from 'lucide-react';
+import { Settings, Save, X, History } from 'lucide-react';
 import { useI18n } from '../i18n';
-import { fetchDriverConfig, saveDriverConfig, type DriverConfig } from '../lib/api';
+import { fetchDriverConfig, saveDriverConfig, fetchConfigHistory, type DriverConfig, type ConfigAuditEntry } from '../lib/api';
 import { useAuth } from '../hooks/useAuth';
 import { Spinner } from '../components/Spinner';
 
@@ -23,6 +23,9 @@ export function DriverConfigEditor({ cardNumber, driverName, onClose, onSaved }:
   const [doubleDiet, setDoubleDiet] = useState(false);
   const [dietRate, setDietRate] = useState('14.00');
   const [notes, setNotes] = useState('');
+  const [showHistory, setShowHistory] = useState(false);
+  const [history, setHistory] = useState<ConfigAuditEntry[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   useEffect(() => {
     if (!cardNumber) return;
@@ -138,8 +141,57 @@ export function DriverConfigEditor({ cardNumber, driverName, onClose, onSaved }:
             <Save size={14} />
             {saving ? '...' : t('save')}
           </button>
+          <button
+            onClick={() => {
+              if (!showHistory && history.length === 0) {
+                setHistoryLoading(true);
+                fetchConfigHistory(cardNumber)
+                  .then((data) => setHistory(data.entries))
+                  .catch(() => {})
+                  .finally(() => setHistoryLoading(false));
+              }
+              setShowHistory(!showHistory);
+            }}
+            className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-500 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-800"
+          >
+            <History size={13} />
+            {t('configHistory')}
+          </button>
           {msg && (
             <span className={`text-sm font-medium ${msg === 'OK!' ? 'text-green-600' : 'text-red-500'}`}>{msg}</span>
+          )}
+        </div>
+      )}
+
+      {showHistory && (
+        <div className="mt-4 rounded-lg border border-gray-200 dark:border-gray-700">
+          <div className="border-b border-gray-200 px-4 py-2 dark:border-gray-700">
+            <h4 className="text-xs font-bold text-gray-500 dark:text-gray-400">{t('configHistory')}</h4>
+          </div>
+          {historyLoading ? (
+            <div className="flex justify-center py-4"><Spinner /></div>
+          ) : history.length === 0 ? (
+            <p className="py-4 text-center text-xs text-gray-400">{t('configHistoryEmpty')}</p>
+          ) : (
+            <div className="max-h-[200px] overflow-y-auto">
+              {history.map((entry) => (
+                <div key={entry.id} className="flex items-start gap-3 border-b border-gray-100 px-4 py-2 last:border-b-0 dark:border-gray-800">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                      {entry.field_name === '*' ? 'Created' : entry.field_name}
+                      {entry.field_name !== '*' && (
+                        <span className="ml-1 text-gray-400">
+                          {entry.old_value} → {entry.new_value}
+                        </span>
+                      )}
+                    </p>
+                    <p className="text-[10px] text-gray-400">
+                      {t('configChangedBy')}: {entry.changed_by} · {new Date(entry.changed_at).toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
         </div>
       )}

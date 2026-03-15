@@ -322,6 +322,26 @@ export const pl = {
   // Filters
   adminFilterDate: 'Filtruj po dacie',
   adminFilterAction: 'Filtruj po akcji',
+
+  // XLSX / Google Sheets
+  analysisExportXlsx: 'Eksport Excel',
+  analysisExportGSheets: 'Google Sheets',
+  copiedToClipboard: 'Skopiowano do schowka',
+
+  // Multi-file
+  readerMultiFiles: 'plików załadowanych',
+  readerMultiDrop: 'Przeciągnij jeden lub wiele plików .ddd',
+
+  // Config audit
+  configHistory: 'Historia zmian',
+  configHistoryEmpty: 'Brak historii zmian',
+  configChangedBy: 'Zmieniono przez',
+  configChangedAt: 'Data zmiany',
+
+  // Offline
+  offlineMode: 'Tryb offline',
+  offlineReady: 'Aplikacja gotowa do pracy offline',
+  offlineSyncing: 'Synchronizacja...',
 } as const;
 
 export type TranslationKey = keyof typeof pl;

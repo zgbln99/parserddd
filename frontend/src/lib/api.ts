@@ -268,6 +268,24 @@ export const bulkUpdateDriverConfig = (cardNumbers: string[], updates: Partial<D
     body: JSON.stringify({ card_numbers: cardNumbers, updates }),
   });
 
+// Config audit log
+export interface ConfigAuditEntry {
+  id: number;
+  card_number: string;
+  driver_name: string;
+  action: string;
+  field_name: string;
+  old_value: string;
+  new_value: string;
+  changed_by: string;
+  changed_at: string;
+}
+
+export const fetchConfigHistory = (cardNumber?: string) =>
+  request<{ entries: ConfigAuditEntry[] }>(
+    `/api/admin/config-history${cardNumber ? `?card_number=${encodeURIComponent(cardNumber)}` : ''}`
+  );
+
 // Compare drivers
 export interface CompareShift {
   date: string;
