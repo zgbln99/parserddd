@@ -297,7 +297,7 @@ export function DriversPage() {
 
       {/* Add driver modal */}
       <Modal open={showAddDriver} onClose={() => setShowAddDriver(false)} title={t('driversAddDriver')}>
-        <div className="space-y-4 p-5">
+        <div className="space-y-4">
           <div>
             <label className="mb-1 block text-sm font-medium">{t('driversName')}</label>
             <input
@@ -341,19 +341,23 @@ export function DriversPage() {
               selectedDriver.files.map((f) => (
                 <div
                   key={f.path}
-                  className="flex cursor-pointer items-center gap-3 px-5 py-3 text-sm transition hover:bg-black/[0.03] dark:hover:bg-white/5"
+                  className="cursor-pointer px-4 py-3 text-sm transition hover:bg-black/[0.03] dark:hover:bg-white/5"
                   onClick={() => analyzeFile(f)}
                 >
-                  <FileText size={16} className="flex-shrink-0 text-primary-500" />
-                  <span className="flex-1 font-medium">{f.name}</span>
-                  <span className="text-xs text-gray-400">{formatDate(f.file_date, locale)}</span>
-                  <span className="text-xs text-gray-400">{formatBytes(f.size)}</span>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); analyzeFile(f); }}
-                    className="rounded-lg border border-primary-200 px-3 py-1 min-h-[44px] text-xs font-semibold text-primary-600 transition hover:bg-primary-50 dark:border-primary-800 dark:text-primary-400 dark:hover:bg-primary-900/20"
-                  >
-                    {t('detailAnalyze')}
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <FileText size={16} className="flex-shrink-0 text-primary-500" />
+                    <span className="flex-1 font-medium truncate">{f.name}</span>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); analyzeFile(f); }}
+                      className="shrink-0 rounded-lg border border-primary-200 px-3 py-1 min-h-[44px] text-xs font-semibold text-primary-600 transition hover:bg-primary-50 dark:border-primary-800 dark:text-primary-400 dark:hover:bg-primary-900/20"
+                    >
+                      {t('detailAnalyze')}
+                    </button>
+                  </div>
+                  <div className="mt-1 flex items-center gap-3 pl-6 text-xs text-gray-400">
+                    <span>{formatDate(f.file_date, locale)}</span>
+                    <span>{formatBytes(f.size)}</span>
+                  </div>
                 </div>
               ))
             )}

@@ -198,7 +198,7 @@ export function ReaderPage() {
 
       {/* Save to Dropbox modal */}
       <Modal open={showSaveModal} onClose={() => setShowSaveModal(false)} title={t('readerSaveToDropbox')}>
-        <div className="space-y-4 p-5">
+        <div className="space-y-4">
           <p className="text-sm text-gray-500">{t('readerSelectDriver')}</p>
 
           <div className="relative">

@@ -218,11 +218,11 @@ export function VehiclesPage() {
         {/* Vehicle list / selection */}
         {!vehiclesLoading && !vehiclesError && vehicleList.length > 0 && (
           <div className="mt-4 max-h-[240px] overflow-y-auto overflow-x-auto rounded-lg border border-white/20 dark:border-white/5">
-            <table className="w-full min-w-[600px] text-sm">
+            <table className="w-full sm:min-w-[600px] text-sm">
               <thead className="sticky top-0 bg-black/[0.02] dark:bg-white/5">
                 <tr className="border-b border-white/20 dark:border-white/5">
                   <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">{t('vehiclesName')}</th>
-                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">VIN</th>
+                  <th className="hidden sm:table-cell px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">VIN</th>
                   <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
                     {locale === 'de' ? 'Kennzeichen' : 'Rejestracja'}
                   </th>
@@ -247,7 +247,7 @@ export function VehiclesPage() {
                         </span>
                       </div>
                     </td>
-                    <td className="px-3 py-2 font-mono text-xs text-gray-500">{v.vin || '-'}</td>
+                    <td className="hidden sm:table-cell px-3 py-2 font-mono text-xs text-gray-500">{v.vin || '-'}</td>
                     <td className="px-3 py-2 text-gray-500">{v.license_plate || '-'}</td>
                   </tr>
                 ))}

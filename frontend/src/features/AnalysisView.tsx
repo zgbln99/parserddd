@@ -322,12 +322,12 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
   return (
     <div ref={printRef} className="space-y-5">
       {/* Driver card */}
-      <div className="flex items-center justify-between rounded-2xl bg-gradient-to-r from-gray-900 to-primary-800 p-5 text-white">
-        <div>
-          <h4 className="text-lg font-bold">{di.driver_name || '—'}</h4>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded-2xl bg-gradient-to-r from-gray-900 to-primary-800 p-4 sm:p-5 text-white">
+        <div className="min-w-0">
+          <h4 className="text-lg font-bold truncate">{di.driver_name || '—'}</h4>
           <p className="mt-0.5 text-sm opacity-70">{di.card_number}</p>
         </div>
-        <div className="text-right text-xs leading-relaxed opacity-70">
+        <div className="text-xs leading-relaxed opacity-70 sm:text-right">
           <div>{t('analysisIssued')}: {formatDate(di.card_issue_date, locale)}</div>
           <div>{t('analysisValidUntil')}: {formatDate(di.card_expiry_date, locale)}</div>
         </div>
