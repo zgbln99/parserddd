@@ -212,7 +212,7 @@ function UserManagementSection() {
   };
 
   const handleDelete = async (id: number, name: string) => {
-    if (!confirm(`${t('adminDeleteUser')}: ${name}?`)) return;
+    if (!window.confirm(`${t('confirmDelete')} ${name}?`)) return;
     try {
       await deleteUser(id);
       loadUsers();
