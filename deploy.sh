@@ -40,7 +40,7 @@ echo "=== [2/7] Przesylanie plikow na serwer ==="
 $SSH_CMD "mkdir -p $APP_DIR/static"
 
 # Backend files
-$SCP_CMD backend/app.py backend/samsara_sync.py backend/requirements.txt "$REMOTE:$APP_DIR/"
+$SCP_CMD backend/app.py backend/eu561.py backend/samsara_sync.py backend/requirements.txt "$REMOTE:$APP_DIR/"
 
 # Frontend build
 $SCP_CMD -r frontend/dist/* "$REMOTE:$APP_DIR/static/"

@@ -2607,21 +2607,23 @@ def upload():
 # EU 561 Compliance endpoints
 # ---------------------------------------------------------------------------
 
-from eu561 import (
-    analyze_eu561,
-    parse_samsara_activity,
-    parse_ddd_timeline,
-)
+try:
+    from eu561 import (
+        analyze_eu561,
+        parse_samsara_activity,
+        parse_ddd_timeline,
+    )
+    _HAS_EU561 = True
+except ImportError:
+    _HAS_EU561 = False
 
 
 @app.route('/api/eu561/analyze', methods=['POST'])
 @login_required
 def api_eu561_analyze():
-    """Analyze EU 561 compliance for a driver using Dropbox .ddd files.
-
-    Expects: {driver_name, card_number, files: [{path}]}
-    Parses all .ddd files, builds a combined timeline, and runs EU 561 analysis.
-    """
+    """Analyze EU 561 compliance for a driver using Dropbox .ddd files."""
+    if not _HAS_EU561:
+        return jsonify({'error': 'EU 561 module not available'}), 500
     payload = request.get_json(silent=True) or {}
     driver_name = payload.get('driver_name', '')
     card_number = payload.get('card_number', '')
@@ -2664,19 +2666,20 @@ def api_eu561_analyze():
     if not all_records:
         return jsonify({'error': 'No activity data found in files'}), 404
 
-    timeline = parse_ddd_timeline(all_records)
-    result = analyze_eu561(timeline, driver_name=driver_name, card_number=card_number)
-    return jsonify(result)
+    try:
+        timeline = parse_ddd_timeline(all_records)
+        result = analyze_eu561(timeline, driver_name=driver_name, card_number=card_number)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': f'EU 561 analysis error: {str(e)}'}), 500
 
 
 @app.route('/api/eu561/samsara', methods=['POST'])
 @login_required
 def api_eu561_samsara():
-    """Analyze EU 561 compliance using live Samsara tachograph-activity data.
-
-    Expects: {driver_ids: [str], start_time, end_time}
-    If driver_ids is empty, analyzes all drivers.
-    """
+    """Analyze EU 561 compliance using live Samsara tachograph-activity data."""
+    if not _HAS_EU561:
+        return jsonify({'error': 'EU 561 module not available'}), 500
     if not SAMSARA_API_TOKEN:
         return jsonify({'error': 'Brak tokenu Samsara'}), 401
 
@@ -2738,17 +2741,20 @@ def api_eu561_samsara():
         if not activity:
             continue
 
-        timeline = parse_samsara_activity(activity)
-        if not timeline:
-            continue
+        try:
+            timeline = parse_samsara_activity(activity)
+            if not timeline:
+                continue
 
-        result = analyze_eu561(
-            timeline,
-            driver_name=driver_name,
-            card_number=driver_id,
-        )
-        result['samsara_driver_id'] = driver_id
-        results.append(result)
+            result = analyze_eu561(
+                timeline,
+                driver_name=driver_name,
+                card_number=driver_id,
+            )
+            result['samsara_driver_id'] = driver_id
+            results.append(result)
+        except Exception:
+            continue
 
     return jsonify({
         'drivers': results,
