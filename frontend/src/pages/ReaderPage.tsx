@@ -105,7 +105,7 @@ export function ReaderPage() {
           className={`cursor-pointer border-2 border-dashed transition ${
             dragging
               ? 'border-primary-400 bg-primary-50 dark:border-primary-500 dark:bg-primary-900/20'
-              : 'border-gray-200 hover:border-primary-300 dark:border-gray-700 dark:hover:border-primary-600'
+              : 'border-white/30 hover:border-primary-300 dark:border-white/10 dark:hover:border-primary-600'
           }`}
           onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
           onDragLeave={() => setDragging(false)}
@@ -139,12 +139,12 @@ export function ReaderPage() {
       {/* Error */}
       {error && (
         <Card className="py-12">
-          <div className="flex flex-col items-center gap-3 text-red-500">
+          <div className="flex flex-col items-center gap-3 text-rose-500">
             <AlertCircle size={32} />
             <p className="text-sm">{error}</p>
             <button
               onClick={() => { setError(''); setResult(null); }}
-              className="mt-2 rounded-xl border border-gray-200 px-4 py-2 text-sm font-medium dark:border-gray-700"
+              className="mt-2 rounded-xl border border-white/30 dark:border-white/10 px-4 py-2 text-sm font-medium"
             >
               {t('readerUploadBtn')}
             </button>
@@ -169,14 +169,14 @@ export function ReaderPage() {
             </div>
             <div className="flex items-center gap-2">
               {saved ? (
-                <span className="flex items-center gap-1.5 text-sm font-medium text-green-600 dark:text-green-400">
+                <span className="flex items-center gap-1.5 text-sm font-medium text-emerald-600 dark:text-emerald-400">
                   <Check size={16} />
                   {t('readerSaved')}
                 </span>
               ) : (
                 <button
                   onClick={openSaveModal}
-                  className="flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
+                  className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:brightness-110"
                 >
                   <FolderUp size={14} />
                   {t('readerSaveToDropbox')}
@@ -184,7 +184,7 @@ export function ReaderPage() {
               )}
               <button
                 onClick={() => { setResult(null); setError(''); setSaved(false); setOriginalFile(null); }}
-                className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-medium transition hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
+                className="rounded-xl border border-white/30 dark:border-white/10 px-4 py-2 text-sm font-medium transition hover:bg-black/[0.03] dark:hover:bg-white/5"
               >
                 {t('readerUploadBtn')}
               </button>
@@ -208,14 +208,14 @@ export function ReaderPage() {
               value={driverSearch}
               onChange={(e) => setDriverSearch(e.target.value)}
               placeholder={t('driversSearch')}
-              className="w-full rounded-lg border border-gray-200 py-2 pl-9 pr-3 text-sm outline-none transition focus:border-primary-400 focus:ring-2 focus:ring-primary-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:focus:ring-primary-900/40"
+              className="glass-input w-full rounded-xl py-2 pl-9 pr-3 text-sm outline-none"
             />
           </div>
 
           {driversLoading ? (
             <div className="flex justify-center py-6"><Spinner /></div>
           ) : (
-            <div className="max-h-[300px] overflow-y-auto rounded-lg border border-gray-100 dark:border-gray-800">
+            <div className="max-h-[300px] overflow-y-auto rounded-lg border border-white/20 dark:border-white/5">
               {filteredDrivers.map((d) => (
                 <div
                   key={d.name}
@@ -234,19 +234,19 @@ export function ReaderPage() {
             </div>
           )}
 
-          {saveError && <p className="text-sm text-red-500">{saveError}</p>}
+          {saveError && <p className="text-sm text-rose-500">{saveError}</p>}
 
           <div className="flex justify-end gap-2">
             <button
               onClick={() => setShowSaveModal(false)}
-              className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium transition hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
+              className="rounded-lg border border-white/30 dark:border-white/10 px-4 py-2 text-sm font-medium transition hover:bg-black/[0.03] dark:hover:bg-white/5"
             >
               {t('cancel')}
             </button>
             <button
               onClick={handleSaveToDropbox}
               disabled={!selectedDriverName || saving}
-              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-50"
+              className="rounded-lg bg-gradient-to-r from-blue-500 to-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:brightness-110 disabled:opacity-50"
             >
               {saving ? t('loading') : t('readerSaveConfirm')}
             </button>

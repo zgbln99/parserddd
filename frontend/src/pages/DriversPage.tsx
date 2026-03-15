@@ -138,13 +138,13 @@ export function DriversPage() {
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(1); }}
             placeholder={t('driversSearch')}
-            className="w-full rounded-xl border border-gray-200 bg-white py-2 pl-9 pr-3 text-sm outline-none transition focus:border-primary-400 focus:ring-2 focus:ring-primary-100 dark:border-gray-700 dark:bg-gray-900 dark:focus:border-primary-500 dark:focus:ring-primary-900/40"
+            className="glass-input w-full rounded-xl py-2 pl-9 pr-3 text-sm outline-none"
           />
         </div>
         <div className="flex-1" />
         <button
           onClick={() => { setShowAddDriver(true); setNewDriverName(''); setAddDriverError(''); }}
-          className="flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
+          className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:brightness-110"
         >
           <UserPlus size={14} />
           {t('driversAddDriver')}
@@ -152,7 +152,7 @@ export function DriversPage() {
         <button
           onClick={() => load(true)}
           disabled={loading}
-          className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-medium transition hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:hover:bg-gray-800"
+          className="flex items-center gap-2 rounded-xl border border-white/30 dark:border-white/10 bg-white/50 dark:bg-white/5 px-4 py-2 text-sm font-medium transition hover:bg-black/[0.03] dark:hover:bg-white/5 backdrop-blur-sm"
         >
           <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
           {t('refresh')}
@@ -161,11 +161,11 @@ export function DriversPage() {
 
       {/* Overdue download alert */}
       {overdueDrivers.length > 0 && (
-        <div className="mb-4 flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 dark:border-red-800 dark:bg-red-900/20">
-          <AlertTriangle size={18} className="flex-shrink-0 text-red-500" />
+        <div className="mb-4 flex items-center gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 dark:border-rose-800 dark:bg-rose-900/20">
+          <AlertTriangle size={18} className="flex-shrink-0 text-rose-500" />
           <div className="flex-1">
-            <p className="text-sm font-semibold text-red-700 dark:text-red-400">{t('driversOverdueAlert')}</p>
-            <p className="text-xs text-red-600/70 dark:text-red-400/70">
+            <p className="text-sm font-semibold text-rose-700 dark:text-rose-400">{t('driversOverdueAlert')}</p>
+            <p className="text-xs text-rose-600/70 dark:text-rose-400/70">
               {overdueDrivers.length} {t('driversOverdueCount')}: {overdueDrivers.slice(0, 5).map((d) => d.name).join(', ')}{overdueDrivers.length > 5 ? '...' : ''}
             </p>
           </div>
@@ -182,7 +182,7 @@ export function DriversPage() {
       )}
 
       {error && (
-        <div className="flex flex-col items-center gap-3 py-20 text-red-500">
+        <div className="flex flex-col items-center gap-3 py-20 text-rose-500">
           <AlertCircle size={32} />
           <p>{error}</p>
         </div>
@@ -198,7 +198,7 @@ export function DriversPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-gray-100 bg-gray-50/80 dark:border-gray-800 dark:bg-gray-900/50">
+                <tr className="border-b border-white/20 dark:border-white/5">
                   {cols.map(({ field, label }) => (
                     <th
                       key={field}
@@ -213,12 +213,12 @@ export function DriversPage() {
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
+              <tbody className="divide-y divide-black/[0.03] dark:divide-white/[0.03]">
                 {pageData.map((d) => (
                   <tr
                     key={d.name}
                     onClick={() => openDriver(d)}
-                    className={`cursor-pointer transition hover:bg-primary-50/50 dark:hover:bg-primary-900/10 ${d.days_since !== null && d.days_since > 28 ? 'bg-red-50/50 dark:bg-red-900/10' : ''}`}
+                    className={`cursor-pointer transition hover:bg-primary-50/50 dark:hover:bg-primary-900/10 ${d.days_since !== null && d.days_since > 28 ? 'bg-rose-50/50 dark:bg-rose-900/10' : ''}`}
                   >
                     <td className="whitespace-nowrap px-4 py-3 font-semibold">{d.name}</td>
                     <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-gray-500 dark:text-gray-400">{d.card_number}</td>
@@ -242,11 +242,11 @@ export function DriversPage() {
 
           {/* Pagination */}
           {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-3 border-t border-gray-100 px-4 py-3 text-sm dark:border-gray-800">
+            <div className="flex items-center justify-center gap-3 border-t border-white/20 dark:border-white/5 px-4 py-3 text-sm">
               <button
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page <= 1}
-                className="rounded-lg px-3 py-1 font-medium transition hover:bg-gray-100 disabled:opacity-30 dark:hover:bg-gray-800"
+                className="rounded-lg px-3 py-1 font-medium transition hover:bg-black/5 disabled:opacity-30 dark:hover:bg-white/5"
               >
                 {t('pagePrev')}
               </button>
@@ -254,7 +254,7 @@ export function DriversPage() {
               <button
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={page >= totalPages}
-                className="rounded-lg px-3 py-1 font-medium transition hover:bg-gray-100 disabled:opacity-30 dark:hover:bg-gray-800"
+                className="rounded-lg px-3 py-1 font-medium transition hover:bg-black/5 disabled:opacity-30 dark:hover:bg-white/5"
               >
                 {t('pageNext')}
               </button>
@@ -275,23 +275,23 @@ export function DriversPage() {
               onKeyDown={(e) => { if (e.key === 'Enter') handleAddDriver(); }}
               placeholder={t('driversAddNamePlaceholder')}
               autoFocus
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none transition focus:border-primary-400 focus:ring-2 focus:ring-primary-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:focus:ring-primary-900/40"
+              className="glass-input w-full rounded-xl px-4 py-2.5 text-sm outline-none"
             />
           </div>
           {addDriverError && (
-            <p className="text-sm text-red-500">{addDriverError}</p>
+            <p className="text-sm text-rose-500">{addDriverError}</p>
           )}
           <div className="flex justify-end gap-2">
             <button
               onClick={() => setShowAddDriver(false)}
-              className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium transition hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
+              className="rounded-lg border border-white/30 dark:border-white/10 px-4 py-2 text-sm font-medium transition hover:bg-black/[0.03] dark:hover:bg-white/5"
             >
               {t('cancel')}
             </button>
             <button
               onClick={handleAddDriver}
               disabled={!newDriverName.trim() || addingDriver}
-              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-50"
+              className="rounded-lg bg-gradient-to-r from-blue-500 to-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:brightness-110 disabled:opacity-50"
             >
               {addingDriver ? t('loading') : t('save')}
             </button>
@@ -302,14 +302,14 @@ export function DriversPage() {
       {/* Driver files modal - all files shown, no date filtering */}
       <Modal open={!!selectedDriver} onClose={() => setSelectedDriver(null)} title={selectedDriver ? `${selectedDriver.name}${selectedDriver.card_number ? ` (${selectedDriver.card_number})` : ''}` : ''} wide>
         {selectedDriver && (
-          <div className="max-h-[60vh] divide-y divide-gray-50 overflow-y-auto dark:divide-gray-800">
+          <div className="max-h-[60vh] divide-y divide-black/[0.03] overflow-y-auto dark:divide-white/[0.03]">
             {selectedDriver.files.length === 0 ? (
               <p className="py-10 text-center text-sm text-gray-400">{t('detailNoFiles')}</p>
             ) : (
               selectedDriver.files.map((f) => (
                 <div
                   key={f.path}
-                  className="flex cursor-pointer items-center gap-3 px-5 py-3 text-sm transition hover:bg-gray-50 dark:hover:bg-gray-800/50"
+                  className="flex cursor-pointer items-center gap-3 px-5 py-3 text-sm transition hover:bg-black/[0.03] dark:hover:bg-white/5"
                   onClick={() => analyzeFile(f)}
                 >
                   <FileText size={16} className="flex-shrink-0 text-primary-500" />

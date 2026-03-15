@@ -3,10 +3,7 @@ import { clsx } from 'clsx';
 export function Card({ children, className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={clsx(
-        'rounded-2xl bg-white shadow-sm ring-1 ring-gray-900/5 transition-shadow duration-200 hover:shadow-md dark:bg-gray-900 dark:ring-white/10',
-        className,
-      )}
+      className={clsx('glass-card rounded-2xl', className)}
       {...props}
     >
       {children}
@@ -16,7 +13,7 @@ export function Card({ children, className, ...props }: React.HTMLAttributes<HTM
 
 export function CardHeader({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={clsx('border-b border-gray-100 px-6 py-4 dark:border-gray-800', className)}>
+    <div className={clsx('border-b border-white/20 px-6 py-4 dark:border-white/5', className)}>
       {children}
     </div>
   );
@@ -37,18 +34,21 @@ export function StatCard({
   icon?: React.ReactNode;
   color?: 'primary' | 'green' | 'orange' | 'red';
 }) {
-  const bg: Record<string, string> = {
-    primary: 'bg-primary-50 text-primary-600 dark:bg-primary-500/10 dark:text-primary-400',
-    green: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400',
-    orange: 'bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400',
-    red: 'bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400',
+  const iconBg: Record<string, string> = {
+    primary: 'from-blue-500 to-blue-600 shadow-blue-200 dark:shadow-blue-900/30',
+    green: 'from-emerald-500 to-emerald-600 shadow-emerald-200 dark:shadow-emerald-900/30',
+    orange: 'from-amber-500 to-amber-600 shadow-amber-200 dark:shadow-amber-900/30',
+    red: 'from-rose-500 to-rose-600 shadow-rose-200 dark:shadow-rose-900/30',
   };
 
   return (
     <Card className="p-5">
       <div className="flex items-center gap-4">
         {icon && (
-          <div className={clsx('flex h-12 w-12 items-center justify-center rounded-xl', bg[color])}>
+          <div className={clsx(
+            'flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br text-white shadow-lg',
+            iconBg[color],
+          )}>
             {icon}
           </div>
         )}

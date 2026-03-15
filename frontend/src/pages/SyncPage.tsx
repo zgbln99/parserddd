@@ -32,7 +32,7 @@ export function SyncPage() {
 
   if (error) {
     return (
-      <div className="flex flex-col items-center gap-3 py-20 text-red-500">
+      <div className="flex flex-col items-center gap-3 py-20 text-rose-500">
         <AlertCircle size={32} />
         <p>{error}</p>
       </div>

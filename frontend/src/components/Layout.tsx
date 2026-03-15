@@ -46,11 +46,11 @@ export function Layout({ children }: { children: ReactNode }) {
   };
 
   return (
-    <div className="flex min-h-screen bg-gray-50 dark:bg-gray-950">
+    <div className="flex min-h-screen bg-mesh">
       {/* Sidebar overlay (mobile) */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm lg:hidden"
+          className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm lg:hidden animate-fade-in"
           onClick={() => setSidebarOpen(false)}
         />
       )}
@@ -58,20 +58,22 @@ export function Layout({ children }: { children: ReactNode }) {
       {/* Sidebar */}
       <aside
         className={clsx(
-          'fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-gray-200/80 bg-white transition-transform duration-300 dark:border-gray-800 dark:bg-gray-900 lg:translate-x-0',
+          'fixed inset-y-0 left-0 z-50 flex w-64 flex-col glass-sidebar transition-transform duration-300 lg:translate-x-0',
           sidebarOpen ? 'translate-x-0' : '-translate-x-full',
         )}
       >
         {/* Brand */}
-        <div className="flex h-16 items-center gap-3 border-b border-gray-100 px-5 dark:border-gray-800">
-          <img src="https://ltslog.de/logo.png" alt="LTS" className="h-8" />
+        <div className="flex h-16 items-center gap-3 border-b border-white/10 px-5 dark:border-white/5">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-violet-600 shadow-lg shadow-blue-500/20">
+            <img src="https://ltslog.de/logo.png" alt="LTS" className="h-5 brightness-0 invert" />
+          </div>
           <div className="min-w-0 flex-1">
             <span className="block text-sm font-bold tracking-tight">{t('appName')}</span>
             <span className="text-[10px] font-medium text-gray-400">LTS Logistik GmbH</span>
           </div>
           <button
             onClick={() => setSidebarOpen(false)}
-            className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 lg:hidden dark:hover:bg-gray-800"
+            className="rounded-lg p-1.5 text-gray-400 hover:bg-black/5 lg:hidden dark:hover:bg-white/5"
           >
             <ChevronLeft size={18} />
           </button>
@@ -90,8 +92,8 @@ export function Layout({ children }: { children: ReactNode }) {
                   clsx(
                     'group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200',
                     isActive
-                      ? 'bg-primary-50 text-primary-700 shadow-sm shadow-primary-100 dark:bg-primary-900/20 dark:text-primary-400 dark:shadow-none'
-                      : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800/50 dark:hover:text-gray-200',
+                      ? 'bg-gradient-to-r from-blue-500/10 to-violet-500/10 text-blue-700 shadow-sm dark:from-blue-500/15 dark:to-violet-500/10 dark:text-blue-400'
+                      : 'text-gray-600 hover:bg-black/5 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-200',
                   )
                 }
               >
@@ -103,16 +105,16 @@ export function Layout({ children }: { children: ReactNode }) {
         </nav>
 
         {/* Bottom controls */}
-        <div className="border-t border-gray-100 p-3 dark:border-gray-800">
+        <div className="border-t border-white/10 p-3 dark:border-white/5">
           {isAdmin && (
-            <span className="mb-2 inline-flex items-center rounded-lg bg-red-50 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-red-600 dark:bg-red-900/20 dark:text-red-400">
+            <span className="mb-2 inline-flex items-center gap-1 rounded-lg bg-gradient-to-r from-rose-500/10 to-orange-500/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-rose-600 dark:from-rose-500/15 dark:to-orange-500/10 dark:text-rose-400">
               Admin
             </span>
           )}
           <div className="flex items-center gap-1">
             <button
               onClick={() => setLocale(locale === 'pl' ? 'de' : 'pl' as Locale)}
-              className="flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-medium text-gray-500 transition hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
+              className="flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-medium text-gray-500 transition hover:bg-black/5 dark:text-gray-400 dark:hover:bg-white/5"
               title={locale === 'pl' ? 'Deutsch' : 'Polski'}
             >
               <Globe size={14} />
@@ -120,7 +122,7 @@ export function Layout({ children }: { children: ReactNode }) {
             </button>
             <button
               onClick={toggle}
-              className="rounded-lg p-2 text-gray-500 transition hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
+              className="rounded-lg p-2 text-gray-500 transition hover:bg-black/5 dark:text-gray-400 dark:hover:bg-white/5"
               title={theme === 'dark' ? t('lightMode') : t('darkMode')}
             >
               {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
@@ -128,7 +130,7 @@ export function Layout({ children }: { children: ReactNode }) {
             <div className="flex-1" />
             <button
               onClick={handleLogout}
-              className="flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-medium text-red-500 transition hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
+              className="flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-medium text-rose-500 transition hover:bg-rose-500/10 dark:text-rose-400"
             >
               <LogOut size={14} />
               <span className="hidden sm:inline">{t('logout')}</span>
@@ -139,13 +141,13 @@ export function Layout({ children }: { children: ReactNode }) {
 
       {/* Main area */}
       <div className="flex flex-1 flex-col lg:pl-64">
-        {/* Top bar (mobile + date filter) */}
-        <header className="sticky top-0 z-30 border-b border-gray-200/80 bg-white/80 backdrop-blur-xl dark:border-gray-800 dark:bg-gray-950/80">
+        {/* Top bar */}
+        <header className="sticky top-0 z-30 glass border-b border-white/20 dark:border-white/5">
           <div className="flex h-14 items-center gap-3 px-4 sm:px-6">
             {/* Mobile menu button */}
             <button
               onClick={() => setSidebarOpen(true)}
-              className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 lg:hidden dark:text-gray-400 dark:hover:bg-gray-800"
+              className="rounded-lg p-2 text-gray-500 hover:bg-black/5 lg:hidden dark:text-gray-400 dark:hover:bg-white/5"
             >
               <Menu size={20} />
             </button>
@@ -161,7 +163,7 @@ export function Layout({ children }: { children: ReactNode }) {
                 <button
                   key={label}
                   onClick={fn}
-                  className="hidden rounded-lg border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600 transition hover:bg-gray-50 sm:inline-flex dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-800"
+                  className="hidden rounded-lg border border-white/30 px-2.5 py-1 text-xs font-medium text-gray-600 transition hover:bg-white/40 sm:inline-flex dark:border-white/10 dark:text-gray-400 dark:hover:bg-white/5"
                 >
                   {label}
                 </button>
@@ -170,19 +172,19 @@ export function Layout({ children }: { children: ReactNode }) {
                 type="date"
                 value={dateFrom}
                 onChange={(e) => setDateFrom(e.target.value)}
-                className="rounded-lg border border-gray-200 bg-transparent px-2 py-1 text-xs outline-none transition focus:border-primary-400 focus:ring-1 focus:ring-primary-200 dark:border-gray-700 dark:text-gray-200 dark:[color-scheme:dark]"
+                className="glass-input rounded-lg px-2 py-1 text-xs outline-none dark:[color-scheme:dark]"
               />
-              <span className="text-xs text-gray-400">—</span>
+              <span className="text-xs text-gray-300 dark:text-gray-600">—</span>
               <input
                 type="date"
                 value={dateTo}
                 onChange={(e) => setDateTo(e.target.value)}
-                className="rounded-lg border border-gray-200 bg-transparent px-2 py-1 text-xs outline-none transition focus:border-primary-400 focus:ring-1 focus:ring-primary-200 dark:border-gray-700 dark:text-gray-200 dark:[color-scheme:dark]"
+                className="glass-input rounded-lg px-2 py-1 text-xs outline-none dark:[color-scheme:dark]"
               />
               {(dateFrom || dateTo) && (
                 <button
                   onClick={clear}
-                  className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-red-500 transition hover:bg-red-50 dark:hover:bg-red-900/20"
+                  className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-rose-500 transition hover:bg-rose-500/10"
                 >
                   <X size={12} />
                   {t('clear')}
@@ -194,7 +196,7 @@ export function Layout({ children }: { children: ReactNode }) {
             <div className="flex items-center gap-1 lg:hidden">
               <button
                 onClick={toggle}
-                className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
+                className="rounded-lg p-2 text-gray-500 hover:bg-black/5 dark:text-gray-400 dark:hover:bg-white/5"
               >
                 {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
               </button>
@@ -210,7 +212,7 @@ export function Layout({ children }: { children: ReactNode }) {
         </main>
 
         {/* Mobile bottom nav */}
-        <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-gray-200 bg-white/90 backdrop-blur-xl lg:hidden dark:border-gray-800 dark:bg-gray-950/90">
+        <nav className="fixed inset-x-0 bottom-0 z-30 glass border-t border-white/20 lg:hidden dark:border-white/5">
           <div className="flex items-stretch justify-around">
             {navItems.slice(0, 5).map(({ to, icon: Icon, labelKey }) => (
               <NavLink
@@ -221,7 +223,7 @@ export function Layout({ children }: { children: ReactNode }) {
                   clsx(
                     'flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] font-medium transition-colors',
                     isActive
-                      ? 'text-primary-600 dark:text-primary-400'
+                      ? 'text-blue-600 dark:text-blue-400'
                       : 'text-gray-400 dark:text-gray-500',
                   )
                 }
@@ -236,7 +238,7 @@ export function Layout({ children }: { children: ReactNode }) {
                 className="flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] font-medium text-gray-400 dark:text-gray-500"
               >
                 <Menu size={20} />
-                <span>{t('navMore') || 'Mehr'}</span>
+                <span>{t('navMore')}</span>
               </button>
             )}
           </div>
