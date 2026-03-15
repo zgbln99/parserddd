@@ -348,7 +348,7 @@ export const de: Record<TranslationKey, string> = {
   complianceNoViolations: 'Keine Verstöße — alle Vorschriften eingehalten',
   verstosseReport: 'Verstöße-Dokument',
   navVerstosse: 'Verstöße',
-  navEU561: 'EU 561',
+
   verstosseTitle: 'Verstöße-Analyse',
   verstosseSubtitle: 'Analyse der Verstöße gegen EU 561/2006, ArbZG und FPersV',
   verstosseSelectDrivers: 'Fahrer zur Analyse auswählen',

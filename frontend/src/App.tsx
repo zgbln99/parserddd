@@ -19,7 +19,7 @@ const SettlementPage = lazy(() => import('./pages/SettlementPage').then(m => ({ 
 const VehiclesPage = lazy(() => import('./pages/VehiclesPage').then(m => ({ default: m.VehiclesPage })));
 const AnalysisPage = lazy(() => import('./pages/AnalysisPage').then(m => ({ default: m.AnalysisPage })));
 const VerstossePage = lazy(() => import('./pages/VerstossePage').then(m => ({ default: m.VerstossePage })));
-const EU561Page = lazy(() => import('./pages/EU561Page').then(m => ({ default: m.EU561Page })));
+
 
 function PageFallback() {
   return (
@@ -80,7 +80,7 @@ export function App() {
           <Route path="/vehicles" element={<AdminRoute><VehiclesPage /></AdminRoute>} />
           <Route path="/analysis" element={<ProtectedRoute><AnalysisPage /></ProtectedRoute>} />
           <Route path="/verstosse" element={<ProtectedRoute><VerstossePage /></ProtectedRoute>} />
-          <Route path="/eu561" element={<ProtectedRoute><EU561Page /></ProtectedRoute>} />
+
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>
