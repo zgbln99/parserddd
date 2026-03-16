@@ -144,24 +144,45 @@ export function VehiclesPage() {
 
   const handlePrint = () => window.print();
 
-  // Filter days by time range (based on begin_driving time)
+  // Filter by time range at trip level - sum only km from matching trips
+  const hasTimeFilter = !!(timeFrom || timeTo);
+
   const filteredDays = useMemo(() => {
     if (!activity) return [];
-    if (!timeFrom && !timeTo) return activity.days;
-    return activity.days.filter((day) => {
-      const beginTime = day.begin_driving?.split(' ')[1] || '';
-      const endTime = day.last_driving?.split(' ')[1] || '';
-      if (!beginTime) return false;
-      // Day passes if any driving time overlaps with filter range
-      if (timeFrom && endTime && endTime < timeFrom) return false;
-      if (timeTo && beginTime > timeTo) return false;
-      return true;
-    });
-  }, [activity, timeFrom, timeTo]);
+    if (!hasTimeFilter) return activity.days;
+
+    return activity.days.map((day) => {
+      const trips = day.trips || [];
+      if (trips.length === 0) {
+        // No trip detail - fall back to day-level time check
+        const beginTime = day.begin_driving?.split(' ')[1] || '';
+        const endTime = day.last_driving?.split(' ')[1] || '';
+        if (timeFrom && endTime && endTime < timeFrom) return null;
+        if (timeTo && beginTime > timeTo) return null;
+        return day;
+      }
+
+      // Filter individual trips by time overlap
+      const matchingTrips = trips.filter((trip) => {
+        if (timeFrom && trip.end < timeFrom) return false;
+        if (timeTo && trip.start > timeTo) return false;
+        return true;
+      });
+
+      if (matchingTrips.length === 0) return null;
+
+      const filteredKm = matchingTrips.reduce((s, t) => s + t.km, 0);
+      return {
+        ...day,
+        distance_km: Math.round(filteredKm * 10) / 10,
+        trips_count: matchingTrips.length,
+        trips: matchingTrips,
+      };
+    }).filter((d): d is NonNullable<typeof d> => d !== null);
+  }, [activity, hasTimeFilter, timeFrom, timeTo]);
 
   const filteredTotalKm = useMemo(() => filteredDays.reduce((s, d) => s + d.distance_km, 0), [filteredDays]);
   const totalMinutes = useMemo(() => filteredDays.reduce((s, d) => s + d.duration_minutes, 0), [filteredDays]);
-  const hasTimeFilter = !!(timeFrom || timeTo);
 
   return (
     <div className="animate-slide-up">

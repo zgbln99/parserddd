@@ -401,6 +401,12 @@ export async function exportDatevBatch(period: string, drivers: SettlementDriver
 }
 
 // Vehicle activity (Samsara GPS/engine controlling)
+export interface VehicleTrip {
+  start: string;  // HH:MM
+  end: string;    // HH:MM
+  km: number;
+}
+
 export interface VehicleDayActivity {
   date: string;
   begin_driving: string;
@@ -412,6 +418,7 @@ export interface VehicleDayActivity {
   distance_km: number;
   trips_count?: number;
   last_location?: string;
+  trips?: VehicleTrip[];
 }
 
 export interface VehicleActivity {

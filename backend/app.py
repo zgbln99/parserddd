@@ -2937,6 +2937,11 @@ def api_vehicles_activity():
                     'total_meters': float(dist),
                     'trips_count': 1,
                     'end_address': end_addr,
+                    'trips': [{
+                        'start': dt_start.strftime('%H:%M'),
+                        'end': dt_end.strftime('%H:%M'),
+                        'km': round(float(dist) / 1000, 1),
+                    }],
                 }
             else:
                 d = daily[day_key]
@@ -2947,6 +2952,11 @@ def api_vehicles_activity():
                     d['end_address'] = end_addr
                 d['total_meters'] += float(dist)
                 d['trips_count'] += 1
+                d['trips'].append({
+                    'start': dt_start.strftime('%H:%M'),
+                    'end': dt_end.strftime('%H:%M'),
+                    'km': round(float(dist) / 1000, 1),
+                })
 
         # Build daily entries
         days = []
@@ -2991,6 +3001,7 @@ def api_vehicles_activity():
                 'distance_km': dist_km,
                 'trips_count': d['trips_count'],
                 'last_location': last_loc,
+                'trips': d.get('trips', []),
             })
 
         results.append({
