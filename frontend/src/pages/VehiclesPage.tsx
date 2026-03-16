@@ -171,7 +171,19 @@ export function VehiclesPage() {
 
       if (matchingTrips.length === 0) return null;
 
-      const filteredKm = matchingTrips.reduce((s, t) => s + t.km, 0);
+      // Distribute day's distance_km proportionally across trips
+      // Trip km from API is often 0, so use day total and split by trip count
+      const totalTripKm = trips.reduce((s, t) => s + t.km, 0);
+      let filteredKm: number;
+      if (totalTripKm > 0) {
+        // Proportional: matching trips' share of total trip km, scaled to day distance
+        const matchingTripKm = matchingTrips.reduce((s, t) => s + t.km, 0);
+        filteredKm = day.distance_km * (matchingTripKm / totalTripKm);
+      } else {
+        // All trip km are 0 - distribute evenly by trip count
+        filteredKm = day.distance_km * (matchingTrips.length / trips.length);
+      }
+
       return {
         ...day,
         distance_km: Math.round(filteredKm * 10) / 10,
