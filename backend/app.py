@@ -754,7 +754,18 @@ def analyze_card(data):
         avail_sec = sum((e - s).total_seconds() for s, e, wt, _m in shift_intervals if wt == 1)
         work_only_sec = sum((e - s).total_seconds() for s, e, wt, _m in shift_intervals if wt == 2)
         driving_sec = sum((e - s).total_seconds() for s, e, wt, _m in shift_intervals if wt == 3)
-        manual_sec = sum((e - s).total_seconds() for s, e, wt, m in shift_intervals if m and wt != 0)
+        # Manual entries: only count intervals marked manual that fall AFTER the
+        # first card-present interval (i.e. card was already inserted).  Pre-shift
+        # manual entries (driver entering activities upon card insertion) are normal.
+        first_card_present_idx = next(
+            (i for i, (_, _, _, m) in enumerate(shift_intervals) if not m),
+            len(shift_intervals),
+        )
+        manual_sec = sum(
+            (e - s).total_seconds()
+            for i, (s, e, wt, m) in enumerate(shift_intervals)
+            if m and wt != 0 and i > first_card_present_idx
+        )
 
         work_sec = work_only_sec + driving_sec + avail_sec
         work_minutes = int(round(work_sec / 60))
