@@ -446,89 +446,11 @@ export interface SamsaraVehicle {
 export const fetchSamsaraVehicles = () =>
   request<{ vehicles: SamsaraVehicle[] }>('/api/vehicles');
 
-export interface ActivityProgress {
-  step: number;
-  totalSteps: number;
-  label: string;
-}
-
-export const fetchVehicleActivityStream = (
-  period: string,
-  vehicleIds: string[],
-  skipLocation: boolean,
-  onProgress: (p: ActivityProgress) => void,
-): Promise<{ period: string; vehicles: VehicleActivity[]; debug: VehicleDebugInfo }> => {
-  return new Promise(async (resolve, reject) => {
-    let res: Response;
-    try {
-      res = await fetch(`${BASE}/api/vehicles/activity/stream`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ period, vehicle_ids: vehicleIds, skip_location: skipLocation }),
-      });
-    } catch {
-      reject(new Error('Brak połączenia z serwerem / Keine Verbindung zum Server'));
-      return;
-    }
-    if (res.status === 401) {
-      window.location.href = '/login';
-      reject(new Error('Unauthorized'));
-      return;
-    }
-    if (!res.ok || !res.body) {
-      reject(new Error(`HTTP ${res.status}`));
-      return;
-    }
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-    let resolved = false;
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
-
-      let eventType = '';
-      let dataStr = '';
-      for (const line of lines) {
-        if (line.startsWith('event: ')) {
-          eventType = line.slice(7).trim();
-        } else if (line.startsWith('data: ')) {
-          dataStr = line.slice(6);
-        } else if (line === '' && eventType && dataStr) {
-          try {
-            const parsed = JSON.parse(dataStr);
-            if (eventType === 'progress') {
-              onProgress(parsed as ActivityProgress);
-            } else if (eventType === 'result') {
-              resolved = true;
-              resolve(parsed);
-            } else if (eventType === 'error') {
-              reject(new Error(parsed.error || 'Unknown error'));
-              return;
-            }
-          } catch { /* skip malformed */ }
-          eventType = '';
-          dataStr = '';
-        }
-      }
-    }
-    if (!resolved) {
-      reject(new Error('Stream ended without result'));
-    }
-  });
-};
-
-export const fetchVehicleActivity = (period: string, vehicleIds?: string[]) =>
+export const fetchVehicleActivity = (period: string, vehicleIds?: string[], skipLocation?: boolean) =>
   request<{ period: string; vehicles: VehicleActivity[]; debug: VehicleDebugInfo }>('/api/vehicles/activity', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ period, vehicle_ids: vehicleIds || [] }),
+    body: JSON.stringify({ period, vehicle_ids: vehicleIds || [], skip_location: skipLocation || false }),
   });
 
 // Driver KM from tachograph card (odometer readings)

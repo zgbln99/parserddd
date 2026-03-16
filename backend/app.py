@@ -2596,27 +2596,19 @@ def api_vehicles_activity():
     Fetch vehicle activity from Samsara using trips/stream endpoint.
     Returns daily breakdown: date, start/end time, duration, distance.
     """
-    body = request.get_json(force=True)
-    result = _do_vehicles_activity(body)
-    if isinstance(result, tuple):
-        return jsonify(result[0]), result[1]
-    return jsonify(result)
-
-
-def _do_vehicles_activity(body, progress_cb=None):
-    """Core logic for vehicle activity. Returns dict or (dict, status_code) on error."""
     if not SAMSARA_API_TOKEN:
-        return {'error': 'Samsara API not configured'}, 400
+        return jsonify({'error': 'Samsara API not configured'}), 400
 
+    body = request.get_json(force=True)
     period = body.get('period', '')  # "2026-03"
     vehicle_ids = body.get('vehicle_ids', [])  # required
     skip_location = body.get('skip_location', False)  # skip GPS/stats for speed
 
     if not period or len(period) != 7:
-        return {'error': 'Invalid period (expected YYYY-MM)'}, 400
+        return jsonify({'error': 'Invalid period (expected YYYY-MM)'}), 400
 
     if not vehicle_ids:
-        return {'error': 'No vehicle selected'}, 400
+        return jsonify({'error': 'No vehicle selected'}), 400
 
     # --- Check cache ---
     cache_key = (period, tuple(sorted(vehicle_ids)))
@@ -2625,7 +2617,7 @@ def _do_vehicles_activity(body, progress_cb=None):
         cache_ts, cache_data = cached
         if (datetime.now() - cache_ts).total_seconds() < VEHICLE_ACTIVITY_CACHE_TTL:
             app.logger.info('Vehicle activity cache hit for %s', cache_key)
-            return cache_data
+            return jsonify(cache_data)
 
     year, month = int(period[:4]), int(period[5:7])
     from calendar import monthrange
@@ -2836,12 +2828,7 @@ def _do_vehicles_activity(body, progress_cb=None):
         info['gps_distance_days'] = sum(len(d) for d in daily_km.values())
         return daily_location, daily_km, info
 
-    def _progress(step, total_steps, label):
-        if progress_cb:
-            progress_cb(step, total_steps, label)
-
     # ---- Step 1: Always fetch trips (lightweight, has distance + addresses) ----
-    _progress(1, 3, 'trips')
     all_trips, trips_info = _fetch_trips()
     debug_info['api_calls'] += trips_info['api_calls']
     debug_info['raw_trips'] = trips_info['raw_trips']
@@ -2868,12 +2855,10 @@ def _do_vehicles_activity(body, progress_cb=None):
     # ---- Step 3: Conditionally fetch stats (odometer) if trips lack km ----
     stats_daily_km = {}
     if skip_location:
-        _progress(2, 3, 'stats_skipped')
         app.logger.info('Stats fetch skipped - skip_location flag')
         debug_info['stats_skipped'] = True
         debug_info['stats_source'] = 'skipped_by_user'
     elif _days_missing_km:
-        _progress(2, 3, 'stats')
         app.logger.info('Stats fetch needed - some trips missing distance')
         stats_daily_km, stats_info = _fetch_stats()
         debug_info['api_calls'] += stats_info['api_calls']
@@ -2882,7 +2867,6 @@ def _do_vehicles_activity(body, progress_cb=None):
         debug_info['stats_daily_entries'] = stats_info.get('stats_daily_entries', 0)
         debug_info['stats_source'] = stats_info.get('stats_source', 'none')
     else:
-        _progress(2, 3, 'stats_skipped')
         app.logger.info('Stats fetch skipped - all trips have distance data')
         debug_info['stats_skipped'] = True
         debug_info['stats_source'] = 'not_needed'
@@ -2891,7 +2875,6 @@ def _do_vehicles_activity(body, progress_cb=None):
     gps_daily_location = {}
     gps_daily_km = {}
     if skip_location:
-        _progress(3, 3, 'gps_skipped')
         app.logger.info('GPS breadcrumbs skipped - skip_location flag')
         debug_info['gps_skipped'] = True
         debug_info['gps_points'] = 0
@@ -2918,7 +2901,6 @@ def _do_vehicles_activity(body, progress_cb=None):
             needs_gps = True
 
         if needs_gps:
-            _progress(3, 3, 'gps')
             app.logger.info('GPS breadcrumbs needed - fetching (missing km or addresses)')
             gps_daily_location, gps_daily_km, gps_info = _fetch_gps()
             debug_info['api_calls'] += gps_info['api_calls']
@@ -2927,7 +2909,6 @@ def _do_vehicles_activity(body, progress_cb=None):
             debug_info['gps_vehicles_with_location'] = gps_info.get('gps_vehicles_with_location', 0)
             debug_info['gps_distance_days'] = gps_info.get('gps_distance_days', 0)
         else:
-            _progress(3, 3, 'gps_skipped')
             app.logger.info('GPS breadcrumbs skipped - trips + stats cover all data')
             debug_info['gps_skipped'] = True
             debug_info['gps_points'] = 0
@@ -3189,61 +3170,7 @@ def _do_vehicles_activity(body, progress_cb=None):
     for k in stale:
         VEHICLE_ACTIVITY_CACHE.pop(k, None)
 
-    return response_data
-
-
-@app.route('/api/vehicles/activity/stream', methods=['POST'])
-@admin_required
-def api_vehicles_activity_stream():
-    """SSE wrapper around vehicle activity - sends progress events then result."""
-    import queue
-    import threading
-
-    body = request.get_json(force=True)
-    progress_q = queue.Queue()
-
-    def _progress_cb(step, total_steps, label):
-        progress_q.put((step, total_steps, label))
-
-    def generate():
-        result_holder = [None, None]  # [response, error]
-
-        def run_activity():
-            try:
-                with app.app_context():
-                    result = _do_vehicles_activity(body, progress_cb=_progress_cb)
-                    if isinstance(result, tuple):
-                        result_holder[0] = result[0]
-                    else:
-                        result_holder[0] = result
-            except Exception as exc:
-                app.logger.exception('SSE activity error')
-                result_holder[1] = str(exc)
-            finally:
-                progress_q.put(None)  # sentinel
-
-        t = threading.Thread(target=run_activity, daemon=True)
-        t.start()
-
-        while True:
-            item = progress_q.get()
-            if item is None:
-                break
-            step, total_steps, label = item
-            evt = json.dumps({'step': step, 'totalSteps': total_steps, 'label': label})
-            yield f'event: progress\ndata: {evt}\n\n'
-
-        t.join(timeout=60)
-
-        if result_holder[1]:
-            yield f'event: error\ndata: {json.dumps({"error": result_holder[1]})}\n\n'
-        elif result_holder[0]:
-            yield f'event: result\ndata: {json.dumps(result_holder[0])}\n\n'
-        else:
-            yield f'event: error\ndata: {json.dumps({"error": "No result"})}\n\n'
-
-    return Response(generate(), mimetype='text/event-stream',
-                    headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'})
+    return jsonify(response_data)
 
 
 # ---------------------------------------------------------------------------

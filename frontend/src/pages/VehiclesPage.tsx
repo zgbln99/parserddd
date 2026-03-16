@@ -2,8 +2,8 @@ import { useState, useCallback, useMemo, useEffect } from 'react';
 import { Calendar, Truck, RefreshCw, AlertCircle, Printer, MapPin, Search } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { useDateFilter } from '../hooks/useDateFilter';
-import { fetchSamsaraVehicles, fetchVehicleActivityStream } from '../lib/api';
-import type { SamsaraVehicle, VehicleActivity, VehicleDebugInfo, ActivityProgress } from '../lib/api';
+import { fetchSamsaraVehicles, fetchVehicleActivity } from '../lib/api';
+import type { SamsaraVehicle, VehicleActivity, VehicleDebugInfo } from '../lib/api';
 import { Card } from '../components/Card';
 import { Spinner } from '../components/Spinner';
 import { Badge } from '../components/Badge';
@@ -27,8 +27,6 @@ export function VehiclesPage() {
   const [activity, setActivity] = useState<VehicleActivity | null>(null);
   const [period, setPeriod] = useState('');
   const [debugInfo, setDebugInfo] = useState<VehicleDebugInfo | null>(null);
-  const [progress, setProgress] = useState<ActivityProgress | null>(null);
-  const [elapsedSec, setElapsedSec] = useState(0);
   const [skipLocation, setSkipLocation] = useState(false);
 
   const defaultPeriod = useMemo(() => {
@@ -83,16 +81,9 @@ export function VehiclesPage() {
     setActivity(null);
     setPeriod('');
     setDebugInfo(null);
-    setProgress(null);
-    setElapsedSec(0);
-
-    const t0 = Date.now();
-    const timer = setInterval(() => setElapsedSec(Math.floor((Date.now() - t0) / 1000)), 500);
 
     try {
-      const result = await fetchVehicleActivityStream(p, [selectedVehicleId], skipLocation, (prog) => {
-        setProgress(prog);
-      });
+      const result = await fetchVehicleActivity(p, [selectedVehicleId], skipLocation);
       if (result.vehicles.length > 0) {
         setActivity(result.vehicles[0]);
       } else {
@@ -103,9 +94,7 @@ export function VehiclesPage() {
     } catch (e: any) {
       setError(e.message);
     } finally {
-      clearInterval(timer);
       setLoading(false);
-      setProgress(null);
     }
   }, [selectedVehicleId, selectedPeriod, defaultPeriod, skipLocation]);
 
@@ -298,55 +287,12 @@ export function VehiclesPage() {
         )}
       </Card>
 
-      {/* Loading with progress */}
+      {/* Loading */}
       {loading && (
         <Card className="mb-6 p-6">
-          <div className="flex flex-col gap-4">
-            {/* Steps */}
-            {(() => {
-              const stepLabels: { key: string; label: string; skippedLabel: string }[] = [
-                { key: 'trips', label: t('vehiclesProgressTrips'), skippedLabel: '' },
-                { key: 'stats', label: t('vehiclesProgressStats'), skippedLabel: t('vehiclesProgressStatsSkipped') },
-                { key: 'gps', label: t('vehiclesProgressGps'), skippedLabel: t('vehiclesProgressGpsSkipped') },
-              ];
-              const currentStep = progress?.step ?? 0;
-              const currentLabel = progress?.label ?? '';
-              return (
-                <div className="space-y-2">
-                  {stepLabels.map((s, i) => {
-                    const stepNum = i + 1;
-                    const isActive = currentStep === stepNum && !currentLabel.endsWith('_skipped');
-                    const isDone = currentStep > stepNum;
-                    const isSkipped = (currentStep === stepNum && currentLabel.endsWith('_skipped'))
-                      || (currentStep > stepNum && currentLabel === s.key + '_skipped');
-                    // Check if a later step marked this as skipped
-                    const wasSkipped = isDone && progress && stepNum === 2 && currentLabel === 'gps' && false; // simplified
-
-                    return (
-                      <div key={s.key} className="flex items-center gap-3">
-                        <div className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold
-                          ${isDone || isSkipped ? 'bg-emerald-500 text-white' : isActive ? 'bg-blue-500 text-white animate-pulse' : 'bg-gray-200 dark:bg-gray-700 text-gray-500'}`}>
-                          {isDone || isSkipped ? '✓' : stepNum}
-                        </div>
-                        <span className={`text-sm ${isActive ? 'font-semibold text-gray-900 dark:text-gray-100' : isDone || isSkipped ? 'text-gray-500 dark:text-gray-400 line-through' : 'text-gray-400 dark:text-gray-500'}`}>
-                          {isSkipped ? s.skippedLabel || s.label : s.label}
-                        </span>
-                        {isActive && <Spinner size="sm" />}
-                      </div>
-                    );
-                  })}
-                </div>
-              );
-            })()}
-            {/* Progress bar */}
-            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
-              <div
-                className="bg-blue-500 h-2 rounded-full transition-all duration-500 ease-out"
-                style={{ width: `${progress ? Math.min(100, ((progress.step - (progress.label.endsWith('_skipped') ? 0 : 0.5)) / 3) * 100) : 5}%` }}
-              />
-            </div>
-            {/* Timer */}
-            <p className="text-xs text-gray-400 text-center">{elapsedSec}s</p>
+          <div className="flex flex-col items-center gap-4">
+            <Spinner size="lg" />
+            <p className="text-sm font-medium text-gray-600 dark:text-gray-400">{t('vehiclesLoading')}</p>
           </div>
         </Card>
       )}
