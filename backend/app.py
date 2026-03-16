@@ -601,11 +601,19 @@ def get_vehicle_records(data):
                 continue
             first_use = rec.get('vehicle_first_use', '')
             last_use = rec.get('vehicle_last_use', '')
+            odo_begin = rec.get('vehicle_odometer_begin', 0)
+            odo_end = rec.get('vehicle_odometer_end', 0)
             dedup_key = (plate, first_use, last_use)
             if dedup_key in seen:
                 continue
             seen.add(dedup_key)
-            vehicles.append({'plate': plate, 'first_use': first_use, 'last_use': last_use})
+            vehicles.append({
+                'plate': plate,
+                'first_use': first_use,
+                'last_use': last_use,
+                'odometer_begin_km': int(odo_begin) if odo_begin else 0,
+                'odometer_end_km': int(odo_end) if odo_end else 0,
+            })
     vehicles.sort(key=lambda v: v.get('first_use', ''))
     return vehicles
 
@@ -1374,6 +1382,142 @@ def api_settlement():
         return jsonify({'period': period, 'drivers': results})
     except Exception as exc:
         return jsonify({'error': f'Settlement error: {str(exc)}'}), 500
+
+
+@app.route('/api/driver-km', methods=['POST'])
+@login_required
+def api_driver_km():
+    """Extract km (odometer) data from all drivers' DDD files for a given period.
+
+    Accepts {period: "YYYY-MM"}.
+    Downloads latest DDD file per driver from Dropbox, parses vehicle records
+    with odometer_begin/end, and returns per-driver km summary.
+    """
+    try:
+        payload = request.get_json(force=True)
+        period = payload.get('period', '')
+        if not period or len(period) < 7:
+            return jsonify({'error': 'period required (YYYY-MM)'}), 400
+
+        dbx = get_server_dropbox_client()
+        if not dbx:
+            return jsonify({'error': 'Brak połączenia z Dropbox'}), 500
+
+        # List drivers from Dropbox
+        drivers_data = []
+        base_path = os.environ.get('DROPBOX_DRIVERS_PATH', '/Fahrer')
+        try:
+            result = dbx.files_list_folder(base_path)
+            entries = list(result.entries)
+            while result.has_more:
+                result = dbx.files_list_folder_continue(result.cursor)
+                entries.extend(result.entries)
+        except Exception as e:
+            return jsonify({'error': f'Dropbox listing error: {str(e)}'}), 500
+
+        driver_folders = [e for e in entries if isinstance(e, dropbox.files.FolderMetadata)]
+
+        tasks = []
+        for folder in driver_folders:
+            driver_name = folder.name
+            # Find DDD files in this folder
+            try:
+                folder_result = dbx.files_list_folder(folder.path_lower)
+                folder_entries = list(folder_result.entries)
+                while folder_result.has_more:
+                    folder_result = dbx.files_list_folder_continue(folder_result.cursor)
+                    folder_entries.extend(folder_result.entries)
+            except Exception:
+                continue
+
+            ddd_files = [
+                f for f in folder_entries
+                if isinstance(f, dropbox.files.FileMetadata)
+                and f.name.lower().endswith('.ddd')
+            ]
+            if not ddd_files:
+                continue
+
+            # Use the most recent file
+            ddd_files.sort(key=lambda f: f.server_modified, reverse=True)
+            tasks.append({
+                'driver_name': driver_name,
+                'file_path': ddd_files[0].path_lower,
+            })
+
+        def process_driver_km(task):
+            dbx_thread = get_server_dropbox_client()
+            if not dbx_thread:
+                return None
+            try:
+                _meta, response = dbx_thread.files_download(task['file_path'])
+                with tempfile.NamedTemporaryFile(suffix='.ddd', delete=False) as tmp:
+                    tmp.write(response.content)
+                    tmp_path = tmp.name
+                data = parse_ddd_file(tmp_path)
+                os.unlink(tmp_path)
+
+                vehicles = get_vehicle_records(data)
+                driver_info = get_driver_info(data)
+
+                # Filter vehicle records to requested period and calculate km
+                period_records = []
+                total_km = 0
+                for v in vehicles:
+                    # Check if this record overlaps with the requested period
+                    first_use = v.get('first_use', '')[:10]
+                    last_use = v.get('last_use', '')[:10]
+                    if not first_use:
+                        continue
+                    # Check period overlap: record is relevant if its dates touch the month
+                    rec_month_start = first_use[:7] if first_use else ''
+                    rec_month_end = last_use[:7] if last_use else rec_month_start
+                    if rec_month_start > period or rec_month_end < period:
+                        if rec_month_start and rec_month_end:
+                            # Completely outside the period
+                            if not (rec_month_start <= period <= rec_month_end):
+                                continue
+
+                    odo_begin = v.get('odometer_begin_km', 0)
+                    odo_end = v.get('odometer_end_km', 0)
+                    km = max(0, odo_end - odo_begin)
+                    total_km += km
+
+                    period_records.append({
+                        'plate': v.get('plate', ''),
+                        'first_use': first_use,
+                        'last_use': last_use,
+                        'odometer_begin_km': odo_begin,
+                        'odometer_end_km': odo_end,
+                        'distance_km': km,
+                    })
+
+                if not period_records:
+                    return None
+
+                return {
+                    'driver_name': task['driver_name'],
+                    'card_number': driver_info.get('card_number', ''),
+                    'vehicles': period_records,
+                    'total_km': total_km,
+                }
+            except Exception as exc:
+                app.logger.warning(f'Driver km error for {task["driver_name"]}: {exc}')
+                return None
+
+        results = []
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            futures = {executor.submit(process_driver_km, t): t for t in tasks}
+            for future in as_completed(futures):
+                result = future.result()
+                if result:
+                    results.append(result)
+
+        results.sort(key=lambda r: r['driver_name'])
+        _log_activity('driver_km', f"{period} – {len(results)} drivers")
+        return jsonify({'period': period, 'drivers': results})
+    except Exception as exc:
+        return jsonify({'error': f'Driver km error: {str(exc)}'}), 500
 
 
 @app.route('/api/export/datev-batch', methods=['POST'])

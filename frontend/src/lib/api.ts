@@ -453,6 +453,30 @@ export const fetchVehicleActivity = (period: string, vehicleIds?: string[]) =>
     body: JSON.stringify({ period, vehicle_ids: vehicleIds || [] }),
   });
 
+// Driver KM from tachograph card (odometer readings)
+export interface DriverKmVehicle {
+  plate: string;
+  first_use: string;
+  last_use: string;
+  odometer_begin_km: number;
+  odometer_end_km: number;
+  distance_km: number;
+}
+
+export interface DriverKmEntry {
+  driver_name: string;
+  card_number: string;
+  vehicles: DriverKmVehicle[];
+  total_km: number;
+}
+
+export const fetchDriverKm = (period: string) =>
+  request<{ period: string; drivers: DriverKmEntry[] }>('/api/driver-km', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ period }),
+  });
+
 // PDF export (returns blob)
 export async function exportPdf(driverName: string, cardNumber: string, summary: unknown, shifts: unknown[]) {
   const res = await fetch('/api/export/pdf', {

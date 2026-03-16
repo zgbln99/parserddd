@@ -358,6 +358,24 @@ export const pl = {
   verstosseUnternehmenFines: 'Kary firma',
   verstosseExportAll: 'Eksport wszystkich PDF',
 
+  // Driver KM (tachograph card odometer)
+  navDriverKm: 'Km kierowców',
+  driverKmTitle: 'Kilometry kierowców',
+  driverKmSubtitle: 'Odczyty odometru z kart tachografu (pliki DDD)',
+  driverKmGenerate: 'Generuj',
+  driverKmLoading: 'Pobieranie danych z kart kierowców...',
+  driverKmNoData: 'Wybierz miesiąc i kliknij Generuj',
+  driverKmDriver: 'Kierowca',
+  driverKmPlate: 'Pojazd',
+  driverKmFirstUse: 'Od',
+  driverKmLastUse: 'Do',
+  driverKmOdoBegin: 'Odo. start (km)',
+  driverKmOdoEnd: 'Odo. koniec (km)',
+  driverKmDistance: 'Przejechane (km)',
+  driverKmTotal: 'Razem km',
+  driverKmNoDrivers: 'Brak danych za wybrany okres',
+  driverKmPeriod: 'Okres',
+
   // Offline
   offlineMode: 'Tryb offline — dane z cache',
   offlineReady: 'Aplikacja gotowa do pracy offline',

@@ -19,6 +19,7 @@ const SettlementPage = lazy(() => import('./pages/SettlementPage').then(m => ({ 
 const VehiclesPage = lazy(() => import('./pages/VehiclesPage').then(m => ({ default: m.VehiclesPage })));
 const AnalysisPage = lazy(() => import('./pages/AnalysisPage').then(m => ({ default: m.AnalysisPage })));
 const VerstossePage = lazy(() => import('./pages/VerstossePage').then(m => ({ default: m.VerstossePage })));
+const DriverKmPage = lazy(() => import('./pages/DriverKmPage').then(m => ({ default: m.DriverKmPage })));
 
 
 function PageFallback() {
@@ -78,6 +79,7 @@ export function App() {
           <Route path="/compare" element={<AdminRoute><CompareDriversPage /></AdminRoute>} />
           <Route path="/settlement" element={<AdminRoute><SettlementPage /></AdminRoute>} />
           <Route path="/vehicles" element={<AdminRoute><VehiclesPage /></AdminRoute>} />
+          <Route path="/driver-km" element={<AdminRoute><DriverKmPage /></AdminRoute>} />
           <Route path="/analysis" element={<ProtectedRoute><AnalysisPage /></ProtectedRoute>} />
           <Route path="/verstosse" element={<ProtectedRoute><VerstossePage /></ProtectedRoute>} />
 

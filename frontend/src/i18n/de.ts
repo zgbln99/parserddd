@@ -360,6 +360,24 @@ export const de: Record<TranslationKey, string> = {
   verstosseUnternehmenFines: 'Bußgeld Unternehmen',
   verstosseExportAll: 'Alle PDFs exportieren',
 
+  // Driver KM (tachograph card odometer)
+  navDriverKm: 'Fahrer-Km',
+  driverKmTitle: 'Fahrer-Kilometer',
+  driverKmSubtitle: 'Tachokartenablesungen (DDD-Dateien)',
+  driverKmGenerate: 'Bericht erstellen',
+  driverKmLoading: 'Daten werden von Fahrerkarten geladen...',
+  driverKmNoData: 'Monat wählen und auf Bericht erstellen klicken',
+  driverKmDriver: 'Fahrer',
+  driverKmPlate: 'Fahrzeug',
+  driverKmFirstUse: 'Von',
+  driverKmLastUse: 'Bis',
+  driverKmOdoBegin: 'Odo. Start (km)',
+  driverKmOdoEnd: 'Odo. Ende (km)',
+  driverKmDistance: 'Gefahren (km)',
+  driverKmTotal: 'Gesamt km',
+  driverKmNoDrivers: 'Keine Daten für den gewählten Zeitraum',
+  driverKmPeriod: 'Zeitraum',
+
   // Offline
   offlineMode: 'Offline-Modus — Daten aus Cache',
   offlineReady: 'App ist offline verfügbar',
