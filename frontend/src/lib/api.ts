@@ -513,9 +513,10 @@ export interface TollCollectFile {
 export const fetchTollCollectFiles = () =>
   request<{ files: TollCollectFile[] }>('/api/tollcollect/files');
 
-export async function uploadTollCollectFile(file: File) {
+export async function uploadTollCollectFile(file: File, period?: string) {
   const form = new FormData();
   form.append('file', file);
+  if (period) form.append('period', period);
   return request<{ ok: boolean; path: string; filename: string }>('/api/tollcollect/upload', {
     method: 'POST',
     body: form,

@@ -148,6 +148,7 @@ export function TollCollectPage() {
   const [fileName, setFileName] = useState('');
   const [error, setError] = useState('');
   const [lastFile, setLastFile] = useState<File | null>(null);
+  const [savePeriod, setSavePeriod] = useState(''); // YYYY-MM for Dropbox save
 
   // Dropbox state
   const [dbxFiles, setDbxFiles] = useState<TollCollectFile[]>([]);
@@ -207,6 +208,9 @@ export function TollCollectPage() {
           return;
         }
         setRows(parsed);
+        // Auto-detect month from first date in data
+        const firstDate = parsed.find(r => r.date)?.date || '';
+        if (firstDate.length >= 7) setSavePeriod(firstDate.slice(0, 7));
         // Reset filters
         setSearchText('');
         setDateFrom('');
@@ -240,7 +244,7 @@ export function TollCollectPage() {
     setDbxSaving(true);
     setDbxError('');
     try {
-      await uploadTollCollectFile(lastFile);
+      await uploadTollCollectFile(lastFile, savePeriod || undefined);
       setDbxSaved(true);
       // Refresh file list if visible
       if (showDbxFiles) loadDbxFiles();
@@ -249,7 +253,7 @@ export function TollCollectPage() {
     } finally {
       setDbxSaving(false);
     }
-  }, [lastFile, showDbxFiles, loadDbxFiles]);
+  }, [lastFile, savePeriod, showDbxFiles, loadDbxFiles]);
 
   // Load file from Dropbox
   const handleLoadFromDropbox = useCallback(async (path: string, name: string) => {
@@ -402,39 +406,47 @@ export function TollCollectPage() {
 
             {!dbxLoading && dbxFiles.length > 0 && (
               <div className="space-y-1 max-h-64 overflow-y-auto">
-                {dbxFiles.map(f => (
-                  <div
-                    key={f.path}
-                    className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/30 group"
-                  >
-                    <FileText className="w-4 h-4 text-gray-400 shrink-0" />
-                    <button
-                      onClick={() => handleLoadFromDropbox(f.path, f.name)}
-                      disabled={dbxDownloading === f.path}
-                      className="flex-1 text-left text-sm text-gray-800 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 truncate disabled:opacity-50"
+                {dbxFiles.map(f => {
+                  // Extract period from filename like "2026-03 Maut LTS Logistik GmbH.csv"
+                  const periodMatch = f.name.match(/^(\d{4}-\d{2})/);
+                  const period = periodMatch?.[1] || '';
+                  return (
+                    <div
+                      key={f.path}
+                      className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/30 group"
                     >
-                      {dbxDownloading === f.path ? (
-                        <span className="flex items-center gap-1">
-                          <Loader2 className="w-3 h-3 animate-spin" />
-                          {t('loading')}
+                      <FileText className="w-4 h-4 text-gray-400 shrink-0" />
+                      {period && (
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs font-mono font-medium shrink-0">
+                          <Calendar className="w-3 h-3" />
+                          {period}
                         </span>
-                      ) : f.name}
-                    </button>
-                    <span className="text-xs text-gray-400 shrink-0 hidden sm:inline">
-                      {fmtSize(f.size)}
-                    </span>
-                    <span className="text-xs text-gray-400 shrink-0 hidden sm:inline">
-                      {f.modified ? new Date(f.modified).toLocaleDateString('de-DE') : ''}
-                    </span>
-                    <button
-                      onClick={() => handleDeleteFromDropbox(f.path)}
-                      className="text-gray-300 hover:text-red-500 dark:text-gray-600 dark:hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
-                      title={t('tollDbxDelete')}
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                ))}
+                      )}
+                      <button
+                        onClick={() => handleLoadFromDropbox(f.path, f.name)}
+                        disabled={dbxDownloading === f.path}
+                        className="flex-1 text-left text-sm text-gray-800 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 truncate disabled:opacity-50"
+                      >
+                        {dbxDownloading === f.path ? (
+                          <span className="flex items-center gap-1">
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                            {t('loading')}
+                          </span>
+                        ) : f.name}
+                      </button>
+                      <span className="text-xs text-gray-400 shrink-0 hidden sm:inline">
+                        {fmtSize(f.size)}
+                      </span>
+                      <button
+                        onClick={() => handleDeleteFromDropbox(f.path)}
+                        className="text-gray-300 hover:text-red-500 dark:text-gray-600 dark:hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                        title={t('tollDbxDelete')}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -489,14 +501,22 @@ export function TollCollectPage() {
 
             {/* Save to Dropbox */}
             {lastFile && !dbxSaved && (
-              <button
-                onClick={handleSaveToDropbox}
-                disabled={dbxSaving}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-300 dark:hover:bg-blue-900/50 transition-colors disabled:opacity-50"
-              >
-                {dbxSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CloudUpload className="w-3.5 h-3.5" />}
-                {t('tollDbxSave')}
-              </button>
+              <div className="inline-flex items-center gap-2">
+                <input
+                  type="month"
+                  value={savePeriod}
+                  onChange={e => setSavePeriod(e.target.value)}
+                  className="rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-2 py-1 text-xs text-gray-900 dark:text-white"
+                />
+                <button
+                  onClick={handleSaveToDropbox}
+                  disabled={dbxSaving}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-300 dark:hover:bg-blue-900/50 transition-colors disabled:opacity-50"
+                >
+                  {dbxSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CloudUpload className="w-3.5 h-3.5" />}
+                  {t('tollDbxSave')}
+                </button>
+              </div>
             )}
             {dbxSaved && (
               <span className="inline-flex items-center gap-1 text-xs text-green-600 dark:text-green-400">

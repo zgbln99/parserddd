@@ -2079,9 +2079,14 @@ def api_tollcollect_upload():
         return jsonify({'error': 'Brak pliku'}), 400
 
     file = request.files['file']
-    fname = file.filename or 'tollcollect.csv'
-    # Sanitize filename
-    safe_name = "".join(c for c in fname if c.isalnum() or c in '._- ').strip() or 'tollcollect.csv'
+    period = request.form.get('period', '').strip()  # YYYY-MM
+
+    # Build filename: "YYYY-MM Maut LTS Logistik GmbH.csv"
+    if period and re.match(r'^\d{4}-\d{2}$', period):
+        safe_name = f"{period} Maut LTS Logistik GmbH.csv"
+    else:
+        fname = file.filename or 'tollcollect.csv'
+        safe_name = "".join(c for c in fname if c.isalnum() or c in '._- ').strip() or 'tollcollect.csv'
 
     dbx = get_server_dropbox_client()
     if not dbx:
