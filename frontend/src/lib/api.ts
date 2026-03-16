@@ -470,11 +470,11 @@ export interface DriverKmEntry {
   total_km: number;
 }
 
-export const fetchDriverKm = (period: string) =>
-  request<{ period: string; drivers: DriverKmEntry[] }>('/api/driver-km', {
+export const fetchDriverKm = (dateFrom: string, dateTo: string, driverNames?: string[]) =>
+  request<{ date_from: string; date_to: string; drivers: DriverKmEntry[] }>('/api/driver-km', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ period }),
+    body: JSON.stringify({ date_from: dateFrom, date_to: dateTo, driver_names: driverNames || [] }),
   });
 
 // PDF export (returns blob)

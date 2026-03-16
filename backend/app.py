@@ -1387,18 +1387,20 @@ def api_settlement():
 @app.route('/api/driver-km', methods=['POST'])
 @login_required
 def api_driver_km():
-    """Extract km (odometer) data from all drivers' DDD files for a given period.
+    """Extract km (odometer) data from selected drivers' DDD files for a date range.
 
-    Accepts {period: "YYYY-MM"}.
+    Accepts {date_from: "YYYY-MM-DD", date_to: "YYYY-MM-DD", driver_names: [...]}.
     Downloads latest DDD file per driver from Dropbox, parses vehicle records
     with odometer_begin/end, and returns per-driver km summary.
-    Uses build_drivers_data() (same as /api/drivers and /api/settlement).
     """
     try:
         payload = request.get_json(force=True)
-        period = payload.get('period', '')
-        if not period or len(period) < 7:
-            return jsonify({'error': 'period required (YYYY-MM)'}), 400
+        date_from = payload.get('date_from', '')
+        date_to = payload.get('date_to', '')
+        selected_drivers = payload.get('driver_names', [])
+
+        if not date_from or not date_to:
+            return jsonify({'error': 'date_from and date_to required (YYYY-MM-DD)'}), 400
 
         dbx = get_server_dropbox_client()
         if not dbx:
@@ -1412,18 +1414,21 @@ def api_driver_km():
             sync_folder = os.environ.get('SYNC_DEST_FOLDER', '/Samsara-DDD')
             drivers_data = build_drivers_data(dbx, sync_folder)
 
-        # Build task list: one task per driver with files
+        # Build task list: one task per selected driver with files
+        selected_set = set(selected_drivers) if selected_drivers else None
         tasks = []
         for driver in drivers_data:
+            name = driver.get('name', '')
+            if selected_set and name not in selected_set:
+                continue
             files = driver.get('files', [])
             if not files:
                 continue
-            # Use the latest DDD file
             file_path = files[0].get('path', '')
             if not file_path:
                 continue
             tasks.append({
-                'driver_name': driver.get('name', ''),
+                'driver_name': name,
                 'card_number': driver.get('card_number', ''),
                 'file_path': file_path,
             })
@@ -1443,7 +1448,7 @@ def api_driver_km():
                 vehicles = get_vehicle_records(data)
                 driver_info = get_driver_info(data)
 
-                # Filter vehicle records to requested period and calculate km
+                # Filter vehicle records to date range and calculate km
                 period_records = []
                 total_km = 0
                 for v in vehicles:
@@ -1451,12 +1456,10 @@ def api_driver_km():
                     last_use = v.get('last_use', '')[:10]
                     if not first_use:
                         continue
-                    # Check period overlap
-                    rec_month_start = first_use[:7] if first_use else ''
-                    rec_month_end = last_use[:7] if last_use else rec_month_start
-                    if rec_month_start and rec_month_end:
-                        if not (rec_month_start <= period <= rec_month_end):
-                            continue
+                    # Check date range overlap: vehicle record overlaps [date_from, date_to]
+                    v_end = last_use or first_use
+                    if v_end < date_from or first_use > date_to:
+                        continue
 
                     odo_begin = v.get('odometer_begin_km', 0)
                     odo_end = v.get('odometer_end_km', 0)
@@ -1494,8 +1497,8 @@ def api_driver_km():
                     results.append(result)
 
         results.sort(key=lambda r: r['driver_name'])
-        _log_activity('driver_km', f"{period} – {len(results)} drivers")
-        return jsonify({'period': period, 'drivers': results})
+        _log_activity('driver_km', f"{date_from}–{date_to} – {len(results)} drivers")
+        return jsonify({'date_from': date_from, 'date_to': date_to, 'drivers': results})
     except Exception as exc:
         return jsonify({'error': f'Driver km error: {str(exc)}'}), 500
 

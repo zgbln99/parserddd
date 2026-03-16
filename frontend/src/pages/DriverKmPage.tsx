@@ -1,47 +1,90 @@
-import { useState, useMemo, useCallback } from 'react';
-import { RefreshCw, AlertCircle, Calendar, MapPin, ChevronDown, ChevronRight } from 'lucide-react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
+import { RefreshCw, AlertCircle, Calendar, MapPin, ChevronDown, ChevronRight, Users, Check } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { useDateFilter } from '../hooks/useDateFilter';
-import { fetchDriverKm } from '../lib/api';
+import { fetchDrivers, fetchDriverKm } from '../lib/api';
 import type { DriverKmEntry } from '../lib/api';
+import type { Driver } from '../types';
 import { Card } from '../components/Card';
 import { Spinner } from '../components/Spinner';
 
 export function DriverKmPage() {
   const { t } = useI18n();
-  const { dateFrom } = useDateFilter();
+  const { dateFrom: globalDateFrom } = useDateFilter();
   const [loading, setLoading] = useState(false);
+  const [loadingDrivers, setLoadingDrivers] = useState(false);
   const [error, setError] = useState('');
-  const [drivers, setDrivers] = useState<DriverKmEntry[]>([]);
-  const [period, setPeriod] = useState('');
+  const [results, setResults] = useState<DriverKmEntry[]>([]);
+  const [hasResults, setHasResults] = useState(false);
   const [expandedDrivers, setExpandedDrivers] = useState<Set<string>>(new Set());
 
-  const defaultPeriod = useMemo(() => {
-    if (dateFrom) return dateFrom.slice(0, 7);
+  // Driver list from Dropbox
+  const [allDrivers, setAllDrivers] = useState<Driver[]>([]);
+  const [selectedDrivers, setSelectedDrivers] = useState<Set<string>>(new Set());
+
+  // Date range
+  const defaultMonth = useMemo(() => {
+    if (globalDateFrom) return globalDateFrom.slice(0, 7);
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  }, [dateFrom]);
+  }, [globalDateFrom]);
 
-  const [selectedPeriod, setSelectedPeriod] = useState(defaultPeriod);
+  const [dateFrom, setDateFrom] = useState(() => `${defaultMonth}-01`);
+  const [dateTo, setDateTo] = useState(() => {
+    const [y, m] = defaultMonth.split('-').map(Number);
+    const lastDay = new Date(y, m, 0).getDate();
+    return `${defaultMonth}-${String(lastDay).padStart(2, '0')}`;
+  });
+
+  // Load driver list on mount
+  useEffect(() => {
+    let cancelled = false;
+    setLoadingDrivers(true);
+    fetchDrivers()
+      .then(data => {
+        if (cancelled) return;
+        const drv = (data.drivers || []).filter((d: Driver) => d.files.length > 0);
+        drv.sort((a: Driver, b: Driver) => a.name.localeCompare(b.name));
+        setAllDrivers(drv);
+        // Select all by default
+        setSelectedDrivers(new Set(drv.map((d: Driver) => d.name)));
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoadingDrivers(false); });
+    return () => { cancelled = true; };
+  }, []);
+
+  const toggleDriver = (name: string) => {
+    setSelectedDrivers(prev => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  };
+
+  const selectAll = () => setSelectedDrivers(new Set(allDrivers.map(d => d.name)));
+  const selectNone = () => setSelectedDrivers(new Set());
 
   const handleGenerate = useCallback(async () => {
-    const p = selectedPeriod || defaultPeriod;
+    if (!dateFrom || !dateTo) return;
+    if (selectedDrivers.size === 0) return;
     setLoading(true);
     setError('');
-    setDrivers([]);
-    setPeriod('');
+    setResults([]);
+    setHasResults(false);
     try {
-      const data = await fetchDriverKm(p);
-      setDrivers(data.drivers || []);
-      setPeriod(data.period || p);
+      const data = await fetchDriverKm(dateFrom, dateTo, Array.from(selectedDrivers));
+      setResults(data.drivers || []);
+      setHasResults(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }
-  }, [selectedPeriod, defaultPeriod]);
+  }, [dateFrom, dateTo, selectedDrivers]);
 
-  const toggleDriver = (name: string) => {
+  const toggleExpand = (name: string) => {
     setExpandedDrivers(prev => {
       const next = new Set(prev);
       if (next.has(name)) next.delete(name);
@@ -50,8 +93,7 @@ export function DriverKmPage() {
     });
   };
 
-  const grandTotal = useMemo(() => drivers.reduce((s, d) => s + d.total_km, 0), [drivers]);
-
+  const grandTotal = useMemo(() => results.reduce((s, d) => s + d.total_km, 0), [results]);
   const fmtKm = (km: number) => km.toLocaleString('de-DE');
 
   return (
@@ -68,26 +110,92 @@ export function DriverKmPage() {
 
       {/* Controls */}
       <Card>
-        <div className="flex flex-wrap items-end gap-4 p-4">
-          <div>
-            <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-              {t('driverKmPeriod')}
-            </label>
-            <input
-              type="month"
-              value={selectedPeriod}
-              onChange={e => setSelectedPeriod(e.target.value)}
-              className="block w-44 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
-            />
+        <div className="p-4 space-y-4">
+          {/* Date range */}
+          <div className="flex flex-wrap items-end gap-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                {t('driverKmDateFrom')}
+              </label>
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={e => setDateFrom(e.target.value)}
+                className="block w-44 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                {t('driverKmDateTo')}
+              </label>
+              <input
+                type="date"
+                value={dateTo}
+                onChange={e => setDateTo(e.target.value)}
+                className="block w-44 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <button
+              onClick={handleGenerate}
+              disabled={loading || selectedDrivers.size === 0}
+              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
+            >
+              {loading ? <Spinner size="sm" /> : <RefreshCw className="w-4 h-4" />}
+              {t('driverKmGenerate')}
+            </button>
           </div>
-          <button
-            onClick={handleGenerate}
-            disabled={loading}
-            className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
-          >
-            {loading ? <Spinner size="sm" /> : <RefreshCw className="w-4 h-4" />}
-            {t('driverKmGenerate')}
-          </button>
+
+          {/* Driver selection */}
+          <div>
+            <div className="flex items-center gap-3 mb-2">
+              <div className="flex items-center gap-1 text-xs font-medium text-gray-600 dark:text-gray-400">
+                <Users className="w-3.5 h-3.5" />
+                {t('driverKmSelectDrivers')}
+                <span className="ml-1 text-blue-600 dark:text-blue-400">
+                  ({selectedDrivers.size}/{allDrivers.length})
+                </span>
+              </div>
+              <button
+                onClick={selectAll}
+                className="text-xs text-blue-500 hover:text-blue-700 dark:hover:text-blue-300"
+              >
+                {t('driverKmSelectAll')}
+              </button>
+              <button
+                onClick={selectNone}
+                className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              >
+                {t('driverKmSelectNone')}
+              </button>
+            </div>
+
+            {loadingDrivers ? (
+              <div className="flex items-center gap-2 text-sm text-gray-400 py-2">
+                <Spinner size="sm" />
+                <span>{t('driverKmLoadingDrivers')}</span>
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {allDrivers.map(d => {
+                  const selected = selectedDrivers.has(d.name);
+                  return (
+                    <button
+                      key={d.name}
+                      onClick={() => toggleDriver(d.name)}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                        selected
+                          ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 ring-1 ring-blue-300 dark:ring-blue-700'
+                          : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+                      }`}
+                    >
+                      {selected && <Check className="w-3 h-3" />}
+                      {d.name}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
       </Card>
 
@@ -108,7 +216,7 @@ export function DriverKmPage() {
       )}
 
       {/* Empty state */}
-      {!loading && !error && drivers.length === 0 && !period && (
+      {!loading && !error && results.length === 0 && !hasResults && (
         <div className="text-center py-12 text-gray-400 dark:text-gray-500">
           <Calendar className="w-12 h-12 mx-auto mb-3 opacity-40" />
           <p>{t('driverKmNoData')}</p>
@@ -116,7 +224,7 @@ export function DriverKmPage() {
       )}
 
       {/* No drivers for period */}
-      {!loading && period && drivers.length === 0 && (
+      {!loading && hasResults && results.length === 0 && (
         <div className="text-center py-12 text-gray-400 dark:text-gray-500">
           <MapPin className="w-12 h-12 mx-auto mb-3 opacity-40" />
           <p>{t('driverKmNoDrivers')}</p>
@@ -124,7 +232,7 @@ export function DriverKmPage() {
       )}
 
       {/* Results */}
-      {drivers.length > 0 && (
+      {results.length > 0 && (
         <Card>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -155,7 +263,7 @@ export function DriverKmPage() {
                 </tr>
               </thead>
               <tbody>
-                {drivers.map(driver => {
+                {results.map(driver => {
                   const isExpanded = expandedDrivers.has(driver.driver_name);
                   const hasMultiple = driver.vehicles.length > 1;
 
@@ -167,7 +275,7 @@ export function DriverKmPage() {
                         className={`border-b border-gray-100 dark:border-gray-700/50 ${
                           hasMultiple ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/30' : ''
                         }`}
-                        onClick={() => hasMultiple && toggleDriver(driver.driver_name)}
+                        onClick={() => hasMultiple && toggleExpand(driver.driver_name)}
                       >
                         <td className="px-4 py-3 text-gray-400">
                           {hasMultiple && (
@@ -200,7 +308,7 @@ export function DriverKmPage() {
                         ) : (
                           <>
                             <td className="px-4 py-3 text-gray-400 text-xs">
-                              {driver.vehicles.length} pojazd(ów)
+                              {driver.vehicles.length} {t('driverKmVehiclesCount')}
                             </td>
                             <td className="px-4 py-3" />
                             <td className="px-4 py-3" />
@@ -252,7 +360,7 @@ export function DriverKmPage() {
                     {t('driverKmTotal')}
                   </td>
                   <td className="px-4 py-3 text-gray-500 dark:text-gray-400 text-xs">
-                    {drivers.length} kierowców
+                    {results.length} {t('driverKmDriversCount')}
                   </td>
                   <td className="px-4 py-3" />
                   <td className="px-4 py-3" />
