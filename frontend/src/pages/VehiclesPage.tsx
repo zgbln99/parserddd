@@ -29,6 +29,7 @@ export function VehiclesPage() {
   const [debugInfo, setDebugInfo] = useState<VehicleDebugInfo | null>(null);
   const [progress, setProgress] = useState<ActivityProgress | null>(null);
   const [elapsedSec, setElapsedSec] = useState(0);
+  const [skipLocation, setSkipLocation] = useState(false);
 
   const defaultPeriod = useMemo(() => {
     if (dateFrom) return dateFrom.slice(0, 7);
@@ -89,7 +90,7 @@ export function VehiclesPage() {
     const timer = setInterval(() => setElapsedSec(Math.floor((Date.now() - t0) / 1000)), 500);
 
     try {
-      const result = await fetchVehicleActivityStream(p, [selectedVehicleId], (prog) => {
+      const result = await fetchVehicleActivityStream(p, [selectedVehicleId], skipLocation, (prog) => {
         setProgress(prog);
       });
       if (result.vehicles.length > 0) {
@@ -106,7 +107,7 @@ export function VehiclesPage() {
       setLoading(false);
       setProgress(null);
     }
-  }, [selectedVehicleId, selectedPeriod, defaultPeriod]);
+  }, [selectedVehicleId, selectedPeriod, defaultPeriod, skipLocation]);
 
   const fmtKm = (km: number) => km.toFixed(1).replace('.', ',') + ' km';
 
@@ -213,6 +214,19 @@ export function VehiclesPage() {
             {loading ? <RefreshCw size={14} className="animate-spin" /> : <Calendar size={14} />}
             {loading ? t('vehiclesLoading') : t('vehiclesGenerate')}
           </button>
+
+          {/* Skip location checkbox */}
+          <label className="flex items-center gap-2 cursor-pointer select-none min-h-[44px]">
+            <input
+              type="checkbox"
+              checked={skipLocation}
+              onChange={(e) => setSkipLocation(e.target.checked)}
+              className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+            />
+            <span className="text-xs text-gray-500 dark:text-gray-400">
+              {t('vehiclesSkipLocation')}
+            </span>
+          </label>
 
           {/* Print */}
           {activity && (
@@ -461,11 +475,13 @@ export function VehiclesPage() {
                 const wd = weekday(day.date);
                 const isSunday = new Date(day.date + 'T00:00:00').getDay() === 0;
                 const isSaturday = new Date(day.date + 'T00:00:00').getDay() === 6;
+                const isShortDay = day.duration_minutes > 0 && day.duration_minutes < 60;
                 return (
                   <div
                     key={day.date}
                     className={`p-4 space-y-1.5 ${
-                      isSunday ? 'bg-rose-50/30 dark:bg-rose-900/10' : isSaturday ? 'bg-amber-50/20 dark:bg-amber-900/10' : ''
+                      isShortDay ? 'bg-orange-50/50 dark:bg-orange-900/15 border-l-4 border-orange-400'
+                      : isSunday ? 'bg-rose-50/30 dark:bg-rose-900/10' : isSaturday ? 'bg-amber-50/20 dark:bg-amber-900/10' : ''
                     }`}
                   >
                     <div className="flex items-center justify-between gap-2 mb-2">
@@ -473,7 +489,7 @@ export function VehiclesPage() {
                         {fmtDate(day.date)}
                         <span className={`ml-2 text-xs ${isSunday ? 'font-bold text-rose-500' : 'text-gray-400'}`}>{wd}</span>
                       </p>
-                      <Badge variant={day.duration_h >= 10 ? 'blue' : 'gray'}>{day.duration_hm}</Badge>
+                      <Badge variant={isShortDay ? 'orange' : day.duration_h >= 10 ? 'blue' : 'gray'}>{day.duration_hm}</Badge>
                     </div>
                     <CardField label={t('vehiclesDistance')} value={day.distance_km > 0 ? fmtKm(day.distance_km) : '-'} />
                     <CardField label={t('vehiclesBeginDriving')} value={fmtDateTime(day.begin_driving)} />
@@ -527,15 +543,18 @@ export function VehiclesPage() {
                     const wd = weekday(day.date);
                     const isSunday = new Date(day.date + 'T00:00:00').getDay() === 0;
                     const isSaturday = new Date(day.date + 'T00:00:00').getDay() === 6;
+                    const isShortDay = day.duration_minutes > 0 && day.duration_minutes < 60;
                     return (
                       <tr
                         key={day.date}
                         className={`transition ${
-                          isSunday
-                            ? 'bg-rose-50/50 dark:bg-rose-900/10'
-                            : isSaturday
-                              ? 'bg-amber-50/30 dark:bg-amber-900/10'
-                              : 'hover:bg-primary-50/30 dark:hover:bg-primary-900/10'
+                          isShortDay
+                            ? 'bg-orange-50/60 dark:bg-orange-900/15'
+                            : isSunday
+                              ? 'bg-rose-50/50 dark:bg-rose-900/10'
+                              : isSaturday
+                                ? 'bg-amber-50/30 dark:bg-amber-900/10'
+                                : 'hover:bg-primary-50/30 dark:hover:bg-primary-900/10'
                         }`}
                       >
                         <td className="whitespace-nowrap px-4 py-2.5">
@@ -557,7 +576,7 @@ export function VehiclesPage() {
                           {fmtDateTime(day.last_driving)}
                         </td>
                         <td className="whitespace-nowrap px-4 py-2.5">
-                          <Badge variant={day.duration_h >= 10 ? 'blue' : 'gray'}>
+                          <Badge variant={isShortDay ? 'orange' : day.duration_h >= 10 ? 'blue' : 'gray'}>
                             {day.duration_hm}
                           </Badge>
                         </td>

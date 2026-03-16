@@ -2596,18 +2596,27 @@ def api_vehicles_activity():
     Fetch vehicle activity from Samsara using trips/stream endpoint.
     Returns daily breakdown: date, start/end time, duration, distance.
     """
-    if not SAMSARA_API_TOKEN:
-        return jsonify({'error': 'Samsara API not configured'}), 400
-
     body = request.get_json(force=True)
+    result = _do_vehicles_activity(body)
+    if isinstance(result, tuple):
+        return jsonify(result[0]), result[1]
+    return jsonify(result)
+
+
+def _do_vehicles_activity(body, progress_cb=None):
+    """Core logic for vehicle activity. Returns dict or (dict, status_code) on error."""
+    if not SAMSARA_API_TOKEN:
+        return {'error': 'Samsara API not configured'}, 400
+
     period = body.get('period', '')  # "2026-03"
     vehicle_ids = body.get('vehicle_ids', [])  # required
+    skip_location = body.get('skip_location', False)  # skip GPS/stats for speed
 
     if not period or len(period) != 7:
-        return jsonify({'error': 'Invalid period (expected YYYY-MM)'}), 400
+        return {'error': 'Invalid period (expected YYYY-MM)'}, 400
 
     if not vehicle_ids:
-        return jsonify({'error': 'No vehicle selected'}), 400
+        return {'error': 'No vehicle selected'}, 400
 
     # --- Check cache ---
     cache_key = (period, tuple(sorted(vehicle_ids)))
@@ -2616,7 +2625,7 @@ def api_vehicles_activity():
         cache_ts, cache_data = cached
         if (datetime.now() - cache_ts).total_seconds() < VEHICLE_ACTIVITY_CACHE_TTL:
             app.logger.info('Vehicle activity cache hit for %s', cache_key)
-            return jsonify(cache_data)
+            return cache_data
 
     year, month = int(period[:4]), int(period[5:7])
     from calendar import monthrange
@@ -2827,11 +2836,9 @@ def api_vehicles_activity():
         info['gps_distance_days'] = sum(len(d) for d in daily_km.values())
         return daily_location, daily_km, info
 
-    # Progress callback for SSE streaming (set by streaming endpoint)
-    _progress_cb = getattr(request, '_progress_cb', None)
     def _progress(step, total_steps, label):
-        if _progress_cb:
-            _progress_cb(step, total_steps, label)
+        if progress_cb:
+            progress_cb(step, total_steps, label)
 
     # ---- Step 1: Always fetch trips (lightweight, has distance + addresses) ----
     _progress(1, 3, 'trips')
@@ -2860,7 +2867,12 @@ def api_vehicles_activity():
 
     # ---- Step 3: Conditionally fetch stats (odometer) if trips lack km ----
     stats_daily_km = {}
-    if _days_missing_km:
+    if skip_location:
+        _progress(2, 3, 'stats_skipped')
+        app.logger.info('Stats fetch skipped - skip_location flag')
+        debug_info['stats_skipped'] = True
+        debug_info['stats_source'] = 'skipped_by_user'
+    elif _days_missing_km:
         _progress(2, 3, 'stats')
         app.logger.info('Stats fetch needed - some trips missing distance')
         stats_daily_km, stats_info = _fetch_stats()
@@ -2876,43 +2888,49 @@ def api_vehicles_activity():
         debug_info['stats_source'] = 'not_needed'
 
     # ---- Step 4: Conditionally fetch GPS breadcrumbs (heaviest) ----
-    # Only if we still have days with no km OR trips missing end addresses
-    needs_gps = _trips_missing_addr
-    if _days_missing_km and all_trips:
-        for trip in all_trips:
-            dist = float(trip.get('distanceMeters') or trip.get('distance_meters')
-                         or trip.get('distanceM') or trip.get('distance') or 0)
-            if dist <= 0:
-                asset = trip.get('asset', {})
-                vid = asset.get('id', '') or (vehicle_ids[0] if len(vehicle_ids) == 1 else '')
-                t_start = trip.get('tripStartTime', '')
-                try:
-                    dt_s = datetime.fromisoformat(t_start.replace('Z', '+00:00')).astimezone(CET)
-                    dk = dt_s.strftime('%Y-%m-%d')
-                except Exception:
-                    continue
-                if stats_daily_km.get(vid, {}).get(dk, 0) <= 0:
-                    needs_gps = True
-                    break
-    elif not all_trips:
-        needs_gps = True
-
     gps_daily_location = {}
     gps_daily_km = {}
-    if needs_gps:
-        _progress(3, 3, 'gps')
-        app.logger.info('GPS breadcrumbs needed - fetching (missing km or addresses)')
-        gps_daily_location, gps_daily_km, gps_info = _fetch_gps()
-        debug_info['api_calls'] += gps_info['api_calls']
-        debug_info['errors'].extend(gps_info.get('errors', []))
-        debug_info['gps_points'] = gps_info.get('gps_points', 0)
-        debug_info['gps_vehicles_with_location'] = gps_info.get('gps_vehicles_with_location', 0)
-        debug_info['gps_distance_days'] = gps_info.get('gps_distance_days', 0)
-    else:
+    if skip_location:
         _progress(3, 3, 'gps_skipped')
-        app.logger.info('GPS breadcrumbs skipped - trips + stats cover all data')
+        app.logger.info('GPS breadcrumbs skipped - skip_location flag')
         debug_info['gps_skipped'] = True
         debug_info['gps_points'] = 0
+    else:
+        # Only if we still have days with no km OR trips missing end addresses
+        needs_gps = _trips_missing_addr
+        if _days_missing_km and all_trips:
+            for trip in all_trips:
+                dist = float(trip.get('distanceMeters') or trip.get('distance_meters')
+                             or trip.get('distanceM') or trip.get('distance') or 0)
+                if dist <= 0:
+                    asset = trip.get('asset', {})
+                    vid = asset.get('id', '') or (vehicle_ids[0] if len(vehicle_ids) == 1 else '')
+                    t_start = trip.get('tripStartTime', '')
+                    try:
+                        dt_s = datetime.fromisoformat(t_start.replace('Z', '+00:00')).astimezone(CET)
+                        dk = dt_s.strftime('%Y-%m-%d')
+                    except Exception:
+                        continue
+                    if stats_daily_km.get(vid, {}).get(dk, 0) <= 0:
+                        needs_gps = True
+                        break
+        elif not all_trips:
+            needs_gps = True
+
+        if needs_gps:
+            _progress(3, 3, 'gps')
+            app.logger.info('GPS breadcrumbs needed - fetching (missing km or addresses)')
+            gps_daily_location, gps_daily_km, gps_info = _fetch_gps()
+            debug_info['api_calls'] += gps_info['api_calls']
+            debug_info['errors'].extend(gps_info.get('errors', []))
+            debug_info['gps_points'] = gps_info.get('gps_points', 0)
+            debug_info['gps_vehicles_with_location'] = gps_info.get('gps_vehicles_with_location', 0)
+            debug_info['gps_distance_days'] = gps_info.get('gps_distance_days', 0)
+        else:
+            _progress(3, 3, 'gps_skipped')
+            app.logger.info('GPS breadcrumbs skipped - trips + stats cover all data')
+            debug_info['gps_skipped'] = True
+            debug_info['gps_points'] = 0
 
     # ---------- Group trips by vehicle and then by day ----------
     # Trip object structure (Samsara) may vary:
@@ -3171,7 +3189,7 @@ def api_vehicles_activity():
     for k in stale:
         VEHICLE_ACTIVITY_CACHE.pop(k, None)
 
-    return jsonify(response_data)
+    return response_data
 
 
 @app.route('/api/vehicles/activity/stream', methods=['POST'])
@@ -3179,42 +3197,31 @@ def api_vehicles_activity():
 def api_vehicles_activity_stream():
     """SSE wrapper around vehicle activity - sends progress events then result."""
     import queue
-    progress_q = queue.Queue()
+    import threading
 
     body = request.get_json(force=True)
+    progress_q = queue.Queue()
 
     def _progress_cb(step, total_steps, label):
         progress_q.put((step, total_steps, label))
 
     def generate():
-        import threading
-
         result_holder = [None, None]  # [response, error]
 
         def run_activity():
             try:
-                with app.test_request_context(
-                    '/api/vehicles/activity',
-                    method='POST',
-                    content_type='application/json',
-                    data=json.dumps(body),
-                ):
-                    # Copy session from original request
-                    from flask import session as flask_session
-                    for k, v in original_session.items():
-                        flask_session[k] = v
-                    request._progress_cb = _progress_cb
-                    resp = api_vehicles_activity()
-                    if isinstance(resp, tuple):
-                        result_holder[0] = resp[0].get_json()
+                with app.app_context():
+                    result = _do_vehicles_activity(body, progress_cb=_progress_cb)
+                    if isinstance(result, tuple):
+                        result_holder[0] = result[0]
                     else:
-                        result_holder[0] = resp.get_json()
+                        result_holder[0] = result
             except Exception as exc:
+                app.logger.exception('SSE activity error')
                 result_holder[1] = str(exc)
             finally:
                 progress_q.put(None)  # sentinel
 
-        original_session = dict(session)
         t = threading.Thread(target=run_activity, daemon=True)
         t.start()
 
@@ -3226,7 +3233,7 @@ def api_vehicles_activity_stream():
             evt = json.dumps({'step': step, 'totalSteps': total_steps, 'label': label})
             yield f'event: progress\ndata: {evt}\n\n'
 
-        t.join(timeout=5)
+        t.join(timeout=60)
 
         if result_holder[1]:
             yield f'event: error\ndata: {json.dumps({"error": result_holder[1]})}\n\n'

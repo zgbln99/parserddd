@@ -289,6 +289,7 @@ export const de: Record<TranslationKey, string> = {
   vehiclesProgressGps: 'GPS-Positionen...',
   vehiclesProgressGpsSkipped: 'GPS — übersprungen',
   vehiclesProgressDone: 'Ergebnisse verarbeiten...',
+  vehiclesSkipLocation: 'Standort überspringen (schneller)',
   vehiclesNoData: 'Monat auswählen und Erstellen klicken',
   vehiclesName: 'Fahrzeug',
   vehiclesDate: 'Datum',

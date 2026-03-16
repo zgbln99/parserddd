@@ -455,6 +455,7 @@ export interface ActivityProgress {
 export const fetchVehicleActivityStream = (
   period: string,
   vehicleIds: string[],
+  skipLocation: boolean,
   onProgress: (p: ActivityProgress) => void,
 ): Promise<{ period: string; vehicles: VehicleActivity[]; debug: VehicleDebugInfo }> => {
   return new Promise(async (resolve, reject) => {
@@ -464,7 +465,7 @@ export const fetchVehicleActivityStream = (
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ period, vehicle_ids: vehicleIds }),
+        body: JSON.stringify({ period, vehicle_ids: vehicleIds, skip_location: skipLocation }),
       });
     } catch {
       reject(new Error('Brak połączenia z serwerem / Keine Verbindung zum Server'));

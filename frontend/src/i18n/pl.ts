@@ -287,6 +287,7 @@ export const pl = {
   vehiclesProgressGps: 'Pozycje GPS...',
   vehiclesProgressGpsSkipped: 'GPS — pominięty',
   vehiclesProgressDone: 'Przetwarzanie wyników...',
+  vehiclesSkipLocation: 'Pomiń lokalizację (szybciej)',
   vehiclesNoData: 'Wybierz miesiąc i kliknij Generuj',
   vehiclesName: 'Pojazd',
   vehiclesDate: 'Data',
