@@ -404,51 +404,84 @@ export function TollCollectPage() {
               </p>
             )}
 
-            {!dbxLoading && dbxFiles.length > 0 && (
-              <div className="space-y-1 max-h-64 overflow-y-auto">
-                {dbxFiles.map(f => {
-                  // Extract period from filename like "2026-03 Maut LTS Logistik GmbH.csv"
-                  const periodMatch = f.name.match(/^(\d{4}-\d{2})/);
-                  const period = periodMatch?.[1] || '';
-                  return (
-                    <div
-                      key={f.path}
-                      className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/30 group"
-                    >
-                      <FileText className="w-4 h-4 text-gray-400 shrink-0" />
-                      {period && (
-                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs font-mono font-medium shrink-0">
-                          <Calendar className="w-3 h-3" />
-                          {period}
-                        </span>
-                      )}
-                      <button
-                        onClick={() => handleLoadFromDropbox(f.path, f.name)}
-                        disabled={dbxDownloading === f.path}
-                        className="flex-1 text-left text-sm text-gray-800 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 truncate disabled:opacity-50"
-                      >
-                        {dbxDownloading === f.path ? (
-                          <span className="flex items-center gap-1">
-                            <Loader2 className="w-3 h-3 animate-spin" />
-                            {t('loading')}
-                          </span>
-                        ) : f.name}
-                      </button>
-                      <span className="text-xs text-gray-400 shrink-0 hidden sm:inline">
-                        {fmtSize(f.size)}
-                      </span>
-                      <button
-                        onClick={() => handleDeleteFromDropbox(f.path)}
-                        className="text-gray-300 hover:text-red-500 dark:text-gray-600 dark:hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
-                        title={t('tollDbxDelete')}
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+            {!dbxLoading && dbxFiles.length > 0 && (() => {
+              // Sort by period (from filename) descending, then by name
+              const sorted = [...dbxFiles].sort((a, b) => {
+                const pa = a.name.match(/^(\d{4}-\d{2})/)?.[1] || '';
+                const pb = b.name.match(/^(\d{4}-\d{2})/)?.[1] || '';
+                if (pa && pb) return pb.localeCompare(pa);
+                if (pa) return -1;
+                if (pb) return 1;
+                return b.name.localeCompare(a.name);
+              });
+
+              // Group by year
+              const byYear = new Map<string, TollCollectFile[]>();
+              for (const f of sorted) {
+                const yearMatch = f.name.match(/^(\d{4})/);
+                const year = yearMatch?.[1] || 'Inne';
+                if (!byYear.has(year)) byYear.set(year, []);
+                byYear.get(year)!.push(f);
+              }
+              // Sort years descending
+              const years = Array.from(byYear.entries()).sort((a, b) => b[0].localeCompare(a[0]));
+
+              return (
+                <div className="space-y-3 max-h-80 overflow-y-auto">
+                  {years.map(([year, files]) => (
+                    <div key={year}>
+                      <div className="flex items-center gap-2 px-3 py-1.5 mb-1">
+                        <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{year}</span>
+                        <div className="flex-1 border-t border-gray-200 dark:border-gray-700" />
+                        <span className="text-xs text-gray-400">{files.length}</span>
+                      </div>
+                      <div className="space-y-0.5">
+                        {files.map(f => {
+                          const periodMatch = f.name.match(/^(\d{4}-\d{2})/);
+                          const period = periodMatch?.[1] || '';
+                          return (
+                            <div
+                              key={f.path}
+                              className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/30 group"
+                            >
+                              <FileText className="w-4 h-4 text-gray-400 shrink-0" />
+                              {period && (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs font-mono font-medium shrink-0">
+                                  <Calendar className="w-3 h-3" />
+                                  {period}
+                                </span>
+                              )}
+                              <button
+                                onClick={() => handleLoadFromDropbox(f.path, f.name)}
+                                disabled={dbxDownloading === f.path}
+                                className="flex-1 text-left text-sm text-gray-800 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 truncate disabled:opacity-50"
+                              >
+                                {dbxDownloading === f.path ? (
+                                  <span className="flex items-center gap-1">
+                                    <Loader2 className="w-3 h-3 animate-spin" />
+                                    {t('loading')}
+                                  </span>
+                                ) : f.name}
+                              </button>
+                              <span className="text-xs text-gray-400 shrink-0 hidden sm:inline">
+                                {fmtSize(f.size)}
+                              </span>
+                              <button
+                                onClick={() => handleDeleteFromDropbox(f.path)}
+                                className="text-gray-300 hover:text-red-500 dark:text-gray-600 dark:hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                                title={t('tollDbxDelete')}
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
-                  );
-                })}
-              </div>
-            )}
+                  ))}
+                </div>
+              );
+            })()}
           </div>
         </Card>
       )}
