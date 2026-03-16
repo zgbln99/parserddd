@@ -2527,6 +2527,9 @@ def api_vehicles_activity():
     # Samsara recommends /fleet/vehicles/stats/history with obdOdometerMeters
     # or gpsDistanceMeters for the most accurate distance data.
     stats_daily_km = {}  # vid -> {date_str -> km}
+    # Also collect GPS last-location per vehicle per day
+    gps_daily_location = {}  # vid -> {date_str -> {'address': ..., 'lat': ..., 'lng': ..., 'time': ...}}
+
     try:
         ids_for_stats = ','.join(vehicle_ids[:50])
         stat_types = 'obdOdometerMeters,gpsDistanceMeters'
@@ -2633,6 +2636,78 @@ def api_vehicles_activity():
     except Exception as exc:
         debug_info['errors'].append(f'stats/history fallback error: {str(exc)}')
         app.logger.warning(f'Stats history fallback error: {exc}')
+
+    # ---------- Fetch GPS locations for last position per day ----------
+    # Uses /fleet/vehicles/stats/history?types=gps which returns
+    # reverseGeo.formattedLocation (already reverse-geocoded by Samsara)
+    try:
+        gps_after = None
+        gps_point_count = 0
+
+        for _ in range(100):  # max pages (GPS data can be large)
+            gps_params = {
+                'vehicleIds': ids_for_stats,
+                'types': 'gps',
+                'startTime': start_time,
+                'endTime': end_time,
+            }
+            if gps_after:
+                gps_params['after'] = gps_after
+
+            debug_info['api_calls'] += 1
+            gresp = http_requests.get(
+                f'{SAMSARA_API_BASE}/fleet/vehicles/stats/history',
+                headers=headers, params=gps_params, timeout=30,
+            )
+            if gresp.status_code != 200:
+                debug_info['errors'].append(f'gps/history HTTP {gresp.status_code}: {gresp.text[:300]}')
+                break
+            gdata = gresp.json()
+
+            for entry in gdata.get('data', []):
+                vid = entry.get('id', '')
+                if vid not in gps_daily_location:
+                    gps_daily_location[vid] = {}
+
+                for gps_point in entry.get('gps', []):
+                    ts = gps_point.get('time', '')
+                    if not ts:
+                        continue
+                    gps_point_count += 1
+                    try:
+                        dt = datetime.fromisoformat(
+                            ts.replace('Z', '+00:00')
+                        ).astimezone(CET)
+                        day_key = dt.strftime('%Y-%m-%d')
+                    except Exception:
+                        continue
+
+                    lat = gps_point.get('latitude', 0)
+                    lng = gps_point.get('longitude', 0)
+                    reverse_geo = gps_point.get('reverseGeo', {}) or {}
+                    address = reverse_geo.get('formattedLocation', '')
+
+                    # Keep the latest GPS point per day (overwrite with later times)
+                    existing = gps_daily_location[vid].get(day_key)
+                    if not existing or ts > existing.get('time', ''):
+                        gps_daily_location[vid][day_key] = {
+                            'address': address,
+                            'lat': lat,
+                            'lng': lng,
+                            'time': ts,
+                        }
+
+            gpag = gdata.get('pagination', {})
+            if gpag.get('hasNextPage') and gpag.get('endCursor'):
+                gps_after = gpag['endCursor']
+            else:
+                break
+
+        debug_info['gps_points'] = gps_point_count
+        debug_info['gps_vehicles_with_location'] = len([v for v in gps_daily_location.values() if v])
+    except Exception as exc:
+        debug_info['errors'].append(f'gps/history location error: {str(exc)}')
+        app.logger.warning(f'GPS history location error: {exc}')
 
     # ---------- Group trips by vehicle and then by day ----------
     # Trip object structure (Samsara) may vary:
@@ -2750,6 +2825,12 @@ def api_vehicles_activity():
             dur_h = dur_min // 60
             dur_m = dur_min % 60
 
+            # Last location: prefer trip endLocation, fall back to GPS
+            last_loc = d['end_address']
+            if not last_loc:
+                gps_loc = gps_daily_location.get(vid, {}).get(day_key, {})
+                last_loc = gps_loc.get('address', '')
+
             days.append({
                 'date': day_key,
                 'begin_driving': start_dt.strftime('%Y-%m-%d %H:%M'),
@@ -2760,7 +2841,7 @@ def api_vehicles_activity():
                 'duration_minutes': dur_min,
                 'distance_km': dist_km,
                 'trips_count': d['trips_count'],
-                'last_location': d['end_address'],
+                'last_location': last_loc,
             })
 
         # If all trip distances were 0, try to fill entirely from stats
@@ -2794,6 +2875,7 @@ def api_vehicles_activity():
             for day_key in sorted(vid_stats.keys()):
                 sk = vid_stats[day_key]
                 if sk > 0:
+                    gps_loc = gps_daily_location.get(vid, {}).get(day_key, {})
                     days.append({
                         'date': day_key,
                         'begin_driving': '',
@@ -2804,7 +2886,7 @@ def api_vehicles_activity():
                         'duration_minutes': 0,
                         'distance_km': sk,
                         'trips_count': 0,
-                        'last_location': '',
+                        'last_location': gps_loc.get('address', ''),
                     })
                     total_km += sk
 
