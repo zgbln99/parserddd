@@ -1,0 +1,533 @@
+import { useState, useMemo, useCallback, useRef } from 'react';
+import { Upload, Filter, AlertCircle, Truck, Calendar, ChevronDown, ChevronRight, X, FileText } from 'lucide-react';
+import { useI18n } from '../i18n';
+import { Card } from '../components/Card';
+
+interface TollRow {
+  plate: string;
+  date: string;
+  time: string;
+  bookingNr: string;
+  type: string;
+  route: string;
+  axleClass: string;
+  weightClass: string;
+  emissionClass: string;
+  co2Class: string;
+  bookingType: string;
+  km: number;
+  amount: number;
+  statementNr: string;
+  raw: Record<string, string>;
+}
+
+// Auto-detect column mapping from headers
+function detectColumns(headers: string[]) {
+  const lower = headers.map(h => h.toLowerCase().trim());
+  const find = (...patterns: string[]) =>
+    lower.findIndex(h => patterns.some(p => h.includes(p)));
+
+  return {
+    plate: find('kennz', 'plate', 'kfz'),
+    date: find('datum', 'date'),
+    time: find('start', 'uhrzeit', 'zeit', 'time'),
+    bookingNr: find('buchungsnummer', 'einbuchungsnummer', 'booking'),
+    type: lower.findIndex(h => h === 'art' || h === 'type'),
+    route: find('strecke', 'route', 'mautpflichtige strecke'),
+    axleClass: find('achsklasse', 'achs', 'axle'),
+    weightClass: find('gewichtsklasse', 'gewicht', 'weight'),
+    emissionClass: find('schadstoffklasse', 'schadstoff', 'emission'),
+    co2Class: find('co2', 'co₂'),
+    bookingType: find('einbuchungsart', 'buchungsart'),
+    km: find('kilometer', 'km', 'mautpflichtige kilometer'),
+    amount: find('mautbetrag', 'betrag', 'maut', 'amount', 'eur'),
+    statementNr: find('mautaufstellung', 'nummer der mautaufstellung', 'statement'),
+  };
+}
+
+function parseGermanNumber(s: string): number {
+  if (!s) return 0;
+  // German format: 1.234,56 -> 1234.56
+  const cleaned = s.replace(/[^\d.,-]/g, '').replace(/\./g, '').replace(',', '.');
+  const n = parseFloat(cleaned);
+  return isNaN(n) ? 0 : n;
+}
+
+function parseCSV(text: string): TollRow[] {
+  const lines = text.split(/\r?\n/).filter(l => l.trim());
+  if (lines.length < 2) return [];
+
+  // Detect delimiter: semicolon or comma
+  const firstLine = lines[0];
+  const delim = firstLine.split(';').length > firstLine.split(',').length ? ';' : ',';
+
+  // Find the header row (skip metadata rows that don't have enough columns)
+  let headerIdx = 0;
+  for (let i = 0; i < Math.min(lines.length, 10); i++) {
+    const cols = lines[i].split(delim);
+    if (cols.length >= 5) {
+      const lower = cols.map(c => c.toLowerCase().trim());
+      if (lower.some(c => c.includes('kennz') || c.includes('plate') || c.includes('kfz') || c.includes('datum'))) {
+        headerIdx = i;
+        break;
+      }
+    }
+  }
+
+  const headers = lines[headerIdx].split(delim).map(h => h.replace(/^["']|["']$/g, '').trim());
+  const cols = detectColumns(headers);
+
+  const rows: TollRow[] = [];
+  for (let i = headerIdx + 1; i < lines.length; i++) {
+    const cells = lines[i].split(delim).map(c => c.replace(/^["']|["']$/g, '').trim());
+    if (cells.length < 3) continue;
+
+    const g = (idx: number) => (idx >= 0 && idx < cells.length) ? cells[idx] : '';
+
+    const plate = g(cols.plate);
+    const dateStr = g(cols.date);
+    if (!plate && !dateStr) continue; // skip empty rows
+
+    // Parse date: could be DD.MM.YYYY or YYYY-MM-DD
+    let isoDate = dateStr;
+    const dmMatch = dateStr.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+    if (dmMatch) {
+      isoDate = `${dmMatch[3]}-${dmMatch[2].padStart(2, '0')}-${dmMatch[1].padStart(2, '0')}`;
+    }
+
+    const raw: Record<string, string> = {};
+    headers.forEach((h, idx) => { raw[h] = cells[idx] || ''; });
+
+    rows.push({
+      plate,
+      date: isoDate,
+      time: g(cols.time),
+      bookingNr: g(cols.bookingNr),
+      type: g(cols.type),
+      route: g(cols.route),
+      axleClass: g(cols.axleClass),
+      weightClass: g(cols.weightClass),
+      emissionClass: g(cols.emissionClass),
+      co2Class: g(cols.co2Class),
+      bookingType: g(cols.bookingType),
+      km: parseGermanNumber(g(cols.km)),
+      amount: parseGermanNumber(g(cols.amount)),
+      statementNr: g(cols.statementNr),
+      raw,
+    });
+  }
+
+  return rows;
+}
+
+function fmtEur(n: number) {
+  return n.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' \u20AC';
+}
+
+function fmtKm(n: number) {
+  return n.toLocaleString('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+}
+
+export function TollCollectPage() {
+  const { t } = useI18n();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [rows, setRows] = useState<TollRow[]>([]);
+  const [fileName, setFileName] = useState('');
+  const [error, setError] = useState('');
+
+  // Filters
+  const [selectedPlate, setSelectedPlate] = useState<string>('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [timeFrom, setTimeFrom] = useState('');
+  const [timeTo, setTimeTo] = useState('');
+
+  // Expanded vehicles
+  const [expandedPlates, setExpandedPlates] = useState<Set<string>>(new Set());
+
+  const handleFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setError('');
+    setFileName(file.name);
+
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const text = ev.target?.result as string;
+        const parsed = parseCSV(text);
+        if (parsed.length === 0) {
+          setError('Nie znaleziono danych w pliku CSV');
+          return;
+        }
+        setRows(parsed);
+        // Reset filters
+        setSelectedPlate('');
+        setDateFrom('');
+        setDateTo('');
+        setTimeFrom('');
+        setTimeTo('');
+        setExpandedPlates(new Set());
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+      }
+    };
+    reader.readAsText(file, 'utf-8');
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files[0];
+    if (!file) return;
+    // Simulate file input
+    const dt = new DataTransfer();
+    dt.items.add(file);
+    if (fileInputRef.current) {
+      fileInputRef.current.files = dt.files;
+      fileInputRef.current.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  }, []);
+
+  // Available plates
+  const plates = useMemo(() => {
+    const s = new Set(rows.map(r => r.plate).filter(Boolean));
+    return Array.from(s).sort();
+  }, [rows]);
+
+  // Filtered rows
+  const filtered = useMemo(() => {
+    return rows.filter(r => {
+      if (selectedPlate && r.plate !== selectedPlate) return false;
+      if (dateFrom && r.date < dateFrom) return false;
+      if (dateTo && r.date > dateTo) return false;
+      if (timeFrom && r.time < timeFrom) return false;
+      if (timeTo && r.time > timeTo) return false;
+      return true;
+    });
+  }, [rows, selectedPlate, dateFrom, dateTo, timeFrom, timeTo]);
+
+  // Group by vehicle
+  const byVehicle = useMemo(() => {
+    const map = new Map<string, { rows: TollRow[]; totalKm: number; totalAmount: number }>();
+    for (const r of filtered) {
+      const key = r.plate || '(brak)';
+      if (!map.has(key)) map.set(key, { rows: [], totalKm: 0, totalAmount: 0 });
+      const entry = map.get(key)!;
+      entry.rows.push(r);
+      entry.totalKm += r.km;
+      entry.totalAmount += r.amount;
+    }
+    return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+  }, [filtered]);
+
+  const grandTotalKm = useMemo(() => filtered.reduce((s, r) => s + r.km, 0), [filtered]);
+  const grandTotalAmount = useMemo(() => filtered.reduce((s, r) => s + r.amount, 0), [filtered]);
+
+  const togglePlate = (plate: string) => {
+    setExpandedPlates(prev => {
+      const next = new Set(prev);
+      if (next.has(plate)) next.delete(plate);
+      else next.add(plate);
+      return next;
+    });
+  };
+
+  const hasFilters = selectedPlate || dateFrom || dateTo || timeFrom || timeTo;
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+          {t('tollTitle')}
+        </h1>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+          {t('tollSubtitle')}
+        </p>
+      </div>
+
+      {/* Upload area */}
+      {rows.length === 0 && (
+        <Card>
+          <div
+            className="flex flex-col items-center justify-center py-16 px-4 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:border-blue-400 dark:hover:border-blue-500 transition-colors"
+            onClick={() => fileInputRef.current?.click()}
+            onDragOver={e => e.preventDefault()}
+            onDrop={handleDrop}
+          >
+            <Upload className="w-12 h-12 text-gray-400 dark:text-gray-500 mb-4" />
+            <p className="text-sm font-medium text-gray-600 dark:text-gray-300">
+              {t('tollUpload')}
+            </p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+              {t('tollUploadHint')}
+            </p>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv,.txt"
+              className="hidden"
+              onChange={handleFileUpload}
+            />
+          </div>
+        </Card>
+      )}
+
+      {/* Error */}
+      {error && (
+        <div className="flex items-center gap-2 rounded-lg bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 px-4 py-3 text-sm">
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          {error}
+        </div>
+      )}
+
+      {/* Results */}
+      {rows.length > 0 && (
+        <>
+          {/* File info + new file button */}
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+              <FileText className="w-4 h-4" />
+              <span className="font-medium">{fileName}</span>
+              <span>— {rows.length} {t('tollRows')}</span>
+            </div>
+            <button
+              onClick={() => { setRows([]); setFileName(''); setError(''); }}
+              className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-red-500 transition-colors"
+            >
+              <X className="w-3 h-3" /> {t('tollNewFile')}
+            </button>
+          </div>
+
+          {/* Filters */}
+          <Card>
+            <div className="p-4">
+              <div className="flex items-center gap-2 mb-3 text-sm font-medium text-gray-700 dark:text-gray-300">
+                <Filter className="w-4 h-4" />
+                {t('tollFilters')}
+                {hasFilters && (
+                  <button
+                    onClick={() => { setSelectedPlate(''); setDateFrom(''); setDateTo(''); setTimeFrom(''); setTimeTo(''); }}
+                    className="ml-2 text-xs text-blue-500 hover:text-blue-700"
+                  >
+                    {t('tollClearFilters')}
+                  </button>
+                )}
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                {/* Vehicle */}
+                <div>
+                  <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
+                    {t('tollVehicle')}
+                  </label>
+                  <select
+                    value={selectedPlate}
+                    onChange={e => setSelectedPlate(e.target.value)}
+                    className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-2 py-1.5 text-sm text-gray-900 dark:text-white"
+                  >
+                    <option value="">{t('tollAllVehicles')}</option>
+                    {plates.map(p => (
+                      <option key={p} value={p}>{p}</option>
+                    ))}
+                  </select>
+                </div>
+                {/* Date from */}
+                <div>
+                  <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
+                    {t('tollDateFrom')}
+                  </label>
+                  <input
+                    type="date"
+                    value={dateFrom}
+                    onChange={e => setDateFrom(e.target.value)}
+                    className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-2 py-1.5 text-sm text-gray-900 dark:text-white"
+                  />
+                </div>
+                {/* Date to */}
+                <div>
+                  <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
+                    {t('tollDateTo')}
+                  </label>
+                  <input
+                    type="date"
+                    value={dateTo}
+                    onChange={e => setDateTo(e.target.value)}
+                    className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-2 py-1.5 text-sm text-gray-900 dark:text-white"
+                  />
+                </div>
+                {/* Time from */}
+                <div>
+                  <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
+                    {t('tollTimeFrom')}
+                  </label>
+                  <input
+                    type="time"
+                    value={timeFrom}
+                    onChange={e => setTimeFrom(e.target.value)}
+                    className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-2 py-1.5 text-sm text-gray-900 dark:text-white"
+                  />
+                </div>
+                {/* Time to */}
+                <div>
+                  <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
+                    {t('tollTimeTo')}
+                  </label>
+                  <input
+                    type="time"
+                    value={timeTo}
+                    onChange={e => setTimeTo(e.target.value)}
+                    className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-2 py-1.5 text-sm text-gray-900 dark:text-white"
+                  />
+                </div>
+              </div>
+            </div>
+          </Card>
+
+          {/* Summary cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <Card>
+              <div className="p-3 text-center">
+                <div className="text-xs text-gray-500 dark:text-gray-400">{t('tollVehicles')}</div>
+                <div className="text-xl font-bold text-gray-900 dark:text-white mt-1">{byVehicle.length}</div>
+              </div>
+            </Card>
+            <Card>
+              <div className="p-3 text-center">
+                <div className="text-xs text-gray-500 dark:text-gray-400">{t('tollTrips')}</div>
+                <div className="text-xl font-bold text-gray-900 dark:text-white mt-1">{filtered.length}</div>
+              </div>
+            </Card>
+            <Card>
+              <div className="p-3 text-center">
+                <div className="text-xs text-gray-500 dark:text-gray-400">{t('tollTotalKm')}</div>
+                <div className="text-xl font-bold text-blue-600 dark:text-blue-400 mt-1">{fmtKm(grandTotalKm)}</div>
+              </div>
+            </Card>
+            <Card>
+              <div className="p-3 text-center">
+                <div className="text-xs text-gray-500 dark:text-gray-400">{t('tollTotalMaut')}</div>
+                <div className="text-xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">{fmtEur(grandTotalAmount)}</div>
+              </div>
+            </Card>
+          </div>
+
+          {/* Vehicle table */}
+          <Card>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+                    <th className="w-8 px-3 py-3" />
+                    <th className="text-left px-3 py-3 font-semibold text-gray-600 dark:text-gray-300">
+                      {t('tollVehicle')}
+                    </th>
+                    <th className="text-left px-3 py-3 font-semibold text-gray-600 dark:text-gray-300">
+                      {t('tollDate')}
+                    </th>
+                    <th className="text-left px-3 py-3 font-semibold text-gray-600 dark:text-gray-300">
+                      {t('tollTime')}
+                    </th>
+                    <th className="text-left px-3 py-3 font-semibold text-gray-600 dark:text-gray-300 hidden lg:table-cell">
+                      {t('tollRoute')}
+                    </th>
+                    <th className="text-left px-3 py-3 font-semibold text-gray-600 dark:text-gray-300 hidden md:table-cell">
+                      {t('tollBookingType')}
+                    </th>
+                    <th className="text-right px-3 py-3 font-semibold text-gray-600 dark:text-gray-300">
+                      km
+                    </th>
+                    <th className="text-right px-3 py-3 font-semibold text-gray-600 dark:text-gray-300">
+                      {t('tollMaut')}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {byVehicle.map(([plate, data]) => {
+                    const isExpanded = expandedPlates.has(plate);
+                    return (
+                      <>
+                        {/* Vehicle summary row */}
+                        <tr
+                          key={`v-${plate}`}
+                          className="border-b border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/30 font-medium"
+                          onClick={() => togglePlate(plate)}
+                        >
+                          <td className="px-3 py-3 text-gray-400">
+                            {isExpanded
+                              ? <ChevronDown className="w-4 h-4" />
+                              : <ChevronRight className="w-4 h-4" />}
+                          </td>
+                          <td className="px-3 py-3 text-gray-900 dark:text-white">
+                            <div className="flex items-center gap-2">
+                              <Truck className="w-4 h-4 text-gray-400" />
+                              <span className="font-mono">{plate}</span>
+                            </div>
+                          </td>
+                          <td className="px-3 py-3 text-gray-500 dark:text-gray-400 text-xs" colSpan={2}>
+                            {data.rows.length} {t('tollTripsCount')}
+                          </td>
+                          <td className="px-3 py-3 hidden lg:table-cell" />
+                          <td className="px-3 py-3 hidden md:table-cell" />
+                          <td className="px-3 py-3 text-right font-bold text-blue-600 dark:text-blue-400 font-mono">
+                            {fmtKm(data.totalKm)}
+                          </td>
+                          <td className="px-3 py-3 text-right font-bold text-emerald-600 dark:text-emerald-400 font-mono">
+                            {fmtEur(data.totalAmount)}
+                          </td>
+                        </tr>
+
+                        {/* Expanded trip rows */}
+                        {isExpanded && data.rows.map((r, idx) => (
+                          <tr
+                            key={`${plate}-${idx}`}
+                            className="border-b border-gray-50 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/20 text-xs"
+                          >
+                            <td className="px-3 py-2" />
+                            <td className="px-3 py-2 font-mono text-gray-400">{r.bookingNr}</td>
+                            <td className="px-3 py-2 text-gray-700 dark:text-gray-300">{r.date}</td>
+                            <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{r.time}</td>
+                            <td className="px-3 py-2 text-gray-500 dark:text-gray-400 hidden lg:table-cell max-w-xs truncate" title={r.route}>
+                              {r.route}
+                            </td>
+                            <td className="px-3 py-2 text-gray-500 dark:text-gray-400 hidden md:table-cell">
+                              {r.bookingType}
+                            </td>
+                            <td className="px-3 py-2 text-right text-gray-600 dark:text-gray-300 font-mono">
+                              {fmtKm(r.km)}
+                            </td>
+                            <td className="px-3 py-2 text-right text-gray-600 dark:text-gray-300 font-mono">
+                              {fmtEur(r.amount)}
+                            </td>
+                          </tr>
+                        ))}
+                      </>
+                    );
+                  })}
+
+                  {/* Grand total */}
+                  <tr className="border-t-2 border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800/50 font-bold">
+                    <td className="px-3 py-3" />
+                    <td className="px-3 py-3 text-gray-900 dark:text-white">
+                      RAZEM
+                    </td>
+                    <td className="px-3 py-3 text-gray-500 text-xs" colSpan={2}>
+                      {byVehicle.length} {t('tollVehiclesCount')}, {filtered.length} {t('tollTripsCount')}
+                    </td>
+                    <td className="px-3 py-3 hidden lg:table-cell" />
+                    <td className="px-3 py-3 hidden md:table-cell" />
+                    <td className="px-3 py-3 text-right text-blue-700 dark:text-blue-300 font-mono text-base">
+                      {fmtKm(grandTotalKm)} km
+                    </td>
+                    <td className="px-3 py-3 text-right text-emerald-700 dark:text-emerald-300 font-mono text-base">
+                      {fmtEur(grandTotalAmount)}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        </>
+      )}
+    </div>
+  );
+}

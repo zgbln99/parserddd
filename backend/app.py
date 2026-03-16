@@ -1392,6 +1392,7 @@ def api_driver_km():
     Accepts {period: "YYYY-MM"}.
     Downloads latest DDD file per driver from Dropbox, parses vehicle records
     with odometer_begin/end, and returns per-driver km summary.
+    Uses build_drivers_data() (same as /api/drivers and /api/settlement).
     """
     try:
         payload = request.get_json(force=True)
@@ -1403,46 +1404,28 @@ def api_driver_km():
         if not dbx:
             return jsonify({'error': 'Brak połączenia z Dropbox'}), 500
 
-        # List drivers from Dropbox
-        drivers_data = []
-        base_path = os.environ.get('DROPBOX_DRIVERS_PATH', '/Fahrer')
-        try:
-            result = dbx.files_list_folder(base_path)
-            entries = list(result.entries)
-            while result.has_more:
-                result = dbx.files_list_folder_continue(result.cursor)
-                entries.extend(result.entries)
-        except Exception as e:
-            return jsonify({'error': f'Dropbox listing error: {str(e)}'}), 500
+        # Use the same driver listing as settlement/drivers pages
+        cached = load_portal_cache()
+        if cached:
+            drivers_data = cached
+        else:
+            sync_folder = os.environ.get('SYNC_DEST_FOLDER', '/Samsara-DDD')
+            drivers_data = build_drivers_data(dbx, sync_folder)
 
-        driver_folders = [e for e in entries if isinstance(e, dropbox.files.FolderMetadata)]
-
+        # Build task list: one task per driver with files
         tasks = []
-        for folder in driver_folders:
-            driver_name = folder.name
-            # Find DDD files in this folder
-            try:
-                folder_result = dbx.files_list_folder(folder.path_lower)
-                folder_entries = list(folder_result.entries)
-                while folder_result.has_more:
-                    folder_result = dbx.files_list_folder_continue(folder_result.cursor)
-                    folder_entries.extend(folder_result.entries)
-            except Exception:
+        for driver in drivers_data:
+            files = driver.get('files', [])
+            if not files:
                 continue
-
-            ddd_files = [
-                f for f in folder_entries
-                if isinstance(f, dropbox.files.FileMetadata)
-                and f.name.lower().endswith('.ddd')
-            ]
-            if not ddd_files:
+            # Use the latest DDD file
+            file_path = files[0].get('path', '')
+            if not file_path:
                 continue
-
-            # Use the most recent file
-            ddd_files.sort(key=lambda f: f.server_modified, reverse=True)
             tasks.append({
-                'driver_name': driver_name,
-                'file_path': ddd_files[0].path_lower,
+                'driver_name': driver.get('name', ''),
+                'card_number': driver.get('card_number', ''),
+                'file_path': file_path,
             })
 
         def process_driver_km(task):
@@ -1464,19 +1447,16 @@ def api_driver_km():
                 period_records = []
                 total_km = 0
                 for v in vehicles:
-                    # Check if this record overlaps with the requested period
                     first_use = v.get('first_use', '')[:10]
                     last_use = v.get('last_use', '')[:10]
                     if not first_use:
                         continue
-                    # Check period overlap: record is relevant if its dates touch the month
+                    # Check period overlap
                     rec_month_start = first_use[:7] if first_use else ''
                     rec_month_end = last_use[:7] if last_use else rec_month_start
-                    if rec_month_start > period or rec_month_end < period:
-                        if rec_month_start and rec_month_end:
-                            # Completely outside the period
-                            if not (rec_month_start <= period <= rec_month_end):
-                                continue
+                    if rec_month_start and rec_month_end:
+                        if not (rec_month_start <= period <= rec_month_end):
+                            continue
 
                     odo_begin = v.get('odometer_begin_km', 0)
                     odo_end = v.get('odometer_end_km', 0)
