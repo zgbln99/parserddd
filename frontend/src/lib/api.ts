@@ -446,11 +446,11 @@ export interface SamsaraVehicle {
 export const fetchSamsaraVehicles = () =>
   request<{ vehicles: SamsaraVehicle[] }>('/api/vehicles');
 
-export const fetchVehicleActivity = (period: string, vehicleIds?: string[], skipLocation?: boolean) =>
+export const fetchVehicleActivity = (period: string, vehicleIds?: string[]) =>
   request<{ period: string; vehicles: VehicleActivity[]; debug: VehicleDebugInfo }>('/api/vehicles/activity', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ period, vehicle_ids: vehicleIds || [], skip_location: skipLocation || false }),
+    body: JSON.stringify({ period, vehicle_ids: vehicleIds || [] }),
   });
 
 // Driver KM from tachograph card (odometer readings)

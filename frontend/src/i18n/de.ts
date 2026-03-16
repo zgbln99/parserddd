@@ -283,7 +283,7 @@ export const de: Record<TranslationKey, string> = {
   vehiclesPeriod: 'Zeitraum',
   vehiclesGenerate: 'Bericht erstellen',
   vehiclesLoading: 'Daten von Samsara werden abgerufen...',
-  vehiclesSkipLocation: 'Standort überspringen (schneller)',
+
   vehiclesNoData: 'Monat auswählen und Erstellen klicken',
   vehiclesName: 'Fahrzeug',
   vehiclesDate: 'Datum',

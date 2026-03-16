@@ -27,7 +27,7 @@ export function VehiclesPage() {
   const [activity, setActivity] = useState<VehicleActivity | null>(null);
   const [period, setPeriod] = useState('');
   const [debugInfo, setDebugInfo] = useState<VehicleDebugInfo | null>(null);
-  const [skipLocation, setSkipLocation] = useState(false);
+
 
   const defaultPeriod = useMemo(() => {
     if (dateFrom) return dateFrom.slice(0, 7);
@@ -83,7 +83,7 @@ export function VehiclesPage() {
     setDebugInfo(null);
 
     try {
-      const result = await fetchVehicleActivity(p, [selectedVehicleId], skipLocation);
+      const result = await fetchVehicleActivity(p, [selectedVehicleId]);
       if (result.vehicles.length > 0) {
         setActivity(result.vehicles[0]);
       } else {
@@ -96,7 +96,7 @@ export function VehiclesPage() {
     } finally {
       setLoading(false);
     }
-  }, [selectedVehicleId, selectedPeriod, defaultPeriod, skipLocation]);
+  }, [selectedVehicleId, selectedPeriod, defaultPeriod]);
 
   const fmtKm = (km: number) => km.toFixed(1).replace('.', ',') + ' km';
 
@@ -203,19 +203,6 @@ export function VehiclesPage() {
             {loading ? <RefreshCw size={14} className="animate-spin" /> : <Calendar size={14} />}
             {loading ? t('vehiclesLoading') : t('vehiclesGenerate')}
           </button>
-
-          {/* Skip location checkbox */}
-          <label className="flex items-center gap-2 cursor-pointer select-none min-h-[44px]">
-            <input
-              type="checkbox"
-              checked={skipLocation}
-              onChange={(e) => setSkipLocation(e.target.checked)}
-              className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-            />
-            <span className="text-xs text-gray-500 dark:text-gray-400">
-              {t('vehiclesSkipLocation')}
-            </span>
-          </label>
 
           {/* Print */}
           {activity && (

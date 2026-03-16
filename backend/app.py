@@ -2602,7 +2602,7 @@ def api_vehicles_activity():
     body = request.get_json(force=True)
     period = body.get('period', '')  # "2026-03"
     vehicle_ids = body.get('vehicle_ids', [])  # required
-    skip_location = body.get('skip_location', False)  # skip GPS/stats for speed
+    # skip_location removed — always fetch all sources for accuracy
 
     if not period or len(period) != 7:
         return jsonify({'error': 'Invalid period (expected YYYY-MM)'}), 400
@@ -2837,81 +2837,26 @@ def api_vehicles_activity():
     debug_info['raw_trips'] = trips_info['raw_trips']
     debug_info['errors'].extend(trips_info['errors'])
 
-    # ---- Step 2: Analyze trips to decide what else we need ----
-    _days_missing_km = False
-    _trips_missing_addr = False
-    if all_trips:
-        for trip in all_trips:
-            dist = float(trip.get('distanceMeters') or trip.get('distance_meters')
-                         or trip.get('distanceM') or trip.get('distance') or 0)
-            if dist <= 0:
-                _days_missing_km = True
-            end_loc = trip.get('endLocation', {})
-            if not (end_loc and end_loc.get('formattedAddress')):
-                _trips_missing_addr = True
-            if _days_missing_km and _trips_missing_addr:
-                break
-    else:
-        _days_missing_km = True
-        _trips_missing_addr = True
-
-    # ---- Step 3: Conditionally fetch stats (odometer) if trips lack km ----
-    # Note: stats/odometer always runs if needed — skip_location only skips GPS
+    # ---- Step 2+3: Always fetch stats (odometer) ----
     stats_daily_km = {}
-    if _days_missing_km:
-        app.logger.info('Stats fetch needed - some trips missing distance')
-        stats_daily_km, stats_info = _fetch_stats()
-        debug_info['api_calls'] += stats_info['api_calls']
-        debug_info['errors'].extend(stats_info.get('errors', []))
-        debug_info['stats_vehicles'] = stats_info.get('stats_vehicles', 0)
-        debug_info['stats_daily_entries'] = stats_info.get('stats_daily_entries', 0)
-        debug_info['stats_source'] = stats_info.get('stats_source', 'none')
-    else:
-        app.logger.info('Stats fetch skipped - all trips have distance data')
-        debug_info['stats_skipped'] = True
-        debug_info['stats_source'] = 'not_needed'
+    app.logger.info('Fetching stats/odometer for accuracy')
+    stats_daily_km, stats_info = _fetch_stats()
+    debug_info['api_calls'] += stats_info['api_calls']
+    debug_info['errors'].extend(stats_info.get('errors', []))
+    debug_info['stats_vehicles'] = stats_info.get('stats_vehicles', 0)
+    debug_info['stats_daily_entries'] = stats_info.get('stats_daily_entries', 0)
+    debug_info['stats_source'] = stats_info.get('stats_source', 'none')
 
-    # ---- Step 4: Conditionally fetch GPS breadcrumbs (heaviest) ----
+    # ---- Step 4: Always fetch GPS breadcrumbs ----
     gps_daily_location = {}
     gps_daily_km = {}
-    if skip_location:
-        app.logger.info('GPS breadcrumbs skipped - skip_location flag')
-        debug_info['gps_skipped'] = True
-        debug_info['gps_points'] = 0
-    else:
-        # Only if we still have days with no km OR trips missing end addresses
-        needs_gps = _trips_missing_addr
-        if _days_missing_km and all_trips:
-            for trip in all_trips:
-                dist = float(trip.get('distanceMeters') or trip.get('distance_meters')
-                             or trip.get('distanceM') or trip.get('distance') or 0)
-                if dist <= 0:
-                    asset = trip.get('asset', {})
-                    vid = asset.get('id', '') or (vehicle_ids[0] if len(vehicle_ids) == 1 else '')
-                    t_start = trip.get('tripStartTime', '')
-                    try:
-                        dt_s = datetime.fromisoformat(t_start.replace('Z', '+00:00')).astimezone(CET)
-                        dk = dt_s.strftime('%Y-%m-%d')
-                    except Exception:
-                        continue
-                    if stats_daily_km.get(vid, {}).get(dk, 0) <= 0:
-                        needs_gps = True
-                        break
-        elif not all_trips:
-            needs_gps = True
-
-        if needs_gps:
-            app.logger.info('GPS breadcrumbs needed - fetching (missing km or addresses)')
-            gps_daily_location, gps_daily_km, gps_info = _fetch_gps()
-            debug_info['api_calls'] += gps_info['api_calls']
-            debug_info['errors'].extend(gps_info.get('errors', []))
-            debug_info['gps_points'] = gps_info.get('gps_points', 0)
-            debug_info['gps_vehicles_with_location'] = gps_info.get('gps_vehicles_with_location', 0)
-            debug_info['gps_distance_days'] = gps_info.get('gps_distance_days', 0)
-        else:
-            app.logger.info('GPS breadcrumbs skipped - trips + stats cover all data')
-            debug_info['gps_skipped'] = True
-            debug_info['gps_points'] = 0
+    app.logger.info('Fetching GPS breadcrumbs for accuracy')
+    gps_daily_location, gps_daily_km, gps_info = _fetch_gps()
+    debug_info['api_calls'] += gps_info['api_calls']
+    debug_info['errors'].extend(gps_info.get('errors', []))
+    debug_info['gps_points'] = gps_info.get('gps_points', 0)
+    debug_info['gps_vehicles_with_location'] = gps_info.get('gps_vehicles_with_location', 0)
+    debug_info['gps_distance_days'] = gps_info.get('gps_distance_days', 0)
 
     # ---------- Group trips by vehicle and then by day ----------
     # Trip object structure (Samsara) may vary:
@@ -3017,17 +2962,12 @@ def api_vehicles_activity():
 
             gps_dist_km = gps_daily_km.get(vid, {}).get(day_key, 0)
 
-            # Use trip distance if available, then stats odometer, then GPS breadcrumbs
-            if trip_dist_km > 0:
-                dist_km = trip_dist_km
-            elif stats_dist_km > 0:
-                dist_km = stats_dist_km
+            # Use the highest value from all sources for accuracy
+            dist_km = max(trip_dist_km, stats_dist_km, gps_dist_km)
+            if dist_km == stats_dist_km and stats_dist_km > 0:
                 distance_source = 'stats'
-            elif gps_dist_km > 0:
-                dist_km = gps_dist_km
+            elif dist_km == gps_dist_km and gps_dist_km > 0:
                 distance_source = 'gps'
-            else:
-                dist_km = 0
             total_km += dist_km
 
             dur_min = int((end_dt - start_dt).total_seconds() / 60) if end_dt > start_dt else 0
@@ -3052,27 +2992,6 @@ def api_vehicles_activity():
                 'trips_count': d['trips_count'],
                 'last_location': last_loc,
             })
-
-        # If all trip distances were 0, try to fill from stats, then GPS
-        if total_km == 0 and vid_stats:
-            distance_source = 'stats'
-            total_km = 0.0
-            for day_entry in days:
-                sk = vid_stats.get(day_entry['date'], 0)
-                if sk > 0:
-                    day_entry['distance_km'] = sk
-                    total_km += sk
-            total_km = round(total_km, 1)
-
-        if total_km == 0 and vid in gps_daily_km and gps_daily_km[vid]:
-            distance_source = 'gps'
-            total_km = 0.0
-            for day_entry in days:
-                gk = gps_daily_km.get(vid, {}).get(day_entry['date'], 0)
-                if gk > 0:
-                    day_entry['distance_km'] = gk
-                    total_km += gk
-            total_km = round(total_km, 1)
 
         results.append({
             'vehicle_id': vid,
