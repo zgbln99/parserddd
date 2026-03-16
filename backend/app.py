@@ -2735,17 +2735,20 @@ def api_vehicles_activity():
             if vid not in stats_daily:
                 stats_daily[vid] = {}
             sorted_days = sorted(day_readings.keys())
+            prev_day_max = None
             for dk in sorted_days:
                 readings = day_readings[dk]
-                if len(readings) >= 2:
-                    stats_daily[vid][dk] = round((max(readings) - min(readings)) / 1000, 1)
-                elif len(readings) == 1:
-                    idx = sorted_days.index(dk)
-                    if idx > 0:
-                        prev_max = max(day_readings[sorted_days[idx - 1]])
-                        diff = readings[0] - prev_max
-                        if diff > 0:
-                            stats_daily[vid][dk] = round(diff / 1000, 1)
+                curr_max = max(readings)
+                if prev_day_max is not None:
+                    # Distance = today's max odometer - yesterday's max odometer
+                    # This captures ALL driving between days (no gaps lost)
+                    diff = curr_max - prev_day_max
+                    if diff > 0:
+                        stats_daily[vid][dk] = round(diff / 1000, 1)
+                elif len(readings) >= 2:
+                    # First day: best we can do is max-min within the day
+                    stats_daily[vid][dk] = round((curr_max - min(readings)) / 1000, 1)
+                prev_day_max = curr_max
 
         has_obd = any(p['type'] == 'obdOdometerMeters' for pts in all_stats.values() for p in pts)
         has_gps = any(p['type'] == 'gpsDistanceMeters' for pts in all_stats.values() for p in pts)
