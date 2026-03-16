@@ -24,7 +24,7 @@ from functools import wraps
 import dropbox
 import requests as http_requests
 from dropbox.exceptions import AuthError
-from flask import Flask, request, jsonify, session, send_from_directory
+from flask import Flask, request, jsonify, session, send_from_directory, Response
 from flask_cors import CORS
 from zoneinfo import ZoneInfo
 
@@ -2827,7 +2827,14 @@ def api_vehicles_activity():
         info['gps_distance_days'] = sum(len(d) for d in daily_km.values())
         return daily_location, daily_km, info
 
+    # Progress callback for SSE streaming (set by streaming endpoint)
+    _progress_cb = getattr(request, '_progress_cb', None)
+    def _progress(step, total_steps, label):
+        if _progress_cb:
+            _progress_cb(step, total_steps, label)
+
     # ---- Step 1: Always fetch trips (lightweight, has distance + addresses) ----
+    _progress(1, 3, 'trips')
     all_trips, trips_info = _fetch_trips()
     debug_info['api_calls'] += trips_info['api_calls']
     debug_info['raw_trips'] = trips_info['raw_trips']
@@ -2854,6 +2861,7 @@ def api_vehicles_activity():
     # ---- Step 3: Conditionally fetch stats (odometer) if trips lack km ----
     stats_daily_km = {}
     if _days_missing_km:
+        _progress(2, 3, 'stats')
         app.logger.info('Stats fetch needed - some trips missing distance')
         stats_daily_km, stats_info = _fetch_stats()
         debug_info['api_calls'] += stats_info['api_calls']
@@ -2862,6 +2870,7 @@ def api_vehicles_activity():
         debug_info['stats_daily_entries'] = stats_info.get('stats_daily_entries', 0)
         debug_info['stats_source'] = stats_info.get('stats_source', 'none')
     else:
+        _progress(2, 3, 'stats_skipped')
         app.logger.info('Stats fetch skipped - all trips have distance data')
         debug_info['stats_skipped'] = True
         debug_info['stats_source'] = 'not_needed'
@@ -2891,6 +2900,7 @@ def api_vehicles_activity():
     gps_daily_location = {}
     gps_daily_km = {}
     if needs_gps:
+        _progress(3, 3, 'gps')
         app.logger.info('GPS breadcrumbs needed - fetching (missing km or addresses)')
         gps_daily_location, gps_daily_km, gps_info = _fetch_gps()
         debug_info['api_calls'] += gps_info['api_calls']
@@ -2899,6 +2909,7 @@ def api_vehicles_activity():
         debug_info['gps_vehicles_with_location'] = gps_info.get('gps_vehicles_with_location', 0)
         debug_info['gps_distance_days'] = gps_info.get('gps_distance_days', 0)
     else:
+        _progress(3, 3, 'gps_skipped')
         app.logger.info('GPS breadcrumbs skipped - trips + stats cover all data')
         debug_info['gps_skipped'] = True
         debug_info['gps_points'] = 0
@@ -3161,6 +3172,71 @@ def api_vehicles_activity():
         VEHICLE_ACTIVITY_CACHE.pop(k, None)
 
     return jsonify(response_data)
+
+
+@app.route('/api/vehicles/activity/stream', methods=['POST'])
+@admin_required
+def api_vehicles_activity_stream():
+    """SSE wrapper around vehicle activity - sends progress events then result."""
+    import queue
+    progress_q = queue.Queue()
+
+    body = request.get_json(force=True)
+
+    def _progress_cb(step, total_steps, label):
+        progress_q.put((step, total_steps, label))
+
+    def generate():
+        import threading
+
+        result_holder = [None, None]  # [response, error]
+
+        def run_activity():
+            try:
+                with app.test_request_context(
+                    '/api/vehicles/activity',
+                    method='POST',
+                    content_type='application/json',
+                    data=json.dumps(body),
+                ):
+                    # Copy session from original request
+                    from flask import session as flask_session
+                    for k, v in original_session.items():
+                        flask_session[k] = v
+                    request._progress_cb = _progress_cb
+                    resp = api_vehicles_activity()
+                    if isinstance(resp, tuple):
+                        result_holder[0] = resp[0].get_json()
+                    else:
+                        result_holder[0] = resp.get_json()
+            except Exception as exc:
+                result_holder[1] = str(exc)
+            finally:
+                progress_q.put(None)  # sentinel
+
+        original_session = dict(session)
+        t = threading.Thread(target=run_activity, daemon=True)
+        t.start()
+
+        while True:
+            item = progress_q.get()
+            if item is None:
+                break
+            step, total_steps, label = item
+            evt = json.dumps({'step': step, 'totalSteps': total_steps, 'label': label})
+            yield f'event: progress\ndata: {evt}\n\n'
+
+        t.join(timeout=5)
+
+        if result_holder[1]:
+            yield f'event: error\ndata: {json.dumps({"error": result_holder[1]})}\n\n'
+        elif result_holder[0]:
+            yield f'event: result\ndata: {json.dumps(result_holder[0])}\n\n'
+        else:
+            yield f'event: error\ndata: {json.dumps({"error": "No result"})}\n\n'
+
+    return Response(generate(), mimetype='text/event-stream',
+                    headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'})
 
 
 # ---------------------------------------------------------------------------
