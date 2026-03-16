@@ -27,6 +27,8 @@ export function VehiclesPage() {
   const [activity, setActivity] = useState<VehicleActivity | null>(null);
   const [period, setPeriod] = useState('');
   const [debugInfo, setDebugInfo] = useState<VehicleDebugInfo | null>(null);
+  const [timeFrom, setTimeFrom] = useState('');
+  const [timeTo, setTimeTo] = useState('');
 
 
   const defaultPeriod = useMemo(() => {
@@ -142,7 +144,24 @@ export function VehiclesPage() {
 
   const handlePrint = () => window.print();
 
-  const totalMinutes = activity ? activity.days.reduce((s, d) => s + d.duration_minutes, 0) : 0;
+  // Filter days by time range (based on begin_driving time)
+  const filteredDays = useMemo(() => {
+    if (!activity) return [];
+    if (!timeFrom && !timeTo) return activity.days;
+    return activity.days.filter((day) => {
+      const beginTime = day.begin_driving?.split(' ')[1] || '';
+      const endTime = day.last_driving?.split(' ')[1] || '';
+      if (!beginTime) return false;
+      // Day passes if any driving time overlaps with filter range
+      if (timeFrom && endTime && endTime < timeFrom) return false;
+      if (timeTo && beginTime > timeTo) return false;
+      return true;
+    });
+  }, [activity, timeFrom, timeTo]);
+
+  const filteredTotalKm = useMemo(() => filteredDays.reduce((s, d) => s + d.distance_km, 0), [filteredDays]);
+  const totalMinutes = useMemo(() => filteredDays.reduce((s, d) => s + d.duration_minutes, 0), [filteredDays]);
+  const hasTimeFilter = !!(timeFrom || timeTo);
 
   return (
     <div className="animate-slide-up">
@@ -190,6 +209,32 @@ export function VehiclesPage() {
               type="month"
               value={selectedPeriod || defaultPeriod}
               onChange={(e) => setSelectedPeriod(e.target.value)}
+              className="glass-input rounded-xl px-3 py-2 text-sm outline-none min-h-[44px]"
+            />
+          </div>
+
+          {/* Time from */}
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-600 dark:text-gray-400">
+              {t('vehiclesTimeFrom')}
+            </label>
+            <input
+              type="time"
+              value={timeFrom}
+              onChange={(e) => setTimeFrom(e.target.value)}
+              className="glass-input rounded-xl px-3 py-2 text-sm outline-none min-h-[44px]"
+            />
+          </div>
+
+          {/* Time to */}
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-600 dark:text-gray-400">
+              {t('vehiclesTimeTo')}
+            </label>
+            <input
+              type="time"
+              value={timeTo}
+              onChange={(e) => setTimeTo(e.target.value)}
               className="glass-input rounded-xl px-3 py-2 text-sm outline-none min-h-[44px]"
             />
           </div>
@@ -344,12 +389,12 @@ export function VehiclesPage() {
             </Card>
             <Card className="p-4 text-center">
               <Calendar size={20} className="mx-auto mb-1 text-blue-500" />
-              <p className="text-2xl font-bold">{activity.active_days}</p>
+              <p className="text-2xl font-bold">{hasTimeFilter ? filteredDays.length : activity.active_days}</p>
               <p className="text-xs text-gray-500">{t('vehiclesActiveDays')}</p>
             </Card>
             <Card className="p-4 text-center">
               <MapPin size={20} className="mx-auto mb-1 text-emerald-500" />
-              <p className="text-2xl font-bold">{fmtKm(activity.total_km)}</p>
+              <p className="text-2xl font-bold">{fmtKm(hasTimeFilter ? filteredTotalKm : activity.total_km)}</p>
               <p className="text-xs text-gray-500">{t('vehiclesTotalKm')}</p>
               {activity.distance_source === 'stats' && (
                 <p className="mt-1 text-[10px] text-amber-500">(odometer)</p>
@@ -404,7 +449,7 @@ export function VehiclesPage() {
             </div>
             {/* Mobile card view */}
             <div className="block sm:hidden divide-y divide-black/[0.03] dark:divide-white/[0.03]">
-              {activity.days.map((day) => {
+              {filteredDays.map((day) => {
                 const wd = weekday(day.date);
                 const isSunday = new Date(day.date + 'T00:00:00').getDay() === 0;
                 const isSaturday = new Date(day.date + 'T00:00:00').getDay() === 6;
@@ -439,7 +484,7 @@ export function VehiclesPage() {
               {/* Mobile totals */}
               <div className="p-4 bg-black/[0.02] dark:bg-white/5 space-y-1.5">
                 <p className="text-sm font-bold mb-2">Ings.</p>
-                <CardField label={t('vehiclesTotalKm')} value={<span className="font-mono font-bold">{fmtKm(activity.total_km)}</span>} />
+                <CardField label={t('vehiclesTotalKm')} value={<span className="font-mono font-bold">{fmtKm(hasTimeFilter ? filteredTotalKm : activity.total_km)}</span>} />
                 <CardField label={t('vehiclesDuration')} value={
                   <Badge variant="blue">{totalMinutes > 0 ? `${Math.floor(totalMinutes / 60)}h ${totalMinutes % 60}m` : '-'}</Badge>
                 } />
@@ -472,7 +517,7 @@ export function VehiclesPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-black/[0.03] dark:divide-white/[0.03]">
-                  {activity.days.map((day) => {
+                  {filteredDays.map((day) => {
                     const wd = weekday(day.date);
                     const isSunday = new Date(day.date + 'T00:00:00').getDay() === 0;
                     const isSaturday = new Date(day.date + 'T00:00:00').getDay() === 6;
@@ -521,7 +566,7 @@ export function VehiclesPage() {
                   <tr className="border-t-2 border-white/30 bg-black/[0.02] font-semibold dark:border-white/10 dark:bg-white/5">
                     <td className="px-4 py-3">Ings.</td>
                     <td className="px-4 py-3"></td>
-                    <td className="px-4 py-3 font-mono">{fmtKm(activity.total_km)}</td>
+                    <td className="px-4 py-3 font-mono">{fmtKm(hasTimeFilter ? filteredTotalKm : activity.total_km)}</td>
                     <td className="px-4 py-3" colSpan={2}></td>
                     <td className="px-4 py-3">
                       <Badge variant="blue">

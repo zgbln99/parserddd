@@ -281,6 +281,8 @@ export const pl = {
   vehiclesPeriod: 'Okres',
   vehiclesGenerate: 'Generuj raport',
   vehiclesLoading: 'Pobieranie danych z Samsara...',
+  vehiclesTimeFrom: 'Godzina od',
+  vehiclesTimeTo: 'Godzina do',
 
   vehiclesNoData: 'Wybierz miesiąc i kliknij Generuj',
   vehiclesName: 'Pojazd',
