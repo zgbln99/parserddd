@@ -416,6 +416,14 @@ export const de: Record<TranslationKey, string> = {
   tollMaut: 'Maut',
   tollTripsCount: 'Fahrten',
   tollVehiclesCount: 'Fahrzeuge',
+  tollDbxFiles: 'Dropbox',
+  tollDbxTitle: 'Dateien in Dropbox',
+  tollDbxRefresh: 'Aktualisieren',
+  tollDbxEmpty: 'Keine gespeicherten Dateien',
+  tollDbxSave: 'In Dropbox speichern',
+  tollDbxSaved: 'In Dropbox gespeichert',
+  tollDbxDelete: 'Löschen',
+  tollDbxDeleteConfirm: 'Diese Datei aus Dropbox löschen?',
 
   // Offline
   offlineMode: 'Offline-Modus — Daten aus Cache',

@@ -502,4 +502,36 @@ export async function exportPdf(driverName: string, cardNumber: string, summary:
   URL.revokeObjectURL(url);
 }
 
+// Toll Collect – Dropbox integration
+export interface TollCollectFile {
+  name: string;
+  path: string;
+  size: number;
+  modified: string;
+}
+
+export const fetchTollCollectFiles = () =>
+  request<{ files: TollCollectFile[] }>('/api/tollcollect/files');
+
+export async function uploadTollCollectFile(file: File) {
+  const form = new FormData();
+  form.append('file', file);
+  return request<{ ok: boolean; path: string; filename: string }>('/api/tollcollect/upload', {
+    method: 'POST',
+    body: form,
+  });
+}
+
+export const downloadTollCollectFile = (path: string) =>
+  request<{ ok: boolean; filename: string; content: string }>(
+    `/api/tollcollect/download?path=${encodeURIComponent(path)}`,
+  );
+
+export const deleteTollCollectFile = (path: string) =>
+  request<{ ok: boolean }>('/api/tollcollect/delete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path }),
+  });
+
 

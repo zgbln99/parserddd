@@ -414,6 +414,14 @@ export const pl = {
   tollMaut: 'Maut',
   tollTripsCount: 'przejazdów',
   tollVehiclesCount: 'pojazdów',
+  tollDbxFiles: 'Dropbox',
+  tollDbxTitle: 'Pliki w Dropbox',
+  tollDbxRefresh: 'Odśwież',
+  tollDbxEmpty: 'Brak zapisanych plików',
+  tollDbxSave: 'Zapisz do Dropbox',
+  tollDbxSaved: 'Zapisano w Dropbox',
+  tollDbxDelete: 'Usuń',
+  tollDbxDeleteConfirm: 'Usunąć ten plik z Dropbox?',
 
   // Offline
   offlineMode: 'Tryb offline — dane z cache',

@@ -1,7 +1,14 @@
-import { useState, useMemo, useCallback, useRef } from 'react';
-import { Upload, Search, AlertCircle, Truck, Calendar, ChevronDown, ChevronRight, X, FileText } from 'lucide-react';
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+import { Upload, Search, AlertCircle, Truck, Calendar, ChevronDown, ChevronRight, X, FileText, CloudUpload, FolderOpen, Trash2, Loader2 } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { Card } from '../components/Card';
+import {
+  fetchTollCollectFiles,
+  uploadTollCollectFile,
+  downloadTollCollectFile,
+  deleteTollCollectFile,
+  type TollCollectFile,
+} from '../lib/api';
 
 interface TollRow {
   plate: string;
@@ -128,12 +135,28 @@ function fmtKm(n: number) {
   return n.toLocaleString('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 }
 
+function fmtSize(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 export function TollCollectPage() {
   const { t } = useI18n();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [rows, setRows] = useState<TollRow[]>([]);
   const [fileName, setFileName] = useState('');
   const [error, setError] = useState('');
+  const [lastFile, setLastFile] = useState<File | null>(null);
+
+  // Dropbox state
+  const [dbxFiles, setDbxFiles] = useState<TollCollectFile[]>([]);
+  const [dbxLoading, setDbxLoading] = useState(false);
+  const [dbxSaving, setDbxSaving] = useState(false);
+  const [dbxSaved, setDbxSaved] = useState(false);
+  const [dbxDownloading, setDbxDownloading] = useState<string | null>(null);
+  const [dbxError, setDbxError] = useState('');
+  const [showDbxFiles, setShowDbxFiles] = useState(false);
 
   // Filters
   const [searchText, setSearchText] = useState('');
@@ -145,11 +168,34 @@ export function TollCollectPage() {
   // Expanded vehicles
   const [expandedPlates, setExpandedPlates] = useState<Set<string>>(new Set());
 
+  // Load Dropbox file list
+  const loadDbxFiles = useCallback(async () => {
+    setDbxLoading(true);
+    setDbxError('');
+    try {
+      const res = await fetchTollCollectFiles();
+      setDbxFiles(res.files);
+    } catch (err) {
+      setDbxError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setDbxLoading(false);
+    }
+  }, []);
+
+  // Load on first open
+  useEffect(() => {
+    if (showDbxFiles && dbxFiles.length === 0 && !dbxLoading) {
+      loadDbxFiles();
+    }
+  }, [showDbxFiles, dbxFiles.length, dbxLoading, loadDbxFiles]);
+
   const handleFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setError('');
     setFileName(file.name);
+    setLastFile(file);
+    setDbxSaved(false);
 
     const reader = new FileReader();
     reader.onload = (ev) => {
@@ -187,6 +233,65 @@ export function TollCollectPage() {
       fileInputRef.current.dispatchEvent(new Event('change', { bubbles: true }));
     }
   }, []);
+
+  // Save current file to Dropbox
+  const handleSaveToDropbox = useCallback(async () => {
+    if (!lastFile) return;
+    setDbxSaving(true);
+    setDbxError('');
+    try {
+      await uploadTollCollectFile(lastFile);
+      setDbxSaved(true);
+      // Refresh file list if visible
+      if (showDbxFiles) loadDbxFiles();
+    } catch (err) {
+      setDbxError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setDbxSaving(false);
+    }
+  }, [lastFile, showDbxFiles, loadDbxFiles]);
+
+  // Load file from Dropbox
+  const handleLoadFromDropbox = useCallback(async (path: string, name: string) => {
+    setDbxDownloading(path);
+    setDbxError('');
+    setError('');
+    try {
+      const res = await downloadTollCollectFile(path);
+      const parsed = parseCSV(res.content);
+      if (parsed.length === 0) {
+        setError('Nie znaleziono danych w pliku CSV');
+        return;
+      }
+      setRows(parsed);
+      setFileName(name);
+      setLastFile(null); // no File object - came from Dropbox
+      setDbxSaved(true);
+      // Reset filters
+      setSearchText('');
+      setDateFrom('');
+      setDateTo('');
+      setTimeFrom('');
+      setTimeTo('');
+      setExpandedPlates(new Set());
+    } catch (err) {
+      setDbxError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setDbxDownloading(null);
+    }
+  }, []);
+
+  // Delete file from Dropbox
+  const handleDeleteFromDropbox = useCallback(async (path: string) => {
+    if (!confirm(t('tollDbxDeleteConfirm'))) return;
+    setDbxError('');
+    try {
+      await deleteTollCollectFile(path);
+      setDbxFiles(prev => prev.filter(f => f.path !== path));
+    } catch (err) {
+      setDbxError(err instanceof Error ? err.message : String(err));
+    }
+  }, [t]);
 
   // Filtered rows
   const filtered = useMemo(() => {
@@ -235,14 +340,106 @@ export function TollCollectPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-          {t('tollTitle')}
-        </h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-          {t('tollSubtitle')}
-        </p>
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+            {t('tollTitle')}
+          </h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            {t('tollSubtitle')}
+          </p>
+        </div>
+        {/* Dropbox files toggle */}
+        <button
+          onClick={() => setShowDbxFiles(v => !v)}
+          className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+            showDbxFiles
+              ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300'
+              : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+          }`}
+        >
+          <FolderOpen className="w-4 h-4" />
+          {t('tollDbxFiles')}
+        </button>
       </div>
+
+      {/* Dropbox file browser */}
+      {showDbxFiles && (
+        <Card>
+          <div className="p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                <FolderOpen className="w-4 h-4" />
+                {t('tollDbxTitle')}
+              </h3>
+              <button
+                onClick={loadDbxFiles}
+                disabled={dbxLoading}
+                className="text-xs text-blue-500 hover:text-blue-700 disabled:opacity-50"
+              >
+                {dbxLoading ? t('loading') : t('tollDbxRefresh')}
+              </button>
+            </div>
+
+            {dbxError && (
+              <div className="flex items-center gap-2 rounded-lg bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 px-3 py-2 text-xs mb-3">
+                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                {dbxError}
+              </div>
+            )}
+
+            {dbxLoading && (
+              <div className="flex items-center justify-center py-8 text-gray-400">
+                <Loader2 className="w-5 h-5 animate-spin" />
+              </div>
+            )}
+
+            {!dbxLoading && dbxFiles.length === 0 && (
+              <p className="text-sm text-gray-400 dark:text-gray-500 py-4 text-center">
+                {t('tollDbxEmpty')}
+              </p>
+            )}
+
+            {!dbxLoading && dbxFiles.length > 0 && (
+              <div className="space-y-1 max-h-64 overflow-y-auto">
+                {dbxFiles.map(f => (
+                  <div
+                    key={f.path}
+                    className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/30 group"
+                  >
+                    <FileText className="w-4 h-4 text-gray-400 shrink-0" />
+                    <button
+                      onClick={() => handleLoadFromDropbox(f.path, f.name)}
+                      disabled={dbxDownloading === f.path}
+                      className="flex-1 text-left text-sm text-gray-800 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 truncate disabled:opacity-50"
+                    >
+                      {dbxDownloading === f.path ? (
+                        <span className="flex items-center gap-1">
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                          {t('loading')}
+                        </span>
+                      ) : f.name}
+                    </button>
+                    <span className="text-xs text-gray-400 shrink-0 hidden sm:inline">
+                      {fmtSize(f.size)}
+                    </span>
+                    <span className="text-xs text-gray-400 shrink-0 hidden sm:inline">
+                      {f.modified ? new Date(f.modified).toLocaleDateString('de-DE') : ''}
+                    </span>
+                    <button
+                      onClick={() => handleDeleteFromDropbox(f.path)}
+                      className="text-gray-300 hover:text-red-500 dark:text-gray-600 dark:hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                      title={t('tollDbxDelete')}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </Card>
+      )}
 
       {/* Upload area */}
       {rows.length === 0 && (
@@ -282,15 +479,34 @@ export function TollCollectPage() {
       {/* Results */}
       {rows.length > 0 && (
         <>
-          {/* File info + new file button */}
+          {/* File info + actions */}
           <div className="flex items-center gap-3 flex-wrap">
             <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
               <FileText className="w-4 h-4" />
               <span className="font-medium">{fileName}</span>
               <span>— {rows.length} {t('tollRows')}</span>
             </div>
+
+            {/* Save to Dropbox */}
+            {lastFile && !dbxSaved && (
+              <button
+                onClick={handleSaveToDropbox}
+                disabled={dbxSaving}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-300 dark:hover:bg-blue-900/50 transition-colors disabled:opacity-50"
+              >
+                {dbxSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CloudUpload className="w-3.5 h-3.5" />}
+                {t('tollDbxSave')}
+              </button>
+            )}
+            {dbxSaved && (
+              <span className="inline-flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
+                <CloudUpload className="w-3.5 h-3.5" />
+                {t('tollDbxSaved')}
+              </span>
+            )}
+
             <button
-              onClick={() => { setRows([]); setFileName(''); setError(''); }}
+              onClick={() => { setRows([]); setFileName(''); setError(''); setLastFile(null); setDbxSaved(false); }}
               className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-red-500 transition-colors"
             >
               <X className="w-3 h-3" /> {t('tollNewFile')}

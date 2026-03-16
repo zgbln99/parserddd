@@ -2031,6 +2031,125 @@ def api_set_monthly_days(card_number, period):
 
 
 # ---------------------------------------------------------------------------
+# Toll Collect – Dropbox file storage
+# ---------------------------------------------------------------------------
+
+TOLLCOLLECT_FOLDER = '/TollCollect'
+
+
+@app.route('/api/tollcollect/files')
+@login_required
+def api_tollcollect_files():
+    """List CSV files stored in the TollCollect Dropbox folder."""
+    dbx = get_server_dropbox_client()
+    if not dbx:
+        return jsonify({'error': 'Brak połączenia z Dropbox'}), 500
+
+    try:
+        result = dbx.files_list_folder(TOLLCOLLECT_FOLDER)
+        entries = list(result.entries)
+        while result.has_more:
+            result = dbx.files_list_folder_continue(result.cursor)
+            entries.extend(result.entries)
+    except dropbox.exceptions.ApiError as e:
+        if 'not_found' in str(e):
+            return jsonify({'files': []})
+        return jsonify({'error': str(e)}), 500
+
+    files = []
+    for entry in entries:
+        if not isinstance(entry, dropbox.files.FileMetadata):
+            continue
+        files.append({
+            'name': entry.name,
+            'path': entry.path_display,
+            'size': entry.size,
+            'modified': entry.server_modified.isoformat() if entry.server_modified else '',
+        })
+
+    files.sort(key=lambda f: f['modified'], reverse=True)
+    return jsonify({'files': files})
+
+
+@app.route('/api/tollcollect/upload', methods=['POST'])
+@login_required
+def api_tollcollect_upload():
+    """Upload a Toll Collect CSV to the Dropbox TollCollect folder."""
+    if 'file' not in request.files:
+        return jsonify({'error': 'Brak pliku'}), 400
+
+    file = request.files['file']
+    fname = file.filename or 'tollcollect.csv'
+    # Sanitize filename
+    safe_name = "".join(c for c in fname if c.isalnum() or c in '._- ').strip() or 'tollcollect.csv'
+
+    dbx = get_server_dropbox_client()
+    if not dbx:
+        return jsonify({'error': 'Brak połączenia z Dropbox'}), 500
+
+    dbx_path = f"{TOLLCOLLECT_FOLDER}/{safe_name}"
+    try:
+        file_data = file.read()
+        dbx.files_upload(
+            file_data,
+            dbx_path,
+            mode=dropbox.files.WriteMode.overwrite,
+        )
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+    _log_activity('tollcollect_upload', safe_name)
+    return jsonify({'ok': True, 'path': dbx_path, 'filename': safe_name})
+
+
+@app.route('/api/tollcollect/download')
+@login_required
+def api_tollcollect_download():
+    """Download a Toll Collect CSV from Dropbox and return its text content."""
+    path = request.args.get('path', '').strip()
+    if not path:
+        return jsonify({'error': 'Brak parametru path'}), 400
+
+    dbx = get_server_dropbox_client()
+    if not dbx:
+        return jsonify({'error': 'Brak połączenia z Dropbox'}), 500
+
+    try:
+        metadata, response = dbx.files_download(path)
+        content = response.content.decode('utf-8', errors='replace')
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+    return jsonify({
+        'ok': True,
+        'filename': metadata.name,
+        'content': content,
+    })
+
+
+@app.route('/api/tollcollect/delete', methods=['POST'])
+@login_required
+def api_tollcollect_delete():
+    """Delete a Toll Collect file from Dropbox."""
+    data = request.get_json(silent=True) or {}
+    path = data.get('path', '').strip()
+    if not path:
+        return jsonify({'error': 'Brak parametru path'}), 400
+
+    dbx = get_server_dropbox_client()
+    if not dbx:
+        return jsonify({'error': 'Brak połączenia z Dropbox'}), 500
+
+    try:
+        dbx.files_delete_v2(path)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+    _log_activity('tollcollect_delete', path)
+    return jsonify({'ok': True})
+
+
+# ---------------------------------------------------------------------------
 # Connection status API
 # ---------------------------------------------------------------------------
 
