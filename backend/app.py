@@ -2827,11 +2827,10 @@ def api_vehicles_activity():
         info['gps_distance_days'] = sum(len(d) for d in daily_km.values())
         return daily_location, daily_km, info
 
-    # ---- Run all 3 Samsara fetches in parallel ----
-    with ThreadPoolExecutor(max_workers=3) as executor:
+    # ---- Step 1: Fetch trips + stats in parallel ----
+    with ThreadPoolExecutor(max_workers=2) as executor:
         future_trips = executor.submit(_fetch_trips)
         future_stats = executor.submit(_fetch_stats)
-        future_gps = executor.submit(_fetch_gps)
 
     all_trips, trips_info = future_trips.result()
     debug_info['api_calls'] += trips_info['api_calls']
@@ -2845,12 +2844,54 @@ def api_vehicles_activity():
     debug_info['stats_daily_entries'] = stats_info.get('stats_daily_entries', 0)
     debug_info['stats_source'] = stats_info.get('stats_source', 'none')
 
-    gps_daily_location, gps_daily_km, gps_info = future_gps.result()
-    debug_info['api_calls'] += gps_info['api_calls']
-    debug_info['errors'].extend(gps_info.get('errors', []))
-    debug_info['gps_points'] = gps_info.get('gps_points', 0)
-    debug_info['gps_vehicles_with_location'] = gps_info.get('gps_vehicles_with_location', 0)
-    debug_info['gps_distance_days'] = gps_info.get('gps_distance_days', 0)
+    # ---- Step 2: Check if we need GPS breadcrumbs ----
+    # GPS is only needed when trips have active days without distance from
+    # either trip data or stats/odometer, OR when trips lack end addresses.
+    needs_gps = False
+    if all_trips:
+        # Quick scan: gather days per vehicle from trips
+        _trip_days_per_vid = {}  # vid -> set of day_keys
+        _trips_missing_addr = False
+        for trip in all_trips:
+            asset = trip.get('asset', {})
+            vid = asset.get('id', '') or (vehicle_ids[0] if len(vehicle_ids) == 1 else '')
+            t_start = trip.get('tripStartTime', '')
+            if not t_start:
+                continue
+            try:
+                dt_s = datetime.fromisoformat(t_start.replace('Z', '+00:00')).astimezone(CET)
+                dk = dt_s.strftime('%Y-%m-%d')
+            except Exception:
+                continue
+            _trip_days_per_vid.setdefault(vid, set()).add(dk)
+            dist = float(trip.get('distanceMeters') or trip.get('distance_meters')
+                         or trip.get('distanceM') or trip.get('distance') or 0)
+            stats_km = stats_daily_km.get(vid, {}).get(dk, 0)
+            if dist <= 0 and stats_km <= 0:
+                needs_gps = True
+            end_loc = trip.get('endLocation', {})
+            if not (end_loc and end_loc.get('formattedAddress')):
+                _trips_missing_addr = True
+        if _trips_missing_addr:
+            needs_gps = True
+    else:
+        # No trips at all but vehicle_ids given - try GPS as last resort
+        needs_gps = True
+
+    gps_daily_location = {}
+    gps_daily_km = {}
+    if needs_gps:
+        app.logger.info('GPS breadcrumbs needed - fetching (missing km or addresses)')
+        gps_daily_location, gps_daily_km, gps_info = _fetch_gps()
+        debug_info['api_calls'] += gps_info['api_calls']
+        debug_info['errors'].extend(gps_info.get('errors', []))
+        debug_info['gps_points'] = gps_info.get('gps_points', 0)
+        debug_info['gps_vehicles_with_location'] = gps_info.get('gps_vehicles_with_location', 0)
+        debug_info['gps_distance_days'] = gps_info.get('gps_distance_days', 0)
+    else:
+        app.logger.info('GPS breadcrumbs skipped - trips + stats cover all distance data')
+        debug_info['gps_skipped'] = True
+        debug_info['gps_points'] = 0
 
     # ---------- Group trips by vehicle and then by day ----------
     # Trip object structure (Samsara) may vary:
