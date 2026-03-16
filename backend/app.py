@@ -102,6 +102,8 @@ SAMSARA_API_TOKEN = os.environ.get('SAMSARA_API_TOKEN', '')
 SAMSARA_API_BASE = 'https://api.eu.samsara.com'
 PORTAL_CACHE_FILE = os.environ.get('PORTAL_CACHE_FILE', '/opt/ddd-reader/portal_cache.json')
 PORTAL_CACHE_MAX_AGE = 900  # 15 minutes
+VEHICLE_ACTIVITY_CACHE = {}  # key: (period, tuple(vehicle_ids)) -> (timestamp, response_data)
+VEHICLE_ACTIVITY_CACHE_TTL = 300  # 5 minutes
 COMPANY_LOGO_PATH = os.environ.get('COMPANY_LOGO_PATH', '')
 
 import logging
@@ -2607,6 +2609,15 @@ def api_vehicles_activity():
     if not vehicle_ids:
         return jsonify({'error': 'No vehicle selected'}), 400
 
+    # --- Check cache ---
+    cache_key = (period, tuple(sorted(vehicle_ids)))
+    cached = VEHICLE_ACTIVITY_CACHE.get(cache_key)
+    if cached:
+        cache_ts, cache_data = cached
+        if (datetime.now() - cache_ts).total_seconds() < VEHICLE_ACTIVITY_CACHE_TTL:
+            app.logger.info('Vehicle activity cache hit for %s', cache_key)
+            return jsonify(cache_data)
+
     year, month = int(period[:4]), int(period[5:7])
     from calendar import monthrange
     _, last_day = monthrange(year, month)
@@ -2614,94 +2625,78 @@ def api_vehicles_activity():
     end_time = f'{period}-{last_day:02d}T23:59:59Z'
 
     headers = {'Authorization': f'Bearer {SAMSARA_API_TOKEN}'}
-
-    # Fetch trips from Samsara trips/stream endpoint
-    all_trips = []
-    debug_info = {'api_calls': 0, 'raw_trips': 0, 'errors': []}
-    after_cursor = None
-
-    # trips/stream accepts up to 50 asset IDs comma-separated
     ids_param = ','.join(vehicle_ids[:50])
 
-    for _ in range(200):  # max pages
-        params = {
-            'ids': ids_param,
-            'startTime': start_time,
-            'endTime': end_time,
-            'queryBy': 'tripStartTime',
-            'completionStatus': 'completed',
-            'includeAsset': 'true',
-        }
-        if after_cursor:
-            params['after'] = after_cursor
+    debug_info = {'api_calls': 0, 'raw_trips': 0, 'errors': []}
 
-        debug_info['api_calls'] += 1
-        try:
-            resp = http_requests.get(
-                f'{SAMSARA_API_BASE}/trips/stream',
-                headers=headers, params=params, timeout=30,
-            )
-            if resp.status_code != 200:
-                err_text = resp.text[:500] if resp.text else ''
-                debug_info['errors'].append(f'HTTP {resp.status_code}: {err_text}')
-                app.logger.warning(f'Samsara trips/stream {resp.status_code}: {err_text}')
+    # ---- Helper functions for parallel fetching ----
+
+    def _fetch_trips():
+        """Fetch trips from trips/stream endpoint."""
+        trips = []
+        info = {'api_calls': 0, 'raw_trips': 0, 'errors': []}
+        after_cursor = None
+        for _ in range(200):
+            params = {
+                'ids': ids_param,
+                'startTime': start_time,
+                'endTime': end_time,
+                'queryBy': 'tripStartTime',
+                'completionStatus': 'completed',
+                'includeAsset': 'true',
+            }
+            if after_cursor:
+                params['after'] = after_cursor
+            info['api_calls'] += 1
+            try:
+                resp = http_requests.get(
+                    f'{SAMSARA_API_BASE}/trips/stream',
+                    headers=headers, params=params, timeout=30,
+                )
+                if resp.status_code != 200:
+                    info['errors'].append(f'HTTP {resp.status_code}: {resp.text[:500] if resp.text else ""}')
+                    break
+                data = resp.json()
+            except Exception as exc:
+                info['errors'].append(str(exc))
                 break
-            data = resp.json()
-        except Exception as exc:
-            debug_info['errors'].append(str(exc))
-            app.logger.warning(f'Samsara trips/stream error: {exc}')
-            break
+            batch = data.get('data', [])
+            info['raw_trips'] += len(batch)
+            trips.extend(batch)
+            pag = data.get('pagination', {})
+            if pag.get('hasNextPage') and pag.get('endCursor'):
+                after_cursor = pag['endCursor']
+            else:
+                break
+        return trips, info
 
-        trips = data.get('data', [])
-        debug_info['raw_trips'] += len(trips)
-        all_trips.extend(trips)
-
-        pag = data.get('pagination', {})
-        if pag.get('hasNextPage') and pag.get('endCursor'):
-            after_cursor = pag['endCursor']
-        else:
-            break
-
-    # ---------- Supplement with vehicle stats history for accurate distance ----------
-    # Samsara recommends /fleet/vehicles/stats/history with obdOdometerMeters
-    # or gpsDistanceMeters for the most accurate distance data.
-    stats_daily_km = {}  # vid -> {date_str -> km}
-    # Also collect GPS last-location per vehicle per day + all points for distance
-    gps_daily_location = {}  # vid -> {date_str -> {'address': ..., 'lat': ..., 'lng': ..., 'time': ...}}
-    gps_daily_points = {}    # vid -> {date_str -> [(time, lat, lng), ...]}
-    gps_daily_km = {}        # vid -> {date_str -> distance_km}
-
-    try:
-        ids_for_stats = ','.join(vehicle_ids[:50])
-        stat_types = 'obdOdometerMeters,gpsDistanceMeters'
-        stats_after = None
+    def _fetch_stats():
+        """Fetch OBD odometer / GPS distance stats."""
         all_stats = {vid: [] for vid in vehicle_ids}
-
-        for _ in range(50):  # max pages
+        info = {'api_calls': 0, 'errors': []}
+        stats_after = None
+        for _ in range(50):
             stat_params = {
-                'vehicleIds': ids_for_stats,
-                'types': stat_types,
+                'vehicleIds': ids_param,
+                'types': 'obdOdometerMeters,gpsDistanceMeters',
                 'startTime': start_time,
                 'endTime': end_time,
             }
             if stats_after:
                 stat_params['after'] = stats_after
-
-            debug_info['api_calls'] += 1
+            info['api_calls'] += 1
             sresp = http_requests.get(
                 f'{SAMSARA_API_BASE}/fleet/vehicles/stats/history',
                 headers=headers, params=stat_params, timeout=30,
             )
             if sresp.status_code != 200:
-                debug_info['errors'].append(f'stats/history HTTP {sresp.status_code}: {sresp.text[:300]}')
+                info['errors'].append(f'stats/history HTTP {sresp.status_code}: {sresp.text[:300]}')
                 break
             sdata = sresp.json()
-
             for entry in sdata.get('data', []):
                 vid = entry.get('id', '')
                 if vid not in all_stats:
                     all_stats[vid] = []
-                # Each entry has obdOdometerMeters and/or gpsDistanceMeters arrays
                 for stat_type in ['obdOdometerMeters', 'gpsDistanceMeters']:
                     for point in entry.get(stat_type, []):
                         val = point.get('value', 0) or 0
@@ -2712,172 +2707,150 @@ def api_vehicles_activity():
                                 'value': float(val),
                                 'time': ts,
                             })
-
             spag = sdata.get('pagination', {})
             if spag.get('hasNextPage') and spag.get('endCursor'):
                 stats_after = spag['endCursor']
             else:
                 break
 
-        # Calculate daily distance from stats: for each vehicle and each day,
-        # find the min and max odometer/distance reading and take the difference.
+        # Calculate daily km from stats
+        stats_daily = {}
         for vid, points in all_stats.items():
             if not points:
                 continue
-
-            # Prefer obdOdometerMeters, fall back to gpsDistanceMeters
-            obd_points = [p for p in points if p['type'] == 'obdOdometerMeters']
-            gps_points = [p for p in points if p['type'] == 'gpsDistanceMeters']
-            use_points = obd_points if obd_points else gps_points
-
-            if not use_points:
+            obd_pts = [p for p in points if p['type'] == 'obdOdometerMeters']
+            gps_pts = [p for p in points if p['type'] == 'gpsDistanceMeters']
+            use_pts = obd_pts if obd_pts else gps_pts
+            if not use_pts:
                 continue
-
-            # Group by day (CET)
-            day_readings = {}  # date_str -> list of values
-            for p in use_points:
+            day_readings = {}
+            for p in use_pts:
                 try:
-                    dt = datetime.fromisoformat(
-                        p['time'].replace('Z', '+00:00')
-                    ).astimezone(CET)
-                    day_key = dt.strftime('%Y-%m-%d')
-                    if day_key not in day_readings:
-                        day_readings[day_key] = []
-                    day_readings[day_key].append(p['value'])
+                    dt = datetime.fromisoformat(p['time'].replace('Z', '+00:00')).astimezone(CET)
+                    dk = dt.strftime('%Y-%m-%d')
+                    day_readings.setdefault(dk, []).append(p['value'])
                 except Exception:
                     continue
-
-            if vid not in stats_daily_km:
-                stats_daily_km[vid] = {}
-
-            # Also calculate cross-day: sort all readings by value to get total range
-            all_values_by_day = sorted(day_readings.keys())
-            for day_key in all_values_by_day:
-                readings = day_readings[day_key]
+            if vid not in stats_daily:
+                stats_daily[vid] = {}
+            sorted_days = sorted(day_readings.keys())
+            for dk in sorted_days:
+                readings = day_readings[dk]
                 if len(readings) >= 2:
-                    diff = max(readings) - min(readings)
-                    stats_daily_km[vid][day_key] = round(diff / 1000, 1)
+                    stats_daily[vid][dk] = round((max(readings) - min(readings)) / 1000, 1)
                 elif len(readings) == 1:
-                    # Only one reading this day - try to get distance from
-                    # previous day's last reading
-                    idx = all_values_by_day.index(day_key)
+                    idx = sorted_days.index(dk)
                     if idx > 0:
-                        prev_day = all_values_by_day[idx - 1]
-                        prev_max = max(day_readings[prev_day])
+                        prev_max = max(day_readings[sorted_days[idx - 1]])
                         diff = readings[0] - prev_max
                         if diff > 0:
-                            stats_daily_km[vid][day_key] = round(diff / 1000, 1)
+                            stats_daily[vid][dk] = round(diff / 1000, 1)
 
-        debug_info['stats_vehicles'] = len([v for v in all_stats.values() if v])
-        debug_info['stats_daily_entries'] = sum(len(d) for d in stats_daily_km.values())
-        # Determine which source was used
         has_obd = any(p['type'] == 'obdOdometerMeters' for pts in all_stats.values() for p in pts)
         has_gps = any(p['type'] == 'gpsDistanceMeters' for pts in all_stats.values() for p in pts)
-        debug_info['stats_source'] = 'obdOdometer' if has_obd else 'gpsDistance' if has_gps else 'none'
-    except Exception as exc:
-        debug_info['errors'].append(f'stats/history fallback error: {str(exc)}')
-        app.logger.warning(f'Stats history fallback error: {exc}')
+        info['stats_vehicles'] = len([v for v in all_stats.values() if v])
+        info['stats_daily_entries'] = sum(len(d) for d in stats_daily.values())
+        info['stats_source'] = 'obdOdometer' if has_obd else 'gpsDistance' if has_gps else 'none'
+        return stats_daily, info
 
-    # ---------- Fetch GPS locations for last position per day ----------
-    # Uses /fleet/vehicles/stats/history?types=gps which returns
-    # reverseGeo.formattedLocation (already reverse-geocoded by Samsara)
-    try:
+    def _fetch_gps():
+        """Fetch GPS breadcrumbs for location + distance calculation."""
+        daily_location = {}
+        daily_points = {}
+        daily_km = {}
+        info = {'api_calls': 0, 'errors': [], 'gps_points': 0}
         gps_after = None
-        gps_point_count = 0
-
-        for _ in range(100):  # max pages (GPS data can be large)
+        for _ in range(100):
             gps_params = {
-                'vehicleIds': ids_for_stats,
+                'vehicleIds': ids_param,
                 'types': 'gps',
                 'startTime': start_time,
                 'endTime': end_time,
             }
             if gps_after:
                 gps_params['after'] = gps_after
-
-            debug_info['api_calls'] += 1
+            info['api_calls'] += 1
             gresp = http_requests.get(
                 f'{SAMSARA_API_BASE}/fleet/vehicles/stats/history',
                 headers=headers, params=gps_params, timeout=30,
             )
             if gresp.status_code != 200:
-                debug_info['errors'].append(f'gps/history HTTP {gresp.status_code}: {gresp.text[:300]}')
+                info['errors'].append(f'gps/history HTTP {gresp.status_code}: {gresp.text[:300]}')
                 break
             gdata = gresp.json()
-
             for entry in gdata.get('data', []):
                 vid = entry.get('id', '')
-                if vid not in gps_daily_location:
-                    gps_daily_location[vid] = {}
-
+                if vid not in daily_location:
+                    daily_location[vid] = {}
                 for gps_point in entry.get('gps', []):
                     ts = gps_point.get('time', '')
                     if not ts:
                         continue
-                    gps_point_count += 1
+                    info['gps_points'] += 1
                     try:
-                        dt = datetime.fromisoformat(
-                            ts.replace('Z', '+00:00')
-                        ).astimezone(CET)
-                        day_key = dt.strftime('%Y-%m-%d')
+                        dt = datetime.fromisoformat(ts.replace('Z', '+00:00')).astimezone(CET)
+                        dk = dt.strftime('%Y-%m-%d')
                     except Exception:
                         continue
-
                     lat = gps_point.get('latitude', 0)
                     lng = gps_point.get('longitude', 0)
                     reverse_geo = gps_point.get('reverseGeo', {}) or {}
                     address = reverse_geo.get('formattedLocation', '')
-
-                    # Collect all points for distance calculation
-                    if vid not in gps_daily_points:
-                        gps_daily_points[vid] = {}
-                    if day_key not in gps_daily_points[vid]:
-                        gps_daily_points[vid][day_key] = []
                     if lat and lng:
-                        gps_daily_points[vid][day_key].append((ts, lat, lng))
-
-                    # Keep the latest GPS point per day (overwrite with later times)
-                    existing = gps_daily_location[vid].get(day_key)
+                        daily_points.setdefault(vid, {}).setdefault(dk, []).append((ts, lat, lng))
+                    existing = daily_location[vid].get(dk)
                     if not existing or ts > existing.get('time', ''):
-                        gps_daily_location[vid][day_key] = {
-                            'address': address,
-                            'lat': lat,
-                            'lng': lng,
-                            'time': ts,
-                        }
-
+                        daily_location[vid][dk] = {'address': address, 'lat': lat, 'lng': lng, 'time': ts}
             gpag = gdata.get('pagination', {})
             if gpag.get('hasNextPage') and gpag.get('endCursor'):
                 gps_after = gpag['endCursor']
             else:
                 break
 
-        # Calculate daily distance from GPS breadcrumbs (sum of haversine between consecutive points)
-        for vid, day_points in gps_daily_points.items():
-            if vid not in gps_daily_km:
-                gps_daily_km[vid] = {}
-            for day_key, points in day_points.items():
-                if len(points) < 2:
+        # Calculate daily distance from GPS breadcrumbs
+        for vid, day_pts in daily_points.items():
+            if vid not in daily_km:
+                daily_km[vid] = {}
+            for dk, pts in day_pts.items():
+                if len(pts) < 2:
                     continue
-                # Sort by timestamp
-                points.sort(key=lambda p: p[0])
+                pts.sort(key=lambda p: p[0])
                 total_dist = 0.0
-                for i in range(1, len(points)):
-                    _, lat1, lng1 = points[i - 1]
-                    _, lat2, lng2 = points[i]
-                    d = _haversine_km(lat1, lng1, lat2, lng2)
-                    # Skip GPS jumps > 10km between 5-second readings (noise/teleportation)
+                for i in range(1, len(pts)):
+                    d = _haversine_km(pts[i-1][1], pts[i-1][2], pts[i][1], pts[i][2])
                     if d < 10.0:
                         total_dist += d
-                if total_dist > 0.1:  # ignore < 100m
-                    gps_daily_km[vid][day_key] = round(total_dist, 1)
+                if total_dist > 0.1:
+                    daily_km[vid][dk] = round(total_dist, 1)
 
-        debug_info['gps_points'] = gps_point_count
-        debug_info['gps_vehicles_with_location'] = len([v for v in gps_daily_location.values() if v])
-        debug_info['gps_distance_days'] = sum(len(d) for d in gps_daily_km.values())
-    except Exception as exc:
-        debug_info['errors'].append(f'gps/history location error: {str(exc)}')
-        app.logger.warning(f'GPS history location error: {exc}')
+        info['gps_vehicles_with_location'] = len([v for v in daily_location.values() if v])
+        info['gps_distance_days'] = sum(len(d) for d in daily_km.values())
+        return daily_location, daily_km, info
+
+    # ---- Run all 3 Samsara fetches in parallel ----
+    with ThreadPoolExecutor(max_workers=3) as executor:
+        future_trips = executor.submit(_fetch_trips)
+        future_stats = executor.submit(_fetch_stats)
+        future_gps = executor.submit(_fetch_gps)
+
+    all_trips, trips_info = future_trips.result()
+    debug_info['api_calls'] += trips_info['api_calls']
+    debug_info['raw_trips'] = trips_info['raw_trips']
+    debug_info['errors'].extend(trips_info['errors'])
+
+    stats_daily_km, stats_info = future_stats.result()
+    debug_info['api_calls'] += stats_info['api_calls']
+    debug_info['errors'].extend(stats_info.get('errors', []))
+    debug_info['stats_vehicles'] = stats_info.get('stats_vehicles', 0)
+    debug_info['stats_daily_entries'] = stats_info.get('stats_daily_entries', 0)
+    debug_info['stats_source'] = stats_info.get('stats_source', 'none')
+
+    gps_daily_location, gps_daily_km, gps_info = future_gps.result()
+    debug_info['api_calls'] += gps_info['api_calls']
+    debug_info['errors'].extend(gps_info.get('errors', []))
+    debug_info['gps_points'] = gps_info.get('gps_points', 0)
+    debug_info['gps_vehicles_with_location'] = gps_info.get('gps_vehicles_with_location', 0)
+    debug_info['gps_distance_days'] = gps_info.get('gps_distance_days', 0)
 
     # ---------- Group trips by vehicle and then by day ----------
     # Trip object structure (Samsara) may vary:
@@ -3125,7 +3098,18 @@ def api_vehicles_activity():
     debug_info['vehicles_with_data'] = len(results)
     debug_info['total_days'] = sum(r['active_days'] for r in results)
     _log_activity('vehicles_activity', f'{period}: {len(all_trips)} trips, {len(results)} vehicles')
-    return jsonify({'period': period, 'vehicles': results, 'debug': debug_info})
+
+    # Save to cache
+    response_data = {'period': period, 'vehicles': results, 'debug': debug_info}
+    VEHICLE_ACTIVITY_CACHE[cache_key] = (datetime.now(), response_data)
+    # Evict old cache entries
+    now = datetime.now()
+    stale = [k for k, (ts, _) in VEHICLE_ACTIVITY_CACHE.items()
+             if (now - ts).total_seconds() > VEHICLE_ACTIVITY_CACHE_TTL * 2]
+    for k in stale:
+        VEHICLE_ACTIVITY_CACHE.pop(k, None)
+
+    return jsonify(response_data)
 
 
 # ---------------------------------------------------------------------------
