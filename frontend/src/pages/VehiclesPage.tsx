@@ -308,6 +308,15 @@ export function VehiclesPage() {
                 <p>Raw trips: <span className="font-mono font-bold">{debugInfo.raw_trips}</span></p>
                 <p>Vehicles with data: <span className="font-mono font-bold">{debugInfo.vehicles_with_data}</span></p>
                 <p>Total days: <span className="font-mono font-bold">{debugInfo.total_days}</span></p>
+                {debugInfo.stats_vehicles != null && (
+                  <p>Stats vehicles: <span className="font-mono font-bold">{debugInfo.stats_vehicles}</span></p>
+                )}
+                {debugInfo.stats_source && (
+                  <p>Stats source: <span className="font-mono font-bold">{String(debugInfo.stats_source)}</span></p>
+                )}
+                {debugInfo.sample_trip_keys && (
+                  <p>Trip keys: <span className="font-mono font-bold text-xs break-all">{debugInfo.sample_trip_keys.join(', ')}</span></p>
+                )}
                 {debugInfo.errors?.length > 0 && (
                   <div className="mt-2 text-rose-500">
                     <p className="font-semibold">Errors:</p>
@@ -341,6 +350,9 @@ export function VehiclesPage() {
               <MapPin size={20} className="mx-auto mb-1 text-emerald-500" />
               <p className="text-2xl font-bold">{fmtKm(activity.total_km)}</p>
               <p className="text-xs text-gray-500">{t('vehiclesTotalKm')}</p>
+              {activity.distance_source === 'stats' && (
+                <p className="mt-1 text-[10px] text-amber-500">(odometer)</p>
+              )}
             </Card>
             <Card className="p-4 text-center">
               <RefreshCw size={20} className="mx-auto mb-1 text-amber-500" />
@@ -348,6 +360,39 @@ export function VehiclesPage() {
               <p className="text-xs text-gray-500">{t('vehiclesDuration')}</p>
             </Card>
           </div>
+
+          {/* Debug info (collapsible) */}
+          {debugInfo && (
+            <details className="mb-4">
+              <summary className="cursor-pointer text-xs text-gray-400 hover:text-gray-600">Samsara API debug</summary>
+              <div className="mt-2 rounded-lg bg-black/[0.02] p-3 text-xs dark:bg-white/5">
+                <div className="space-y-1 text-gray-500">
+                  <p>API calls: <span className="font-mono font-bold">{debugInfo.api_calls}</span></p>
+                  <p>Raw trips: <span className="font-mono font-bold">{debugInfo.raw_trips}</span></p>
+                  {debugInfo.stats_vehicles != null && (
+                    <p>Stats vehicles: <span className="font-mono font-bold">{debugInfo.stats_vehicles}</span></p>
+                  )}
+                  {debugInfo.stats_source && (
+                    <p>Distance source: <span className="font-mono font-bold">{String(debugInfo.stats_source)}</span></p>
+                  )}
+                  {activity.distance_source && (
+                    <p>Used source: <span className="font-mono font-bold">{activity.distance_source}</span></p>
+                  )}
+                  {debugInfo.sample_trip_keys && (
+                    <p>Trip fields: <span className="font-mono font-bold text-xs break-all">{debugInfo.sample_trip_keys.join(', ')}</span></p>
+                  )}
+                  {debugInfo.errors?.length > 0 && (
+                    <div className="mt-2 text-rose-500">
+                      <p className="font-semibold">Errors:</p>
+                      {debugInfo.errors.map((e, i) => (
+                        <p key={i} className="break-all font-mono">{e}</p>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </details>
+          )}
 
           {/* Day-by-day table */}
           <Card className="overflow-hidden">

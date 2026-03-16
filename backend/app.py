@@ -2523,13 +2523,133 @@ def api_vehicles_activity():
         else:
             break
 
-    # Group trips by vehicle and then by day
-    # Trip object structure (Samsara):
-    #   tripStartTime, tripEndTime, distanceMeters,
+    # ---------- Supplement with vehicle stats history for accurate distance ----------
+    # Samsara recommends /fleet/vehicles/stats/history with obdOdometerMeters
+    # or gpsDistanceMeters for the most accurate distance data.
+    stats_daily_km = {}  # vid -> {date_str -> km}
+    try:
+        ids_for_stats = ','.join(vehicle_ids[:50])
+        stat_types = 'obdOdometerMeters,gpsDistanceMeters'
+        stats_after = None
+        all_stats = {vid: [] for vid in vehicle_ids}
+
+        for _ in range(50):  # max pages
+            stat_params = {
+                'vehicleIds': ids_for_stats,
+                'types': stat_types,
+                'startTime': start_time,
+                'endTime': end_time,
+            }
+            if stats_after:
+                stat_params['after'] = stats_after
+
+            debug_info['api_calls'] += 1
+            sresp = http_requests.get(
+                f'{SAMSARA_API_BASE}/fleet/vehicles/stats/history',
+                headers=headers, params=stat_params, timeout=30,
+            )
+            if sresp.status_code != 200:
+                debug_info['errors'].append(f'stats/history HTTP {sresp.status_code}: {sresp.text[:300]}')
+                break
+            sdata = sresp.json()
+
+            for entry in sdata.get('data', []):
+                vid = entry.get('id', '')
+                if vid not in all_stats:
+                    all_stats[vid] = []
+                # Each entry has obdOdometerMeters and/or gpsDistanceMeters arrays
+                for stat_type in ['obdOdometerMeters', 'gpsDistanceMeters']:
+                    for point in entry.get(stat_type, []):
+                        val = point.get('value', 0) or 0
+                        ts = point.get('time', '')
+                        if val and ts:
+                            all_stats[vid].append({
+                                'type': stat_type,
+                                'value': float(val),
+                                'time': ts,
+                            })
+
+            spag = sdata.get('pagination', {})
+            if spag.get('hasNextPage') and spag.get('endCursor'):
+                stats_after = spag['endCursor']
+            else:
+                break
+
+        # Calculate daily distance from stats: for each vehicle and each day,
+        # find the min and max odometer/distance reading and take the difference.
+        for vid, points in all_stats.items():
+            if not points:
+                continue
+
+            # Prefer obdOdometerMeters, fall back to gpsDistanceMeters
+            obd_points = [p for p in points if p['type'] == 'obdOdometerMeters']
+            gps_points = [p for p in points if p['type'] == 'gpsDistanceMeters']
+            use_points = obd_points if obd_points else gps_points
+
+            if not use_points:
+                continue
+
+            # Group by day (CET)
+            day_readings = {}  # date_str -> list of values
+            for p in use_points:
+                try:
+                    dt = datetime.fromisoformat(
+                        p['time'].replace('Z', '+00:00')
+                    ).astimezone(CET)
+                    day_key = dt.strftime('%Y-%m-%d')
+                    if day_key not in day_readings:
+                        day_readings[day_key] = []
+                    day_readings[day_key].append(p['value'])
+                except Exception:
+                    continue
+
+            if vid not in stats_daily_km:
+                stats_daily_km[vid] = {}
+
+            # Also calculate cross-day: sort all readings by value to get total range
+            all_values_by_day = sorted(day_readings.keys())
+            for day_key in all_values_by_day:
+                readings = day_readings[day_key]
+                if len(readings) >= 2:
+                    diff = max(readings) - min(readings)
+                    stats_daily_km[vid][day_key] = round(diff / 1000, 1)
+                elif len(readings) == 1:
+                    # Only one reading this day - try to get distance from
+                    # previous day's last reading
+                    idx = all_values_by_day.index(day_key)
+                    if idx > 0:
+                        prev_day = all_values_by_day[idx - 1]
+                        prev_max = max(day_readings[prev_day])
+                        diff = readings[0] - prev_max
+                        if diff > 0:
+                            stats_daily_km[vid][day_key] = round(diff / 1000, 1)
+
+        debug_info['stats_vehicles'] = len([v for v in all_stats.values() if v])
+        debug_info['stats_daily_entries'] = sum(len(d) for d in stats_daily_km.values())
+        # Determine which source was used
+        has_obd = any(p['type'] == 'obdOdometerMeters' for pts in all_stats.values() for p in pts)
+        has_gps = any(p['type'] == 'gpsDistanceMeters' for pts in all_stats.values() for p in pts)
+        debug_info['stats_source'] = 'obdOdometer' if has_obd else 'gpsDistance' if has_gps else 'none'
+    except Exception as exc:
+        debug_info['errors'].append(f'stats/history fallback error: {str(exc)}')
+        app.logger.warning(f'Stats history fallback error: {exc}')
+
+    # ---------- Group trips by vehicle and then by day ----------
+    # Trip object structure (Samsara) may vary:
+    #   tripStartTime, tripEndTime, distanceMeters (or other field names),
     #   startLocation{latitude,longitude,formattedAddress},
     #   endLocation{latitude,longitude,formattedAddress},
     #   asset{id,name}
     vehicle_trips = {}  # vid -> list of trips
+
+    # Log a sample raw trip for debugging
+    if all_trips:
+        sample = all_trips[0]
+        debug_info['sample_trip_keys'] = list(sample.keys())
+        # Include sample values for distance-related fields
+        for k in sample.keys():
+            if 'dist' in k.lower() or 'meter' in k.lower() or 'mile' in k.lower() or 'km' in k.lower() or 'odometer' in k.lower():
+                debug_info[f'sample_{k}'] = sample.get(k)
 
     for trip in all_trips:
         asset = trip.get('asset', {})
@@ -2548,11 +2668,20 @@ def api_vehicles_activity():
 
     for vid, vdata in vehicle_trips.items():
         daily = {}  # date_str -> {first_start, last_end, total_meters, trips_count, end_address}
+        vid_stats = stats_daily_km.get(vid, {})
 
         for trip in vdata['trips']:
             t_start = trip.get('tripStartTime', '')
             t_end = trip.get('tripEndTime', '')
-            dist = trip.get('distanceMeters', 0) or 0
+            # Try multiple field names for distance
+            dist = (
+                trip.get('distanceMeters')
+                or trip.get('distance_meters')
+                or trip.get('distanceM')
+                or trip.get('distance')
+                or 0
+            )
+            dist = float(dist) if dist else 0
 
             if not t_start:
                 continue
@@ -2598,11 +2727,23 @@ def api_vehicles_activity():
         # Build daily entries
         days = []
         total_km = 0.0
+        distance_source = 'trips'
+
         for day_key in sorted(daily.keys()):
             d = daily[day_key]
             start_dt = d['first_start']
             end_dt = d['last_end']
-            dist_km = round(d['total_meters'] / 1000, 1)
+            trip_dist_km = round(d['total_meters'] / 1000, 1)
+            stats_dist_km = vid_stats.get(day_key, 0)
+
+            # Use trip distance if available, otherwise fall back to stats
+            if trip_dist_km > 0:
+                dist_km = trip_dist_km
+            elif stats_dist_km > 0:
+                dist_km = stats_dist_km
+                distance_source = 'stats'
+            else:
+                dist_km = 0
             total_km += dist_km
 
             dur_min = int((end_dt - start_dt).total_seconds() / 60) if end_dt > start_dt else 0
@@ -2622,13 +2763,60 @@ def api_vehicles_activity():
                 'last_location': d['end_address'],
             })
 
+        # If all trip distances were 0, try to fill entirely from stats
+        if total_km == 0 and vid_stats:
+            distance_source = 'stats'
+            total_km = 0.0
+            for day_entry in days:
+                sk = vid_stats.get(day_entry['date'], 0)
+                if sk > 0:
+                    day_entry['distance_km'] = sk
+                    total_km += sk
+            total_km = round(total_km, 1)
+
         results.append({
             'vehicle_id': vid,
             'vehicle_name': vdata['name'],
             'days': days,
             'total_km': round(total_km, 1),
             'active_days': len(days),
+            'distance_source': distance_source,
         })
+
+    # Add vehicles that have stats data but no trips
+    for vid in vehicle_ids:
+        if vid not in vehicle_trips and vid in stats_daily_km and stats_daily_km[vid]:
+            vid_stats = stats_daily_km[vid]
+            vname = vid  # frontend maps to real name from vehicle list
+
+            days = []
+            total_km = 0.0
+            for day_key in sorted(vid_stats.keys()):
+                sk = vid_stats[day_key]
+                if sk > 0:
+                    days.append({
+                        'date': day_key,
+                        'begin_driving': '',
+                        'last_driving': '',
+                        'duration_h': 0,
+                        'duration_m': 0,
+                        'duration_hm': '-',
+                        'duration_minutes': 0,
+                        'distance_km': sk,
+                        'trips_count': 0,
+                        'last_location': '',
+                    })
+                    total_km += sk
+
+            if days:
+                results.append({
+                    'vehicle_id': vid,
+                    'vehicle_name': vname,
+                    'days': days,
+                    'total_km': round(total_km, 1),
+                    'active_days': len(days),
+                    'distance_source': 'stats',
+                })
 
     results.sort(key=lambda r: r['vehicle_name'])
 

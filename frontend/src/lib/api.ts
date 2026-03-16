@@ -420,6 +420,7 @@ export interface VehicleActivity {
   days: VehicleDayActivity[];
   total_km: number;
   active_days: number;
+  distance_source?: string;
 }
 
 export interface VehicleDebugInfo {
@@ -428,6 +429,10 @@ export interface VehicleDebugInfo {
   vehicles_with_data: number;
   total_days: number;
   errors: string[];
+  sample_trip_keys?: string[];
+  stats_vehicles?: number;
+  stats_source?: string;
+  [key: string]: unknown;
 }
 
 export interface SamsaraVehicle {
