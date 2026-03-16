@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useRef } from 'react';
-import { Upload, Filter, AlertCircle, Truck, Calendar, ChevronDown, ChevronRight, X, FileText } from 'lucide-react';
+import { Upload, Search, AlertCircle, Truck, Calendar, ChevronDown, ChevronRight, X, FileText } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { Card } from '../components/Card';
 
@@ -136,7 +136,7 @@ export function TollCollectPage() {
   const [error, setError] = useState('');
 
   // Filters
-  const [selectedPlate, setSelectedPlate] = useState<string>('');
+  const [searchText, setSearchText] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [timeFrom, setTimeFrom] = useState('');
@@ -162,7 +162,7 @@ export function TollCollectPage() {
         }
         setRows(parsed);
         // Reset filters
-        setSelectedPlate('');
+        setSearchText('');
         setDateFrom('');
         setDateTo('');
         setTimeFrom('');
@@ -188,23 +188,21 @@ export function TollCollectPage() {
     }
   }, []);
 
-  // Available plates
-  const plates = useMemo(() => {
-    const s = new Set(rows.map(r => r.plate).filter(Boolean));
-    return Array.from(s).sort();
-  }, [rows]);
-
   // Filtered rows
   const filtered = useMemo(() => {
+    const q = searchText.toLowerCase().trim();
     return rows.filter(r => {
-      if (selectedPlate && r.plate !== selectedPlate) return false;
+      if (q) {
+        const haystack = `${r.plate} ${r.route} ${r.bookingNr} ${r.bookingType} ${r.type}`.toLowerCase();
+        if (!haystack.includes(q)) return false;
+      }
       if (dateFrom && r.date < dateFrom) return false;
       if (dateTo && r.date > dateTo) return false;
       if (timeFrom && r.time < timeFrom) return false;
       if (timeTo && r.time > timeTo) return false;
       return true;
     });
-  }, [rows, selectedPlate, dateFrom, dateTo, timeFrom, timeTo]);
+  }, [rows, searchText, dateFrom, dateTo, timeFrom, timeTo]);
 
   // Group by vehicle
   const byVehicle = useMemo(() => {
@@ -232,7 +230,7 @@ export function TollCollectPage() {
     });
   };
 
-  const hasFilters = selectedPlate || dateFrom || dateTo || timeFrom || timeTo;
+  const hasFilters = searchText || dateFrom || dateTo || timeFrom || timeTo;
 
   return (
     <div className="space-y-6">
@@ -303,11 +301,11 @@ export function TollCollectPage() {
           <Card>
             <div className="p-4">
               <div className="flex items-center gap-2 mb-3 text-sm font-medium text-gray-700 dark:text-gray-300">
-                <Filter className="w-4 h-4" />
+                <Search className="w-4 h-4" />
                 {t('tollFilters')}
                 {hasFilters && (
                   <button
-                    onClick={() => { setSelectedPlate(''); setDateFrom(''); setDateTo(''); setTimeFrom(''); setTimeTo(''); }}
+                    onClick={() => { setSearchText(''); setDateFrom(''); setDateTo(''); setTimeFrom(''); setTimeTo(''); }}
                     className="ml-2 text-xs text-blue-500 hover:text-blue-700"
                   >
                     {t('tollClearFilters')}
@@ -315,21 +313,29 @@ export function TollCollectPage() {
                 )}
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-                {/* Vehicle */}
-                <div>
+                {/* Search */}
+                <div className="col-span-2 sm:col-span-1">
                   <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
-                    {t('tollVehicle')}
+                    {t('tollSearch')}
                   </label>
-                  <select
-                    value={selectedPlate}
-                    onChange={e => setSelectedPlate(e.target.value)}
-                    className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-2 py-1.5 text-sm text-gray-900 dark:text-white"
-                  >
-                    <option value="">{t('tollAllVehicles')}</option>
-                    {plates.map(p => (
-                      <option key={p} value={p}>{p}</option>
-                    ))}
-                  </select>
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                    <input
+                      type="text"
+                      value={searchText}
+                      onChange={e => setSearchText(e.target.value)}
+                      placeholder={t('tollSearchPlaceholder')}
+                      className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 pl-8 pr-2 py-1.5 text-sm text-gray-900 dark:text-white placeholder-gray-400"
+                    />
+                    {searchText && (
+                      <button
+                        onClick={() => setSearchText('')}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
                 </div>
                 {/* Date from */}
                 <div>
