@@ -7,6 +7,7 @@ or Flask's send_from_directory during development.
 """
 
 import csv
+import math
 import hashlib
 import io
 import json
@@ -132,6 +133,17 @@ FRONTEND_DIR = os.environ.get(
 # ---------------------------------------------------------------------------
 # Database
 # ---------------------------------------------------------------------------
+
+
+def _haversine_km(lat1, lon1, lat2, lon2):
+    """Calculate distance in km between two GPS points using Haversine formula."""
+    R = 6371.0  # Earth radius in km
+    dlat = math.radians(lat2 - lat1)
+    dlon = math.radians(lon2 - lon1)
+    a = (math.sin(dlat / 2) ** 2 +
+         math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) *
+         math.sin(dlon / 2) ** 2)
+    return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
 
 def _get_db() -> sqlite3.Connection:
@@ -2527,8 +2539,10 @@ def api_vehicles_activity():
     # Samsara recommends /fleet/vehicles/stats/history with obdOdometerMeters
     # or gpsDistanceMeters for the most accurate distance data.
     stats_daily_km = {}  # vid -> {date_str -> km}
-    # Also collect GPS last-location per vehicle per day
+    # Also collect GPS last-location per vehicle per day + all points for distance
     gps_daily_location = {}  # vid -> {date_str -> {'address': ..., 'lat': ..., 'lng': ..., 'time': ...}}
+    gps_daily_points = {}    # vid -> {date_str -> [(time, lat, lng), ...]}
+    gps_daily_km = {}        # vid -> {date_str -> distance_km}
 
     try:
         ids_for_stats = ','.join(vehicle_ids[:50])
@@ -2687,6 +2701,14 @@ def api_vehicles_activity():
                     reverse_geo = gps_point.get('reverseGeo', {}) or {}
                     address = reverse_geo.get('formattedLocation', '')
 
+                    # Collect all points for distance calculation
+                    if vid not in gps_daily_points:
+                        gps_daily_points[vid] = {}
+                    if day_key not in gps_daily_points[vid]:
+                        gps_daily_points[vid][day_key] = []
+                    if lat and lng:
+                        gps_daily_points[vid][day_key].append((ts, lat, lng))
+
                     # Keep the latest GPS point per day (overwrite with later times)
                     existing = gps_daily_location[vid].get(day_key)
                     if not existing or ts > existing.get('time', ''):
@@ -2703,8 +2725,29 @@ def api_vehicles_activity():
             else:
                 break
 
+        # Calculate daily distance from GPS breadcrumbs (sum of haversine between consecutive points)
+        for vid, day_points in gps_daily_points.items():
+            if vid not in gps_daily_km:
+                gps_daily_km[vid] = {}
+            for day_key, points in day_points.items():
+                if len(points) < 2:
+                    continue
+                # Sort by timestamp
+                points.sort(key=lambda p: p[0])
+                total_dist = 0.0
+                for i in range(1, len(points)):
+                    _, lat1, lng1 = points[i - 1]
+                    _, lat2, lng2 = points[i]
+                    d = _haversine_km(lat1, lng1, lat2, lng2)
+                    # Skip GPS jumps > 10km between 5-second readings (noise/teleportation)
+                    if d < 10.0:
+                        total_dist += d
+                if total_dist > 0.1:  # ignore < 100m
+                    gps_daily_km[vid][day_key] = round(total_dist, 1)
+
         debug_info['gps_points'] = gps_point_count
         debug_info['gps_vehicles_with_location'] = len([v for v in gps_daily_location.values() if v])
+        debug_info['gps_distance_days'] = sum(len(d) for d in gps_daily_km.values())
     except Exception as exc:
         debug_info['errors'].append(f'gps/history location error: {str(exc)}')
         app.logger.warning(f'GPS history location error: {exc}')
@@ -2811,12 +2854,17 @@ def api_vehicles_activity():
             trip_dist_km = round(d['total_meters'] / 1000, 1)
             stats_dist_km = vid_stats.get(day_key, 0)
 
-            # Use trip distance if available, otherwise fall back to stats
+            gps_dist_km = gps_daily_km.get(vid, {}).get(day_key, 0)
+
+            # Use trip distance if available, then stats odometer, then GPS breadcrumbs
             if trip_dist_km > 0:
                 dist_km = trip_dist_km
             elif stats_dist_km > 0:
                 dist_km = stats_dist_km
                 distance_source = 'stats'
+            elif gps_dist_km > 0:
+                dist_km = gps_dist_km
+                distance_source = 'gps'
             else:
                 dist_km = 0
             total_km += dist_km
@@ -2844,7 +2892,7 @@ def api_vehicles_activity():
                 'last_location': last_loc,
             })
 
-        # If all trip distances were 0, try to fill entirely from stats
+        # If all trip distances were 0, try to fill from stats, then GPS
         if total_km == 0 and vid_stats:
             distance_source = 'stats'
             total_km = 0.0
@@ -2853,6 +2901,16 @@ def api_vehicles_activity():
                 if sk > 0:
                     day_entry['distance_km'] = sk
                     total_km += sk
+            total_km = round(total_km, 1)
+
+        if total_km == 0 and vid in gps_daily_km and gps_daily_km[vid]:
+            distance_source = 'gps'
+            total_km = 0.0
+            for day_entry in days:
+                gk = gps_daily_km.get(vid, {}).get(day_entry['date'], 0)
+                if gk > 0:
+                    day_entry['distance_km'] = gk
+                    total_km += gk
             total_km = round(total_km, 1)
 
         results.append({
@@ -2898,6 +2956,41 @@ def api_vehicles_activity():
                     'total_km': round(total_km, 1),
                     'active_days': len(days),
                     'distance_source': 'stats',
+                })
+
+    # Add vehicles that have only GPS data (no trips, no stats)
+    vids_with_results = {r['vehicle_id'] for r in results}
+    for vid in vehicle_ids:
+        if vid not in vids_with_results and vid in gps_daily_km and gps_daily_km[vid]:
+            vname = vid
+            days = []
+            total_km = 0.0
+            for day_key in sorted(gps_daily_km[vid].keys()):
+                gk = gps_daily_km[vid][day_key]
+                if gk > 0:
+                    gps_loc = gps_daily_location.get(vid, {}).get(day_key, {})
+                    days.append({
+                        'date': day_key,
+                        'begin_driving': '',
+                        'last_driving': '',
+                        'duration_h': 0,
+                        'duration_m': 0,
+                        'duration_hm': '-',
+                        'duration_minutes': 0,
+                        'distance_km': gk,
+                        'trips_count': 0,
+                        'last_location': gps_loc.get('address', ''),
+                    })
+                    total_km += gk
+
+            if days:
+                results.append({
+                    'vehicle_id': vid,
+                    'vehicle_name': vname,
+                    'days': days,
+                    'total_km': round(total_km, 1),
+                    'active_days': len(days),
+                    'distance_source': 'gps',
                 })
 
     results.sort(key=lambda r: r['vehicle_name'])
