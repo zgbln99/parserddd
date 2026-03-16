@@ -2853,12 +2853,9 @@ def api_vehicles_activity():
         _trips_missing_addr = True
 
     # ---- Step 3: Conditionally fetch stats (odometer) if trips lack km ----
+    # Note: stats/odometer always runs if needed — skip_location only skips GPS
     stats_daily_km = {}
-    if skip_location:
-        app.logger.info('Stats fetch skipped - skip_location flag')
-        debug_info['stats_skipped'] = True
-        debug_info['stats_source'] = 'skipped_by_user'
-    elif _days_missing_km:
+    if _days_missing_km:
         app.logger.info('Stats fetch needed - some trips missing distance')
         stats_daily_km, stats_info = _fetch_stats()
         debug_info['api_calls'] += stats_info['api_calls']
