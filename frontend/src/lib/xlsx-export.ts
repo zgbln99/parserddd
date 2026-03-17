@@ -126,12 +126,15 @@ export interface TollExportRow {
   route: string;
   bookingNr: string;
   bookingType: string;
+  type: string;
   axleClass: string;
   weightClass: string;
   emissionClass: string;
   co2Class: string;
   km: number;
   amount: number;
+  statementNr: string;
+  raw: Record<string, string>;
 }
 
 export interface TollVehicleGroup {
@@ -141,8 +144,9 @@ export interface TollVehicleGroup {
   totalAmount: number;
 }
 
-function fmtDe(n: number, decimals = 2): string {
-  return n.toLocaleString('de-DE', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+function applyNumberFormat(ws: XLSX.WorkSheet, row: number, col: number, fmt: string) {
+  const cell = XLSX.utils.encode_cell({ r: row, c: col });
+  if (ws[cell]) ws[cell].z = fmt;
 }
 
 export function exportTollToXlsx(
@@ -157,110 +161,143 @@ export function exportTollToXlsx(
   const grandTotalTrips = vehicles.reduce((s, v) => s + v.rows.length, 0);
 
   // ── Sheet 1: Übersicht (Summary) ──
+  const ovHeaders = ['Kennzeichen', 'Fahrten', 'Kilometer', 'Mautbetrag (EUR)'];
+  const ovRows: (string | number)[][] = vehicles.map(v => [v.plate, v.rows.length, v.totalKm, v.totalAmount]);
+  const ovFooter = ['GESAMT / RAZEM', grandTotalTrips, grandTotalKm, grandTotalAmount];
+
   const overviewData: (string | number)[][] = [
     [companyName],
     ['Mautaufstellung / Zestawienie opłat drogowych'],
     [`Zeitraum / Okres: ${period}`],
     [],
-    ['Kennzeichen', 'Fahrten', 'Kilometer', 'Mautbetrag (EUR)'],
+    ovHeaders,
+    ...ovRows,
+    [],
+    ovFooter,
   ];
-  for (const v of vehicles) {
-    overviewData.push([v.plate, v.rows.length, v.totalKm, v.totalAmount]);
-  }
-  overviewData.push([]);
-  overviewData.push(['GESAMT / RAZEM', grandTotalTrips, grandTotalKm, grandTotalAmount]);
 
   const wsOverview = XLSX.utils.aoa_to_sheet(overviewData);
-  // Column widths
   wsOverview['!cols'] = [{ wch: 20 }, { wch: 12 }, { wch: 14 }, { wch: 18 }];
-  // Merge company name across header
   wsOverview['!merges'] = [
     { s: { r: 0, c: 0 }, e: { r: 0, c: 3 } },
     { s: { r: 1, c: 0 }, e: { r: 1, c: 3 } },
     { s: { r: 2, c: 0 }, e: { r: 2, c: 3 } },
   ];
-  // Format km and amount columns as numbers with 2 decimals
+  // AutoFilter on header row (row 4)
+  wsOverview['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 4, c: 0 }, e: { r: 4 + vehicles.length, c: 3 } }) };
+  // Number formats
   for (let r = 5; r < 5 + vehicles.length; r++) {
-    const kmCell = XLSX.utils.encode_cell({ r, c: 2 });
-    const amtCell = XLSX.utils.encode_cell({ r, c: 3 });
-    if (wsOverview[kmCell]) wsOverview[kmCell].z = '#,##0.0';
-    if (wsOverview[amtCell]) wsOverview[amtCell].z = '#,##0.00 €';
+    applyNumberFormat(wsOverview, r, 2, '#,##0.0');
+    applyNumberFormat(wsOverview, r, 3, '#,##0.00 €');
   }
-  // Format totals row
   const totalRow = 5 + vehicles.length + 1;
-  const kmTotalCell = XLSX.utils.encode_cell({ r: totalRow, c: 2 });
-  const amtTotalCell = XLSX.utils.encode_cell({ r: totalRow, c: 3 });
-  if (wsOverview[kmTotalCell]) wsOverview[kmTotalCell].z = '#,##0.0';
-  if (wsOverview[amtTotalCell]) wsOverview[amtTotalCell].z = '#,##0.00 €';
+  applyNumberFormat(wsOverview, totalRow, 2, '#,##0.0');
+  applyNumberFormat(wsOverview, totalRow, 3, '#,##0.00 €');
 
   XLSX.utils.book_append_sheet(wb, wsOverview, 'Übersicht');
 
   // ── Sheet per vehicle ──
+  const vehHeaders = [
+    'Nr.', 'Datum', 'Uhrzeit', 'Strecke', 'Buchungsnr.', 'Art',
+    'Buchungsart', 'Achsklasse', 'Gewichtsklasse', 'Schadstoffklasse',
+    'CO₂-Klasse', 'Mautaufstellungsnr.', 'Kilometer', 'Mautbetrag (EUR)',
+  ];
+  const vehColWidths = [
+    { wch: 5 },   // Nr.
+    { wch: 12 },  // Datum
+    { wch: 8 },   // Uhrzeit
+    { wch: 40 },  // Strecke
+    { wch: 18 },  // Buchungsnr
+    { wch: 10 },  // Art
+    { wch: 16 },  // Buchungsart
+    { wch: 12 },  // Achsklasse
+    { wch: 14 },  // Gewichtsklasse
+    { wch: 16 },  // Schadstoffklasse
+    { wch: 12 },  // CO2-Klasse
+    { wch: 20 },  // Mautaufstellungsnr.
+    { wch: 12 },  // Kilometer
+    { wch: 16 },  // Mautbetrag
+  ];
+  const colCount = vehHeaders.length; // 14
+
   for (const v of vehicles) {
     const sheetName = v.plate.replace(/[\\/*?[\]:]/g, '').slice(0, 28);
+    const sorted = [...v.rows].sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
+
     const data: (string | number)[][] = [
       [companyName],
       [`Fahrzeug / Pojazd: ${v.plate}`],
       [`Zeitraum / Okres: ${period}`],
       [],
-      ['Nr.', 'Datum', 'Uhrzeit', 'Strecke', 'Buchungsnr.', 'Typ', 'Achsklasse', 'CO₂-Klasse', 'Kilometer', 'Mautbetrag (EUR)'],
+      vehHeaders,
     ];
 
-    v.rows
-      .sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time))
-      .forEach((r, i) => {
-        data.push([
-          i + 1,
-          r.date,
-          r.time,
-          r.route,
-          r.bookingNr,
-          r.bookingType,
-          r.axleClass,
-          r.co2Class,
-          r.km,
-          r.amount,
-        ]);
-      });
+    sorted.forEach((r, i) => {
+      data.push([
+        i + 1, r.date, r.time, r.route, r.bookingNr, r.type,
+        r.bookingType, r.axleClass, r.weightClass, r.emissionClass,
+        r.co2Class, r.statementNr, r.km, r.amount,
+      ]);
+    });
 
+    // Totals with SUM formulas
+    const firstDataRow = 6; // 1-indexed row 6 (0-indexed row 5)
+    const lastDataRow = firstDataRow + sorted.length - 1;
+    const kmCol = XLSX.utils.encode_col(12);  // M
+    const amtCol = XLSX.utils.encode_col(13); // N
     data.push([]);
-    data.push(['', '', '', '', '', '', '', 'GESAMT / RAZEM:', v.totalKm, v.totalAmount]);
+    const footerIdx = data.length;
+    data.push([
+      '', '', '', '', '', '', '', '', '', '', '',
+      'GESAMT / RAZEM:',
+      { f: `SUM(${kmCol}${firstDataRow}:${kmCol}${lastDataRow})` } as unknown as number,
+      { f: `SUM(${amtCol}${firstDataRow}:${amtCol}${lastDataRow})` } as unknown as number,
+    ]);
 
     const ws = XLSX.utils.aoa_to_sheet(data);
-    ws['!cols'] = [
-      { wch: 5 },   // Nr.
-      { wch: 12 },  // Datum
-      { wch: 8 },   // Uhrzeit
-      { wch: 40 },  // Strecke
-      { wch: 16 },  // Buchungsnr
-      { wch: 14 },  // Typ
-      { wch: 12 },  // Achsklasse
-      { wch: 12 },  // CO2-Klasse
-      { wch: 12 },  // Kilometer
-      { wch: 16 },  // Mautbetrag
-    ];
+    ws['!cols'] = vehColWidths;
     ws['!merges'] = [
-      { s: { r: 0, c: 0 }, e: { r: 0, c: 9 } },
-      { s: { r: 1, c: 0 }, e: { r: 1, c: 9 } },
-      { s: { r: 2, c: 0 }, e: { r: 2, c: 9 } },
+      { s: { r: 0, c: 0 }, e: { r: 0, c: colCount - 1 } },
+      { s: { r: 1, c: 0 }, e: { r: 1, c: colCount - 1 } },
+      { s: { r: 2, c: 0 }, e: { r: 2, c: colCount - 1 } },
     ];
+    // AutoFilter on data
+    ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 4, c: 0 }, e: { r: 4 + sorted.length, c: colCount - 1 } }) };
 
-    // Format number cells
-    for (let r = 5; r < 5 + v.rows.length; r++) {
-      const kmCell = XLSX.utils.encode_cell({ r, c: 8 });
-      const amtCell = XLSX.utils.encode_cell({ r, c: 9 });
-      if (ws[kmCell]) ws[kmCell].z = '#,##0.0';
-      if (ws[amtCell]) ws[amtCell].z = '#,##0.00 €';
+    // Number formats for data rows
+    for (let r = 5; r < 5 + sorted.length; r++) {
+      applyNumberFormat(ws, r, 12, '#,##0.0');
+      applyNumberFormat(ws, r, 13, '#,##0.00 €');
     }
     // Format totals
-    const tRow = 5 + v.rows.length + 1;
-    const kmT = XLSX.utils.encode_cell({ r: tRow, c: 8 });
-    const amtT = XLSX.utils.encode_cell({ r: tRow, c: 9 });
-    if (ws[kmT]) ws[kmT].z = '#,##0.0';
-    if (ws[amtT]) ws[amtT].z = '#,##0.00 €';
+    applyNumberFormat(ws, footerIdx, 12, '#,##0.0');
+    applyNumberFormat(ws, footerIdx, 13, '#,##0.00 €');
 
     XLSX.utils.book_append_sheet(wb, ws, sheetName);
   }
+
+  // ── Last sheet: Rohdaten / Dane surowe (all raw CSV columns) ──
+  // Collect all unique raw column headers
+  const rawHeaderSet = new Set<string>();
+  for (const v of vehicles) {
+    for (const r of v.rows) {
+      for (const key of Object.keys(r.raw)) rawHeaderSet.add(key);
+    }
+  }
+  const rawHeaders = Array.from(rawHeaderSet);
+  const allRawRows: string[][] = [];
+  for (const v of vehicles) {
+    const sorted = [...v.rows].sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
+    for (const r of sorted) {
+      allRawRows.push(rawHeaders.map(h => r.raw[h] || ''));
+    }
+  }
+
+  const wsRaw = XLSX.utils.aoa_to_sheet([rawHeaders, ...allRawRows]);
+  wsRaw['!cols'] = rawHeaders.map(h => ({ wch: Math.max(h.length + 2, 12) }));
+  wsRaw['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: allRawRows.length, c: rawHeaders.length - 1 } }) };
+
+  XLSX.utils.book_append_sheet(wb, wsRaw, 'Rohdaten');
 
   const safePeriod = period.replace(/[^a-zA-Z0-9_-]/g, '') || 'Maut';
   XLSX.writeFile(wb, `Maut_${safePeriod}_${vehicles.length}Fzg.xlsx`);
