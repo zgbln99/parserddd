@@ -926,7 +926,7 @@ function MonthlyGridCopy({
       if (absence) return absence;
       return fmtWork(dayWorkMap[d] || 0);
     });
-    const tsv = [...row3Values, '', ...summaryValues].join('\t');
+    const tsv = [...row3Values, ...summaryValues].join('\t');
 
     navigator.clipboard.writeText(tsv).then(() => {
       setCopied(true);
@@ -975,7 +975,6 @@ function MonthlyGridCopy({
               {dayNumbers.map((d) => (
                 <th key={d} className={thCls}>{d}</th>
               ))}
-              <th className="w-1" />
               {summaryHeaders.map((h) => (
                 <th key={h} className={thCls}>{h}</th>
               ))}
@@ -988,7 +987,6 @@ function MonthlyGridCopy({
                   <th key={i} className={`${thCls} ${isWeekend ? '!text-red-400 !bg-red-50 dark:!bg-red-900/20' : ''}`}>{wd}</th>
                 );
               })}
-              <th className="w-1" />
               {summaryHeaders.map((h) => (
                 <th key={`e-${h}`} className="w-1" />
               ))}
@@ -1032,7 +1030,6 @@ function MonthlyGridCopy({
                   </td>
                 );
               })}
-              <td className="w-1" />
               {summaryValues.map((v, i) => (
                 <td key={i} className={`${tdCls} font-semibold`}>
                   {v || <span className="text-gray-300 dark:text-gray-600">&mdash;</span>}
