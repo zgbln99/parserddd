@@ -641,18 +641,26 @@ def minutes_to_decimal(minutes):
 
 def build_timeline(records):
     all_intervals = []
-    sorted_records = sorted(records, key=lambda r: r.get('activity_record_date', ''))
-    for record in sorted_records:
-        date_str = record.get('activity_record_date')
-        if not date_str:
-            continue
+    sorted_records = [r for r in sorted(records, key=lambda r: r.get('activity_record_date', ''))
+                      if r.get('activity_record_date')]
+    for rec_idx, record in enumerate(sorted_records):
+        date_str = record['activity_record_date']
+        is_last_record = rec_idx == len(sorted_records) - 1
         base_date = datetime.strptime(date_str[:10], '%Y-%m-%d').replace(tzinfo=UTC)
         changes = record.get('activity_change_info') or []
         for i, change in enumerate(changes):
             start_min = change['minutes']
             work_type = change['work_type']
             is_manual = not change.get('card_present', True)
-            end_min = changes[i + 1]['minutes'] if i + 1 < len(changes) else 1440
+            if i + 1 < len(changes):
+                end_min = changes[i + 1]['minutes']
+            elif is_last_record and work_type != 0:
+                # Last activity on the last daily record: do NOT extend non-rest
+                # activity to midnight (1440).  The card was likely removed or the
+                # download happened here – extending would add phantom work hours.
+                end_min = start_min
+            else:
+                end_min = 1440
             if end_min > start_min:
                 start_dt = (base_date + timedelta(minutes=start_min)).astimezone(CET).replace(tzinfo=None)
                 end_dt = (base_date + timedelta(minutes=end_min)).astimezone(CET).replace(tzinfo=None)
