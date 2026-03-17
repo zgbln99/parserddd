@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback, useRef } from 'react';
 import { Upload, AlertCircle, Truck, ChevronDown, ChevronRight, X, FileText, Download, Sun, Moon, Clock } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { useI18n } from '../i18n';
 import { Card } from '../components/Card';
 import { exportSamsaraKmToXlsx } from '../lib/xlsx-export';
@@ -38,14 +39,31 @@ interface VehicleSummary {
 // ─── CSV Parsing ───
 
 function parseSamsaraTimestamp(raw: string): Date | null {
-  // Samsara format: "Feb 2 7:12" or "Feb 2 8:00" — year from context
-  // Also handle: "2025-02-02 07:12", "02.02.2025 07:12", "Feb 2, 2025 7:12"
   const s = raw.trim();
+  if (!s) return null;
+
+  // Excel serial date number (e.g. "45689.3" or "45689.29861111")
+  const serialMatch = s.match(/^(\d{4,5})(\.\d+)?$/);
+  if (serialMatch) {
+    const serial = parseFloat(s);
+    if (serial > 40000 && serial < 60000) {
+      // Excel epoch: Jan 0, 1900 (with the 1900 bug offset)
+      const epoch = new Date(1899, 11, 30);
+      const ms = epoch.getTime() + serial * 86400000;
+      return new Date(ms);
+    }
+  }
 
   // Try ISO-like: YYYY-MM-DD HH:MM
   const isoMatch = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})\s+(\d{1,2}):(\d{2})/);
   if (isoMatch) {
     return new Date(+isoMatch[1], +isoMatch[2] - 1, +isoMatch[3], +isoMatch[4], +isoMatch[5]);
+  }
+
+  // ISO date+time with T: YYYY-MM-DDTHH:MM
+  const isoTMatch = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})T(\d{1,2}):(\d{2})/);
+  if (isoTMatch) {
+    return new Date(+isoTMatch[1], +isoTMatch[2] - 1, +isoTMatch[3], +isoTMatch[4], +isoTMatch[5]);
   }
 
   // Try German: DD.MM.YYYY HH:MM
@@ -54,7 +72,13 @@ function parseSamsaraTimestamp(raw: string): Date | null {
     return new Date(+deMatch[3], +deMatch[2] - 1, +deMatch[1], +deMatch[4], +deMatch[5]);
   }
 
-  // Samsara short: "Mon DD HH:MM" or "Mon DD, YYYY HH:MM"
+  // US format: MM/DD/YYYY HH:MM
+  const usMatch = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})/);
+  if (usMatch) {
+    return new Date(+usMatch[3], +usMatch[1] - 1, +usMatch[2], +usMatch[4], +usMatch[5]);
+  }
+
+  // Samsara short: "Mon DD HH:MM" or "Mon DD, YYYY HH:MM" or "Mon DD YYYY HH:MM"
   const months: Record<string, number> = {
     jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
     jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11,
@@ -68,6 +92,10 @@ function parseSamsaraTimestamp(raw: string): Date | null {
     }
   }
 
+  // Fallback: try native Date.parse for any other format
+  const d = new Date(s);
+  if (!isNaN(d.getTime()) && d.getFullYear() > 2000) return d;
+
   return null;
 }
 
@@ -78,18 +106,9 @@ function parseNumber(s: string): number {
   return isNaN(n) ? 0 : n;
 }
 
-function parseSamsaraCSV(text: string): SamsaraRow[] {
-  const lines = text.split(/\r?\n/).filter(l => l.trim());
-  if (lines.length < 2) return [];
-
-  // Detect delimiter
-  const firstLine = lines[0];
-  const delim = firstLine.split(';').length > firstLine.split(',').length ? ';' : ',';
-
-  const headers = lines[0].split(delim).map(h => h.replace(/^["']|["']$/g, '').trim());
+function rowsFromCells(headers: string[], dataRows: string[][]): SamsaraRow[] {
   const lower = headers.map(h => h.toLowerCase());
 
-  // Detect columns by known names (PL/DE/EN Samsara export)
   const findCol = (...patterns: string[]) =>
     lower.findIndex(h => patterns.some(p => h.includes(p)));
 
@@ -105,8 +124,7 @@ function parseSamsaraCSV(text: string): SamsaraRow[] {
   }
 
   const rows: SamsaraRow[] = [];
-  for (let i = 1; i < lines.length; i++) {
-    const cells = lines[i].split(delim).map(c => c.replace(/^["']|["']$/g, '').trim());
+  for (const cells of dataRows) {
     if (cells.length < 3) continue;
 
     const g = (idx: number) => (idx >= 0 && idx < cells.length) ? cells[idx] : '';
@@ -131,6 +149,37 @@ function parseSamsaraCSV(text: string): SamsaraRow[] {
   }
 
   return rows.sort((a, b) => a.ts.getTime() - b.ts.getTime());
+}
+
+function parseSamsaraCSV(text: string): SamsaraRow[] {
+  const lines = text.split(/\r?\n/).filter(l => l.trim());
+  if (lines.length < 2) return [];
+
+  const firstLine = lines[0];
+  const delim = firstLine.split(';').length > firstLine.split(',').length ? ';' : ',';
+
+  const headers = lines[0].split(delim).map(h => h.replace(/^["']|["']$/g, '').trim());
+  const dataRows = lines.slice(1).map(line =>
+    line.split(delim).map(c => c.replace(/^["']|["']$/g, '').trim())
+  );
+
+  return rowsFromCells(headers, dataRows);
+}
+
+function parseSamsaraXlsx(buffer: ArrayBuffer): SamsaraRow[] {
+  const wb = XLSX.read(buffer, { type: 'array' });
+  const sheetName = wb.SheetNames[0];
+  if (!sheetName) throw new Error('Pusty plik Excel');
+  const ws = wb.Sheets[sheetName];
+
+  // Convert to array of arrays (all as strings)
+  const aoa: string[][] = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' }) as string[][];
+  if (aoa.length < 2) throw new Error('Za mało danych w pliku');
+
+  const headers = aoa[0].map(h => String(h).trim());
+  const dataRows = aoa.slice(1).map(row => row.map(c => String(c ?? '').trim()));
+
+  return rowsFromCells(headers, dataRows);
 }
 
 // ─── Day/Night KM Calculation ───
@@ -263,22 +312,38 @@ export function SamsaraKmPage() {
     if (!file) return;
     setError('');
     setFileName(file.name);
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      try {
-        const text = ev.target?.result as string;
-        const parsed = parseSamsaraCSV(text);
-        if (parsed.length === 0) {
-          setError(t('samNoData'));
-          return;
+
+    const isXlsx = /\.xlsx?$/i.test(file.name);
+
+    if (isXlsx) {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        try {
+          const buffer = ev.target?.result as ArrayBuffer;
+          const parsed = parseSamsaraXlsx(buffer);
+          if (parsed.length === 0) { setError(t('samNoData')); return; }
+          setRows(parsed);
+          setExpandedVehicles(new Set());
+        } catch (err) {
+          setError(err instanceof Error ? err.message : String(err));
         }
-        setRows(parsed);
-        setExpandedVehicles(new Set());
-      } catch (err) {
-        setError(err instanceof Error ? err.message : String(err));
-      }
-    };
-    reader.readAsText(file, 'utf-8');
+      };
+      reader.readAsArrayBuffer(file);
+    } else {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        try {
+          const text = ev.target?.result as string;
+          const parsed = parseSamsaraCSV(text);
+          if (parsed.length === 0) { setError(t('samNoData')); return; }
+          setRows(parsed);
+          setExpandedVehicles(new Set());
+        } catch (err) {
+          setError(err instanceof Error ? err.message : String(err));
+        }
+      };
+      reader.readAsText(file, 'utf-8');
+    }
   }, [t]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
