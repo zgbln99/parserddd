@@ -3,7 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Users, FileText, RefreshCw, Sun, Moon, Globe, LogOut,
   Calendar, X, Shield, UserCog, GitCompareArrows, Receipt, Truck, Gauge, Coins,
-  Menu, ChevronLeft, ShieldAlert,
+  Menu, ChevronLeft, ShieldAlert, Route,
 } from 'lucide-react';
 import { useI18n, type Locale } from '../i18n';
 import { useTheme } from '../hooks/useTheme';
@@ -36,6 +36,7 @@ export function Layout({ children }: { children: ReactNode }) {
           { to: '/vehicles', icon: Truck, labelKey: 'navVehicles' as const },
           { to: '/driver-km', icon: Gauge, labelKey: 'navDriverKm' as const },
           { to: '/toll', icon: Coins, labelKey: 'navTollCollect' as const },
+          { to: '/samsara-km', icon: Route, labelKey: 'navSamsaraKm' as const },
           { to: '/config', icon: UserCog, labelKey: 'navDriverConfig' as const },
           { to: '/admin', icon: Shield, labelKey: 'navAdmin' as const },
         ]

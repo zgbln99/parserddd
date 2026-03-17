@@ -303,6 +303,160 @@ export function exportTollToXlsx(
   XLSX.writeFile(wb, `Maut_${safePeriod}_${vehicles.length}Fzg.xlsx`);
 }
 
+// ─── Samsara KM Day/Night Export ───
+
+export interface SamsaraVehicleDaySummary {
+  date: string;
+  dayKm: number;
+  nightKm: number;
+  totalKm: number;
+  odoStart: number;
+  odoEnd: number;
+  firstTime: string;
+  lastTime: string;
+}
+
+export interface SamsaraVehicleSummary {
+  vehicle: string;
+  days: SamsaraVehicleDaySummary[];
+  totalDayKm: number;
+  totalNightKm: number;
+  totalKm: number;
+}
+
+function pad2x(n: number) { return String(n).padStart(2, '0'); }
+
+export function exportSamsaraKmToXlsx(
+  vehicles: SamsaraVehicleSummary[],
+  dayStart: number,
+  dayEnd: number,
+  companyName: string,
+) {
+  const wb = XLSX.utils.book_new();
+
+  const dayLabel = `${pad2x(dayStart)}:00–${pad2x(dayEnd)}:00`;
+  const nightLabel = `${pad2x(dayEnd)}:00–${pad2x(dayStart)}:00`;
+
+  const grandDayKm = vehicles.reduce((s, v) => s + v.totalDayKm, 0);
+  const grandNightKm = vehicles.reduce((s, v) => s + v.totalNightKm, 0);
+  const grandTotalKm = vehicles.reduce((s, v) => s + v.totalKm, 0);
+
+  // Detect period
+  const allDates = vehicles.flatMap(v => v.days.map(d => d.date)).sort();
+  const period = allDates.length > 0
+    ? (allDates[0].slice(0, 7) === allDates[allDates.length - 1].slice(0, 7)
+      ? allDates[0].slice(0, 7)
+      : `${allDates[0].slice(0, 7)} – ${allDates[allDates.length - 1].slice(0, 7)}`)
+    : '';
+
+  // ── Sheet 1: Übersicht ──
+  const ovHeaders = ['Kennzeichen', 'Tage', `km Tag (${dayLabel})`, `km Nacht (${nightLabel})`, 'km Gesamt'];
+  const ovData: (string | number)[][] = [
+    [companyName],
+    ['Kilometerauswertung Tag / Nacht'],
+    [`Zeitraum: ${period}`],
+    [`Tagschicht: ${dayLabel}  |  Nachtschicht: ${nightLabel}`],
+    [],
+    ovHeaders,
+  ];
+
+  for (const v of vehicles) {
+    ovData.push([v.vehicle, v.days.length, v.totalDayKm, v.totalNightKm, v.totalKm]);
+  }
+  ovData.push([]);
+  ovData.push(['GESAMT / RAZEM', '', grandDayKm, grandNightKm, grandTotalKm]);
+
+  const wsOv = XLSX.utils.aoa_to_sheet(ovData);
+  wsOv['!cols'] = [{ wch: 22 }, { wch: 8 }, { wch: 20 }, { wch: 20 }, { wch: 14 }];
+  wsOv['!merges'] = [
+    { s: { r: 0, c: 0 }, e: { r: 0, c: 4 } },
+    { s: { r: 1, c: 0 }, e: { r: 1, c: 4 } },
+    { s: { r: 2, c: 0 }, e: { r: 2, c: 4 } },
+    { s: { r: 3, c: 0 }, e: { r: 3, c: 4 } },
+  ];
+  wsOv['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 5, c: 0 }, e: { r: 5 + vehicles.length, c: 4 } }) };
+
+  for (let r = 6; r < 6 + vehicles.length; r++) {
+    applyNumberFormat(wsOv, r, 2, '#,##0.0');
+    applyNumberFormat(wsOv, r, 3, '#,##0.0');
+    applyNumberFormat(wsOv, r, 4, '#,##0.0');
+  }
+  const tRow = 6 + vehicles.length + 1;
+  applyNumberFormat(wsOv, tRow, 2, '#,##0.0');
+  applyNumberFormat(wsOv, tRow, 3, '#,##0.0');
+  applyNumberFormat(wsOv, tRow, 4, '#,##0.0');
+
+  XLSX.utils.book_append_sheet(wb, wsOv, 'Übersicht');
+
+  // ── Sheet per vehicle ──
+  const vHeaders = [
+    'Datum', 'Erste Fahrt', 'Letzte Fahrt',
+    'Odometer Start', 'Odometer Ende',
+    `km Tag (${dayLabel})`, `km Nacht (${nightLabel})`, 'km Gesamt',
+  ];
+
+  for (const v of vehicles) {
+    const sheetName = v.vehicle.replace(/[\\/*?[\]:]/g, '').slice(0, 28);
+    const data: (string | number)[][] = [
+      [companyName],
+      [`Fahrzeug / Pojazd: ${v.vehicle}`],
+      [`Zeitraum: ${period}`],
+      [`Tagschicht: ${dayLabel}  |  Nachtschicht: ${nightLabel}`],
+      [],
+      vHeaders,
+    ];
+
+    for (const d of v.days) {
+      data.push([d.date, d.firstTime, d.lastTime, d.odoStart, d.odoEnd, d.dayKm, d.nightKm, d.totalKm]);
+    }
+
+    const firstDataRow = 7; // 1-indexed
+    const lastDataRow = firstDataRow + v.days.length - 1;
+    const dayCol = XLSX.utils.encode_col(5);   // F
+    const nightCol = XLSX.utils.encode_col(6);  // G
+    const totalCol = XLSX.utils.encode_col(7);  // H
+
+    data.push([]);
+    const footerIdx = data.length;
+    data.push([
+      'GESAMT / RAZEM:', '', '', '', '',
+      { f: `SUM(${dayCol}${firstDataRow}:${dayCol}${lastDataRow})` } as unknown as number,
+      { f: `SUM(${nightCol}${firstDataRow}:${nightCol}${lastDataRow})` } as unknown as number,
+      { f: `SUM(${totalCol}${firstDataRow}:${totalCol}${lastDataRow})` } as unknown as number,
+    ]);
+
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    ws['!cols'] = [
+      { wch: 12 }, { wch: 12 }, { wch: 12 },
+      { wch: 16 }, { wch: 16 },
+      { wch: 20 }, { wch: 20 }, { wch: 14 },
+    ];
+    ws['!merges'] = [
+      { s: { r: 0, c: 0 }, e: { r: 0, c: 7 } },
+      { s: { r: 1, c: 0 }, e: { r: 1, c: 7 } },
+      { s: { r: 2, c: 0 }, e: { r: 2, c: 7 } },
+      { s: { r: 3, c: 0 }, e: { r: 3, c: 7 } },
+    ];
+    ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 5, c: 0 }, e: { r: 5 + v.days.length, c: 7 } }) };
+
+    for (let r = 6; r < 6 + v.days.length; r++) {
+      applyNumberFormat(ws, r, 3, '#,##0');
+      applyNumberFormat(ws, r, 4, '#,##0');
+      applyNumberFormat(ws, r, 5, '#,##0.0');
+      applyNumberFormat(ws, r, 6, '#,##0.0');
+      applyNumberFormat(ws, r, 7, '#,##0.0');
+    }
+    applyNumberFormat(ws, footerIdx, 5, '#,##0.0');
+    applyNumberFormat(ws, footerIdx, 6, '#,##0.0');
+    applyNumberFormat(ws, footerIdx, 7, '#,##0.0');
+
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+  }
+
+  const safePeriod = period.replace(/[^a-zA-Z0-9_-]/g, '') || 'KM';
+  XLSX.writeFile(wb, `KM_Tag_Nacht_${safePeriod}.xlsx`);
+}
+
 export function generateGoogleSheetsUrl(driverName: string, summary: Summary, shifts: ShiftRow[]): void {
   // Build TSV content for clipboard (Google Sheets pasting)
   const headers = ['Datum', 'Tag', 'Start', 'Ende', 'Dauer', 'Fahrzeit', 'Arbeit', 'Pause', 'Nacht 25%', 'Nacht 40%', 'VMA'].join('\t');
