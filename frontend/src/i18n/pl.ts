@@ -422,6 +422,9 @@ export const pl = {
   tollDbxSaved: 'Zapisano w Dropbox',
   tollDbxDelete: 'Usuń',
   tollDbxDeleteConfirm: 'Usunąć ten plik z Dropbox?',
+  tollSelectAll: 'Zaznacz wszystkie',
+  tollSelected: 'zaznaczonych',
+  tollExportExcel: 'Eksport do Excel',
 
   // Offline
   offlineMode: 'Tryb offline — dane z cache',

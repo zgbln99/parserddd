@@ -424,6 +424,9 @@ export const de: Record<TranslationKey, string> = {
   tollDbxSaved: 'In Dropbox gespeichert',
   tollDbxDelete: 'Löschen',
   tollDbxDeleteConfirm: 'Diese Datei aus Dropbox löschen?',
+  tollSelectAll: 'Alle auswählen',
+  tollSelected: 'ausgewählt',
+  tollExportExcel: 'Excel exportieren',
 
   // Offline
   offlineMode: 'Offline-Modus — Daten aus Cache',

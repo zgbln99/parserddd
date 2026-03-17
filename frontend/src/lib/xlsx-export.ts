@@ -119,6 +119,153 @@ export function exportSettlementToXlsx(
   XLSX.writeFile(wb, `Abrechnung_${period}.xlsx`);
 }
 
+export interface TollExportRow {
+  plate: string;
+  date: string;
+  time: string;
+  route: string;
+  bookingNr: string;
+  bookingType: string;
+  axleClass: string;
+  weightClass: string;
+  emissionClass: string;
+  co2Class: string;
+  km: number;
+  amount: number;
+}
+
+export interface TollVehicleGroup {
+  plate: string;
+  rows: TollExportRow[];
+  totalKm: number;
+  totalAmount: number;
+}
+
+function fmtDe(n: number, decimals = 2): string {
+  return n.toLocaleString('de-DE', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+}
+
+export function exportTollToXlsx(
+  vehicles: TollVehicleGroup[],
+  period: string,
+  companyName: string,
+) {
+  const wb = XLSX.utils.book_new();
+
+  const grandTotalKm = vehicles.reduce((s, v) => s + v.totalKm, 0);
+  const grandTotalAmount = vehicles.reduce((s, v) => s + v.totalAmount, 0);
+  const grandTotalTrips = vehicles.reduce((s, v) => s + v.rows.length, 0);
+
+  // ── Sheet 1: Übersicht (Summary) ──
+  const overviewData: (string | number)[][] = [
+    [companyName],
+    ['Mautaufstellung / Zestawienie opłat drogowych'],
+    [`Zeitraum / Okres: ${period}`],
+    [],
+    ['Kennzeichen', 'Fahrten', 'Kilometer', 'Mautbetrag (EUR)'],
+  ];
+  for (const v of vehicles) {
+    overviewData.push([v.plate, v.rows.length, v.totalKm, v.totalAmount]);
+  }
+  overviewData.push([]);
+  overviewData.push(['GESAMT / RAZEM', grandTotalTrips, grandTotalKm, grandTotalAmount]);
+
+  const wsOverview = XLSX.utils.aoa_to_sheet(overviewData);
+  // Column widths
+  wsOverview['!cols'] = [{ wch: 20 }, { wch: 12 }, { wch: 14 }, { wch: 18 }];
+  // Merge company name across header
+  wsOverview['!merges'] = [
+    { s: { r: 0, c: 0 }, e: { r: 0, c: 3 } },
+    { s: { r: 1, c: 0 }, e: { r: 1, c: 3 } },
+    { s: { r: 2, c: 0 }, e: { r: 2, c: 3 } },
+  ];
+  // Format km and amount columns as numbers with 2 decimals
+  for (let r = 5; r < 5 + vehicles.length; r++) {
+    const kmCell = XLSX.utils.encode_cell({ r, c: 2 });
+    const amtCell = XLSX.utils.encode_cell({ r, c: 3 });
+    if (wsOverview[kmCell]) wsOverview[kmCell].z = '#,##0.0';
+    if (wsOverview[amtCell]) wsOverview[amtCell].z = '#,##0.00 €';
+  }
+  // Format totals row
+  const totalRow = 5 + vehicles.length + 1;
+  const kmTotalCell = XLSX.utils.encode_cell({ r: totalRow, c: 2 });
+  const amtTotalCell = XLSX.utils.encode_cell({ r: totalRow, c: 3 });
+  if (wsOverview[kmTotalCell]) wsOverview[kmTotalCell].z = '#,##0.0';
+  if (wsOverview[amtTotalCell]) wsOverview[amtTotalCell].z = '#,##0.00 €';
+
+  XLSX.utils.book_append_sheet(wb, wsOverview, 'Übersicht');
+
+  // ── Sheet per vehicle ──
+  for (const v of vehicles) {
+    const sheetName = v.plate.replace(/[\\/*?[\]:]/g, '').slice(0, 28);
+    const data: (string | number)[][] = [
+      [companyName],
+      [`Fahrzeug / Pojazd: ${v.plate}`],
+      [`Zeitraum / Okres: ${period}`],
+      [],
+      ['Nr.', 'Datum', 'Uhrzeit', 'Strecke', 'Buchungsnr.', 'Typ', 'Achsklasse', 'CO₂-Klasse', 'Kilometer', 'Mautbetrag (EUR)'],
+    ];
+
+    v.rows
+      .sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time))
+      .forEach((r, i) => {
+        data.push([
+          i + 1,
+          r.date,
+          r.time,
+          r.route,
+          r.bookingNr,
+          r.bookingType,
+          r.axleClass,
+          r.co2Class,
+          r.km,
+          r.amount,
+        ]);
+      });
+
+    data.push([]);
+    data.push(['', '', '', '', '', '', '', 'GESAMT / RAZEM:', v.totalKm, v.totalAmount]);
+
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    ws['!cols'] = [
+      { wch: 5 },   // Nr.
+      { wch: 12 },  // Datum
+      { wch: 8 },   // Uhrzeit
+      { wch: 40 },  // Strecke
+      { wch: 16 },  // Buchungsnr
+      { wch: 14 },  // Typ
+      { wch: 12 },  // Achsklasse
+      { wch: 12 },  // CO2-Klasse
+      { wch: 12 },  // Kilometer
+      { wch: 16 },  // Mautbetrag
+    ];
+    ws['!merges'] = [
+      { s: { r: 0, c: 0 }, e: { r: 0, c: 9 } },
+      { s: { r: 1, c: 0 }, e: { r: 1, c: 9 } },
+      { s: { r: 2, c: 0 }, e: { r: 2, c: 9 } },
+    ];
+
+    // Format number cells
+    for (let r = 5; r < 5 + v.rows.length; r++) {
+      const kmCell = XLSX.utils.encode_cell({ r, c: 8 });
+      const amtCell = XLSX.utils.encode_cell({ r, c: 9 });
+      if (ws[kmCell]) ws[kmCell].z = '#,##0.0';
+      if (ws[amtCell]) ws[amtCell].z = '#,##0.00 €';
+    }
+    // Format totals
+    const tRow = 5 + v.rows.length + 1;
+    const kmT = XLSX.utils.encode_cell({ r: tRow, c: 8 });
+    const amtT = XLSX.utils.encode_cell({ r: tRow, c: 9 });
+    if (ws[kmT]) ws[kmT].z = '#,##0.0';
+    if (ws[amtT]) ws[amtT].z = '#,##0.00 €';
+
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+  }
+
+  const safePeriod = period.replace(/[^a-zA-Z0-9_-]/g, '') || 'Maut';
+  XLSX.writeFile(wb, `Maut_${safePeriod}_${vehicles.length}Fzg.xlsx`);
+}
+
 export function generateGoogleSheetsUrl(driverName: string, summary: Summary, shifts: ShiftRow[]): void {
   // Build TSV content for clipboard (Google Sheets pasting)
   const headers = ['Datum', 'Tag', 'Start', 'Ende', 'Dauer', 'Fahrzeit', 'Arbeit', 'Pause', 'Nacht 25%', 'Nacht 40%', 'VMA'].join('\t');

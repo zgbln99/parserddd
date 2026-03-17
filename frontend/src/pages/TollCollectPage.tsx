@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
-import { Upload, Search, AlertCircle, Truck, Calendar, ChevronDown, ChevronRight, X, FileText, CloudUpload, FolderOpen, Trash2, Loader2 } from 'lucide-react';
+import { Upload, Search, AlertCircle, Truck, Calendar, ChevronDown, ChevronRight, X, FileText, CloudUpload, FolderOpen, Trash2, Loader2, Download, CheckSquare, Square } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { Card } from '../components/Card';
 import {
@@ -9,6 +9,7 @@ import {
   deleteTollCollectFile,
   type TollCollectFile,
 } from '../lib/api';
+import { exportTollToXlsx, type TollVehicleGroup } from '../lib/xlsx-export';
 
 interface TollRow {
   plate: string;
@@ -169,6 +170,9 @@ export function TollCollectPage() {
   // Expanded vehicles
   const [expandedPlates, setExpandedPlates] = useState<Set<string>>(new Set());
 
+  // Selected vehicles for Excel export
+  const [selectedPlates, setSelectedPlates] = useState<Set<string>>(new Set());
+
   // Load Dropbox file list
   const loadDbxFiles = useCallback(async () => {
     setDbxLoading(true);
@@ -218,6 +222,7 @@ export function TollCollectPage() {
         setTimeFrom('');
         setTimeTo('');
         setExpandedPlates(new Set());
+        setSelectedPlates(new Set());
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err));
       }
@@ -278,6 +283,7 @@ export function TollCollectPage() {
       setTimeFrom('');
       setTimeTo('');
       setExpandedPlates(new Set());
+      setSelectedPlates(new Set());
     } catch (err) {
       setDbxError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -340,6 +346,61 @@ export function TollCollectPage() {
   };
 
   const hasFilters = searchText || dateFrom || dateTo || timeFrom || timeTo;
+
+  const toggleSelectPlate = (plate: string) => {
+    setSelectedPlates(prev => {
+      const next = new Set(prev);
+      if (next.has(plate)) next.delete(plate);
+      else next.add(plate);
+      return next;
+    });
+  };
+
+  const allSelected = byVehicle.length > 0 && byVehicle.every(([plate]) => selectedPlates.has(plate));
+
+  const toggleSelectAll = () => {
+    if (allSelected) {
+      setSelectedPlates(new Set());
+    } else {
+      setSelectedPlates(new Set(byVehicle.map(([plate]) => plate)));
+    }
+  };
+
+  const handleExportExcel = () => {
+    const selected = byVehicle
+      .filter(([plate]) => selectedPlates.has(plate))
+      .map(([plate, data]): TollVehicleGroup => ({
+        plate,
+        rows: data.rows.map(r => ({
+          plate: r.plate,
+          date: r.date,
+          time: r.time,
+          route: r.route,
+          bookingNr: r.bookingNr,
+          bookingType: r.bookingType,
+          axleClass: r.axleClass,
+          weightClass: r.weightClass,
+          emissionClass: r.emissionClass,
+          co2Class: r.co2Class,
+          km: r.km,
+          amount: r.amount,
+        })),
+        totalKm: data.totalKm,
+        totalAmount: data.totalAmount,
+      }));
+
+    if (selected.length === 0) return;
+
+    // Detect period from data
+    const dates = selected.flatMap(v => v.rows.map(r => r.date)).filter(Boolean).sort();
+    const periodStr = dates.length > 0
+      ? (dates[0].slice(0, 7) === dates[dates.length - 1].slice(0, 7)
+        ? dates[0].slice(0, 7)
+        : `${dates[0].slice(0, 7)}_${dates[dates.length - 1].slice(0, 7)}`)
+      : new Date().toISOString().slice(0, 7);
+
+    exportTollToXlsx(selected, periodStr, 'LTS Logistik GmbH');
+  };
 
   return (
     <div className="space-y-6">
@@ -686,6 +747,30 @@ export function TollCollectPage() {
             </Card>
           </div>
 
+          {/* Excel export bar */}
+          <div className="flex items-center gap-3 flex-wrap">
+            <button
+              onClick={toggleSelectAll}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 transition-colors"
+            >
+              {allSelected ? <CheckSquare className="w-3.5 h-3.5" /> : <Square className="w-3.5 h-3.5" />}
+              {t('tollSelectAll')}
+            </button>
+            {selectedPlates.size > 0 && (
+              <span className="text-xs text-gray-500 dark:text-gray-400">
+                {selectedPlates.size} / {byVehicle.length} {t('tollSelected')}
+              </span>
+            )}
+            <button
+              onClick={handleExportExcel}
+              disabled={selectedPlates.size === 0}
+              className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-medium bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-emerald-700 dark:hover:bg-emerald-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <Download className="w-3.5 h-3.5" />
+              {t('tollExportExcel')}
+            </button>
+          </div>
+
           {/* Vehicle table */}
           <Card>
             <div className="overflow-x-auto">
@@ -693,6 +778,11 @@ export function TollCollectPage() {
                 <thead>
                   <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
                     <th className="w-8 px-3 py-3" />
+                    <th className="w-8 px-1 py-3">
+                      <button onClick={toggleSelectAll} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                        {allSelected ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
+                      </button>
+                    </th>
                     <th className="text-left px-3 py-3 font-semibold text-gray-600 dark:text-gray-300">
                       {t('tollVehicle')}
                     </th>
@@ -724,13 +814,23 @@ export function TollCollectPage() {
                         {/* Vehicle summary row */}
                         <tr
                           key={`v-${plate}`}
-                          className="border-b border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/30 font-medium"
+                          className={`border-b border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/30 font-medium ${selectedPlates.has(plate) ? 'bg-emerald-50/50 dark:bg-emerald-900/10' : ''}`}
                           onClick={() => togglePlate(plate)}
                         >
                           <td className="px-3 py-3 text-gray-400">
                             {isExpanded
                               ? <ChevronDown className="w-4 h-4" />
                               : <ChevronRight className="w-4 h-4" />}
+                          </td>
+                          <td className="px-1 py-3">
+                            <button
+                              onClick={(e) => { e.stopPropagation(); toggleSelectPlate(plate); }}
+                              className="text-gray-400 hover:text-emerald-600 dark:hover:text-emerald-400"
+                            >
+                              {selectedPlates.has(plate)
+                                ? <CheckSquare className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                                : <Square className="w-4 h-4" />}
+                            </button>
                           </td>
                           <td className="px-3 py-3 text-gray-900 dark:text-white">
                             <div className="flex items-center gap-2">
@@ -758,6 +858,7 @@ export function TollCollectPage() {
                             className="border-b border-gray-50 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/20 text-xs"
                           >
                             <td className="px-3 py-2" />
+                            <td className="px-1 py-2" />
                             <td className="px-3 py-2 font-mono text-gray-400">{r.bookingNr}</td>
                             <td className="px-3 py-2 text-gray-700 dark:text-gray-300">{r.date}</td>
                             <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{r.time}</td>
@@ -782,6 +883,7 @@ export function TollCollectPage() {
                   {/* Grand total */}
                   <tr className="border-t-2 border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800/50 font-bold">
                     <td className="px-3 py-3" />
+                    <td className="px-1 py-3" />
                     <td className="px-3 py-3 text-gray-900 dark:text-white">
                       RAZEM
                     </td>
