@@ -38,75 +38,95 @@ interface VehicleSummary {
 
 // ─── CSV Parsing ───
 
-function parseSamsaraTimestamp(raw: string): Date | null {
-  const s = raw.trim();
+function parseSamsaraTimestamp(raw: unknown): Date | null {
+  // If SheetJS gave us a Date object directly, use it
+  if (raw instanceof Date && !isNaN(raw.getTime())) return raw;
+
+  // If it's a number, treat as Excel serial date
+  if (typeof raw === 'number') {
+    if (raw > 40000 && raw < 60000) {
+      const epoch = new Date(1899, 11, 30);
+      return new Date(epoch.getTime() + raw * 86400000);
+    }
+    return null;
+  }
+
+  const s = String(raw).trim();
   if (!s) return null;
 
-  // Excel serial date number (e.g. "45689.3" or "45689.29861111")
-  const serialMatch = s.match(/^(\d{4,5})(\.\d+)?$/);
-  if (serialMatch) {
-    const serial = parseFloat(s);
-    if (serial > 40000 && serial < 60000) {
-      // Excel epoch: Jan 0, 1900 (with the 1900 bug offset)
-      const epoch = new Date(1899, 11, 30);
-      const ms = epoch.getTime() + serial * 86400000;
-      return new Date(ms);
+  const months: Record<string, number> = {
+    jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
+    jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11,
+  };
+
+  // Helper: adjust hour for AM/PM
+  function applyAmPm(hour: number, ampm: string | undefined): number {
+    if (!ampm) return hour;
+    const isPM = ampm.toLowerCase().startsWith('p');
+    if (isPM && hour < 12) return hour + 12;
+    if (!isPM && hour === 12) return 0;
+    return hour;
+  }
+
+  // Samsara format: "Feb 2 7:12AM CET" or "Feb 2, 2026 7:12PM CET"
+  const samMatch = s.match(
+    /^([A-Za-z]{3})\s+(\d{1,2}),?\s+(?:(\d{4})\s+)?(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?/
+  );
+  if (samMatch) {
+    const mon = months[samMatch[1].toLowerCase()];
+    if (mon !== undefined) {
+      const year = samMatch[3] ? +samMatch[3] : new Date().getFullYear();
+      const hour = applyAmPm(+samMatch[4], samMatch[6]);
+      return new Date(year, mon, +samMatch[2], hour, +samMatch[5]);
     }
   }
 
-  // Try ISO-like: YYYY-MM-DD HH:MM
-  const isoMatch = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})\s+(\d{1,2}):(\d{2})/);
+  // ISO: YYYY-MM-DD HH:MM or YYYY-MM-DDTHH:MM
+  const isoMatch = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})[T\s]+(\d{1,2}):(\d{2})/);
   if (isoMatch) {
     return new Date(+isoMatch[1], +isoMatch[2] - 1, +isoMatch[3], +isoMatch[4], +isoMatch[5]);
   }
 
-  // ISO date+time with T: YYYY-MM-DDTHH:MM
-  const isoTMatch = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})T(\d{1,2}):(\d{2})/);
-  if (isoTMatch) {
-    return new Date(+isoTMatch[1], +isoTMatch[2] - 1, +isoTMatch[3], +isoTMatch[4], +isoTMatch[5]);
-  }
-
-  // Try German: DD.MM.YYYY HH:MM
+  // German: DD.MM.YYYY HH:MM
   const deMatch = s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})\s+(\d{1,2}):(\d{2})/);
   if (deMatch) {
     return new Date(+deMatch[3], +deMatch[2] - 1, +deMatch[1], +deMatch[4], +deMatch[5]);
   }
 
-  // US format: MM/DD/YYYY HH:MM
-  const usMatch = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})/);
+  // US: MM/DD/YYYY HH:MM[:SS] [AM/PM]
+  const usMatch = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM|am|pm)?/);
   if (usMatch) {
-    return new Date(+usMatch[3], +usMatch[1] - 1, +usMatch[2], +usMatch[4], +usMatch[5]);
+    const hour = applyAmPm(+usMatch[4], usMatch[6]);
+    return new Date(+usMatch[3], +usMatch[1] - 1, +usMatch[2], hour, +usMatch[5]);
   }
 
-  // Samsara short: "Mon DD HH:MM" or "Mon DD, YYYY HH:MM" or "Mon DD YYYY HH:MM"
-  const months: Record<string, number> = {
-    jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
-    jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11,
-  };
-  const shortMatch = s.match(/^([A-Za-z]{3})\s+(\d{1,2}),?\s*(\d{4})?\s+(\d{1,2}):(\d{2})/);
-  if (shortMatch) {
-    const mon = months[shortMatch[1].toLowerCase()];
-    if (mon !== undefined) {
-      const year = shortMatch[3] ? +shortMatch[3] : new Date().getFullYear();
-      return new Date(year, mon, +shortMatch[2], +shortMatch[4], +shortMatch[5]);
-    }
-  }
-
-  // Fallback: try native Date.parse for any other format
+  // Fallback: native Date.parse
   const d = new Date(s);
   if (!isNaN(d.getTime()) && d.getFullYear() > 2000) return d;
 
   return null;
 }
 
-function parseNumber(s: string): number {
-  if (!s) return 0;
-  const cleaned = s.replace(/[^\d.,-]/g, '').replace(/,/g, '.');
-  const n = parseFloat(cleaned);
-  return isNaN(n) ? 0 : n;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type CellValue = any;
+
+function toNumber(v: CellValue): number {
+  if (typeof v === 'number') return isNaN(v) ? 0 : v;
+  if (!v) return 0;
+  const s = String(v).replace(/[^\d.,-]/g, '');
+  // If has both dots and commas, determine which is decimal separator
+  if (s.includes('.') && s.includes(',')) {
+    // Last occurrence determines decimal: "1.234,56" → German, "1,234.56" → US
+    if (s.lastIndexOf(',') > s.lastIndexOf('.')) {
+      return parseFloat(s.replace(/\./g, '').replace(',', '.')) || 0;
+    }
+    return parseFloat(s.replace(/,/g, '')) || 0;
+  }
+  if (s.includes(',')) return parseFloat(s.replace(',', '.')) || 0;
+  return parseFloat(s) || 0;
 }
 
-function rowsFromCells(headers: string[], dataRows: string[][]): SamsaraRow[] {
+function rowsFromCells(headers: string[], dataRows: CellValue[][]): SamsaraRow[] {
   const lower = headers.map(h => h.toLowerCase());
 
   const findCol = (...patterns: string[]) =>
@@ -127,23 +147,23 @@ function rowsFromCells(headers: string[], dataRows: string[][]): SamsaraRow[] {
   for (const cells of dataRows) {
     if (cells.length < 3) continue;
 
-    const g = (idx: number) => (idx >= 0 && idx < cells.length) ? cells[idx] : '';
+    const g = (idx: number): CellValue => (idx >= 0 && idx < cells.length) ? cells[idx] : '';
 
-    const vehicle = g(vehicleCol);
+    const vehicle = String(g(vehicleCol) ?? '').trim();
     const tsRaw = g(timeCol);
     const ts = parseSamsaraTimestamp(tsRaw);
     if (!vehicle || !ts) continue;
 
     const raw: Record<string, string> = {};
-    headers.forEach((h, idx) => { raw[h] = cells[idx] || ''; });
+    headers.forEach((h, idx) => { raw[h] = String(cells[idx] ?? ''); });
 
     rows.push({
       vehicle,
       ts,
-      speed: speedCol >= 0 ? parseNumber(g(speedCol)) : 0,
-      odometer: parseNumber(g(odometerCol)),
-      location: locationCol >= 0 ? g(locationCol) : '',
-      status: statusCol >= 0 ? g(statusCol) : '',
+      speed: speedCol >= 0 ? toNumber(g(speedCol)) : 0,
+      odometer: toNumber(g(odometerCol)),
+      location: locationCol >= 0 ? String(g(locationCol) ?? '') : '',
+      status: statusCol >= 0 ? String(g(statusCol) ?? '') : '',
       raw,
     });
   }
@@ -159,7 +179,7 @@ function parseSamsaraCSV(text: string): SamsaraRow[] {
   const delim = firstLine.split(';').length > firstLine.split(',').length ? ';' : ',';
 
   const headers = lines[0].split(delim).map(h => h.replace(/^["']|["']$/g, '').trim());
-  const dataRows = lines.slice(1).map(line =>
+  const dataRows: CellValue[][] = lines.slice(1).map(line =>
     line.split(delim).map(c => c.replace(/^["']|["']$/g, '').trim())
   );
 
@@ -167,17 +187,17 @@ function parseSamsaraCSV(text: string): SamsaraRow[] {
 }
 
 function parseSamsaraXlsx(buffer: ArrayBuffer): SamsaraRow[] {
-  const wb = XLSX.read(buffer, { type: 'array' });
+  const wb = XLSX.read(buffer, { type: 'array', cellDates: true });
   const sheetName = wb.SheetNames[0];
   if (!sheetName) throw new Error('Pusty plik Excel');
   const ws = wb.Sheets[sheetName];
 
-  // Convert to array of arrays (all as strings)
-  const aoa: string[][] = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' }) as string[][];
+  // raw: true → numbers stay as JS numbers, dates as Date objects, strings as strings
+  const aoa: CellValue[][] = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: '' });
   if (aoa.length < 2) throw new Error('Za mało danych w pliku');
 
-  const headers = aoa[0].map(h => String(h).trim());
-  const dataRows = aoa.slice(1).map(row => row.map(c => String(c ?? '').trim()));
+  const headers = aoa[0].map((h: CellValue) => String(h ?? '').trim());
+  const dataRows = aoa.slice(1);
 
   return rowsFromCells(headers, dataRows);
 }
