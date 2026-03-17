@@ -756,7 +756,7 @@ def calculate_shift_night_hours(intervals, shift_start):
             if o_end > o_start:
                 night_25_sec += (o_end - o_start).total_seconds()
             current = next_day
-    return int(round(night_25_sec / 60)), int(round(night_40_sec / 60))
+    return int(night_25_sec // 60), int(night_40_sec // 60)
 
 
 def analyze_card(data):
@@ -798,13 +798,13 @@ def analyze_card(data):
         )
 
         work_sec = work_only_sec + driving_sec + avail_sec
-        work_minutes = int(round(work_sec / 60))
-        break_minutes = int(round(break_sec / 60))
-        avail_minutes = int(round(avail_sec / 60))
-        driving_minutes = int(round(driving_sec / 60))
-        work_only_minutes = int(round(work_only_sec / 60))
-        manual_minutes = int(round(manual_sec / 60))
-        duration_minutes = int(round((shift_end - shift_start).total_seconds() / 60))
+        work_minutes = int(work_sec // 60)
+        break_minutes = int(break_sec // 60)
+        avail_minutes = int(avail_sec // 60)
+        driving_minutes = int(driving_sec // 60)
+        work_only_minutes = int(work_only_sec // 60)
+        manual_minutes = int(manual_sec // 60)
+        duration_minutes = int((shift_end - shift_start).total_seconds() // 60)
 
         night_25, night_40 = calculate_shift_night_hours(shift_intervals, shift_start)
         total_work += work_minutes
@@ -834,7 +834,7 @@ def analyze_card(data):
         driving_segments = []
         break_segments = []
         for s_start, s_end, wt, _m in shift_intervals:
-            seg_min = int(round((s_end - s_start).total_seconds() / 60))
+            seg_min = int((s_end - s_start).total_seconds() // 60)
             if seg_min <= 0:
                 continue
             seg = {
