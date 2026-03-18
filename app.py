@@ -188,10 +188,11 @@ def minutes_to_decimal(minutes):
 
 
 def build_timeline(records):
-    """Build continuous timeline of (start_dt, end_dt, work_type) from daily records.
+    """Build continuous timeline of (start_dt, end_dt, work_type, is_manual) from daily records.
 
     Tachograph data is stored in UTC. We convert to Europe/Berlin (CET/CEST)
     so that night bonus windows align with local German time.
+    is_manual is True when card_present is False (card removed from tachograph).
     """
     all_intervals = []
     sorted_records = sorted(records, key=lambda r: r.get('activity_record_date', ''))
@@ -204,26 +205,30 @@ def build_timeline(records):
         for i, change in enumerate(changes):
             start_min = change['minutes']
             work_type = change['work_type']
+            is_manual = not change.get('card_present', True)
             end_min = changes[i + 1]['minutes'] if i + 1 < len(changes) else 1440
             if end_min > start_min:
                 start_dt = (base_date + timedelta(minutes=start_min)).astimezone(CET).replace(tzinfo=None)
                 end_dt = (base_date + timedelta(minutes=end_min)).astimezone(CET).replace(tzinfo=None)
-                all_intervals.append((start_dt, end_dt, work_type))
+                all_intervals.append((start_dt, end_dt, work_type, is_manual))
     return all_intervals
 
 
 def merge_intervals(intervals):
-    """Merge consecutive intervals of same work_type."""
+    """Merge consecutive intervals of same work_type and manual flag."""
     if not intervals:
         return []
     merged = [list(intervals[0])]
-    for start, end, wt in intervals[1:]:
+    for iv in intervals[1:]:
+        start, end, wt = iv[0], iv[1], iv[2]
+        manual = iv[3] if len(iv) > 3 else False
         prev = merged[-1]
-        if prev[2] == wt and abs((start - prev[1]).total_seconds()) < 60:
+        prev_manual = prev[3] if len(prev) > 3 else False
+        if prev[2] == wt and prev_manual == manual and abs((start - prev[1]).total_seconds()) < 60:
             prev[1] = end
         else:
-            merged.append([start, end, wt])
-    return [(s, e, w) for s, e, w in merged]
+            merged.append(list(iv))
+    return [tuple(m) for m in merged]
 
 
 def detect_shifts(all_intervals, min_rest_hours=9):
@@ -231,9 +236,12 @@ def detect_shifts(all_intervals, min_rest_hours=9):
 
     A shift is a group of activity intervals separated by rest >= min_rest_hours.
     Short breaks within a shift are included in the shift.
-    Effective rest is calculated by merging consecutive rest intervals
+    Effective rest is calculated by merging consecutive rest / card-out intervals
     that are only interrupted by very brief non-rest blips (<=3 min),
     which commonly appear at UTC day boundaries in DDD data.
+
+    Card-out periods (is_manual=True, GloboFleet "? Unbekannt") are treated
+    as rest for shift-splitting purposes regardless of recorded work_type.
     """
     if not all_intervals:
         return []
@@ -241,29 +249,38 @@ def detect_shifts(all_intervals, min_rest_hours=9):
     merged = merge_intervals(all_intervals)
     min_rest_sec = min_rest_hours * 3600
 
+    def _get_manual(iv):
+        return iv[3] if len(iv) > 3 else False
+
+    def _is_rest_like(iv):
+        """Rest or card-out → counts as rest for shift splitting."""
+        return iv[2] == 0 or _get_manual(iv)
+
     shifts = []
     current = []
 
     i = 0
     while i < len(merged):
-        start, end, wt = merged[i]
+        iv = merged[i]
+        start, end, wt = iv[0], iv[1], iv[2]
 
-        if wt == 0:
+        if _is_rest_like(iv):
             # Accumulate effective rest duration across brief interruptions
             rest_begin = start
             rest_end = end
             j = i + 1
             while j < len(merged):
-                nxt_s, nxt_e, nxt_wt = merged[j]
+                nxt = merged[j]
+                nxt_s, nxt_e = nxt[0], nxt[1]
                 if (nxt_s - rest_end).total_seconds() > 60:
                     break
-                if nxt_wt == 0:
+                if _is_rest_like(nxt):
                     rest_end = nxt_e
                     j += 1
                 elif (nxt_e - nxt_s).total_seconds() <= 180:
                     blip_end = nxt_e
                     j += 1
-                    if j < len(merged) and merged[j][2] == 0 \
+                    if j < len(merged) and _is_rest_like(merged[j]) \
                        and (merged[j][0] - blip_end).total_seconds() <= 60:
                         rest_end = merged[j][1]
                         j += 1

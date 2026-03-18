@@ -711,31 +711,42 @@ def detect_shifts(all_intervals, min_rest_hours=9):
     shifts = []
     current = []
 
+    def _is_rest_like(wt, manual):
+        """Rest or card-out period — counts as rest for shift splitting.
+
+        When the driver card is removed from the tachograph, the DDD records
+        the period as card_present=false (manual=True).  GloboFleet shows
+        these as "? Unbekannt".  Regardless of the recorded work_type
+        (often availability=1), this time is effectively daily rest and
+        must be treated as such for shift boundary detection.
+        """
+        return wt == 0 or manual
+
     i = 0
     while i < len(merged):
         start, end, wt, manual = merged[i]
 
-        if wt == 0:
-            # Accumulate effective rest: consecutive rest intervals possibly
-            # interrupted by very brief non-rest blips (≤3 min) caused by
-            # UTC day-boundary artefacts in the DDD data.
+        if _is_rest_like(wt, manual):
+            # Accumulate effective rest: consecutive rest / card-out intervals
+            # possibly interrupted by very brief non-rest blips (≤3 min)
+            # caused by UTC day-boundary artefacts in the DDD data.
             rest_begin = start
             rest_end = end
             j = i + 1
             while j < len(merged):
-                nxt_s, nxt_e, nxt_wt, _ = merged[j]
+                nxt_s, nxt_e, nxt_wt, nxt_manual = merged[j]
                 # Gap between accumulated rest end and next interval must be tiny
                 if (nxt_s - rest_end).total_seconds() > 60:
                     break
-                if nxt_wt == 0:
-                    # More rest – extend
+                if _is_rest_like(nxt_wt, nxt_manual):
+                    # More rest / card-out – extend
                     rest_end = nxt_e
                     j += 1
                 elif (nxt_e - nxt_s).total_seconds() <= 180:
                     # Brief non-rest blip (≤3 min) – look past it
                     blip_end = nxt_e
                     j += 1
-                    if j < len(merged) and merged[j][2] == 0 \
+                    if j < len(merged) and _is_rest_like(merged[j][2], merged[j][3]) \
                        and (merged[j][0] - blip_end).total_seconds() <= 60:
                         rest_end = merged[j][1]
                         j += 1
