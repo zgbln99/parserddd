@@ -231,6 +231,9 @@ def detect_shifts(all_intervals, min_rest_hours=9):
 
     A shift is a group of activity intervals separated by rest >= min_rest_hours.
     Short breaks within a shift are included in the shift.
+    Effective rest is calculated by merging consecutive rest intervals
+    that are only interrupted by very brief non-rest blips (<=3 min),
+    which commonly appear at UTC day boundaries in DDD data.
     """
     if not all_intervals:
         return []
@@ -241,17 +244,44 @@ def detect_shifts(all_intervals, min_rest_hours=9):
     shifts = []
     current = []
 
-    for start, end, wt in merged:
+    i = 0
+    while i < len(merged):
+        start, end, wt = merged[i]
+
         if wt == 0:
-            duration_sec = (end - start).total_seconds()
-            if duration_sec >= min_rest_sec:
-                # Daily rest boundary - end current shift
+            # Accumulate effective rest duration across brief interruptions
+            rest_begin = start
+            rest_end = end
+            j = i + 1
+            while j < len(merged):
+                nxt_s, nxt_e, nxt_wt = merged[j]
+                if (nxt_s - rest_end).total_seconds() > 60:
+                    break
+                if nxt_wt == 0:
+                    rest_end = nxt_e
+                    j += 1
+                elif (nxt_e - nxt_s).total_seconds() <= 180:
+                    blip_end = nxt_e
+                    j += 1
+                    if j < len(merged) and merged[j][2] == 0 \
+                       and (merged[j][0] - blip_end).total_seconds() <= 60:
+                        rest_end = merged[j][1]
+                        j += 1
+                    else:
+                        break
+                else:
+                    break
+
+            effective_rest = (rest_end - rest_begin).total_seconds()
+            if effective_rest >= min_rest_sec:
                 if current:
                     shifts.append(current)
                     current = []
+                i = j
                 continue
-        # Short break or work - part of current shift
+
         current.append((start, end, wt))
+        i += 1
 
     if current:
         shifts.append(current)
