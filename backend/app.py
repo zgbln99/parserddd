@@ -965,11 +965,36 @@ def analyze_card(data):
         ch = record.get('activity_change_info') or []
         debug_daily.append({'date': d, 'n': len(ch), 'last10': ch[-10:]})
 
+    # Debug: timeline intervals around 09.Feb 17:00 - 10.Feb 05:00
+    from datetime import datetime as _dt
+    debug_boundary = _dt(2026, 2, 9, 15, 0)
+    debug_boundary_end = _dt(2026, 2, 10, 6, 0)
+    debug_timeline_raw = [
+        {'s': s.strftime('%m-%d %H:%M'), 'e': e.strftime('%m-%d %H:%M'), 'wt': wt, 'man': m}
+        for s, e, wt, m in timeline
+        if s < debug_boundary_end and e > debug_boundary
+    ]
+    debug_merged = merge_intervals(timeline)
+    debug_filled = fill_timeline_gaps(debug_merged)
+    debug_timeline_filled = [
+        {'s': s.strftime('%m-%d %H:%M'), 'e': e.strftime('%m-%d %H:%M'), 'wt': wt, 'man': m}
+        for s, e, wt, m in debug_filled
+        if s < debug_boundary_end and e > debug_boundary
+    ]
+    # Debug: shift boundaries
+    debug_shifts = [
+        {'start': sh[0][0].strftime('%m-%d %H:%M'), 'end': sh[-1][1].strftime('%m-%d %H:%M'),
+         'n_intervals': len(sh)}
+        for sh in shifts if sh
+    ]
     total_night = total_n25 + total_n40
     return {
         'driver_info': driver_info,
         'vehicles': vehicles,
         'debug_daily': debug_daily,
+        'debug_timeline_raw': debug_timeline_raw,
+        'debug_timeline_filled': debug_timeline_filled,
+        'debug_shifts': debug_shifts,
         'summary': {
             'total_work_hm': minutes_to_hm(total_work),
             'total_work_decimal': minutes_to_decimal(total_work),
