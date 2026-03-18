@@ -659,6 +659,16 @@ def build_timeline(records):
                 # activity to midnight (1440).  The card was likely removed or the
                 # download happened here – extending would add phantom work hours.
                 end_min = start_min
+            elif (not is_manual and i > 0
+                  and not changes[i - 1].get('card_present', True)):
+                # Card was just inserted after a card-out period (the driver
+                # entered manual activities upon reinsertion).  The last entry
+                # with card_present=true is the insertion event itself — do NOT
+                # extend it as real work to midnight.  Treat the extension as
+                # card-out rest so that shift splitting detects the daily rest.
+                end_min = 1440
+                work_type = 0
+                is_manual = True
             else:
                 end_min = 1440
             if end_min > start_min:
