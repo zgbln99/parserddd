@@ -926,10 +926,18 @@ def analyze_card(data):
             'break_segments': break_segments,
         })
 
+    # Debug: raw activity changes per daily record (last 10 per day)
+    debug_daily = []
+    for record in records:
+        d = record.get('activity_record_date', '')
+        ch = record.get('activity_change_info') or []
+        debug_daily.append({'date': d, 'n': len(ch), 'last10': ch[-10:]})
+
     total_night = total_n25 + total_n40
     return {
         'driver_info': driver_info,
         'vehicles': vehicles,
+        'debug_daily': debug_daily,
         'summary': {
             'total_work_hm': minutes_to_hm(total_work),
             'total_work_decimal': minutes_to_decimal(total_work),
