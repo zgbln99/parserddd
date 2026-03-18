@@ -652,6 +652,16 @@ def build_timeline(records):
             start_min = change['minutes']
             work_type = change['work_type']
             is_manual = not change.get('card_present', True)
+            # Detect phantom first entry: daily record starts at minute 0
+            # with card_present=true, but the NEXT entry has card_present=false.
+            # This means the card was NOT in the VU at midnight — the tachograph
+            # just initialised the record with a default status.  Treat as card-out
+            # rest so the interval doesn't create phantom work blocking shift splits.
+            if (i == 0 and start_min == 0 and not is_manual
+                    and len(changes) > 1
+                    and not changes[1].get('card_present', True)):
+                is_manual = True
+                work_type = 0
             if i + 1 < len(changes):
                 end_min = changes[i + 1]['minutes']
             elif is_last_record and work_type != 0:
