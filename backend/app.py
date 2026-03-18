@@ -713,24 +713,46 @@ def merge_intervals(intervals):
     return [(s, e, w, m) for s, e, w, m in merged]
 
 
+def fill_timeline_gaps(intervals):
+    """Fill gaps > 1 min in the merged timeline with rest intervals.
+
+    Gaps represent periods where the driver card was out of the tachograph
+    and no manual entries were recorded.  GloboFleet shows these as
+    "? Unbekannt".  They must be counted as rest for shift boundary
+    detection so that daily rest periods are properly identified.
+    """
+    if len(intervals) < 2:
+        return list(intervals)
+    result = [intervals[0]]
+    for i in range(1, len(intervals)):
+        prev_end = result[-1][1]
+        curr_start = intervals[i][0]
+        gap_sec = (curr_start - prev_end).total_seconds()
+        if gap_sec > 60:
+            result.append((prev_end, curr_start, 0, True))
+        result.append(intervals[i])
+    return result
+
+
 def detect_shifts(all_intervals, min_rest_hours=9):
     if not all_intervals:
         return []
     merged = merge_intervals(all_intervals)
+    merged = fill_timeline_gaps(merged)
     min_rest_sec = min_rest_hours * 3600
     shifts = []
     current = []
 
-    def _is_rest_like(wt, manual):
-        """Rest or card-out period — counts as rest for shift splitting.
+    def _is_rest_like(wt, _manual):
+        """True for rest intervals (wt == 0).
 
-        When the driver card is removed from the tachograph, the DDD records
-        the period as card_present=false (manual=True).  GloboFleet shows
-        these as "? Unbekannt".  Regardless of the recorded work_type
-        (often availability=1), this time is effectively daily rest and
-        must be treated as such for shift boundary detection.
+        Manual entries (card_present=false) are NOT automatically rest —
+        they carry the driver's declared activity (driving/work/etc.) and
+        should be counted as such.  Card-out *gaps* (no entries at all)
+        are handled by fill_timeline_gaps() which inserts explicit rest
+        intervals before shift detection.
         """
-        return wt == 0 or manual
+        return wt == 0
 
     i = 0
     while i < len(merged):
