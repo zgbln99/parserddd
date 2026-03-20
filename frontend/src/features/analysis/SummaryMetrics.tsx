@@ -47,7 +47,7 @@ export function SummaryMetrics({ summary: s, vma, locale }: SummaryMetricsProps)
           <p className="mt-0.5 text-xs text-indigo-500/70 dark:text-indigo-400/70">{s.night_40_hm}</p>
         </div>
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-center dark:border-emerald-800 dark:bg-emerald-900/30" title="Verpflegungsmehraufwand - dieta za podróż służbową">
-          <p className="text-xs font-bold uppercase tracking-wider text-emerald-500 dark:text-emerald-400">{t('analysisDietCount')}</p>
+          <p className="text-xs font-bold uppercase tracking-wider text-success dark:text-emerald-400">{t('analysisDietCount')}</p>
           <p className="mt-1 text-2xl font-extrabold text-emerald-700 dark:text-emerald-300">{s.diet_count}</p>
           <p className="mt-0.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
             {vma.amount.toFixed(2).replace('.', ',')} €
@@ -66,7 +66,7 @@ export function SummaryMetrics({ summary: s, vma, locale }: SummaryMetricsProps)
           { label: t('analysisNight25') + ' + ' + t('analysisNight40'), value: fmtNight(s.night_25_minutes + s.night_40_minutes, s.total_night_hm) },
         ].map(({ label, value }) => (
           <div key={label} className="rounded-xl bg-black/[0.02] p-3 text-center dark:bg-white/5">
-            <p className="text-xs font-bold uppercase tracking-wider text-gray-400">{label}</p>
+            <p className="text-xs font-bold uppercase tracking-wider text-muted dark:text-muted-dark">{label}</p>
             <p className="mt-0.5 text-xl font-extrabold">{value}</p>
           </div>
         ))}

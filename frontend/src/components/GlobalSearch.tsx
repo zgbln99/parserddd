@@ -88,11 +88,11 @@ export function GlobalSearch() {
 
   return (
     <div className="fixed inset-0 z-[80] flex items-start justify-center pt-[15vh] px-4 animate-fade-in">
-      <div className="fixed inset-0 bg-black/30 backdrop-blur-sm" onClick={() => { setOpen(false); setQuery(''); }} />
-      <div className="relative w-full max-w-lg rounded-2xl bg-white shadow-2xl dark:bg-slate-800 animate-scale-in overflow-hidden">
+      <div className="fixed inset-0 bg-black/30" onClick={() => { setOpen(false); setQuery(''); }} />
+      <div className="relative w-full max-w-lg rounded-2xl card shadow-xl animate-scale-in overflow-hidden">
         {/* Search input */}
-        <div className="flex items-center gap-3 border-b border-gray-100 px-4 py-3 dark:border-white/10">
-          <Search size={18} className="text-gray-400 shrink-0" />
+        <div className="flex items-center gap-3 border-b border-border px-4 py-3 dark:border-border-dark">
+          <Search size={18} className="text-muted dark:text-muted-dark shrink-0" />
           <input
             ref={inputRef}
             type="text"
@@ -100,15 +100,15 @@ export function GlobalSearch() {
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyNav}
             placeholder={`${t('search')}... (Ctrl+K)`}
-            className="flex-1 bg-transparent text-sm outline-none placeholder:text-gray-400"
+            className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted text-ink dark:text-ink-dark dark:placeholder:text-muted-dark"
           />
-          <kbd className="hidden sm:inline-flex items-center gap-1 rounded border border-gray-200 px-1.5 py-0.5 text-[10px] font-medium text-gray-400 dark:border-gray-600">ESC</kbd>
+          <kbd className="hidden sm:inline-flex items-center gap-1 rounded border border-border px-1.5 py-0.5 text-[10px] font-medium text-muted dark:text-muted-dark dark:border-border-dark">ESC</kbd>
         </div>
 
         {/* Results */}
         <div className="max-h-[50vh] overflow-y-auto p-2">
           {filtered.length === 0 ? (
-            <p className="py-8 text-center text-sm text-gray-400">{t('noData')}</p>
+            <p className="py-8 text-center text-sm text-muted dark:text-muted-dark">{t('noData')}</p>
           ) : (
             filtered.map((item, i) => {
               const Icon = item.icon;
@@ -118,8 +118,8 @@ export function GlobalSearch() {
                   onClick={() => handleSelect(item.to)}
                   className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition ${
                     i === selectedIndex
-                      ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
-                      : 'text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-white/5'
+                      ? 'bg-primary-50 text-primary-700 dark:bg-primary-900/20 dark:text-primary-400'
+                      : 'text-ink hover:bg-surface dark:text-ink-dark dark:hover:bg-surface-dark'
                   }`}
                 >
                   <Icon size={18} className="shrink-0" />

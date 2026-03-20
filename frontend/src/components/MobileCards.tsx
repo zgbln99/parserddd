@@ -26,7 +26,7 @@ export function MobileCard({
   return (
     <div
       onClick={onClick}
-      className={`rounded-xl border border-white/20 bg-white/50 p-4 dark:border-white/5 dark:bg-white/5 ${onClick ? 'cursor-pointer active:bg-blue-50/50 dark:active:bg-blue-900/10' : ''}`}
+      className={`rounded-xl border border-border p-4 dark:border-border-dark ${onClick ? 'cursor-pointer active:bg-primary-50 dark:active:bg-primary-900/10' : ''}`}
     >
       {children}
     </div>
@@ -37,8 +37,8 @@ export function MobileCard({
 export function CardField({ label, value, className }: { label: string; value: ReactNode; className?: string }) {
   return (
     <div className={`flex items-baseline justify-between gap-2 ${className ?? ''}`}>
-      <span className="text-xs text-gray-400 dark:text-gray-500 shrink-0">{label}</span>
-      <span className="text-sm font-medium text-right">{value}</span>
+      <span className="text-xs text-muted dark:text-muted-dark shrink-0">{label}</span>
+      <span className="text-sm font-medium text-right text-ink dark:text-ink-dark">{value}</span>
     </div>
   );
 }

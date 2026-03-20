@@ -30,7 +30,7 @@ export function SyncPage() {
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center gap-3 py-20 text-gray-400">
+      <div className="flex flex-col items-center gap-3 py-20 text-muted dark:text-muted-dark">
         <Spinner size="lg" />
         <p>{t('loading')}</p>
       </div>
@@ -39,12 +39,12 @@ export function SyncPage() {
 
   if (error) {
     return (
-      <div className="flex flex-col items-center gap-3 py-20 text-rose-500 animate-fade-in">
+      <div className="flex flex-col items-center gap-3 py-20 text-danger animate-fade-in">
         <AlertCircle size={32} />
         <p>{error}</p>
         <button
           onClick={() => { setError(''); loadSyncLog(); }}
-          className="mt-2 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:brightness-110"
+          className="btn-press mt-2 rounded-xl bg-primary-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary-700"
         >
           {t('tryAgain')}
         </button>
@@ -57,9 +57,9 @@ export function SyncPage() {
   const totalRuns = history.length;
 
   const statusIcon = (status: string) => {
-    if (status === 'ok') return <CheckCircle size={16} className="text-emerald-500" />;
-    if (status === 'error') return <XCircle size={16} className="text-rose-500" />;
-    return <MinusCircle size={16} className="text-amber-500" />;
+    if (status === 'ok') return <CheckCircle size={20} className="text-success" />;
+    if (status === 'error') return <XCircle size={20} className="text-danger" />;
+    return <MinusCircle size={20} className="text-warning" />;
   };
 
   const statusBadge = (status: string) => {
@@ -71,10 +71,10 @@ export function SyncPage() {
 
   return (
     <div className="animate-slide-up">
-      <h1 className="mb-6 text-2xl font-bold tracking-tight">{t('syncTitle')}</h1>
+      <h1 className="mb-6 text-2xl font-bold tracking-tight text-ink dark:text-ink-dark">{t('syncTitle')}</h1>
 
       {history.length === 0 ? (
-        <p className="py-20 text-center text-gray-400">{t('syncNoHistory')}</p>
+        <p className="py-20 text-center text-muted dark:text-muted-dark">{t('syncNoHistory')}</p>
       ) : (
         <>
           {/* Stats */}
@@ -105,7 +105,7 @@ export function SyncPage() {
             />
           </div>
 
-          {/* History table */}
+          {/* History - mobile cards */}
           <div className="block sm:hidden space-y-3 p-4">
             {history.map((h, i) => (
               <MobileCard key={i} onClick={() => setExpandedIdx(expandedIdx === i ? null : i)}>
@@ -113,16 +113,16 @@ export function SyncPage() {
                 <CardField label={t('syncStatus')} value={statusBadge(h.status)} />
                 <CardField label={t('syncFound')} value={h.found} />
                 <CardField label={t('syncUploaded')} value={<span className="font-bold">{h.uploaded}</span>} />
-                <CardField label={t('syncErrors')} value={<span className={h.errors ? 'text-rose-500' : 'text-gray-300 dark:text-gray-600'}>{h.errors}</span>} />
+                <CardField label={t('syncErrors')} value={<span className={h.errors ? 'text-danger' : 'text-muted/30 dark:text-muted-dark/30'}>{h.errors}</span>} />
                 {expandedIdx === i && h.files.length > 0 && (
-                  <div className="mt-3 space-y-1.5 border-t border-white/10 pt-3">
+                  <div className="mt-3 space-y-1.5 border-t border-border pt-3 dark:border-border-dark">
                     {h.files.map((f, fi) => (
                       <div key={fi} className="flex items-center gap-2 text-xs">
                         {f.status === 'ok'
-                          ? <CheckCircle size={14} className="flex-shrink-0 text-emerald-500" />
-                          : <XCircle size={14} className="flex-shrink-0 text-rose-500" />}
-                        <span className="font-medium text-gray-500">{f.driver}</span>
-                        <span className="flex-1 truncate font-medium">{f.file}</span>
+                          ? <CheckCircle size={14} className="flex-shrink-0 text-success" />
+                          : <XCircle size={14} className="flex-shrink-0 text-danger" />}
+                        <span className="font-medium text-muted dark:text-muted-dark">{f.driver}</span>
+                        <span className="flex-1 truncate font-medium text-ink dark:text-ink-dark">{f.file}</span>
                       </div>
                     ))}
                   </div>
@@ -130,56 +130,58 @@ export function SyncPage() {
               </MobileCard>
             ))}
           </div>
+
+          {/* History - desktop table */}
           <Card className="hidden sm:block overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full min-w-[800px] text-sm">
                 <thead>
-                  <tr className="border-b border-white/20 dark:border-white/5">
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('syncDate')}</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('syncStatus')}</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('syncFound')}</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('syncUploaded')}</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('syncErrors')}</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('syncFiles')}</th>
+                  <tr className="border-b border-border dark:border-border-dark">
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted dark:text-muted-dark">{t('syncDate')}</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted dark:text-muted-dark">{t('syncStatus')}</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted dark:text-muted-dark">{t('syncFound')}</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted dark:text-muted-dark">{t('syncUploaded')}</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted dark:text-muted-dark">{t('syncErrors')}</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted dark:text-muted-dark">{t('syncFiles')}</th>
                     <th className="px-4 py-3" />
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-black/[0.03] dark:divide-white/[0.03]">
+                <tbody className="divide-y divide-border dark:divide-border-dark">
                   {history.map((h, i) => (
                     <Fragment key={i}>
                       <tr
                         onClick={() => setExpandedIdx(expandedIdx === i ? null : i)}
-                        className="cursor-pointer transition hover:bg-black/[0.03] dark:hover:bg-white/5"
+                        className="cursor-pointer transition hover:bg-primary-50 dark:hover:bg-primary-900/10"
                       >
-                        <td className="whitespace-nowrap px-4 py-3 text-gray-500 dark:text-gray-400">{formatDateTime(h.timestamp, locale)}</td>
+                        <td className="whitespace-nowrap px-4 py-3 text-muted dark:text-muted-dark">{formatDateTime(h.timestamp, locale)}</td>
                         <td className="whitespace-nowrap px-4 py-3">{statusBadge(h.status)}</td>
-                        <td className="whitespace-nowrap px-4 py-3">{h.found}</td>
-                        <td className="whitespace-nowrap px-4 py-3 font-bold">{h.uploaded}</td>
+                        <td className="whitespace-nowrap px-4 py-3 text-ink dark:text-ink-dark">{h.found}</td>
+                        <td className="whitespace-nowrap px-4 py-3 font-bold text-ink dark:text-ink-dark">{h.uploaded}</td>
                         <td className="whitespace-nowrap px-4 py-3">
-                          <span className={h.errors ? 'text-rose-500' : 'text-gray-300 dark:text-gray-600'}>{h.errors}</span>
+                          <span className={h.errors ? 'text-danger' : 'text-muted/30 dark:text-muted-dark/30'}>{h.errors}</span>
                         </td>
                         <td className="whitespace-nowrap px-4 py-3">
                           {h.files.length > 0 ? <Badge variant="gray">{h.files.length}</Badge> : '-'}
                         </td>
                         <td className="px-4 py-3">
                           {h.files.length > 0 && (
-                            expandedIdx === i ? <ChevronUp size={14} className="text-gray-400" /> : <ChevronDown size={14} className="text-gray-400" />
+                            expandedIdx === i ? <ChevronUp size={14} className="text-muted dark:text-muted-dark" /> : <ChevronDown size={14} className="text-muted dark:text-muted-dark" />
                           )}
                         </td>
                       </tr>
                       {expandedIdx === i && h.files.length > 0 && (
                         <tr key={`${i}-detail`}>
-                          <td colSpan={7} className="bg-black/[0.02] px-6 py-3 dark:bg-white/5">
+                          <td colSpan={7} className="bg-surface px-6 py-3 dark:bg-surface-dark">
                             <div className="space-y-1.5">
                               {h.files.map((f, fi) => (
                                 <div key={fi} className="flex items-center gap-3 text-xs">
                                   {f.status === 'ok'
-                                    ? <CheckCircle size={14} className="flex-shrink-0 text-emerald-500" />
-                                    : <XCircle size={14} className="flex-shrink-0 text-rose-500" />}
-                                  <span className="min-w-[120px] font-medium text-gray-500">{f.driver}</span>
-                                  <span className="flex-1 font-medium">{f.file}</span>
-                                  {f.size && <span className="text-gray-400">{formatBytes(f.size)}</span>}
-                                  {f.error && <span className="text-rose-500">{f.error}</span>}
+                                    ? <CheckCircle size={14} className="flex-shrink-0 text-success" />
+                                    : <XCircle size={14} className="flex-shrink-0 text-danger" />}
+                                  <span className="min-w-[120px] font-medium text-muted dark:text-muted-dark">{f.driver}</span>
+                                  <span className="flex-1 font-medium text-ink dark:text-ink-dark">{f.file}</span>
+                                  {f.size && <span className="text-muted dark:text-muted-dark">{formatBytes(f.size)}</span>}
+                                  {f.error && <span className="text-danger">{f.error}</span>}
                                 </div>
                               ))}
                             </div>

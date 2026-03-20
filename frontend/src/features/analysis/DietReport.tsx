@@ -73,14 +73,14 @@ export function DietReport({ shifts, driverName, cardNumber, summary }: DietRepo
     <div className="overflow-hidden px-2 sm:px-4 pb-4">
       <table className="w-full text-xs sm:text-sm">
         <thead>
-          <tr className="border-b border-white/30 dark:border-white/10">
-            <th className="px-2 py-2 text-left text-xs font-semibold text-gray-500 dark:text-gray-400">{t('syncDate')}</th>
-            <th className="px-2 py-2 text-left text-xs font-semibold text-gray-500 dark:text-gray-400">{t('analysisWeekday')}</th>
-            <th className="px-2 py-2 text-left text-xs font-semibold text-gray-500 dark:text-gray-400">{t('analysisDuration')}</th>
-            <th className="px-2 py-2 text-center text-xs font-semibold text-gray-500 dark:text-gray-400">{t('analysisDiet')}</th>
+          <tr className="border-b border-border dark:border-border-dark">
+            <th className="px-2 py-2 text-left text-xs font-semibold text-muted dark:text-muted-dark">{t('syncDate')}</th>
+            <th className="px-2 py-2 text-left text-xs font-semibold text-muted dark:text-muted-dark">{t('analysisWeekday')}</th>
+            <th className="px-2 py-2 text-left text-xs font-semibold text-muted dark:text-muted-dark">{t('analysisDuration')}</th>
+            <th className="px-2 py-2 text-center text-xs font-semibold text-muted dark:text-muted-dark">{t('analysisDiet')}</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-black/[0.03] dark:divide-white/[0.03]">
+        <tbody className="divide-y divide-border dark:divide-border-dark">
           {shifts.map((sh, i) => {
             const isWeekend = sh.weekday === 'So' || sh.weekday === 'Nd';
             return (
@@ -101,7 +101,7 @@ export function DietReport({ shifts, driverName, cardNumber, summary }: DietRepo
       <div className="mt-3 flex justify-end">
         <button
           onClick={handlePrint}
-          className="flex min-h-[44px] items-center gap-1.5 rounded-lg border border-white/30 dark:border-white/10 px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:bg-black/5 dark:text-gray-400 dark:hover:bg-white/5"
+          className="flex min-h-[44px] items-center gap-1.5 rounded-lg border border-border dark:border-border-dark px-3 py-1.5 text-xs font-medium text-muted dark:text-muted-dark transition hover:bg-surface dark:hover:bg-surface-dark"
         >
           <Printer size={13} />
           {t('analysisPrint')}

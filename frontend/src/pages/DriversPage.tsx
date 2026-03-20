@@ -112,8 +112,8 @@ export function DriversPage() {
   const SortIcon = ({ field }: { field: SortField }) => {
     if (sortField !== field) return <ChevronUp size={12} className="opacity-20" />;
     return sortDir === 'asc'
-      ? <ChevronUp size={12} className="text-primary-500" />
-      : <ChevronDown size={12} className="text-primary-500" />;
+      ? <ChevronUp size={12} className="text-primary-600 dark:text-primary-400" />
+      : <ChevronDown size={12} className="text-primary-600 dark:text-primary-400" />;
   };
 
   const cols: { field: SortField; label: string }[] = [
@@ -128,24 +128,24 @@ export function DriversPage() {
 
   return (
     <div className="animate-slide-up">
-      <h1 className="mb-6 text-2xl font-bold tracking-tight">{t('driversTitle')}</h1>
+      <h1 className="mb-6 text-2xl font-bold tracking-tight text-ink dark:text-ink-dark">{t('driversTitle')}</h1>
 
       {/* Toolbar */}
       <div className="mb-4 flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3">
         <div className="relative w-full sm:max-w-xs">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted dark:text-muted-dark" />
           <input
             type="text"
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(1); }}
             placeholder={t('driversSearch')}
-            className="glass-input w-full rounded-xl py-2 pl-9 pr-3 text-sm outline-none"
+            className="input w-full rounded-xl py-2 pl-9 pr-3 text-sm"
           />
         </div>
         <div className="hidden sm:block flex-1" />
         <button
           onClick={() => { setShowAddDriver(true); setNewDriverName(''); setAddDriverError(''); }}
-          className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 px-4 py-2 min-h-[44px] text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:brightness-110"
+          className="btn-press flex items-center justify-center gap-2 rounded-xl bg-primary-600 px-4 py-2 min-h-[44px] text-sm font-semibold text-white transition hover:bg-primary-700"
         >
           <UserPlus size={14} />
           {t('driversAddDriver')}
@@ -153,7 +153,7 @@ export function DriversPage() {
         <button
           onClick={() => load(true)}
           disabled={loading}
-          className="flex items-center justify-center gap-2 rounded-xl border border-white/30 dark:border-white/10 bg-white/50 dark:bg-white/5 px-4 py-2 min-h-[44px] text-sm font-medium transition hover:bg-black/[0.03] dark:hover:bg-white/5 backdrop-blur-sm"
+          className="flex items-center justify-center gap-2 rounded-xl border border-border px-4 py-2 min-h-[44px] text-sm font-medium text-ink transition hover:bg-surface dark:border-border-dark dark:text-ink-dark dark:hover:bg-surface-dark"
         >
           <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
           {t('refresh')}
@@ -163,10 +163,10 @@ export function DriversPage() {
       {/* Overdue download alert */}
       {overdueDrivers.length > 0 && (
         <div className="mb-4 flex items-center gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 dark:border-rose-800 dark:bg-rose-900/20">
-          <AlertTriangle size={18} className="flex-shrink-0 text-rose-500" />
+          <AlertTriangle size={18} className="flex-shrink-0 text-danger" />
           <div className="flex-1">
-            <p className="text-sm font-semibold text-rose-700 dark:text-rose-400">{t('driversOverdueAlert')}</p>
-            <p className="text-xs text-rose-600/70 dark:text-rose-400/70">
+            <p className="text-sm font-semibold text-danger">{t('driversOverdueAlert')}</p>
+            <p className="text-xs text-danger/70">
               {overdueDrivers.length} {t('driversOverdueCount')}: {overdueDrivers.slice(0, 5).map((d) => d.name).join(', ')}{overdueDrivers.length > 5 ? '...' : ''}
             </p>
           </div>
@@ -176,19 +176,19 @@ export function DriversPage() {
 
       {/* Loading / Error / Empty */}
       {loading && !drivers.length && (
-        <div className="flex flex-col items-center gap-3 py-20 text-gray-400">
+        <div className="flex flex-col items-center gap-3 py-20 text-muted dark:text-muted-dark">
           <Spinner size="lg" />
           <p>{t('loading')}</p>
         </div>
       )}
 
       {error && (
-        <div className="flex flex-col items-center gap-3 py-20 text-rose-500 animate-fade-in">
+        <div className="flex flex-col items-center gap-3 py-20 text-danger animate-fade-in">
           <AlertCircle size={32} />
           <p>{error}</p>
           <button
             onClick={() => { setError(''); load(); }}
-            className="mt-2 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 px-4 py-2 min-h-[44px] text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:brightness-110"
+            className="btn-press mt-2 rounded-xl bg-primary-600 px-4 py-2 min-h-[44px] text-sm font-semibold text-white transition hover:bg-primary-700"
           >
             {t('tryAgain')}
           </button>
@@ -196,22 +196,22 @@ export function DriversPage() {
       )}
 
       {!loading && !error && !drivers.length && (
-        <p className="py-20 text-center text-gray-400">{t('driversNoData')}</p>
+        <p className="py-20 text-center text-muted dark:text-muted-dark">{t('driversNoData')}</p>
       )}
 
       {/* Table (desktop) + Cards (mobile) */}
       {pageData.length > 0 && (
         <Card className="overflow-hidden">
           {/* Mobile card view */}
-          <div className="block sm:hidden divide-y divide-black/[0.03] dark:divide-white/[0.03]">
+          <div className="block sm:hidden divide-y divide-border dark:divide-border-dark">
             {pageData.map((d) => (
               <div
                 key={d.name}
                 onClick={() => openDriver(d)}
-                className={`cursor-pointer p-4 transition active:bg-blue-50/50 dark:active:bg-blue-900/10 ${d.days_since !== null && d.days_since > 28 ? 'bg-rose-50/30 dark:bg-rose-900/10' : ''}`}
+                className={`cursor-pointer p-4 transition active:bg-primary-50 dark:active:bg-primary-900/10 ${d.days_since !== null && d.days_since > 28 ? 'bg-danger/[0.03]' : ''}`}
               >
                 <div className="flex items-center justify-between gap-2 mb-2">
-                  <p className="text-sm font-bold truncate">{d.name}</p>
+                  <p className="text-sm font-bold truncate text-ink dark:text-ink-dark">{d.name}</p>
                   <span className="inline-flex items-center gap-1.5 text-xs font-semibold shrink-0">
                     <StatusDot color={daysColor(d.days_since)} />
                     {daysLabel(d.days_since, locale)}
@@ -230,12 +230,12 @@ export function DriversPage() {
           <div className="hidden sm:block overflow-x-auto">
             <table className="w-full min-w-[800px] text-sm">
               <thead>
-                <tr className="border-b border-white/20 dark:border-white/5">
+                <tr className="border-b border-border dark:border-border-dark">
                   {cols.map(({ field, label }) => (
                     <th
                       key={field}
                       onClick={() => handleSort(field)}
-                      className="cursor-pointer whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 select-none hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                      className="cursor-pointer whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted select-none hover:text-ink dark:text-muted-dark dark:hover:text-ink-dark"
                     >
                       <span className="inline-flex items-center gap-1">
                         {label}
@@ -245,18 +245,18 @@ export function DriversPage() {
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-black/[0.03] dark:divide-white/[0.03]">
+              <tbody className="divide-y divide-border dark:divide-border-dark">
                 {pageData.map((d) => (
                   <tr
                     key={d.name}
                     onClick={() => openDriver(d)}
-                    className={`cursor-pointer transition hover:bg-primary-50/50 dark:hover:bg-primary-900/10 ${d.days_since !== null && d.days_since > 28 ? 'bg-rose-50/50 dark:bg-rose-900/10' : ''}`}
+                    className={`cursor-pointer transition hover:bg-primary-50 dark:hover:bg-primary-900/10 ${d.days_since !== null && d.days_since > 28 ? 'bg-danger/[0.03]' : ''}`}
                   >
-                    <td className="whitespace-nowrap px-4 py-3 font-semibold">{d.name}</td>
-                    <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-gray-500 dark:text-gray-400">{d.card_number}</td>
-                    <td className="whitespace-nowrap px-4 py-3 text-gray-500 dark:text-gray-400">{formatDate(d.earliest_date, locale)}</td>
-                    <td className="whitespace-nowrap px-4 py-3 text-gray-500 dark:text-gray-400">{formatDate(d.latest_date, locale)}</td>
-                    <td className="whitespace-nowrap px-4 py-3 text-gray-500 dark:text-gray-400">{formatDateTime(d.latest_download, locale)}</td>
+                    <td className="whitespace-nowrap px-4 py-3 font-semibold text-ink dark:text-ink-dark">{d.name}</td>
+                    <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-muted dark:text-muted-dark">{d.card_number}</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-muted dark:text-muted-dark">{formatDate(d.earliest_date, locale)}</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-muted dark:text-muted-dark">{formatDate(d.latest_date, locale)}</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-muted dark:text-muted-dark">{formatDateTime(d.latest_download, locale)}</td>
                     <td className="whitespace-nowrap px-4 py-3">
                       <span className="inline-flex items-center gap-1.5 text-xs font-semibold">
                         <StatusDot color={daysColor(d.days_since)} />
@@ -274,19 +274,19 @@ export function DriversPage() {
 
           {/* Pagination */}
           {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-3 border-t border-white/20 dark:border-white/5 px-4 py-3 text-sm">
+            <div className="flex items-center justify-center gap-3 border-t border-border px-4 py-3 text-sm dark:border-border-dark">
               <button
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page <= 1}
-                className="rounded-lg px-3 py-1 min-h-[44px] font-medium transition hover:bg-black/5 disabled:opacity-30 dark:hover:bg-white/5"
+                className="rounded-lg px-3 py-1 min-h-[44px] font-medium text-ink transition hover:bg-surface disabled:opacity-30 dark:text-ink-dark dark:hover:bg-surface-dark"
               >
                 {t('pagePrev')}
               </button>
-              <span className="text-gray-500">{page} {t('pageOf')} {totalPages}</span>
+              <span className="text-muted dark:text-muted-dark">{page} {t('pageOf')} {totalPages}</span>
               <button
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={page >= totalPages}
-                className="rounded-lg px-3 py-1 min-h-[44px] font-medium transition hover:bg-black/5 disabled:opacity-30 dark:hover:bg-white/5"
+                className="rounded-lg px-3 py-1 min-h-[44px] font-medium text-ink transition hover:bg-surface disabled:opacity-30 dark:text-ink-dark dark:hover:bg-surface-dark"
               >
                 {t('pageNext')}
               </button>
@@ -299,7 +299,7 @@ export function DriversPage() {
       <Modal open={showAddDriver} onClose={() => setShowAddDriver(false)} title={t('driversAddDriver')}>
         <div className="space-y-4">
           <div>
-            <label className="mb-1 block text-sm font-medium">{t('driversName')}</label>
+            <label className="mb-1 block text-sm font-medium text-ink dark:text-ink-dark">{t('driversName')}</label>
             <input
               type="text"
               value={newDriverName}
@@ -307,23 +307,23 @@ export function DriversPage() {
               onKeyDown={(e) => { if (e.key === 'Enter') handleAddDriver(); }}
               placeholder={t('driversAddNamePlaceholder')}
               autoFocus
-              className="glass-input w-full rounded-xl px-4 py-2.5 text-sm outline-none"
+              className="input w-full rounded-xl px-4 py-2.5 text-sm"
             />
           </div>
           {addDriverError && (
-            <p className="text-sm text-rose-500">{addDriverError}</p>
+            <p className="text-sm text-danger">{addDriverError}</p>
           )}
           <div className="flex justify-end gap-2">
             <button
               onClick={() => setShowAddDriver(false)}
-              className="rounded-lg border border-white/30 dark:border-white/10 px-4 py-2 min-h-[44px] text-sm font-medium transition hover:bg-black/[0.03] dark:hover:bg-white/5"
+              className="rounded-lg border border-border px-4 py-2 min-h-[44px] text-sm font-medium text-ink transition hover:bg-surface dark:border-border-dark dark:text-ink-dark dark:hover:bg-surface-dark"
             >
               {t('cancel')}
             </button>
             <button
               onClick={handleAddDriver}
               disabled={!newDriverName.trim() || addingDriver}
-              className="rounded-lg bg-gradient-to-r from-blue-500 to-blue-600 px-4 py-2 min-h-[44px] text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:brightness-110 disabled:opacity-50"
+              className="btn-press rounded-lg bg-primary-600 px-4 py-2 min-h-[44px] text-sm font-semibold text-white transition hover:bg-primary-700 disabled:opacity-50"
             >
               {addingDriver ? t('loading') : t('save')}
             </button>
@@ -334,19 +334,19 @@ export function DriversPage() {
       {/* Driver files modal - all files shown, no date filtering */}
       <Modal open={!!selectedDriver} onClose={() => setSelectedDriver(null)} title={selectedDriver ? `${selectedDriver.name}${selectedDriver.card_number ? ` (${selectedDriver.card_number})` : ''}` : ''} wide>
         {selectedDriver && (
-          <div className="max-h-[60vh] divide-y divide-black/[0.03] overflow-y-auto dark:divide-white/[0.03]">
+          <div className="max-h-[60vh] divide-y divide-border overflow-y-auto dark:divide-border-dark">
             {selectedDriver.files.length === 0 ? (
-              <p className="py-10 text-center text-sm text-gray-400">{t('detailNoFiles')}</p>
+              <p className="py-10 text-center text-sm text-muted dark:text-muted-dark">{t('detailNoFiles')}</p>
             ) : (
               selectedDriver.files.map((f) => (
                 <div
                   key={f.path}
-                  className="cursor-pointer px-4 py-3 text-sm transition hover:bg-black/[0.03] dark:hover:bg-white/5"
+                  className="cursor-pointer px-4 py-3 text-sm transition hover:bg-primary-50 dark:hover:bg-primary-900/10"
                   onClick={() => analyzeFile(f)}
                 >
                   <div className="flex items-center gap-2">
-                    <FileText size={16} className="flex-shrink-0 text-primary-500" />
-                    <span className="flex-1 font-medium truncate">{f.name}</span>
+                    <FileText size={16} className="flex-shrink-0 text-primary-600 dark:text-primary-400" />
+                    <span className="flex-1 font-medium truncate text-ink dark:text-ink-dark">{f.name}</span>
                     <button
                       onClick={(e) => { e.stopPropagation(); analyzeFile(f); }}
                       className="shrink-0 rounded-lg border border-primary-200 px-3 py-1 min-h-[44px] text-xs font-semibold text-primary-600 transition hover:bg-primary-50 dark:border-primary-800 dark:text-primary-400 dark:hover:bg-primary-900/20"
@@ -354,7 +354,7 @@ export function DriversPage() {
                       {t('detailAnalyze')}
                     </button>
                   </div>
-                  <div className="mt-1 flex items-center gap-3 pl-6 text-xs text-gray-400">
+                  <div className="mt-1 flex items-center gap-3 pl-6 text-xs text-muted dark:text-muted-dark">
                     <span>{formatDate(f.file_date, locale)}</span>
                     <span>{formatBytes(f.size)}</span>
                   </div>

@@ -85,35 +85,35 @@ export function UsersTab() {
         </button>
       </div>
 
-      {error && <p className="mb-3 text-sm text-rose-500">{error}</p>}
+      {error && <p className="mb-3 text-sm text-danger">{error}</p>}
 
       {showForm && (
         <div className="mb-4 flex flex-wrap items-end gap-3 rounded-lg bg-black/[0.02] p-4 dark:bg-white/5">
           <div>
-            <label className="mb-1 block text-xs font-semibold text-gray-500">{t('adminUserName')}</label>
+            <label className="mb-1 block text-xs font-semibold text-muted dark:text-muted-dark">{t('adminUserName')}</label>
             <input
               type="text"
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
-              className="glass-input rounded-xl px-3 py-1.5 text-sm outline-none"
+              className="input rounded-xl px-3 py-1.5 text-sm outline-none"
               placeholder="Jan Kowalski"
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-semibold text-gray-500">{t('password')}</label>
+            <label className="mb-1 block text-xs font-semibold text-muted dark:text-muted-dark">{t('password')}</label>
             <input
               type="password"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
-              className="glass-input rounded-xl px-3 py-1.5 text-sm outline-none"
+              className="input rounded-xl px-3 py-1.5 text-sm outline-none"
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-semibold text-gray-500">{t('adminRole')}</label>
+            <label className="mb-1 block text-xs font-semibold text-muted dark:text-muted-dark">{t('adminRole')}</label>
             <select
               value={newRole}
               onChange={(e) => setNewRole(e.target.value)}
-              className="glass-input rounded-xl px-3 py-1.5 text-sm outline-none"
+              className="input rounded-xl px-3 py-1.5 text-sm outline-none"
             >
               <option value="user">User</option>
               <option value="admin">Admin</option>
@@ -122,7 +122,7 @@ export function UsersTab() {
           <button
             onClick={handleCreate}
             disabled={saving}
-            className="rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-1.5 text-sm font-semibold text-white shadow-lg shadow-emerald-500/20 transition hover:brightness-110 disabled:opacity-50"
+            className="rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-1.5 text-sm font-semibold text-white shadow-lg shadow-emerald-500/20 transition hover:bg-primary-700 disabled:opacity-50"
           >
             {saving ? '...' : t('save')}
           </button>
@@ -130,7 +130,7 @@ export function UsersTab() {
       )}
 
       {users.length === 0 ? (
-        <p className="py-4 text-center text-sm text-gray-400">{t('adminNoUsers')}</p>
+        <p className="py-4 text-center text-sm text-muted dark:text-muted-dark">{t('adminNoUsers')}</p>
       ) : (
         <>
         <div className="block sm:hidden space-y-3 p-4">
@@ -154,23 +154,23 @@ export function UsersTab() {
         <div className="hidden sm:block overflow-x-auto">
           <table className="w-full min-w-[600px] text-sm">
             <thead>
-              <tr className="border-b border-white/20 dark:border-white/5">
-                <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">ID</th>
-                <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">{t('adminUserName')}</th>
-                <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">{t('adminRole')}</th>
-                <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">{t('syncDate')}</th>
+              <tr className="border-b border-border dark:border-border-dark">
+                <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-muted dark:text-muted-dark">ID</th>
+                <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-muted dark:text-muted-dark">{t('adminUserName')}</th>
+                <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-muted dark:text-muted-dark">{t('adminRole')}</th>
+                <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-muted dark:text-muted-dark">{t('syncDate')}</th>
                 <th className="px-4 py-2" />
               </tr>
             </thead>
-            <tbody className="divide-y divide-black/[0.03] dark:divide-white/[0.03]">
+            <tbody className="divide-y divide-border dark:divide-border-dark">
               {users.map((u) => (
-                <tr key={u.id} className="hover:bg-black/[0.03] dark:hover:bg-white/5">
-                  <td className="px-4 py-2 font-mono text-xs text-gray-400">{u.id}</td>
+                <tr key={u.id} className="hover:bg-surface dark:hover:bg-surface-dark">
+                  <td className="px-4 py-2 font-mono text-xs text-muted dark:text-muted-dark">{u.id}</td>
                   <td className="px-4 py-2 font-medium">{u.name}</td>
                   <td className="px-4 py-2">
                     <Badge variant={u.role === 'admin' ? 'red' : 'gray'}>{u.role}</Badge>
                   </td>
-                  <td className="px-4 py-2 text-xs text-gray-500">{u.created ? new Date(u.created).toLocaleDateString() : ''}</td>
+                  <td className="px-4 py-2 text-xs text-muted dark:text-muted-dark">{u.created ? new Date(u.created).toLocaleDateString() : ''}</td>
                   <td className="px-4 py-2">
                     <button
                       onClick={() => handleDelete(u.id, u.name)}

@@ -40,7 +40,7 @@ export function ExcelCopyBlock({ summary, monthlyDays }: ExcelCopyBlockProps) {
         <thead>
           <tr>
             {cols.map((c) => (
-              <th key={c.header} className="border border-white/30 bg-black/[0.04] px-2 py-1 text-center font-bold text-gray-500 dark:border-white/10 dark:bg-white/10 dark:text-gray-400">
+              <th key={c.header} className="border border-white/30 bg-black/[0.04] px-2 py-1 text-center font-bold text-muted dark:text-muted-dark dark:border-white/10 dark:bg-white/10 dark:text-gray-400">
                 {c.header}
               </th>
             ))}

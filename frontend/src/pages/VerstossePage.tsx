@@ -214,7 +214,7 @@ export function VerstossePage() {
           </div>
           {t('verstosseTitle')}
         </h1>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+        <p className="mt-1 text-sm text-muted dark:text-muted-dark">
           {t('verstosseSubtitle')}
           {(dateFrom || dateTo) && (
             <span className="ml-2 inline-flex items-center gap-1 rounded-md bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 ring-1 ring-blue-200 dark:bg-blue-500/10 dark:text-blue-300 dark:ring-blue-500/20">
@@ -233,7 +233,7 @@ export function VerstossePage() {
               {t('verstosseSelectDrivers')}
             </h2>
             <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-400">
+              <span className="text-xs text-muted dark:text-muted-dark">
                 {selected.size} {t('driverSelected')}
               </span>
               <button
@@ -247,7 +247,7 @@ export function VerstossePage() {
 
           {/* Search */}
           <div className="relative">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted dark:text-muted-dark" />
             <input
               type="text"
               value={searchQuery}
@@ -303,7 +303,7 @@ export function VerstossePage() {
                   className={`flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-semibold transition ${
                     pdfLang === code
                       ? 'bg-blue-600 text-white shadow-sm'
-                      : 'text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-white/10'
+                      : 'text-muted dark:text-muted-dark hover:bg-gray-100 dark:hover:bg-white/10'
                   }`}
                 >
                   <span>{flag}</span>
@@ -317,7 +317,7 @@ export function VerstossePage() {
               className={`flex cursor-pointer select-none items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-medium transition ${
                 excludeManualEntry
                   ? 'border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300'
-                  : 'border-gray-200 bg-white text-gray-500 hover:bg-gray-50 dark:border-white/10 dark:bg-slate-800 dark:text-gray-400 dark:hover:bg-white/5'
+                  : 'border-gray-200 bg-white text-muted dark:text-muted-dark hover:bg-gray-50 dark:border-white/10 dark:bg-slate-800 dark:hover:bg-white/5'
               }`}
               title={locale === 'de' ? 'Landeingabe-Verstöße ausschließen' : 'Wyklucz naruszenia wpisu kraju'}
             >
@@ -343,15 +343,15 @@ export function VerstossePage() {
             <button
               onClick={handleGenerate}
               disabled={loading || selected.size === 0}
-              className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-red-600 to-orange-600 px-6 py-2.5 text-sm font-bold text-white shadow-lg shadow-red-500/20 transition hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-red-600 to-orange-600 px-6 py-2.5 text-sm font-bold text-white shadow-lg shadow-red-500/20 transition hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? <Spinner size="sm" /> : <Play size={16} />}
               {t('verstosseGenerate')}
             </button>
             {loading && progress.total > 0 && (
-              <div className="flex items-center gap-2 text-sm text-gray-500">
+              <div className="flex items-center gap-2 text-sm text-muted dark:text-muted-dark">
                 <span>{progress.current}/{progress.total}</span>
-                {progress.name && <span className="text-gray-400">— {progress.name}</span>}
+                {progress.name && <span className="text-muted dark:text-muted-dark">— {progress.name}</span>}
               </div>
             )}
           </div>
@@ -365,15 +365,15 @@ export function VerstossePage() {
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
             <div className="rounded-2xl border border-gray-200 bg-white px-5 py-5 shadow-sm dark:border-white/10 dark:bg-slate-800/50">
               <div className="flex items-center gap-2">
-                <Users size={14} className="text-gray-400" />
-                <span className="text-[11px] font-medium uppercase tracking-wider text-gray-400">{t('verstosseDriversAnalyzed')}</span>
+                <Users size={14} className="text-muted dark:text-muted-dark" />
+                <span className="text-[11px] font-medium uppercase tracking-wider text-muted dark:text-muted-dark">{t('verstosseDriversAnalyzed')}</span>
               </div>
               <p className="mt-3 text-3xl font-bold text-gray-900 dark:text-white">{results.length}</p>
             </div>
             <div className="rounded-2xl border border-gray-200 bg-white px-5 py-5 shadow-sm dark:border-white/10 dark:bg-slate-800/50">
               <div className="flex items-center gap-2">
                 <AlertTriangle size={14} className={totalViolations > 0 ? 'text-red-400' : 'text-green-400'} />
-                <span className="text-[11px] font-medium uppercase tracking-wider text-gray-400">{t('verstosseTotalViolations')}</span>
+                <span className="text-[11px] font-medium uppercase tracking-wider text-muted dark:text-muted-dark">{t('verstosseTotalViolations')}</span>
               </div>
               <p className={`mt-3 text-3xl font-bold ${totalViolations > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
                 {totalViolations}
@@ -392,7 +392,7 @@ export function VerstossePage() {
           {/* Export all button */}
           {driversWithViolations > 0 && (
             <div className="flex items-center justify-between">
-              <p className="text-sm text-gray-500 dark:text-gray-400">
+              <p className="text-sm text-muted dark:text-muted-dark">
                 {driversWithViolations} {locale === 'de' ? 'Fahrer mit Verstößen' : 'kierowców z naruszeniami'}
                 {excludeManualEntry && (
                   <span className="ml-2 text-xs text-amber-500">
@@ -402,7 +402,7 @@ export function VerstossePage() {
               </p>
               <button
                 onClick={handleGenerateAllPdfs}
-                className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-red-600 to-orange-600 px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-red-500/20 transition hover:brightness-110"
+                className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-red-600 to-orange-600 px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-red-500/20 transition hover:bg-primary-700"
               >
                 <ShieldAlert size={16} />
                 {t('verstosseExportAll')}
@@ -416,19 +416,19 @@ export function VerstossePage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-200 dark:border-white/10">
-                    <th className="pb-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('driversName')}</th>
-                    <th className="pb-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('driversCardNumber')}</th>
-                    <th className="pb-3 text-center text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('complianceViolations')}</th>
+                    <th className="pb-3 text-left text-xs font-semibold uppercase tracking-wider text-muted dark:text-muted-dark">{t('driversName')}</th>
+                    <th className="pb-3 text-left text-xs font-semibold uppercase tracking-wider text-muted dark:text-muted-dark">{t('driversCardNumber')}</th>
+                    <th className="pb-3 text-center text-xs font-semibold uppercase tracking-wider text-muted dark:text-muted-dark">{t('complianceViolations')}</th>
                     <th className="pb-3 text-right text-xs font-semibold uppercase tracking-wider text-orange-500">{locale === 'de' ? 'Fahrer' : 'Kierowca'}</th>
                     <th className="pb-3 text-right text-xs font-semibold uppercase tracking-wider text-red-500">{locale === 'de' ? 'Unternehmen' : 'Firma'}</th>
-                    <th className="pb-3 text-center text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">PDF</th>
+                    <th className="pb-3 text-center text-xs font-semibold uppercase tracking-wider text-muted dark:text-muted-dark">PDF</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-white/5">
                   {results.map(result => (
                     <tr key={result.card_number || result.driver_name} className="hover:bg-gray-50/80 dark:hover:bg-white/[0.02]">
                       <td className="py-2.5 font-medium text-gray-900 dark:text-white">{result.driver_name}</td>
-                      <td className="py-2.5 text-gray-400 dark:text-gray-500 font-mono text-xs">{result.card_number}</td>
+                      <td className="py-2.5 text-muted dark:text-muted-dark font-mono text-xs">{result.card_number}</td>
                       <td className="py-2.5 text-center">
                         {result.totalEntries > 0 ? (
                           <Badge variant="red">{result.totalEntries}</Badge>
@@ -464,7 +464,7 @@ export function VerstossePage() {
                 <tfoot>
                   <tr className="border-t-2 border-gray-300 dark:border-white/15 font-bold">
                     <td className="pt-3 pb-1 text-gray-900 dark:text-white">{locale === 'de' ? 'GESAMT' : 'RAZEM'}</td>
-                    <td className="pt-3 pb-1 text-gray-400 text-xs">{results.length} {locale === 'de' ? 'Fahrer' : 'kierowców'}</td>
+                    <td className="pt-3 pb-1 text-muted dark:text-muted-dark text-xs">{results.length} {locale === 'de' ? 'Fahrer' : 'kierowców'}</td>
                     <td className="pt-3 pb-1 text-center">
                       <Badge variant={totalViolations > 0 ? 'red' : 'green'}>{totalViolations}</Badge>
                     </td>
@@ -484,7 +484,7 @@ export function VerstossePage() {
         <Card>
           <div className="flex flex-col items-center justify-center px-6 py-12 text-center">
             <ShieldAlert size={48} className="mb-4 text-gray-300 dark:text-gray-600" />
-            <p className="text-sm text-gray-500 dark:text-gray-400">{t('verstosseNoData')}</p>
+            <p className="text-sm text-muted dark:text-muted-dark">{t('verstosseNoData')}</p>
           </div>
         </Card>
       )}

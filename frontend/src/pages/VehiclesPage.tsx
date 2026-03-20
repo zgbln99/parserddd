@@ -199,35 +199,35 @@ export function VehiclesPage() {
   return (
     <div className="animate-slide-up">
       <h1 className="mb-1 text-2xl font-bold tracking-tight">{t('vehiclesTitle')}</h1>
-      <p className="mb-6 text-sm text-gray-500 dark:text-gray-400">{t('vehiclesSubtitle')}</p>
+      <p className="mb-6 text-sm text-muted dark:text-muted-dark">{t('vehiclesSubtitle')}</p>
 
       {/* Step 1: Vehicle selector + period + generate */}
       <Card className="mb-6 p-3 sm:p-5">
         <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-end gap-4">
           {/* Vehicle selector */}
           <div className="w-full sm:min-w-[250px] flex-1">
-            <label className="mb-1 block text-sm font-medium text-gray-600 dark:text-gray-400">
+            <label className="mb-1 block text-sm font-medium text-muted dark:text-muted-dark">
               {t('vehiclesName')}
             </label>
             {vehiclesLoading ? (
-              <div className="flex items-center gap-2 rounded-lg border border-white/30 dark:border-white/10 px-3 py-2 text-sm text-gray-400 dark:bg-white/5">
+              <div className="flex items-center gap-2 rounded-lg border border-border dark:border-border-dark px-3 py-2 text-sm text-muted dark:text-muted-dark dark:bg-white/5">
                 <Spinner size="sm" />
                 {t('loading')}
               </div>
             ) : vehiclesError ? (
-              <div className="flex items-center gap-2 rounded-lg border border-rose-200/50 px-3 py-2 text-sm text-rose-500">
+              <div className="flex items-center gap-2 rounded-lg border border-rose-200/50 px-3 py-2 text-sm text-danger">
                 <AlertCircle size={14} />
                 {vehiclesError}
               </div>
             ) : (
               <div className="relative">
-                <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted dark:text-muted-dark" />
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder={locale === 'de' ? 'Fahrzeug suchen...' : 'Szukaj pojazdu...'}
-                  className="w-full glass-input rounded-xl py-2 pl-9 pr-3 text-sm outline-none min-h-[44px]"
+                  className="w-full input rounded-xl py-2 pl-9 pr-3 text-sm outline-none min-h-[44px]"
                 />
               </div>
             )}
@@ -235,40 +235,40 @@ export function VehiclesPage() {
 
           {/* Period */}
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-600 dark:text-gray-400">
+            <label className="mb-1 block text-sm font-medium text-muted dark:text-muted-dark">
               {t('vehiclesPeriod')}
             </label>
             <input
               type="month"
               value={selectedPeriod || defaultPeriod}
               onChange={(e) => setSelectedPeriod(e.target.value)}
-              className="glass-input rounded-xl px-3 py-2 text-sm outline-none min-h-[44px]"
+              className="input rounded-xl px-3 py-2 text-sm outline-none min-h-[44px]"
             />
           </div>
 
           {/* Time from */}
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-600 dark:text-gray-400">
+            <label className="mb-1 block text-sm font-medium text-muted dark:text-muted-dark">
               {t('vehiclesTimeFrom')}
             </label>
             <input
               type="time"
               value={timeFrom}
               onChange={(e) => setTimeFrom(e.target.value)}
-              className="glass-input rounded-xl px-3 py-2 text-sm outline-none min-h-[44px]"
+              className="input rounded-xl px-3 py-2 text-sm outline-none min-h-[44px]"
             />
           </div>
 
           {/* Time to */}
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-600 dark:text-gray-400">
+            <label className="mb-1 block text-sm font-medium text-muted dark:text-muted-dark">
               {t('vehiclesTimeTo')}
             </label>
             <input
               type="time"
               value={timeTo}
               onChange={(e) => setTimeTo(e.target.value)}
-              className="glass-input rounded-xl px-3 py-2 text-sm outline-none min-h-[44px]"
+              className="input rounded-xl px-3 py-2 text-sm outline-none min-h-[44px]"
             />
           </div>
 
@@ -296,18 +296,18 @@ export function VehiclesPage() {
 
         {/* Vehicle list / selection */}
         {!vehiclesLoading && !vehiclesError && vehicleList.length > 0 && (
-          <div className="mt-4 max-h-[240px] overflow-y-auto overflow-x-hidden sm:overflow-x-auto rounded-lg border border-white/20 dark:border-white/5">
+          <div className="mt-4 max-h-[240px] overflow-y-auto overflow-x-hidden sm:overflow-x-auto rounded-lg border border-border dark:border-border-dark">
             <table className="w-full sm:min-w-[600px] text-sm">
               <thead className="sticky top-0 bg-black/[0.02] dark:bg-white/5">
-                <tr className="border-b border-white/20 dark:border-white/5">
-                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">{t('vehiclesName')}</th>
-                  <th className="hidden sm:table-cell px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">VIN</th>
-                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                <tr className="border-b border-border dark:border-border-dark">
+                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-muted dark:text-muted-dark">{t('vehiclesName')}</th>
+                  <th className="hidden sm:table-cell px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-muted dark:text-muted-dark">VIN</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-muted dark:text-muted-dark">
                     {locale === 'de' ? 'Kennzeichen' : 'Rejestracja'}
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-black/[0.03] dark:divide-white/[0.03]">
+              <tbody className="divide-y divide-border dark:divide-border-dark">
                 {filteredVehicles.map((v) => (
                   <tr
                     key={v.id}
@@ -315,24 +315,24 @@ export function VehiclesPage() {
                     className={`cursor-pointer transition ${
                       v.id === selectedVehicleId
                         ? 'bg-primary-50 dark:bg-primary-900/20'
-                        : 'hover:bg-black/[0.03] dark:hover:bg-white/5'
+                        : 'hover:bg-surface dark:hover:bg-surface-dark'
                     }`}
                   >
                     <td className="px-3 py-2">
                       <div className="flex items-center gap-2">
-                        <Truck size={14} className={v.id === selectedVehicleId ? 'text-primary-500' : 'text-gray-400'} />
+                        <Truck size={14} className={v.id === selectedVehicleId ? 'text-primary-500' : 'text-muted dark:text-muted-dark'} />
                         <span className={v.id === selectedVehicleId ? 'font-semibold text-primary-700 dark:text-primary-400' : ''}>
                           {v.name}
                         </span>
                       </div>
                     </td>
-                    <td className="hidden sm:table-cell px-3 py-2 font-mono text-xs text-gray-500">{v.vin || '-'}</td>
-                    <td className="px-3 py-2 text-gray-500">{v.license_plate || '-'}</td>
+                    <td className="hidden sm:table-cell px-3 py-2 font-mono text-xs text-muted dark:text-muted-dark">{v.vin || '-'}</td>
+                    <td className="px-3 py-2 text-muted dark:text-muted-dark">{v.license_plate || '-'}</td>
                   </tr>
                 ))}
                 {filteredVehicles.length === 0 && (
                   <tr>
-                    <td colSpan={3} className="px-3 py-6 text-center text-gray-400">{t('noData')}</td>
+                    <td colSpan={3} className="px-3 py-6 text-center text-muted dark:text-muted-dark">{t('noData')}</td>
                   </tr>
                 )}
               </tbody>
@@ -357,14 +357,14 @@ export function VehiclesPage() {
         <Card className="mb-6 p-6">
           <div className="flex flex-col items-center gap-4">
             <Spinner size="lg" />
-            <p className="text-sm font-medium text-gray-600 dark:text-gray-400">{t('vehiclesLoading')}</p>
+            <p className="text-sm font-medium text-muted dark:text-muted-dark">{t('vehiclesLoading')}</p>
           </div>
         </Card>
       )}
 
       {/* Error */}
       {error && (
-        <div className="flex flex-col items-center gap-3 py-12 text-rose-500">
+        <div className="flex flex-col items-center gap-3 py-12 text-danger">
           <AlertCircle size={32} />
           <p className="text-sm">{error}</p>
         </div>
@@ -372,17 +372,17 @@ export function VehiclesPage() {
 
       {/* Empty state - no vehicle selected */}
       {!loading && !error && !activity && !period && (
-        <p className="py-20 text-center text-sm text-gray-400">{t('vehiclesNoData')}</p>
+        <p className="py-20 text-center text-sm text-muted dark:text-muted-dark">{t('vehiclesNoData')}</p>
       )}
 
       {/* No activity for selected vehicle/period */}
       {!loading && !error && !activity && period && (
         <Card className="p-6">
-          <p className="mb-4 text-center text-sm text-gray-400">{t('vehiclesNoActivity')}</p>
+          <p className="mb-4 text-center text-sm text-muted dark:text-muted-dark">{t('vehiclesNoActivity')}</p>
           {debugInfo && (
             <div className="mx-auto max-w-md rounded-lg bg-black/[0.02] p-4 text-xs dark:bg-white/5">
-              <p className="mb-2 font-semibold text-gray-500">Samsara API debug:</p>
-              <div className="space-y-1 text-gray-500">
+              <p className="mb-2 font-semibold text-muted dark:text-muted-dark">Samsara API debug:</p>
+              <div className="space-y-1 text-muted dark:text-muted-dark">
                 <p>API calls: <span className="font-mono font-bold">{debugInfo.api_calls}</span></p>
                 <p>Raw trips: <span className="font-mono font-bold">{debugInfo.raw_trips}</span></p>
                 <p>Vehicles with data: <span className="font-mono font-bold">{debugInfo.vehicles_with_data}</span></p>
@@ -397,7 +397,7 @@ export function VehiclesPage() {
                   <p>Trip keys: <span className="font-mono font-bold text-xs break-all">{debugInfo.sample_trip_keys.join(', ')}</span></p>
                 )}
                 {debugInfo.errors?.length > 0 && (
-                  <div className="mt-2 text-rose-500">
+                  <div className="mt-2 text-danger">
                     <p className="font-semibold">Errors:</p>
                     {debugInfo.errors.map((e, i) => (
                       <p key={i} className="break-all font-mono">{e}</p>
@@ -418,17 +418,17 @@ export function VehiclesPage() {
             <Card className="p-4 text-center">
               <Truck size={20} className="mx-auto mb-1 text-primary-500" />
               <p className="text-lg font-bold">{activity.vehicle_name}</p>
-              <p className="text-xs text-gray-500">{monthLabel(period, locale)}</p>
+              <p className="text-xs text-muted dark:text-muted-dark">{monthLabel(period, locale)}</p>
             </Card>
             <Card className="p-4 text-center">
               <Calendar size={20} className="mx-auto mb-1 text-blue-500" />
               <p className="text-2xl font-bold">{hasTimeFilter ? filteredDays.length : activity.active_days}</p>
-              <p className="text-xs text-gray-500">{t('vehiclesActiveDays')}</p>
+              <p className="text-xs text-muted dark:text-muted-dark">{t('vehiclesActiveDays')}</p>
             </Card>
             <Card className="p-4 text-center">
-              <MapPin size={20} className="mx-auto mb-1 text-emerald-500" />
+              <MapPin size={20} className="mx-auto mb-1 text-success" />
               <p className="text-2xl font-bold">{fmtKm(hasTimeFilter ? filteredTotalKm : activity.total_km)}</p>
-              <p className="text-xs text-gray-500">{t('vehiclesTotalKm')}</p>
+              <p className="text-xs text-muted dark:text-muted-dark">{t('vehiclesTotalKm')}</p>
               {activity.distance_source === 'stats' && (
                 <p className="mt-1 text-[10px] text-amber-500">(odometer)</p>
               )}
@@ -436,16 +436,16 @@ export function VehiclesPage() {
             <Card className="p-4 text-center">
               <RefreshCw size={20} className="mx-auto mb-1 text-amber-500" />
               <p className="text-2xl font-bold">{Math.floor(totalMinutes / 60)}h {totalMinutes % 60}m</p>
-              <p className="text-xs text-gray-500">{t('vehiclesDuration')}</p>
+              <p className="text-xs text-muted dark:text-muted-dark">{t('vehiclesDuration')}</p>
             </Card>
           </div>
 
           {/* Debug info (collapsible) */}
           {debugInfo && (
             <details className="mb-4">
-              <summary className="cursor-pointer text-xs text-gray-400 hover:text-gray-600">Samsara API debug</summary>
+              <summary className="cursor-pointer text-xs text-gray-400 hover:text-muted dark:text-muted-dark">Samsara API debug</summary>
               <div className="mt-2 rounded-lg bg-black/[0.02] p-3 text-xs dark:bg-white/5">
-                <div className="space-y-1 text-gray-500">
+                <div className="space-y-1 text-muted dark:text-muted-dark">
                   <p>API calls: <span className="font-mono font-bold">{debugInfo.api_calls}</span></p>
                   <p>Raw trips: <span className="font-mono font-bold">{debugInfo.raw_trips}</span></p>
                   {debugInfo.stats_vehicles != null && (
@@ -461,7 +461,7 @@ export function VehiclesPage() {
                     <p>Trip fields: <span className="font-mono font-bold text-xs break-all">{debugInfo.sample_trip_keys.join(', ')}</span></p>
                   )}
                   {debugInfo.errors?.length > 0 && (
-                    <div className="mt-2 text-rose-500">
+                    <div className="mt-2 text-danger">
                       <p className="font-semibold">Errors:</p>
                       {debugInfo.errors.map((e, i) => (
                         <p key={i} className="break-all font-mono">{e}</p>
@@ -481,7 +481,7 @@ export function VehiclesPage() {
               </h2>
             </div>
             {/* Mobile card view */}
-            <div className="block sm:hidden divide-y divide-black/[0.03] dark:divide-white/[0.03]">
+            <div className="block sm:hidden divide-y divide-border dark:divide-border-dark">
               {filteredDays.map((day) => {
                 const wd = weekday(day.date);
                 const isSunday = new Date(day.date + 'T00:00:00').getDay() === 0;
@@ -498,7 +498,7 @@ export function VehiclesPage() {
                     <div className="flex items-center justify-between gap-2 mb-2">
                       <p className="text-sm font-bold">
                         {fmtDate(day.date)}
-                        <span className={`ml-2 text-xs ${isSunday ? 'font-bold text-rose-500' : 'text-gray-400'}`}>{wd}</span>
+                        <span className={`ml-2 text-xs ${isSunday ? 'font-bold text-danger' : 'text-muted dark:text-muted-dark'}`}>{wd}</span>
                       </p>
                       <Badge variant={isShortDay ? 'orange' : day.duration_h >= 10 ? 'blue' : 'gray'}>{day.duration_hm}</Badge>
                     </div>
@@ -506,7 +506,7 @@ export function VehiclesPage() {
                     <CardField label={t('vehiclesBeginDriving')} value={fmtDateTime(day.begin_driving)} />
                     <CardField label={t('vehiclesLastDriving')} value={fmtDateTime(day.last_driving)} />
                     {day.last_location && (
-                      <div className="mt-1 flex items-start gap-1.5 text-xs text-gray-400">
+                      <div className="mt-1 flex items-start gap-1.5 text-xs text-muted dark:text-muted-dark">
                         <MapPin size={12} className="mt-0.5 shrink-0" />
                         <span className="line-clamp-2">{day.last_location}</span>
                       </div>
@@ -528,28 +528,28 @@ export function VehiclesPage() {
             <div className="hidden sm:block overflow-x-auto">
               <table className="w-full min-w-[800px] text-sm">
                 <thead>
-                  <tr className="border-b border-white/20 dark:border-white/5">
-                    <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                  <tr className="border-b border-border dark:border-border-dark">
+                    <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted dark:text-muted-dark">
                       {t('vehiclesDate')}
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted dark:text-muted-dark">
                       {locale === 'de' ? 'Letzte Position' : 'Ostatnia pozycja'}
                     </th>
-                    <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                    <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted dark:text-muted-dark">
                       {t('vehiclesDistance')}
                     </th>
-                    <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                    <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted dark:text-muted-dark">
                       {t('vehiclesBeginDriving')}
                     </th>
-                    <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                    <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted dark:text-muted-dark">
                       {t('vehiclesLastDriving')}
                     </th>
-                    <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                    <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted dark:text-muted-dark">
                       {t('vehiclesDuration')}
                     </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-black/[0.03] dark:divide-white/[0.03]">
+                <tbody className="divide-y divide-border dark:divide-border-dark">
                   {filteredDays.map((day) => {
                     const wd = weekday(day.date);
                     const isSunday = new Date(day.date + 'T00:00:00').getDay() === 0;
@@ -570,20 +570,20 @@ export function VehiclesPage() {
                       >
                         <td className="whitespace-nowrap px-4 py-2.5">
                           <span className="font-medium">{fmtDate(day.date)}</span>
-                          <span className={`ml-2 text-xs ${isSunday ? 'font-bold text-rose-500' : 'text-gray-400'}`}>
+                          <span className={`ml-2 text-xs ${isSunday ? 'font-bold text-danger' : 'text-muted dark:text-muted-dark'}`}>
                             {wd}
                           </span>
                         </td>
-                        <td className="max-w-[280px] truncate px-4 py-2.5 text-xs text-gray-500" title={day.last_location || ''}>
+                        <td className="max-w-[280px] truncate px-4 py-2.5 text-xs text-muted dark:text-muted-dark" title={day.last_location || ''}>
                           {day.last_location || '-'}
                         </td>
                         <td className="whitespace-nowrap px-4 py-2.5 font-mono text-sm">
                           {day.distance_km > 0 ? fmtKm(day.distance_km) : '-'}
                         </td>
-                        <td className="whitespace-nowrap px-4 py-2.5 text-gray-600 dark:text-gray-400">
+                        <td className="whitespace-nowrap px-4 py-2.5 text-muted dark:text-muted-dark">
                           {fmtDateTime(day.begin_driving)}
                         </td>
-                        <td className="whitespace-nowrap px-4 py-2.5 text-gray-600 dark:text-gray-400">
+                        <td className="whitespace-nowrap px-4 py-2.5 text-muted dark:text-muted-dark">
                           {fmtDateTime(day.last_driving)}
                         </td>
                         <td className="whitespace-nowrap px-4 py-2.5">

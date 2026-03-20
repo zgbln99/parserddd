@@ -65,7 +65,7 @@ export function DriverConfigEditor({ cardNumber, driverName, onClose, onSaved }:
   if (loading) return <Spinner />;
 
   const inputCls = 'rounded-lg border border-gray-200 px-3 py-1.5 text-sm outline-none transition focus:border-primary-400 focus:ring-1 focus:ring-primary-200 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200';
-  const labelCls = 'text-xs font-semibold text-gray-500 dark:text-gray-400';
+  const labelCls = 'text-xs font-semibold text-muted dark:text-muted-dark';
 
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-900">
@@ -73,10 +73,10 @@ export function DriverConfigEditor({ cardNumber, driverName, onClose, onSaved }:
         <div className="flex items-center gap-2">
           <Settings size={16} className="text-primary-500" />
           <h3 className="font-bold">{t('driverConfig')}</h3>
-          <span className="text-xs text-gray-400">{cardNumber}</span>
+          <span className="text-xs text-muted dark:text-muted-dark">{cardNumber}</span>
         </div>
         {onClose && (
-          <button onClick={onClose} className="rounded p-1 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800">
+          <button onClick={onClose} className="rounded p-1 text-muted dark:text-muted-dark hover:bg-gray-100 dark:hover:bg-gray-800">
             <X size={16} />
           </button>
         )}
@@ -152,7 +152,7 @@ export function DriverConfigEditor({ cardNumber, driverName, onClose, onSaved }:
               }
               setShowHistory(!showHistory);
             }}
-            className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-500 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-800"
+            className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-muted dark:text-muted-dark transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-800"
           >
             <History size={13} />
             {t('configHistory')}
@@ -166,12 +166,12 @@ export function DriverConfigEditor({ cardNumber, driverName, onClose, onSaved }:
       {showHistory && (
         <div className="mt-4 rounded-lg border border-gray-200 dark:border-gray-700">
           <div className="border-b border-gray-200 px-4 py-2 dark:border-gray-700">
-            <h4 className="text-xs font-bold text-gray-500 dark:text-gray-400">{t('configHistory')}</h4>
+            <h4 className="text-xs font-bold text-muted dark:text-muted-dark">{t('configHistory')}</h4>
           </div>
           {historyLoading ? (
             <div className="flex justify-center py-4"><Spinner /></div>
           ) : history.length === 0 ? (
-            <p className="py-4 text-center text-xs text-gray-400">{t('configHistoryEmpty')}</p>
+            <p className="py-4 text-center text-xs text-muted dark:text-muted-dark">{t('configHistoryEmpty')}</p>
           ) : (
             <div className="max-h-[200px] overflow-y-auto">
               {history.map((entry) => (
@@ -180,12 +180,12 @@ export function DriverConfigEditor({ cardNumber, driverName, onClose, onSaved }:
                     <p className="text-xs font-medium text-gray-700 dark:text-gray-300">
                       {entry.field_name === '*' ? 'Created' : entry.field_name}
                       {entry.field_name !== '*' && (
-                        <span className="ml-1 text-gray-400">
+                        <span className="ml-1 text-muted dark:text-muted-dark">
                           {entry.old_value} → {entry.new_value}
                         </span>
                       )}
                     </p>
-                    <p className="text-[10px] text-gray-400">
+                    <p className="text-[10px] text-muted dark:text-muted-dark">
                       {t('configChangedBy')}: {entry.changed_by} · {new Date(entry.changed_at).toLocaleString()}
                     </p>
                   </div>

@@ -35,33 +35,33 @@ export function SecurityTab() {
       </div>
       <div className="flex flex-wrap items-end gap-3">
         <div>
-          <label className="mb-1 block text-xs font-semibold text-gray-500">{t('adminPasswordTarget')}</label>
+          <label className="mb-1 block text-xs font-semibold text-muted dark:text-muted-dark">{t('adminPasswordTarget')}</label>
           <select
             value={target}
             onChange={(e) => setTarget(e.target.value as 'portal' | 'admin')}
-            className="glass-input rounded-xl px-3 py-1.5 text-sm outline-none"
+            className="input rounded-xl px-3 py-1.5 text-sm outline-none"
           >
             <option value="portal">{t('adminPortalPassword')}</option>
             <option value="admin">{t('adminAdminPassword')}</option>
           </select>
         </div>
         <div>
-          <label className="mb-1 block text-xs font-semibold text-gray-500">{t('adminNewPassword')}</label>
+          <label className="mb-1 block text-xs font-semibold text-muted dark:text-muted-dark">{t('adminNewPassword')}</label>
           <input
             type="password"
             value={pw}
             onChange={(e) => setPw(e.target.value)}
-            className="glass-input rounded-xl px-3 py-1.5 text-sm outline-none"
+            className="input rounded-xl px-3 py-1.5 text-sm outline-none"
           />
         </div>
         <button
           onClick={handleSubmit}
           disabled={saving || !pw}
-          className="rounded-lg bg-gradient-to-r from-amber-500 to-amber-600 px-4 py-1.5 text-sm font-semibold text-white shadow-lg shadow-amber-500/20 transition hover:brightness-110 disabled:opacity-50"
+          className="rounded-lg bg-gradient-to-r from-amber-500 to-amber-600 px-4 py-1.5 text-sm font-semibold text-white shadow-lg shadow-amber-500/20 transition hover:bg-primary-700 disabled:opacity-50"
         >
           {saving ? '...' : t('save')}
         </button>
-        {msg && <span className={`text-sm font-medium ${msg === 'OK!' ? 'text-emerald-600' : 'text-rose-500'}`}>{msg}</span>}
+        {msg && <span className={`text-sm font-medium ${msg === 'OK!' ? 'text-emerald-600' : 'text-danger'}`}>{msg}</span>}
       </div>
     </Card>
   );

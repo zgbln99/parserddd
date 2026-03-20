@@ -36,7 +36,7 @@ export function ExportButtons({ onCsv, onPdf, onDatev, onPrint }: ExportButtonsP
       </button>
       <button
         onClick={onPrint}
-        className="flex min-h-[44px] items-center gap-2 rounded-xl border border-white/30 dark:border-white/10 px-5 py-2.5 text-sm font-semibold text-gray-600 transition hover:bg-black/[0.03] dark:text-gray-400 dark:hover:bg-white/5"
+        className="flex min-h-[44px] items-center gap-2 rounded-xl border border-border dark:border-border-dark px-5 py-2.5 text-sm font-semibold text-muted dark:text-muted-dark transition hover:bg-surface dark:hover:bg-surface-dark"
       >
         <Printer size={16} />
         {t('analysisPrint')}
