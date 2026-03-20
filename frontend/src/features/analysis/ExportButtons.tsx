@@ -15,14 +15,14 @@ export function ExportButtons({ onCsv, onPdf, onDatev, onPrint }: ExportButtonsP
     <div className="flex flex-wrap justify-center gap-3 pt-2">
       <button
         onClick={onCsv}
-        className="flex min-h-[44px] items-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-primary-700 dark:bg-primary-500 dark:hover:bg-primary-600"
+        className="flex min-h-[44px] items-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-primary-700 dark:hover:bg-primary-600"
       >
         <Download size={16} />
         {t('analysisExportCsv')}
       </button>
       <button
         onClick={onPdf}
-        className="flex min-h-[44px] items-center gap-2 rounded-xl border border-primary-200 px-5 py-2.5 text-sm font-semibold text-primary-600 transition hover:bg-primary-50 dark:border-primary-800 dark:text-primary-400 dark:hover:bg-primary-900/20"
+        className="flex min-h-[44px] items-center gap-2 rounded-xl border border-primary-200 px-5 py-2.5 text-sm font-semibold text-primary-600 transition hover:bg-primary-50 dark:border-primary-800"
       >
         <FileText size={16} />
         {t('analysisExportPdf')}
@@ -36,7 +36,7 @@ export function ExportButtons({ onCsv, onPdf, onDatev, onPrint }: ExportButtonsP
       </button>
       <button
         onClick={onPrint}
-        className="flex min-h-[44px] items-center gap-2 rounded-xl border border-border dark:border-border-dark px-5 py-2.5 text-sm font-semibold text-muted dark:text-muted-dark transition hover:bg-surface dark:hover:bg-surface-dark"
+        className="flex min-h-[44px] items-center gap-2 rounded-xl border border-border px-5 py-2.5 text-sm font-semibold text-muted transition hover:bg-surface"
       >
         <Printer size={16} />
         {t('analysisPrint')}

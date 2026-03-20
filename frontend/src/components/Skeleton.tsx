@@ -69,13 +69,13 @@ export function DashboardSkeleton() {
       <SkeletonStatCards />
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="card animate-fade-in" style={{ animationDelay: '250ms', animationFillMode: 'backwards' }}>
-          <div className="border-b border-border px-5 py-4 dark:border-border-dark">
+          <div className="border-b border-border px-5 py-4">
             <div className="flex items-center gap-3">
               <Skeleton className="h-8 w-8 !rounded-lg" />
               <Skeleton className="h-4 w-32" />
             </div>
           </div>
-          <div className="divide-y divide-border dark:divide-border-dark">
+          <div className="divide-y divide-border">
             {Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className="flex items-center gap-3 px-5 py-3">
                 <div className="flex-1 space-y-1.5">
@@ -88,13 +88,13 @@ export function DashboardSkeleton() {
           </div>
         </div>
         <div className="card animate-fade-in" style={{ animationDelay: '350ms', animationFillMode: 'backwards' }}>
-          <div className="border-b border-border px-5 py-4 dark:border-border-dark">
+          <div className="border-b border-border px-5 py-4">
             <div className="flex items-center gap-3">
               <Skeleton className="h-8 w-8 !rounded-lg" />
               <Skeleton className="h-4 w-36" />
             </div>
           </div>
-          <div className="divide-y divide-border dark:divide-border-dark">
+          <div className="divide-y divide-border">
             {Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className="flex items-center gap-3 px-5 py-3">
                 <div className="flex-1 space-y-1.5">

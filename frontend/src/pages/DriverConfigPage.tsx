@@ -157,7 +157,7 @@ export function DriverConfigPage() {
     return (
       <div className="flex flex-col items-center gap-3 py-20">
         <Spinner size="lg" />
-        <p className="text-sm text-muted dark:text-muted-dark">{t('loading')}</p>
+        <p className="text-sm text-muted">{t('loading')}</p>
       </div>
     );
   }
@@ -168,12 +168,12 @@ export function DriverConfigPage() {
     <div className="animate-slide-up space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 text-white shadow-lg shadow-green-500/20">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 text-white ">
           <Users size={20} />
         </div>
         <div>
           <h1 className="text-2xl font-bold tracking-tight">{t('driverConfigPage')}</h1>
-          <p className="text-xs text-muted dark:text-muted-dark">{t('driverConfigs')}</p>
+          <p className="text-xs text-muted">{t('driverConfigs')}</p>
         </div>
       </div>
 
@@ -204,7 +204,7 @@ export function DriverConfigPage() {
         <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3">
           {/* Search */}
           <div className="relative w-full sm:min-w-[200px] flex-1 sm:max-w-xs">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted dark:text-muted-dark" />
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
             <input
               type="text"
               value={search}
@@ -218,7 +218,7 @@ export function DriverConfigPage() {
 
           {/* Selection counter */}
           {selected.size > 0 && (
-            <span className="rounded-full bg-primary-100 px-3 py-1 text-xs font-bold text-primary-700 dark:bg-primary-900/30 dark:text-primary-400">
+            <span className="rounded-full bg-primary-100 px-3 py-1 text-xs font-bold text-primary-700 dark:bg-primary-900/30">
               {selected.size} {t('driverSelected')}
             </span>
           )}
@@ -263,17 +263,17 @@ export function DriverConfigPage() {
         {filtered.map((d) => (
           <MobileCard key={d.card_number} onClick={() => openEditor(d)}>
             <CardField label={t('driversName')} value={<span className="font-semibold">{d.name}</span>} />
-            <CardField label={t('driverPersonalNr')} value={d.config?.personal_nr ? <span className="font-medium">{d.config.personal_nr}</span> : <span className="text-gray-300 dark:text-gray-600">&mdash;</span>} />
-            <CardField label={t('driverDoubleDiet')} value={d.config?.double_diet ? <Badge variant="green">{t('yes')}</Badge> : <span className="text-gray-300 dark:text-gray-600">{t('no')}</span>} />
+            <CardField label={t('driverPersonalNr')} value={d.config?.personal_nr ? <span className="font-medium">{d.config.personal_nr}</span> : <span className="text-muted">&mdash;</span>} />
+            <CardField label={t('driverDoubleDiet')} value={d.config?.double_diet ? <Badge variant="green">{t('yes')}</Badge> : <span className="text-muted">{t('no')}</span>} />
             <CardField label={t('driverConfigStatus')} value={d.config ? <Badge variant="green" dot>{t('driverConfigured')}</Badge> : <Badge variant="orange" dot>{t('driverNotConfigured')}</Badge>} />
             {expandedCard === d.card_number && (
-              <div className="mt-3 space-y-3 border-t border-white/10 pt-3" onClick={(e) => e.stopPropagation()}>
+              <div className="mt-3 space-y-3 border-t border-border pt-3" onClick={(e) => e.stopPropagation()}>
                 <div>
-                  <label className="mb-1 block text-xs font-semibold text-muted dark:text-muted-dark">{t('driverPersonalNr')}</label>
+                  <label className="mb-1 block text-xs font-semibold text-muted">{t('driverPersonalNr')}</label>
                   <input type="text" value={editPersonalNr} onChange={(e) => setEditPersonalNr(e.target.value)} placeholder="z.B. 1001" className={`block w-full ${inputCls}`} />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-semibold text-muted dark:text-muted-dark">{t('driverDietRate')} (EUR)</label>
+                  <label className="mb-1 block text-xs font-semibold text-muted">{t('driverDietRate')} (EUR)</label>
                   <input type="number" step="0.01" value={editDietRate} onChange={(e) => setEditDietRate(e.target.value)} className={`block w-full ${inputCls}`} />
                 </div>
                 <div className="flex items-center gap-3">
@@ -281,18 +281,18 @@ export function DriverConfigPage() {
                     <input type="checkbox" checked={editDoubleDiet} onChange={(e) => setEditDoubleDiet(e.target.checked)} className="peer sr-only" />
                     <div className="h-6 w-11 rounded-full bg-gray-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-emerald-500 peer-checked:after:translate-x-full peer-checked:after:border-white dark:bg-white/10" />
                   </label>
-                  <span className="text-xs font-semibold text-muted dark:text-muted-dark">{t('driverDoubleDiet')}</span>
+                  <span className="text-xs font-semibold text-muted">{t('driverDoubleDiet')}</span>
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-semibold text-muted dark:text-muted-dark">{t('driverNotes')}</label>
+                  <label className="mb-1 block text-xs font-semibold text-muted">{t('driverNotes')}</label>
                   <input type="text" value={editNotes} onChange={(e) => setEditNotes(e.target.value)} placeholder={t('driverNotesPlaceholder')} className={`block w-full ${inputCls}`} />
                 </div>
                 <div className="flex items-center gap-3">
-                  <button onClick={() => handleSave(d)} disabled={saving} className="flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-emerald-500/20 transition hover:bg-primary-700 disabled:opacity-50">
+                  <button onClick={() => handleSave(d)} disabled={saving} className="flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-2 text-sm font-semibold text-white  transition hover:bg-primary-700 disabled:opacity-50">
                     <Save size={14} />
                     {saving ? '...' : t('save')}
                   </button>
-                  <button onClick={() => setExpandedCard(null)} className="flex items-center gap-1.5 rounded-lg border border-border dark:border-border-dark px-4 py-2 text-sm font-medium text-muted dark:text-muted-dark transition hover:bg-surface dark:hover:bg-surface-dark">
+                  <button onClick={() => setExpandedCard(null)} className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium text-muted transition hover:bg-surface">
                     <X size={14} />
                     {t('cancel')}
                   </button>
@@ -303,7 +303,7 @@ export function DriverConfigPage() {
           </MobileCard>
         ))}
         {filtered.length === 0 && (
-          <p className="py-12 text-center text-sm text-muted dark:text-muted-dark">{t('noData')}</p>
+          <p className="py-12 text-center text-sm text-muted">{t('noData')}</p>
         )}
       </div>
 
@@ -312,7 +312,7 @@ export function DriverConfigPage() {
         <div className="overflow-x-auto">
           <table className="w-full min-w-[800px] text-sm">
             <thead>
-              <tr className="border-b border-border dark:border-border-dark">
+              <tr className="border-b border-border">
                 <th className="w-10 px-4 py-3">
                   <input
                     type="checkbox"
@@ -321,20 +321,20 @@ export function DriverConfigPage() {
                     className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
                   />
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted dark:text-muted-dark">{t('driversName')}</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted dark:text-muted-dark">{t('driversCardNumber')}</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted dark:text-muted-dark">{t('driverPersonalNr')}</th>
-                <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-muted dark:text-muted-dark">{t('driverDoubleDiet')}</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted dark:text-muted-dark">{t('driverDietRate')}</th>
-                <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-muted dark:text-muted-dark">{t('driverConfigStatus')}</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted">{t('driversName')}</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted">{t('driversCardNumber')}</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted">{t('driverPersonalNr')}</th>
+                <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-muted">{t('driverDoubleDiet')}</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted">{t('driverDietRate')}</th>
+                <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-muted">{t('driverConfigStatus')}</th>
                 <th className="w-10 px-4 py-3" />
               </tr>
             </thead>
-            <tbody className="divide-y divide-border dark:divide-border-dark">
+            <tbody className="divide-y divide-border">
               {filtered.map((d) => (
                 <Fragment key={d.card_number}>
                   <tr
-                    className={`transition hover:bg-surface dark:hover:bg-surface-dark ${expandedCard === d.card_number ? 'bg-primary-50/50 dark:bg-primary-900/10' : ''}`}
+                    className={`transition hover:bg-surface ${expandedCard === d.card_number ? 'bg-primary-50/50 dark:bg-primary-900/10' : ''}`}
                   >
                     <td className="px-4 py-3">
                       <input
@@ -345,18 +345,18 @@ export function DriverConfigPage() {
                       />
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 font-semibold">{d.name}</td>
-                    <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-muted dark:text-muted-dark">{d.card_number}</td>
+                    <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-muted">{d.card_number}</td>
                     <td className="whitespace-nowrap px-4 py-3">
                       {d.config?.personal_nr ? (
                         <span className="font-medium">{d.config.personal_nr}</span>
                       ) : (
-                        <span className="text-gray-300 dark:text-gray-600">&mdash;</span>
+                        <span className="text-muted">&mdash;</span>
                       )}
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-center">
                       {d.config?.double_diet
                         ? <Badge variant="green">{t('yes')}</Badge>
-                        : <span className="text-gray-300 dark:text-gray-600">{t('no')}</span>}
+                        : <span className="text-muted">{t('no')}</span>}
                     </td>
                     <td className="whitespace-nowrap px-4 py-3">
                       {d.config ? `${d.config.diet_rate.toFixed(2)} EUR` : '14.00 EUR'}
@@ -371,7 +371,7 @@ export function DriverConfigPage() {
                     <td className="px-4 py-3">
                       <button
                         onClick={() => openEditor(d)}
-                        className="rounded-lg p-1.5 text-muted dark:text-muted-dark transition hover:bg-black/5 hover:text-muted dark:text-muted-dark dark:hover:bg-white/5 dark:hover:text-gray-300"
+                        className="rounded-lg p-1.5 text-muted transition hover:bg-surface hover:text-ink"
                       >
                         {expandedCard === d.card_number ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                       </button>
@@ -384,7 +384,7 @@ export function DriverConfigPage() {
                       <td colSpan={8} className="bg-black/[0.02] px-6 py-4 dark:bg-white/5">
                         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                           <div>
-                            <label className="mb-1 block text-xs font-semibold text-muted dark:text-muted-dark">{t('driverPersonalNr')}</label>
+                            <label className="mb-1 block text-xs font-semibold text-muted">{t('driverPersonalNr')}</label>
                             <input
                               type="text"
                               value={editPersonalNr}
@@ -394,7 +394,7 @@ export function DriverConfigPage() {
                             />
                           </div>
                           <div>
-                            <label className="mb-1 block text-xs font-semibold text-muted dark:text-muted-dark">{t('driverDietRate')} (EUR)</label>
+                            <label className="mb-1 block text-xs font-semibold text-muted">{t('driverDietRate')} (EUR)</label>
                             <input
                               type="number"
                               step="0.01"
@@ -413,10 +413,10 @@ export function DriverConfigPage() {
                               />
                               <div className="h-6 w-11 rounded-full bg-gray-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-emerald-500 peer-checked:after:translate-x-full peer-checked:after:border-white dark:bg-white/10" />
                             </label>
-                            <span className="text-xs font-semibold text-muted dark:text-muted-dark">{t('driverDoubleDiet')}</span>
+                            <span className="text-xs font-semibold text-muted">{t('driverDoubleDiet')}</span>
                           </div>
                           <div>
-                            <label className="mb-1 block text-xs font-semibold text-muted dark:text-muted-dark">{t('driverNotes')}</label>
+                            <label className="mb-1 block text-xs font-semibold text-muted">{t('driverNotes')}</label>
                             <input
                               type="text"
                               value={editNotes}
@@ -430,14 +430,14 @@ export function DriverConfigPage() {
                           <button
                             onClick={() => handleSave(d)}
                             disabled={saving}
-                            className="flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-emerald-500/20 transition hover:bg-primary-700 disabled:opacity-50"
+                            className="flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-2 text-sm font-semibold text-white  transition hover:bg-primary-700 disabled:opacity-50"
                           >
                             <Save size={14} />
                             {saving ? '...' : t('save')}
                           </button>
                           <button
                             onClick={() => setExpandedCard(null)}
-                            className="flex items-center gap-1.5 rounded-lg border border-border dark:border-border-dark px-4 py-2 text-sm font-medium text-muted dark:text-muted-dark transition hover:bg-surface dark:hover:bg-surface-dark"
+                            className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium text-muted transition hover:bg-surface"
                           >
                             <X size={14} />
                             {t('cancel')}
@@ -456,7 +456,7 @@ export function DriverConfigPage() {
         </div>
 
         {filtered.length === 0 && (
-          <p className="py-12 text-center text-sm text-muted dark:text-muted-dark">{t('noData')}</p>
+          <p className="py-12 text-center text-sm text-muted">{t('noData')}</p>
         )}
       </Card>
     </div>

@@ -90,7 +90,7 @@ export function UsersTab() {
       {showForm && (
         <div className="mb-4 flex flex-wrap items-end gap-3 rounded-lg bg-black/[0.02] p-4 dark:bg-white/5">
           <div>
-            <label className="mb-1 block text-xs font-semibold text-muted dark:text-muted-dark">{t('adminUserName')}</label>
+            <label className="mb-1 block text-xs font-semibold text-muted">{t('adminUserName')}</label>
             <input
               type="text"
               value={newName}
@@ -100,7 +100,7 @@ export function UsersTab() {
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-semibold text-muted dark:text-muted-dark">{t('password')}</label>
+            <label className="mb-1 block text-xs font-semibold text-muted">{t('password')}</label>
             <input
               type="password"
               value={newPassword}
@@ -109,7 +109,7 @@ export function UsersTab() {
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-semibold text-muted dark:text-muted-dark">{t('adminRole')}</label>
+            <label className="mb-1 block text-xs font-semibold text-muted">{t('adminRole')}</label>
             <select
               value={newRole}
               onChange={(e) => setNewRole(e.target.value)}
@@ -130,7 +130,7 @@ export function UsersTab() {
       )}
 
       {users.length === 0 ? (
-        <p className="py-4 text-center text-sm text-muted dark:text-muted-dark">{t('adminNoUsers')}</p>
+        <p className="py-4 text-center text-sm text-muted">{t('adminNoUsers')}</p>
       ) : (
         <>
         <div className="block sm:hidden space-y-3 p-4">
@@ -154,23 +154,23 @@ export function UsersTab() {
         <div className="hidden sm:block overflow-x-auto">
           <table className="w-full min-w-[600px] text-sm">
             <thead>
-              <tr className="border-b border-border dark:border-border-dark">
-                <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-muted dark:text-muted-dark">ID</th>
-                <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-muted dark:text-muted-dark">{t('adminUserName')}</th>
-                <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-muted dark:text-muted-dark">{t('adminRole')}</th>
-                <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-muted dark:text-muted-dark">{t('syncDate')}</th>
+              <tr className="border-b border-border">
+                <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-muted">ID</th>
+                <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-muted">{t('adminUserName')}</th>
+                <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-muted">{t('adminRole')}</th>
+                <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-muted">{t('syncDate')}</th>
                 <th className="px-4 py-2" />
               </tr>
             </thead>
-            <tbody className="divide-y divide-border dark:divide-border-dark">
+            <tbody className="divide-y divide-border">
               {users.map((u) => (
-                <tr key={u.id} className="hover:bg-surface dark:hover:bg-surface-dark">
-                  <td className="px-4 py-2 font-mono text-xs text-muted dark:text-muted-dark">{u.id}</td>
+                <tr key={u.id} className="hover:bg-surface">
+                  <td className="px-4 py-2 font-mono text-xs text-muted">{u.id}</td>
                   <td className="px-4 py-2 font-medium">{u.name}</td>
                   <td className="px-4 py-2">
                     <Badge variant={u.role === 'admin' ? 'red' : 'gray'}>{u.role}</Badge>
                   </td>
-                  <td className="px-4 py-2 text-xs text-muted dark:text-muted-dark">{u.created ? new Date(u.created).toLocaleDateString() : ''}</td>
+                  <td className="px-4 py-2 text-xs text-muted">{u.created ? new Date(u.created).toLocaleDateString() : ''}</td>
                   <td className="px-4 py-2">
                     <button
                       onClick={() => handleDelete(u.id, u.name)}

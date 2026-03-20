@@ -35,7 +35,7 @@ export function SecurityTab() {
       </div>
       <div className="flex flex-wrap items-end gap-3">
         <div>
-          <label className="mb-1 block text-xs font-semibold text-muted dark:text-muted-dark">{t('adminPasswordTarget')}</label>
+          <label className="mb-1 block text-xs font-semibold text-muted">{t('adminPasswordTarget')}</label>
           <select
             value={target}
             onChange={(e) => setTarget(e.target.value as 'portal' | 'admin')}
@@ -46,7 +46,7 @@ export function SecurityTab() {
           </select>
         </div>
         <div>
-          <label className="mb-1 block text-xs font-semibold text-muted dark:text-muted-dark">{t('adminNewPassword')}</label>
+          <label className="mb-1 block text-xs font-semibold text-muted">{t('adminNewPassword')}</label>
           <input
             type="password"
             value={pw}

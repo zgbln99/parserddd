@@ -141,7 +141,7 @@ export function DashboardPage() {
 
   return (
     <div className="animate-slide-up">
-      <h1 className="mb-6 text-2xl font-bold tracking-tight text-ink dark:text-ink-dark">{t('dashTitle')}</h1>
+      <h1 className="mb-6 text-2xl font-bold tracking-tight text-ink">{t('dashTitle')}</h1>
 
       {/* Stats */}
       <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -176,11 +176,11 @@ export function DashboardPage() {
 
         {/* Stale drivers */}
         <Card className="p-0 overflow-hidden">
-          <div className="flex items-center gap-3 border-b border-border px-5 py-4 dark:border-border-dark">
+          <div className="flex items-center gap-3 border-b border-border px-5 py-4">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-warning/10 text-warning">
               <Clock size={16} />
             </div>
-            <h3 className="text-sm font-semibold uppercase tracking-wider text-muted dark:text-muted-dark">
+            <h3 className="text-sm font-semibold uppercase tracking-wider text-muted">
               {t('dashStaleDrivers')}
             </h3>
             {overdueCount > 0 && (
@@ -188,36 +188,36 @@ export function DashboardPage() {
             )}
           </div>
           {staleDrivers.length === 0 ? (
-            <p className="px-5 py-8 text-center text-sm text-muted dark:text-muted-dark">{t('dashNoStale')}</p>
+            <p className="px-5 py-8 text-center text-sm text-muted">{t('dashNoStale')}</p>
           ) : (
             <div>
-              <div className="divide-y divide-border dark:divide-border-dark">
+              <div className="divide-y divide-border">
                 {visibleStale.map((d) => (
                   <Link
                     key={d.card_number || d.name}
                     to="/drivers"
-                    className={`flex items-center gap-3 px-5 py-3 min-h-[44px] transition-colors hover:bg-primary-50 dark:hover:bg-primary-900/10 ${daysBg(d.days_since)}`}
+                    className={`flex items-center gap-3 px-5 py-3 min-h-[44px] transition-colors hover:bg-primary-50 ${daysBg(d.days_since)}`}
                   >
                     <div className="flex-1 min-w-0">
-                      <p className="truncate text-sm font-medium text-ink dark:text-ink-dark">{d.name}</p>
+                      <p className="truncate text-sm font-medium text-ink">{d.name}</p>
                       {d.card_number && (
-                        <p className="truncate text-xs text-muted dark:text-muted-dark">{d.card_number}</p>
+                        <p className="truncate text-xs text-muted">{d.card_number}</p>
                       )}
                     </div>
                     <div className="shrink-0 text-right">
                       <span className={`text-sm font-bold tabular-nums ${daysColor(d.days_since)}`}>
                         {d.days_since === null ? '—' : d.days_since}
                       </span>
-                      <p className="text-xs text-muted dark:text-muted-dark">{t('dashDaysSince')}</p>
+                      <p className="text-xs text-muted">{t('dashDaysSince')}</p>
                     </div>
                   </Link>
                 ))}
               </div>
               {staleDrivers.length > MAX_VISIBLE && (
-                <div className="border-t border-border px-5 py-3 dark:border-border-dark">
+                <div className="border-t border-border px-5 py-3">
                   <button
                     onClick={() => setShowAllStale(!showAllStale)}
-                    className="flex w-full items-center justify-center gap-1 min-h-[44px] text-xs font-semibold text-primary-600 transition hover:text-primary-700 dark:text-primary-400"
+                    className="flex w-full items-center justify-center gap-1 min-h-[44px] text-xs font-semibold text-primary-600 transition hover:text-primary-700"
                   >
                     {showAllStale
                       ? t('close')
@@ -233,11 +233,11 @@ export function DashboardPage() {
 
         {/* Expiring cards */}
         <Card className="p-0 overflow-hidden">
-          <div className="flex items-center gap-2 border-b border-border px-5 py-4 dark:border-border-dark">
+          <div className="flex items-center gap-2 border-b border-border px-5 py-4">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-danger/10 text-danger">
               <CreditCard size={16} />
             </div>
-            <h3 className="flex-1 text-sm font-semibold uppercase tracking-wider text-muted dark:text-muted-dark">
+            <h3 className="flex-1 text-sm font-semibold uppercase tracking-wider text-muted">
               {t('dashExpiringCards')}
             </h3>
             {expiringCritical > 0 && (
@@ -246,7 +246,7 @@ export function DashboardPage() {
             <button
               onClick={handleScanExpiry}
               disabled={scanning}
-              className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 min-h-[44px] text-xs font-medium text-muted transition hover:border-primary-300 hover:text-ink disabled:opacity-50 dark:border-border-dark dark:text-muted-dark dark:hover:border-primary-600 dark:hover:text-ink-dark"
+              className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 min-h-[44px] text-xs font-medium text-muted transition hover:border-primary-300 hover:text-ink disabled:opacity-50"
             >
               {scanning ? <Spinner size="sm" /> : <RefreshCw size={12} />}
               {scanning ? t('loading') : t('dashScanCards')}
@@ -254,21 +254,21 @@ export function DashboardPage() {
           </div>
           {expiringCards.length === 0 ? (
             <div className="px-5 py-8 text-center">
-              <p className="text-sm text-muted dark:text-muted-dark">{t('dashNoExpiring')}</p>
+              <p className="text-sm text-muted">{t('dashNoExpiring')}</p>
             </div>
           ) : (
             <div>
-              <div className="divide-y divide-border dark:divide-border-dark">
+              <div className="divide-y divide-border">
                 {visibleExpiring.map((c) => (
                   <div
                     key={c.card_number}
                     className={`flex items-center gap-3 px-5 py-3 min-h-[44px] ${expiryBg(c.days_left)}`}
                   >
                     <div className="flex-1 min-w-0">
-                      <p className="truncate text-sm font-medium text-ink dark:text-ink-dark">
+                      <p className="truncate text-sm font-medium text-ink">
                         {c.driver_name || c.card_number}
                       </p>
-                      <p className="truncate text-xs text-muted dark:text-muted-dark">
+                      <p className="truncate text-xs text-muted">
                         {t('dashCardExpiry')}: {formatDate(c.card_expiry_date, locale)}
                       </p>
                     </div>
@@ -285,7 +285,7 @@ export function DashboardPage() {
                           <span className={`text-sm font-bold tabular-nums ${expiryColor(c.days_left)}`}>
                             {c.days_left}
                           </span>
-                          <p className="text-xs text-muted dark:text-muted-dark">{t('dashDaysLeft')}</p>
+                          <p className="text-xs text-muted">{t('dashDaysLeft')}</p>
                         </>
                       )}
                     </div>
@@ -293,10 +293,10 @@ export function DashboardPage() {
                 ))}
               </div>
               {expiringCards.length > MAX_VISIBLE && (
-                <div className="border-t border-border px-5 py-3 dark:border-border-dark">
+                <div className="border-t border-border px-5 py-3">
                   <button
                     onClick={() => setShowAllExpiring(!showAllExpiring)}
-                    className="flex w-full items-center justify-center gap-1 min-h-[44px] text-xs font-semibold text-primary-600 transition hover:text-primary-700 dark:text-primary-400"
+                    className="flex w-full items-center justify-center gap-1 min-h-[44px] text-xs font-semibold text-primary-600 transition hover:text-primary-700"
                   >
                     {showAllExpiring
                       ? t('close')
@@ -315,36 +315,36 @@ export function DashboardPage() {
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
         {/* Sync info */}
         <Card className="p-4 sm:p-6">
-          <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-muted dark:text-muted-dark">
+          <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-muted">
             {t('dashSyncStatus')}
           </h3>
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-sm text-muted dark:text-muted-dark">{t('syncStatus')}</span>
+              <span className="text-sm text-muted">{t('syncStatus')}</span>
               {syncBadge}
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-sm text-muted dark:text-muted-dark">{t('dashLastSync')}</span>
-              <span className="text-sm font-medium text-ink dark:text-ink-dark">{formatDateTime(data.last_sync, locale)}</span>
+              <span className="text-sm text-muted">{t('dashLastSync')}</span>
+              <span className="text-sm font-medium text-ink">{formatDateTime(data.last_sync, locale)}</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-sm text-muted dark:text-muted-dark">{t('dashTotalSynced')}</span>
-              <span className="text-sm font-medium text-ink dark:text-ink-dark">{data.synced_count}</span>
+              <span className="text-sm text-muted">{t('dashTotalSynced')}</span>
+              <span className="text-sm font-medium text-ink">{data.synced_count}</span>
             </div>
           </div>
 
           {/* Connection status */}
           {connections && (
-            <div className="mt-4 border-t border-border pt-4 dark:border-border-dark">
+            <div className="mt-4 border-t border-border pt-4">
               <div className="space-y-2">
                 <div className="flex items-center gap-3 py-1">
                   <Cloud size={18} className={connections.dropbox ? 'text-success' : 'text-danger'} />
-                  <span className="flex-1 text-sm text-ink dark:text-ink-dark">{connections.dropbox ? t('dropboxConnected') : t('dropboxDisconnected')}</span>
+                  <span className="flex-1 text-sm text-ink">{connections.dropbox ? t('dropboxConnected') : t('dropboxDisconnected')}</span>
                   <span className={`h-2.5 w-2.5 rounded-full ${connections.dropbox ? 'bg-success' : 'bg-danger'}`} />
                 </div>
                 <div className="flex items-center gap-3 py-1">
                   <Truck size={18} className={connections.samsara ? 'text-success' : 'text-danger'} />
-                  <span className="flex-1 text-sm text-ink dark:text-ink-dark">{connections.samsara ? t('samsaraConnected') : t('samsaraDisconnected')}</span>
+                  <span className="flex-1 text-sm text-ink">{connections.samsara ? t('samsaraConnected') : t('samsaraDisconnected')}</span>
                   <span className={`h-2.5 w-2.5 rounded-full ${connections.samsara ? 'bg-success' : 'bg-danger'}`} />
                 </div>
               </div>
@@ -354,25 +354,25 @@ export function DashboardPage() {
 
         {/* Quick actions */}
         <Card className="p-4 sm:p-6">
-          <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-muted dark:text-muted-dark">
+          <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-muted">
             {t('dashQuickActions')}
           </h3>
           <div className="space-y-1">
             {[
-              { to: '/drivers', label: t('dashViewDrivers'), icon: Users, bg: 'bg-primary-50 text-primary-600 dark:bg-primary-900/20 dark:text-primary-400' },
-              { to: '/reader', label: t('dashOpenReader'), icon: FileText, bg: 'bg-accent-light text-accent-dark dark:bg-accent/10 dark:text-accent' },
+              { to: '/drivers', label: t('dashViewDrivers'), icon: Users, bg: 'bg-primary-50 text-primary-600' },
+              { to: '/reader', label: t('dashOpenReader'), icon: FileText, bg: 'bg-accent-light text-accent-dark' },
               { to: '/sync', label: t('dashViewSync'), icon: RefreshCw, bg: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400' },
             ].map(({ to, label, icon: Icon, bg }) => (
               <Link
                 key={to}
                 to={to}
-                className="flex items-center gap-3 rounded-xl px-4 py-3 min-h-[44px] text-sm font-medium transition-all hover:bg-surface dark:hover:bg-surface-dark"
+                className="flex items-center gap-3 rounded-xl px-4 py-3 min-h-[44px] text-sm font-medium transition-all hover:bg-surface"
               >
                 <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${bg}`}>
                   <Icon size={16} />
                 </div>
-                <span className="flex-1 text-ink dark:text-ink-dark">{label}</span>
-                <ArrowRight size={16} className="text-muted dark:text-muted-dark" />
+                <span className="flex-1 text-ink">{label}</span>
+                <ArrowRight size={16} className="text-muted" />
               </Link>
             ))}
           </div>

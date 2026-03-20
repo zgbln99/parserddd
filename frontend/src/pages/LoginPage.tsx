@@ -28,10 +28,10 @@ export function LoginPage() {
   };
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center p-4 bg-surface dark:bg-surface-dark">
+    <div className="relative flex min-h-screen items-center justify-center p-4 bg-surface">
       {/* Subtle background decoration */}
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
-        <div className="absolute -right-48 -top-48 h-[600px] w-[600px] rounded-full bg-primary-100/50 blur-[120px] dark:bg-primary-900/20" />
+        <div className="absolute -right-48 -top-48 h-[600px] w-[600px] rounded-full bg-primary-100/50 blur-[120px]" />
         <div className="absolute -bottom-48 -left-48 h-[500px] w-[500px] rounded-full bg-accent-light/40 blur-[120px] dark:bg-accent/5" />
       </div>
 
@@ -39,14 +39,14 @@ export function LoginPage() {
       <div className="fixed right-4 top-4 z-10 flex items-center gap-1">
         <button
           onClick={() => setLocale(locale === 'pl' ? 'de' : 'pl' as Locale)}
-          className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-muted transition hover:bg-card hover:text-ink dark:text-muted-dark dark:hover:bg-card-dark dark:hover:text-ink-dark"
+          className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-muted transition hover:bg-card hover:text-ink dark:hover:bg-card-dark"
         >
           <Globe size={14} />
           {locale === 'pl' ? 'DE' : 'PL'}
         </button>
         <button
           onClick={toggle}
-          className="rounded-lg p-2 text-muted transition hover:bg-card hover:text-ink dark:text-muted-dark dark:hover:bg-card-dark dark:hover:text-ink-dark"
+          className="rounded-lg p-2 text-muted transition hover:bg-card hover:text-ink dark:hover:bg-card-dark"
         >
           {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
         </button>
@@ -62,8 +62,8 @@ export function LoginPage() {
             <Truck size={28} />
           </div>
           <img src="https://ltslog.de/logo.png" alt="LTS" className="mx-auto mb-3 h-10 dark:brightness-200 dark:contrast-50" />
-          <h1 className="text-xl font-bold tracking-tight text-ink dark:text-ink-dark">{t('loginTitle')}</h1>
-          <p className="mt-1.5 text-sm text-muted dark:text-muted-dark">{t('loginSubtitle')}</p>
+          <h1 className="text-xl font-bold tracking-tight text-ink">{t('loginTitle')}</h1>
+          <p className="mt-1.5 text-sm text-muted">{t('loginSubtitle')}</p>
         </div>
 
         {error && (

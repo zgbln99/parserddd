@@ -11,7 +11,7 @@ type AdminTab = 'users' | 'security' | 'sync' | 'logs';
 const tabs: { key: AdminTab; icon: typeof Users; labelKey: string; color: string }[] = [
   { key: 'users', icon: Users, labelKey: 'adminUsers', color: 'text-blue-500' },
   { key: 'security', icon: Key, labelKey: 'adminChangePassword', color: 'text-amber-500' },
-  { key: 'sync', icon: Settings, labelKey: 'adminSyncConfig', color: 'text-muted dark:text-muted-dark' },
+  { key: 'sync', icon: Settings, labelKey: 'adminSyncConfig', color: 'text-muted' },
   { key: 'logs', icon: Activity, labelKey: 'adminActivityLog', color: 'text-violet-500' },
 ];
 
@@ -28,7 +28,7 @@ export function AdminPage() {
         </div>
         <div>
           <h1 className="text-2xl font-bold tracking-tight">{t('adminTitle')}</h1>
-          <p className="text-xs text-muted dark:text-muted-dark">System & Security</p>
+          <p className="text-xs text-muted">System & Security</p>
         </div>
       </div>
 
@@ -41,7 +41,7 @@ export function AdminPage() {
             className={`flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition ${
               activeTab === key
                 ? 'glass-card text-gray-900 dark:text-gray-100'
-                : 'text-muted dark:text-muted-dark hover:text-gray-700 dark:hover:text-gray-300'
+                : 'text-muted hover:text-gray-700 dark:hover:text-gray-300'
             }`}
           >
             <Icon size={16} className={activeTab === key ? color : ''} />

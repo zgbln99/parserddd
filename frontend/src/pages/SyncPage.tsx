@@ -30,7 +30,7 @@ export function SyncPage() {
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center gap-3 py-20 text-muted dark:text-muted-dark">
+      <div className="flex flex-col items-center gap-3 py-20 text-muted">
         <Spinner size="lg" />
         <p>{t('loading')}</p>
       </div>
@@ -71,10 +71,10 @@ export function SyncPage() {
 
   return (
     <div className="animate-slide-up">
-      <h1 className="mb-6 text-2xl font-bold tracking-tight text-ink dark:text-ink-dark">{t('syncTitle')}</h1>
+      <h1 className="mb-6 text-2xl font-bold tracking-tight text-ink">{t('syncTitle')}</h1>
 
       {history.length === 0 ? (
-        <p className="py-20 text-center text-muted dark:text-muted-dark">{t('syncNoHistory')}</p>
+        <p className="py-20 text-center text-muted">{t('syncNoHistory')}</p>
       ) : (
         <>
           {/* Stats */}
@@ -113,16 +113,16 @@ export function SyncPage() {
                 <CardField label={t('syncStatus')} value={statusBadge(h.status)} />
                 <CardField label={t('syncFound')} value={h.found} />
                 <CardField label={t('syncUploaded')} value={<span className="font-bold">{h.uploaded}</span>} />
-                <CardField label={t('syncErrors')} value={<span className={h.errors ? 'text-danger' : 'text-muted/30 dark:text-muted-dark/30'}>{h.errors}</span>} />
+                <CardField label={t('syncErrors')} value={<span className={h.errors ? 'text-danger' : 'text-muted/30/30'}>{h.errors}</span>} />
                 {expandedIdx === i && h.files.length > 0 && (
-                  <div className="mt-3 space-y-1.5 border-t border-border pt-3 dark:border-border-dark">
+                  <div className="mt-3 space-y-1.5 border-t border-border pt-3">
                     {h.files.map((f, fi) => (
                       <div key={fi} className="flex items-center gap-2 text-xs">
                         {f.status === 'ok'
                           ? <CheckCircle size={14} className="flex-shrink-0 text-success" />
                           : <XCircle size={14} className="flex-shrink-0 text-danger" />}
-                        <span className="font-medium text-muted dark:text-muted-dark">{f.driver}</span>
-                        <span className="flex-1 truncate font-medium text-ink dark:text-ink-dark">{f.file}</span>
+                        <span className="font-medium text-muted">{f.driver}</span>
+                        <span className="flex-1 truncate font-medium text-ink">{f.file}</span>
                       </div>
                     ))}
                   </div>
@@ -136,51 +136,51 @@ export function SyncPage() {
             <div className="overflow-x-auto">
               <table className="w-full min-w-[800px] text-sm">
                 <thead>
-                  <tr className="border-b border-border dark:border-border-dark">
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted dark:text-muted-dark">{t('syncDate')}</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted dark:text-muted-dark">{t('syncStatus')}</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted dark:text-muted-dark">{t('syncFound')}</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted dark:text-muted-dark">{t('syncUploaded')}</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted dark:text-muted-dark">{t('syncErrors')}</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted dark:text-muted-dark">{t('syncFiles')}</th>
+                  <tr className="border-b border-border">
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted">{t('syncDate')}</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted">{t('syncStatus')}</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted">{t('syncFound')}</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted">{t('syncUploaded')}</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted">{t('syncErrors')}</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted">{t('syncFiles')}</th>
                     <th className="px-4 py-3" />
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-border dark:divide-border-dark">
+                <tbody className="divide-y divide-border">
                   {history.map((h, i) => (
                     <Fragment key={i}>
                       <tr
                         onClick={() => setExpandedIdx(expandedIdx === i ? null : i)}
-                        className="cursor-pointer transition hover:bg-primary-50 dark:hover:bg-primary-900/10"
+                        className="cursor-pointer transition hover:bg-primary-50"
                       >
-                        <td className="whitespace-nowrap px-4 py-3 text-muted dark:text-muted-dark">{formatDateTime(h.timestamp, locale)}</td>
+                        <td className="whitespace-nowrap px-4 py-3 text-muted">{formatDateTime(h.timestamp, locale)}</td>
                         <td className="whitespace-nowrap px-4 py-3">{statusBadge(h.status)}</td>
-                        <td className="whitespace-nowrap px-4 py-3 text-ink dark:text-ink-dark">{h.found}</td>
-                        <td className="whitespace-nowrap px-4 py-3 font-bold text-ink dark:text-ink-dark">{h.uploaded}</td>
+                        <td className="whitespace-nowrap px-4 py-3 text-ink">{h.found}</td>
+                        <td className="whitespace-nowrap px-4 py-3 font-bold text-ink">{h.uploaded}</td>
                         <td className="whitespace-nowrap px-4 py-3">
-                          <span className={h.errors ? 'text-danger' : 'text-muted/30 dark:text-muted-dark/30'}>{h.errors}</span>
+                          <span className={h.errors ? 'text-danger' : 'text-muted/30/30'}>{h.errors}</span>
                         </td>
                         <td className="whitespace-nowrap px-4 py-3">
                           {h.files.length > 0 ? <Badge variant="gray">{h.files.length}</Badge> : '-'}
                         </td>
                         <td className="px-4 py-3">
                           {h.files.length > 0 && (
-                            expandedIdx === i ? <ChevronUp size={14} className="text-muted dark:text-muted-dark" /> : <ChevronDown size={14} className="text-muted dark:text-muted-dark" />
+                            expandedIdx === i ? <ChevronUp size={14} className="text-muted" /> : <ChevronDown size={14} className="text-muted" />
                           )}
                         </td>
                       </tr>
                       {expandedIdx === i && h.files.length > 0 && (
                         <tr key={`${i}-detail`}>
-                          <td colSpan={7} className="bg-surface px-6 py-3 dark:bg-surface-dark">
+                          <td colSpan={7} className="bg-surface px-6 py-3">
                             <div className="space-y-1.5">
                               {h.files.map((f, fi) => (
                                 <div key={fi} className="flex items-center gap-3 text-xs">
                                   {f.status === 'ok'
                                     ? <CheckCircle size={14} className="flex-shrink-0 text-success" />
                                     : <XCircle size={14} className="flex-shrink-0 text-danger" />}
-                                  <span className="min-w-[120px] font-medium text-muted dark:text-muted-dark">{f.driver}</span>
-                                  <span className="flex-1 font-medium text-ink dark:text-ink-dark">{f.file}</span>
-                                  {f.size && <span className="text-muted dark:text-muted-dark">{formatBytes(f.size)}</span>}
+                                  <span className="min-w-[120px] font-medium text-muted">{f.driver}</span>
+                                  <span className="flex-1 font-medium text-ink">{f.file}</span>
+                                  {f.size && <span className="text-muted">{formatBytes(f.size)}</span>}
                                   {f.error && <span className="text-danger">{f.error}</span>}
                                 </div>
                               ))}

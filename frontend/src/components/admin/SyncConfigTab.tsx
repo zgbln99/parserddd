@@ -57,12 +57,12 @@ function SyncConfigSection() {
   return (
     <Card className="p-4 sm:p-6">
       <div className="mb-4 flex items-center gap-2">
-        <Settings size={18} className="text-muted dark:text-muted-dark" />
+        <Settings size={18} className="text-muted" />
         <h2 className="text-lg font-bold">{t('adminSyncConfig')}</h2>
       </div>
       <div className="space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
-          <label className="text-xs font-semibold text-muted dark:text-muted-dark sm:w-40 shrink-0">Samsara API Token</label>
+          <label className="text-xs font-semibold text-muted sm:w-40 shrink-0">Samsara API Token</label>
           <div className="flex items-center gap-2">
             {config?.samsara_api_token_set
               ? <Badge variant="green" dot>{t('adminConfigSet')}</Badge>
@@ -77,7 +77,7 @@ function SyncConfigSection() {
           </div>
         </div>
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
-          <label className="text-xs font-semibold text-muted dark:text-muted-dark sm:w-40 shrink-0">Dropbox Refresh Token</label>
+          <label className="text-xs font-semibold text-muted sm:w-40 shrink-0">Dropbox Refresh Token</label>
           <div className="flex items-center gap-2">
             {config?.dropbox_refresh_token_set
               ? <Badge variant="green" dot>{t('adminConfigSet')}</Badge>
@@ -92,7 +92,7 @@ function SyncConfigSection() {
           </div>
         </div>
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
-          <label className="text-xs font-semibold text-muted dark:text-muted-dark sm:w-40 shrink-0">{t('adminSyncFolder')}</label>
+          <label className="text-xs font-semibold text-muted sm:w-40 shrink-0">{t('adminSyncFolder')}</label>
           <input
             type="text"
             value={syncFolder}
@@ -151,7 +151,7 @@ function SyncMonitorSection() {
   return (
     <div>
       {history.length === 0 ? (
-        <p className="py-8 text-center text-sm text-muted dark:text-muted-dark">{t('syncNoHistory')}</p>
+        <p className="py-8 text-center text-sm text-muted">{t('syncNoHistory')}</p>
       ) : (
         <>
           <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -167,13 +167,13 @@ function SyncMonitorSection() {
                 <CardField label={t('syncStatus')} value={statusBadge(h.status)} />
                 <CardField label={t('syncFound')} value={h.found} />
                 <CardField label={t('syncUploaded')} value={<span className="font-bold">{h.uploaded}</span>} />
-                <CardField label={t('syncErrors')} value={<span className={h.errors ? 'text-danger' : 'text-gray-300 dark:text-gray-600'}>{h.errors}</span>} />
+                <CardField label={t('syncErrors')} value={<span className={h.errors ? 'text-danger' : 'text-muted'}>{h.errors}</span>} />
                 {expandedIdx === i && h.files.length > 0 && (
-                  <div className="mt-3 space-y-1.5 border-t border-white/10 pt-3">
+                  <div className="mt-3 space-y-1.5 border-t border-border pt-3">
                     {h.files.map((f, fi) => (
                       <div key={fi} className="flex items-center gap-2 text-xs">
                         {f.status === 'ok' ? <CheckCircle size={14} className="flex-shrink-0 text-success" /> : <XCircle size={14} className="flex-shrink-0 text-danger" />}
-                        <span className="font-medium text-muted dark:text-muted-dark">{f.driver}</span>
+                        <span className="font-medium text-muted">{f.driver}</span>
                         <span className="flex-1 truncate font-medium">{f.file}</span>
                       </div>
                     ))}
@@ -186,24 +186,24 @@ function SyncMonitorSection() {
             <div className="overflow-x-auto">
               <table className="w-full min-w-[800px] text-sm">
                 <thead>
-                  <tr className="border-b border-border dark:border-border-dark">
+                  <tr className="border-b border-border">
                     {[t('syncDate'), t('syncStatus'), t('syncFound'), t('syncUploaded'), t('syncErrors'), t('syncFiles')].map((h) => (
-                      <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted dark:text-muted-dark">{h}</th>
+                      <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted">{h}</th>
                     ))}
                     <th className="px-4 py-3" />
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-border dark:divide-border-dark">
+                <tbody className="divide-y divide-border">
                   {history.map((h, i) => (
                     <Fragment key={i}>
-                      <tr onClick={() => setExpandedIdx(expandedIdx === i ? null : i)} className="cursor-pointer transition hover:bg-surface dark:hover:bg-surface-dark">
-                        <td className="whitespace-nowrap px-4 py-3 text-muted dark:text-muted-dark">{formatDateTime(h.timestamp, locale)}</td>
+                      <tr onClick={() => setExpandedIdx(expandedIdx === i ? null : i)} className="cursor-pointer transition hover:bg-surface">
+                        <td className="whitespace-nowrap px-4 py-3 text-muted">{formatDateTime(h.timestamp, locale)}</td>
                         <td className="whitespace-nowrap px-4 py-3">{statusBadge(h.status)}</td>
                         <td className="whitespace-nowrap px-4 py-3">{h.found}</td>
                         <td className="whitespace-nowrap px-4 py-3 font-bold">{h.uploaded}</td>
-                        <td className="whitespace-nowrap px-4 py-3"><span className={h.errors ? 'text-danger' : 'text-gray-300 dark:text-gray-600'}>{h.errors}</span></td>
+                        <td className="whitespace-nowrap px-4 py-3"><span className={h.errors ? 'text-danger' : 'text-muted'}>{h.errors}</span></td>
                         <td className="whitespace-nowrap px-4 py-3">{h.files.length > 0 ? <Badge variant="gray">{h.files.length}</Badge> : '-'}</td>
-                        <td className="px-4 py-3">{h.files.length > 0 && (expandedIdx === i ? <ChevronUp size={14} className="text-muted dark:text-muted-dark" /> : <ChevronDown size={14} className="text-muted dark:text-muted-dark" />)}</td>
+                        <td className="px-4 py-3">{h.files.length > 0 && (expandedIdx === i ? <ChevronUp size={14} className="text-muted" /> : <ChevronDown size={14} className="text-muted" />)}</td>
                       </tr>
                       {expandedIdx === i && h.files.length > 0 && (
                         <tr key={`${i}-d`}>
@@ -212,9 +212,9 @@ function SyncMonitorSection() {
                               {h.files.map((f, fi) => (
                                 <div key={fi} className="flex items-center gap-3 text-xs">
                                   {f.status === 'ok' ? <CheckCircle size={14} className="flex-shrink-0 text-success" /> : <XCircle size={14} className="flex-shrink-0 text-danger" />}
-                                  <span className="min-w-[120px] font-medium text-muted dark:text-muted-dark">{f.driver}</span>
+                                  <span className="min-w-[120px] font-medium text-muted">{f.driver}</span>
                                   <span className="flex-1 font-medium">{f.file}</span>
-                                  {f.size && <span className="text-muted dark:text-muted-dark">{formatBytes(f.size)}</span>}
+                                  {f.size && <span className="text-muted">{formatBytes(f.size)}</span>}
                                   {f.error && <span className="text-danger">{f.error}</span>}
                                 </div>
                               ))}

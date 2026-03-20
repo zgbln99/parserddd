@@ -350,15 +350,15 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
       {/* Date filter */}
       {hasDateFilter && (
         <div className="flex flex-wrap items-center gap-3 rounded-xl bg-black/[0.02] px-4 py-3 dark:bg-white/5">
-          <span className="text-xs font-semibold uppercase tracking-wider text-muted dark:text-muted-dark">{t('analysisDateFilter')}:</span>
-          <label className="text-xs text-muted dark:text-muted-dark">{t('detailFrom')}:</label>
+          <span className="text-xs font-semibold uppercase tracking-wider text-muted">{t('analysisDateFilter')}:</span>
+          <label className="text-xs text-muted">{t('detailFrom')}:</label>
           <input
             type="date"
             value={dateFrom || ''}
             onChange={(e) => onDateFromChange(e.target.value)}
             className="input rounded-xl px-2.5 py-1.5 text-xs outline-none dark:[color-scheme:dark]"
           />
-          <label className="text-xs text-muted dark:text-muted-dark">{t('detailTo')}:</label>
+          <label className="text-xs text-muted">{t('detailTo')}:</label>
           <input
             type="date"
             value={dateTo || ''}
@@ -385,9 +385,9 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
       {/* Key metrics - highlighted */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-xl border border-primary-200 bg-primary-50 p-4 text-center dark:border-primary-800 dark:bg-primary-900/30">
-          <p className="text-xs font-bold uppercase tracking-wider text-primary-500 dark:text-primary-400">{t('analysisWorkTime')}</p>
+          <p className="text-xs font-bold uppercase tracking-wider text-primary-500">{t('analysisWorkTime')}</p>
           <p className="mt-1 text-2xl font-extrabold text-primary-700 dark:text-primary-300">{s.total_work_hm}</p>
-          <p className="mt-0.5 text-xs text-primary-500/70 dark:text-primary-400/70">{s.total_work_decimal}h</p>
+          <p className="mt-0.5 text-xs text-primary-500/70/70">{s.total_work_decimal}h</p>
         </div>
         <div className="rounded-xl border border-violet-200 bg-violet-50 p-4 text-center dark:border-violet-800 dark:bg-violet-900/30" title={locale === 'de' ? 'Arbeit 22:00-06:00 unter 2h = 25% Zuschlag' : 'Praca w godz. 22:00-06:00 poniżej 2h = 25% dodatku'}>
           <p className="text-xs font-bold uppercase tracking-wider text-violet-500 dark:text-violet-400">{t('analysisNight25')}</p>
@@ -419,7 +419,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
           { label: t('analysisNight25') + ' + ' + t('analysisNight40'), value: fmtNight(s.night_25_minutes + s.night_40_minutes, s.total_night_hm) },
         ].map(({ label, value }) => (
           <div key={label} className="rounded-xl bg-black/[0.02] p-3 text-center dark:bg-white/5">
-            <p className="text-xs font-bold uppercase tracking-wider text-muted dark:text-muted-dark">{label}</p>
+            <p className="text-xs font-bold uppercase tracking-wider text-muted">{label}</p>
             <p className="mt-0.5 text-xl font-extrabold">{value}</p>
           </div>
         ))}
@@ -443,14 +443,14 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
 
       {/* Chart toggle + chart */}
       {shifts.length > 1 && (
-        <div className="rounded-xl bg-surface dark:bg-surface-dark">
+        <div className="rounded-xl bg-surface">
           <button
             onClick={() => setShowChart(!showChart)}
-            className="flex w-full items-center gap-2 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted dark:text-muted-dark transition hover:text-ink dark:hover:text-ink-dark"
+            className="flex w-full items-center gap-2 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted transition hover:text-ink"
           >
             <BarChart3 size={14} />
             {t('analysisChart')}
-            <span className="ml-auto text-xs font-normal normal-case text-muted dark:text-muted-dark">
+            <span className="ml-auto text-xs font-normal normal-case text-muted">
               {showChart ? '▲' : '▼'}
             </span>
           </button>
@@ -464,7 +464,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
                   { color: '#C5A352', name: t('analysisNight25') },
                   { color: '#B85450', name: t('analysisNight40') },
                 ].map((item) => (
-                  <span key={item.name} className="flex items-center gap-1.5 text-muted dark:text-muted-dark">
+                  <span key={item.name} className="flex items-center gap-1.5 text-muted">
                     <span className="inline-block h-3 w-3 rounded" style={{ background: item.color }} />
                     {item.name}
                   </span>
@@ -481,17 +481,17 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
 
       {/* Diet report toggle */}
       {shifts.length > 0 && (
-        <div className="rounded-xl bg-surface dark:bg-surface-dark">
+        <div className="rounded-xl bg-surface">
           <button
             onClick={() => setShowDietReport(!showDietReport)}
-            className="flex w-full items-center gap-2 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted dark:text-muted-dark transition hover:text-ink dark:hover:text-ink-dark"
+            className="flex w-full items-center gap-2 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted transition hover:text-ink"
           >
             <UtensilsCrossed size={14} />
             {t('dietReport')}
             <span className="ml-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400">
               {s.diet_count}/{s.total_shifts}
             </span>
-            <span className="ml-auto text-xs font-normal normal-case text-muted dark:text-muted-dark">
+            <span className="ml-auto text-xs font-normal normal-case text-muted">
               {showDietReport ? '▲' : '▼'}
             </span>
           </button>
@@ -499,25 +499,25 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
             <div className="overflow-hidden px-2 sm:px-4 pb-4">
               <table className="w-full text-xs sm:text-sm">
                 <thead>
-                  <tr className="border-b border-border dark:border-border-dark">
-                    <th className="px-2 py-2 text-left text-xs font-semibold text-muted dark:text-muted-dark">{t('syncDate')}</th>
-                    <th className="px-2 py-2 text-left text-xs font-semibold text-muted dark:text-muted-dark">{t('analysisWeekday')}</th>
-                    <th className="px-2 py-2 text-left text-xs font-semibold text-muted dark:text-muted-dark">{t('analysisDuration')}</th>
-                    <th className="px-2 py-2 text-center text-xs font-semibold text-muted dark:text-muted-dark">{t('analysisDiet')}</th>
+                  <tr className="border-b border-border">
+                    <th className="px-2 py-2 text-left text-xs font-semibold text-muted">{t('syncDate')}</th>
+                    <th className="px-2 py-2 text-left text-xs font-semibold text-muted">{t('analysisWeekday')}</th>
+                    <th className="px-2 py-2 text-left text-xs font-semibold text-muted">{t('analysisDuration')}</th>
+                    <th className="px-2 py-2 text-center text-xs font-semibold text-muted">{t('analysisDiet')}</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-border dark:divide-border-dark">
+                <tbody className="divide-y divide-border">
                   {shifts.map((sh, i) => {
                     const isWeekend = sh.weekday === 'So' || sh.weekday === 'Nd';
                     return (
-                      <tr key={i} className={isWeekend ? 'text-muted dark:text-muted-dark' : ''}>
+                      <tr key={i} className={isWeekend ? 'text-muted' : ''}>
                         <td className="whitespace-nowrap px-2 py-1.5 font-medium">{sh.shift_date}</td>
                         <td className={`whitespace-nowrap px-2 py-1.5 font-bold ${isWeekend ? 'text-danger' : ''}`}>{localizeWeekday(sh.weekday, locale)}</td>
                         <td className="whitespace-nowrap px-2 py-1.5">{sh.duration_hm}</td>
                         <td className="whitespace-nowrap px-2 py-1.5 text-center">
                           {sh.has_diet
                             ? <Badge variant="green">{t('yes')}</Badge>
-                            : <span className="text-muted dark:text-muted-dark">{t('no')}</span>}
+                            : <span className="text-muted">{t('no')}</span>}
                         </td>
                       </tr>
                     );
@@ -527,7 +527,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
               <div className="mt-3 flex justify-end">
                 <button
                   onClick={handlePrintDietReport}
-                  className="flex min-h-[44px] items-center gap-1.5 rounded-lg border border-border dark:border-border-dark px-3 py-1.5 text-xs font-medium text-muted dark:text-muted-dark transition hover:bg-surface dark:hover:bg-surface-dark"
+                  className="flex min-h-[44px] items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted transition hover:bg-surface"
                 >
                   <Printer size={13} />
                   {t('analysisPrint')}
@@ -542,26 +542,26 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
       {di.card_number && period && monthlyDays && (
         <div className="rounded-xl bg-black/[0.02] p-4 dark:bg-white/5">
           <div className="mb-3 flex items-center gap-2">
-            <CalendarDays size={14} className="text-muted dark:text-muted-dark" />
-            <span className="text-xs font-semibold uppercase tracking-wider text-muted dark:text-muted-dark">
+            <CalendarDays size={14} className="text-muted" />
+            <span className="text-xs font-semibold uppercase tracking-wider text-muted">
               {t('monthlyDays')} — {period}
             </span>
           </div>
           <div className="flex flex-wrap items-end gap-4">
             <div>
-              <label className="mb-1 block text-xs font-medium text-muted dark:text-muted-dark">{t('monthlyVacation')}</label>
+              <label className="mb-1 block text-xs font-medium text-muted">{t('monthlyVacation')}</label>
               <div className="flex h-[34px] w-20 items-center justify-center rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-sm font-bold tabular-nums text-blue-700 dark:border-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
                 {monthlyDays.vacation_days || 0}
               </div>
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-muted dark:text-muted-dark">{t('monthlySick')}</label>
+              <label className="mb-1 block text-xs font-medium text-muted">{t('monthlySick')}</label>
               <div className="flex h-[34px] w-20 items-center justify-center rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-sm font-bold tabular-nums text-amber-700 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
                 {monthlyDays.sick_days || 0}
               </div>
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-muted dark:text-muted-dark">{t('monthlyOvertime')}</label>
+              <label className="mb-1 block text-xs font-medium text-muted">{t('monthlyOvertime')}</label>
               <input
                 type="text"
                 value={monthlyDays.overtime_hm}
@@ -573,26 +573,26 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
             <button
               onClick={handleMonthlySave}
               disabled={savingMonthly}
-              className="flex items-center gap-1.5 rounded-lg bg-primary-600 px-4 py-1.5 text-sm font-semibold text-white transition hover:bg-primary-700 disabled:opacity-50 dark:bg-primary-500"
+              className="flex items-center gap-1.5 rounded-lg bg-primary-600 px-4 py-1.5 text-sm font-semibold text-white transition hover:bg-primary-700 disabled:opacity-50"
             >
               {savingMonthly ? <Spinner size="sm" /> : <Check size={14} />}
               {savingMonthly ? t('loading') : t('monthlySave')}
             </button>
           </div>
-          <p className="mt-2 text-xs text-muted dark:text-muted-dark">{t('absenceCalendarHint')}</p>
+          <p className="mt-2 text-xs text-muted">{t('absenceCalendarHint')}</p>
         </div>
       )}
 
       {/* Driver config (admin only) */}
       {isAdmin && di.card_number && (
-        <div className="rounded-xl bg-surface dark:bg-surface-dark">
+        <div className="rounded-xl bg-surface">
           <button
             onClick={() => setShowConfig(!showConfig)}
-            className="flex w-full items-center gap-2 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted dark:text-muted-dark transition hover:text-ink dark:hover:text-ink-dark"
+            className="flex w-full items-center gap-2 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted transition hover:text-ink"
           >
             <Settings size={14} />
             {t('driverConfig')}
-            <span className="ml-auto text-xs font-normal normal-case text-muted dark:text-muted-dark">
+            <span className="ml-auto text-xs font-normal normal-case text-muted">
               {showConfig ? '▲' : '▼'}
             </span>
           </button>
@@ -616,28 +616,28 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
             const isWeekend = sh.weekday === 'So' || sh.weekday === 'Nd';
             const wd = localizeWeekday(sh.weekday, locale);
             return (
-              <div key={i} className={`rounded-xl border border-border dark:border-border-dark p-3 ${isWeekend ? 'bg-rose-50/30 dark:bg-rose-900/10' : 'bg-white/50 dark:bg-white/5'}`}>
+              <div key={i} className={`rounded-xl border border-border p-3 ${isWeekend ? 'bg-rose-50/30 dark:bg-rose-900/10' : 'bg-white/50 dark:bg-white/5'}`}>
                 <div className="flex items-center justify-between mb-2">
                   <span className={`text-sm font-bold ${isWeekend ? 'text-danger' : ''}`}>{wd} {sh.shift_date?.slice(5)}</span>
                   <span className="text-sm font-bold">{sh.duration_hm}</span>
                 </div>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-                  <span className="text-muted dark:text-muted-dark">{t('analysisStart')}</span>
+                  <span className="text-muted">{t('analysisStart')}</span>
                   <span className="font-medium text-emerald-600 dark:text-emerald-400">{sh.shift_start?.split(' ')[1] || sh.shift_start}</span>
-                  <span className="text-muted dark:text-muted-dark">{t('analysisEnd')}</span>
+                  <span className="text-muted">{t('analysisEnd')}</span>
                   <span className="font-medium text-danger dark:text-rose-400">{sh.shift_end?.split(' ')[1] || sh.shift_end}</span>
-                  <span className="text-muted dark:text-muted-dark">{t('analysisDriving')}</span>
+                  <span className="text-muted">{t('analysisDriving')}</span>
                   <span className="font-medium">{sh.driving_hm}</span>
-                  <span className="text-muted dark:text-muted-dark">{t('analysisWork')}</span>
+                  <span className="text-muted">{t('analysisWork')}</span>
                   <span>{sh.work_only_hm}</span>
-                  <span className="text-muted dark:text-muted-dark">{t('analysisBreaks')}</span>
+                  <span className="text-muted">{t('analysisBreaks')}</span>
                   <span>{sh.break_hm}</span>
                   {sh.has_diet && <>
-                    <span className="text-muted dark:text-muted-dark">{t('analysisDiet')}</span>
+                    <span className="text-muted">{t('analysisDiet')}</span>
                     <Badge variant="green">{t('yes')}</Badge>
                   </>}
                   {sh.manual_minutes > 0 && <>
-                    <span className="text-muted dark:text-muted-dark">Manual</span>
+                    <span className="text-muted">Manual</span>
                     <Badge variant="yellow">{sh.manual_hm}</Badge>
                   </>}
                 </div>
@@ -648,31 +648,31 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
 
         {/* Desktop shifts table */}
         <div className="hidden sm:block -mx-6 overflow-x-auto px-6">
-          <div className="rounded-xl border border-border dark:border-border-dark">
+          <div className="rounded-xl border border-border">
           <table className="w-full min-w-[900px] text-sm">
             <thead>
-              <tr className="border-b border-border dark:border-border-dark">
+              <tr className="border-b border-border">
                 {[t('analysisWeekday'), t('analysisStart'), t('analysisEnd'), t('analysisTime'), t('analysisVehicle'),
                   t('analysisDriving'), t('analysisWork'), t('analysisBreaks'),
                   t('analysisNight25'), t('analysisNight40'), t('analysisDiet'), 'Manual',
                 ].map((h) => (
-                  <th key={h} className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold text-muted dark:text-muted-dark">
+                  <th key={h} className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold text-muted">
                     {h}
                   </th>
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-border dark:divide-border-dark">
+            <tbody className="divide-y divide-border">
               {shifts.map((sh, i) => {
                 const isWeekend = sh.weekday === 'So' || sh.weekday === 'Nd';
                 const wd = localizeWeekday(sh.weekday, locale);
                 return (
-                <tr key={i} className={`hover:bg-surface dark:hover:bg-surface-dark ${isWeekend ? 'bg-rose-50/40 dark:bg-rose-900/10' : ''}`}>
+                <tr key={i} className={`hover:bg-surface ${isWeekend ? 'bg-rose-50/40 dark:bg-rose-900/10' : ''}`}>
                   <td className={`whitespace-nowrap px-3 py-2 font-bold ${isWeekend ? 'text-danger' : ''}`}>{wd}</td>
                   <td className="whitespace-nowrap px-3 py-2 font-medium">{sh.shift_start}</td>
-                  <td className="whitespace-nowrap px-3 py-2 text-muted dark:text-muted-dark">{sh.shift_end}</td>
+                  <td className="whitespace-nowrap px-3 py-2 text-muted">{sh.shift_end}</td>
                   <td className="whitespace-nowrap px-3 py-2 font-bold">{sh.duration_hm}</td>
-                  <td className="whitespace-nowrap px-3 py-2 text-muted dark:text-muted-dark">{sh.vehicles.join(', ')}</td>
+                  <td className="whitespace-nowrap px-3 py-2 text-muted">{sh.vehicles.join(', ')}</td>
                   <td className="whitespace-nowrap px-3 py-2">{sh.driving_hm}</td>
                   <td className="whitespace-nowrap px-3 py-2">{sh.work_only_hm}</td>
                   <td className="whitespace-nowrap px-3 py-2">{sh.break_hm}</td>
@@ -681,12 +681,12 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
                   <td className="whitespace-nowrap px-3 py-2">
                     {sh.has_diet
                       ? <Badge variant="green">{t('yes')}</Badge>
-                      : <span className="text-muted dark:text-muted-dark">{t('no')}</span>}
+                      : <span className="text-muted">{t('no')}</span>}
                   </td>
                   <td className="whitespace-nowrap px-3 py-2">
                     {sh.manual_minutes > 0
                       ? <Badge variant="yellow">{sh.manual_hm}</Badge>
-                      : <span className="text-muted dark:text-muted-dark">-</span>}
+                      : <span className="text-muted">-</span>}
                   </td>
                 </tr>
                 );
@@ -699,28 +699,28 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
       )}
 
       {shifts.length === 0 && (
-        <p className="py-8 text-center text-sm text-muted dark:text-muted-dark">{t('noData')}</p>
+        <p className="py-8 text-center text-sm text-muted">{t('noData')}</p>
       )}
 
       {/* Export */}
       <div className="flex flex-wrap justify-center gap-3 pt-2">
         <button
           onClick={handleXlsxExport}
-          className="flex min-h-[44px] items-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-primary-700 dark:bg-primary-500 dark:hover:bg-primary-600"
+          className="flex min-h-[44px] items-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-primary-700 dark:hover:bg-primary-600"
         >
           <Download size={16} />
           {t('analysisExportXlsx')}
         </button>
         <button
           onClick={handleExport}
-          className="flex min-h-[44px] items-center gap-2 rounded-xl border border-primary-200 px-5 py-2.5 text-sm font-semibold text-primary-600 transition hover:bg-primary-50 dark:border-primary-800 dark:text-primary-400 dark:hover:bg-primary-900/20"
+          className="flex min-h-[44px] items-center gap-2 rounded-xl border border-primary-200 px-5 py-2.5 text-sm font-semibold text-primary-600 transition hover:bg-primary-50 dark:border-primary-800"
         >
           <Download size={16} />
           {t('analysisExportCsv')}
         </button>
         <button
           onClick={handlePdfExport}
-          className="flex min-h-[44px] items-center gap-2 rounded-xl border border-primary-200 px-5 py-2.5 text-sm font-semibold text-primary-600 transition hover:bg-primary-50 dark:border-primary-800 dark:text-primary-400 dark:hover:bg-primary-900/20"
+          className="flex min-h-[44px] items-center gap-2 rounded-xl border border-primary-200 px-5 py-2.5 text-sm font-semibold text-primary-600 transition hover:bg-primary-50 dark:border-primary-800"
         >
           <FileText size={16} />
           {t('analysisExportPdf')}
@@ -741,7 +741,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
         </button>
         <button
           onClick={handlePrint}
-          className="flex min-h-[44px] items-center gap-2 rounded-xl border border-border dark:border-border-dark px-5 py-2.5 text-sm font-semibold text-muted dark:text-muted-dark transition hover:bg-surface dark:hover:bg-surface-dark"
+          className="flex min-h-[44px] items-center gap-2 rounded-xl border border-border px-5 py-2.5 text-sm font-semibold text-muted transition hover:bg-surface"
         >
           <Printer size={16} />
           {t('analysisPrint')}
@@ -788,7 +788,7 @@ function ExcelCopyBlock({ summary, monthlyDays }: { summary: ReturnType<typeof O
         <thead>
           <tr>
             {cols.map((c) => (
-              <th key={c.header} className="border border-border dark:border-border-dark bg-black/[0.04] px-2 py-1 text-center font-bold text-muted dark:text-muted-dark dark:bg-white/10">
+              <th key={c.header} className="border border-border bg-black/[0.04] px-2 py-1 text-center font-bold text-muted dark:bg-white/10">
                 {c.header}
               </th>
             ))}
@@ -797,8 +797,8 @@ function ExcelCopyBlock({ summary, monthlyDays }: { summary: ReturnType<typeof O
         <tbody>
           <tr>
             {cols.map((c) => (
-              <td key={c.header} className="border border-border dark:border-border-dark bg-white/50 px-2 py-1 text-center font-mono dark:bg-white/5">
-                {c.value || <span className="text-muted dark:text-muted-dark">&mdash;</span>}
+              <td key={c.header} className="border border-border bg-white/50 px-2 py-1 text-center font-mono dark:bg-white/5">
+                {c.value || <span className="text-muted">&mdash;</span>}
               </td>
             ))}
           </tr>
@@ -806,7 +806,7 @@ function ExcelCopyBlock({ summary, monthlyDays }: { summary: ReturnType<typeof O
       </table>
       <button
         onClick={handleCopy}
-        className="flex items-center gap-1 rounded-lg bg-black/[0.06] px-2.5 py-1.5 text-xs font-medium text-muted dark:text-muted-dark transition hover:bg-black/10 dark:bg-white/10 dark:hover:bg-white/15"
+        className="flex items-center gap-1 rounded-lg bg-black/[0.06] px-2.5 py-1.5 text-xs font-medium text-muted transition hover:bg-black/10 dark:bg-white/10 dark:hover:bg-white/15"
       >
         {copied ? <Check size={13} /> : <ClipboardCopy size={13} />}
         {copied ? 'OK!' : 'Kopiuj'}
@@ -934,18 +934,18 @@ function MonthlyGridCopy({
     });
   }, [dayNumbers, dayWorkMap, absenceDays, summaryValues]);
 
-  const thCls = 'border border-gray-300 bg-gray-200/60 px-1 py-0.5 text-center text-[10px] font-bold text-muted dark:text-muted-dark dark:border-gray-600 dark:bg-gray-700';
+  const thCls = 'border border-gray-300 bg-gray-200/60 px-1 py-0.5 text-center text-[10px] font-bold text-muted dark:border-gray-600 dark:bg-gray-700';
   const tdCls = 'border border-gray-300 bg-white px-1 py-0.5 text-center font-mono text-[10px] dark:border-gray-600 dark:bg-gray-900';
 
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2 flex-wrap">
-        <span className="text-xs font-semibold uppercase tracking-wider text-muted dark:text-muted-dark">
+        <span className="text-xs font-semibold uppercase tracking-wider text-muted">
           {t('monthlyGrid')} — {String(month).padStart(2, '0')}/{year}
         </span>
         <button
           onClick={handleCopy}
-          className="flex items-center gap-1 rounded-lg bg-primary-100 px-2.5 py-1 text-xs font-medium text-primary-700 transition hover:bg-primary-200 dark:bg-primary-900/30 dark:text-primary-400 dark:hover:bg-primary-900/50"
+          className="flex items-center gap-1 rounded-lg bg-primary-100 px-2.5 py-1 text-xs font-medium text-primary-700 transition hover:bg-primary-200 dark:bg-primary-900/30 dark:hover:bg-primary-900/50"
         >
           {copied ? <Check size={13} /> : <ClipboardCopy size={13} />}
           {copied ? 'OK!' : t('adminCopyGrid')}
@@ -954,14 +954,14 @@ function MonthlyGridCopy({
           <button
             onClick={onSave}
             disabled={savingMonthly}
-            className="flex items-center gap-1 rounded-lg bg-primary-600 px-2.5 py-1 text-xs font-semibold text-white transition hover:bg-primary-700 disabled:opacity-50 dark:bg-primary-500"
+            className="flex items-center gap-1 rounded-lg bg-primary-600 px-2.5 py-1 text-xs font-semibold text-white transition hover:bg-primary-700 disabled:opacity-50"
           >
             {savingMonthly ? <Spinner size="sm" /> : <Check size={13} />}
             {savingMonthly ? t('loading') : t('monthlySave')}
           </button>
         )}
         {onAbsenceChange && (
-          <span className="ml-auto flex items-center gap-2 text-[10px] text-muted dark:text-muted-dark">
+          <span className="ml-auto flex items-center gap-2 text-[10px] text-muted">
             <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-sm bg-blue-500" /> Ur</span>
             <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-sm bg-orange-500" /> Kr</span>
           </span>
@@ -1032,7 +1032,7 @@ function MonthlyGridCopy({
               })}
               {summaryValues.map((v, i) => (
                 <td key={i} className={`${tdCls} font-semibold`}>
-                  {v || <span className="text-muted dark:text-muted-dark">&mdash;</span>}
+                  {v || <span className="text-muted">&mdash;</span>}
                 </td>
               ))}
             </tr>

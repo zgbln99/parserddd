@@ -46,7 +46,7 @@ export function AnalysisPage() {
       <div className="mb-6 flex items-center gap-4">
         <button
           onClick={goBack}
-          className="flex items-center gap-2 rounded-xl border border-border dark:border-border-dark px-4 py-2 text-sm font-medium transition hover:bg-surface dark:hover:bg-surface-dark"
+          className="flex items-center gap-2 rounded-xl border border-border px-4 py-2 text-sm font-medium transition hover:bg-surface"
         >
           <ArrowLeft size={16} />
           {t('back')}
@@ -55,14 +55,14 @@ export function AnalysisPage() {
           <h1 className="truncate text-2xl font-bold tracking-tight">
             {data?.driver_info?.driver_name || driverName || fileName}
           </h1>
-          <p className="truncate text-sm text-muted dark:text-muted-dark">{fileName}</p>
+          <p className="truncate text-sm text-muted">{fileName}</p>
         </div>
       </div>
 
       {/* Loading */}
       {loading && (
         <Card className="py-16">
-          <div className="flex flex-col items-center gap-3 text-muted dark:text-muted-dark">
+          <div className="flex flex-col items-center gap-3 text-muted">
             <Spinner size="lg" />
             <p className="text-sm font-medium">{t('analysisLoading')}</p>
           </div>

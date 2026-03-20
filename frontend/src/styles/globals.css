@@ -98,10 +98,21 @@ body {
   color: var(--color-ink);
 }
 
+/* Dark mode: override all semantic tokens so utilities auto-switch */
 .dark {
   color-scheme: dark;
-  background: var(--color-surface-dark);
-  color: var(--color-ink-dark);
+  --color-surface: #141414;
+  --color-card: #1E1E1E;
+  --color-ink: #EBEBEB;
+  --color-muted: #9A9A92;
+  --color-border: #2E2E2E;
+  --color-accent-light: #3A2F1A;
+  --color-accent-dark: #D4B76A;
+  --color-primary-50: rgba(90, 111, 75, 0.08);
+  --color-success: #6AAF7B;
+  --color-warning: #D4B76A;
+  --color-danger: #D47370;
+  --color-info: #7BA3C4;
 }
 
 /* Text selection */
@@ -125,13 +136,8 @@ body {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
 }
 
-.dark .card {
-  background: var(--color-card-dark);
-  border-color: var(--color-border-dark);
-}
-
 .dark .card:hover {
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
 /* --- INPUT --- */
@@ -149,14 +155,8 @@ body {
   outline: none;
 }
 
-.dark .input {
-  background: var(--color-card-dark);
-  border-color: var(--color-border-dark);
-}
-
 .dark .input:focus {
-  border-color: var(--color-primary-400);
-  box-shadow: 0 0 0 3px rgba(90, 111, 75, 0.15);
+  box-shadow: 0 0 0 3px rgba(90, 111, 75, 0.2);
 }
 
 /* --- SIDEBAR --- */
@@ -165,20 +165,10 @@ body {
   border-right: 1px solid var(--color-border);
 }
 
-.dark .sidebar {
-  background: var(--color-card-dark);
-  border-right-color: var(--color-border-dark);
-}
-
 /* --- TOPBAR --- */
 .topbar {
   background: var(--color-card);
   border-bottom: 1px solid var(--color-border);
-}
-
-.dark .topbar {
-  background: var(--color-card-dark);
-  border-bottom-color: var(--color-border-dark);
 }
 
 /* --- TABLE --- */
@@ -201,12 +191,6 @@ body {
   color: var(--color-muted);
 }
 
-.dark .clean-table thead th {
-  background: var(--color-surface-dark);
-  border-bottom-color: var(--color-border-dark);
-  color: var(--color-muted-dark);
-}
-
 .clean-table tbody tr {
   transition: background-color 0.1s ease;
 }
@@ -215,16 +199,8 @@ body {
   background: var(--color-primary-50);
 }
 
-.dark .clean-table tbody tr:hover {
-  background: rgba(90, 111, 75, 0.08);
-}
-
 .clean-table td {
   border-bottom: 1px solid var(--color-border);
-}
-
-.dark .clean-table td {
-  border-bottom-color: var(--color-border-dark);
 }
 
 /* --- SCROLLBAR --- */
@@ -347,11 +323,6 @@ body {
   z-index: 10;
 }
 
-.dark .glass-table thead th {
-  background: var(--color-surface-dark);
-  border-bottom-color: var(--color-border-dark);
-}
-
 .glass-table tbody tr {
   transition: background-color 0.1s ease;
 }
@@ -360,27 +331,14 @@ body {
   background: var(--color-primary-50);
 }
 
-.dark .glass-table tbody tr:hover {
-  background: rgba(90, 111, 75, 0.08);
-}
-
 .glass-table td {
   border-bottom: 1px solid var(--color-border);
-}
-
-.dark .glass-table td {
-  border-bottom-color: var(--color-border-dark);
 }
 
 /* --- GLASS COMPAT (alias old classes to new flat design) --- */
 .glass {
   background: var(--color-card);
   border: 1px solid var(--color-border);
-}
-
-.dark .glass {
-  background: var(--color-card-dark);
-  border-color: var(--color-border-dark);
 }
 
 .glass-card {
@@ -392,15 +350,6 @@ body {
 
 .glass-card:hover {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-}
-
-.dark .glass-card {
-  background: var(--color-card-dark);
-  border-color: var(--color-border-dark);
-}
-
-.dark .glass-card:hover {
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
 .glass-input {
@@ -416,12 +365,3 @@ body {
   outline: none;
 }
 
-.dark .glass-input {
-  background: var(--color-card-dark);
-  border-color: var(--color-border-dark);
-}
-
-.dark .glass-input:focus {
-  border-color: var(--color-primary-400);
-  box-shadow: 0 0 0 3px rgba(90, 111, 75, 0.15);
-}

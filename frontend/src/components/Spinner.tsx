@@ -6,7 +6,7 @@ export function Spinner({ className, size = 'md' }: { className?: string; size?:
     <div
       className={clsx(
         s,
-        'animate-spin rounded-full border-border border-t-primary-600 dark:border-border-dark dark:border-t-primary-400',
+        'animate-spin rounded-full border-border border-t-primary-600 dark:border-t-primary-400',
         className,
       )}
     />

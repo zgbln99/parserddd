@@ -48,7 +48,7 @@ export function BarChart({ bars, formatValue = (v) => v.toFixed(1) }: BarChartPr
           {gridLines.map((v) => (
             <span
               key={v}
-              className="absolute -translate-x-1/2 text-[10px] text-muted dark:text-muted-dark"
+              className="absolute -translate-x-1/2 text-[10px] text-muted"
               style={{ left: `${(v / maxVal) * 100}%` }}
             >
               {v}h
@@ -68,7 +68,7 @@ export function BarChart({ bars, formatValue = (v) => v.toFixed(1) }: BarChartPr
             <div
               key={i}
               className={`group relative flex items-center rounded-lg transition-colors duration-100 ${
-                isHovered ? 'bg-surface dark:bg-surface-dark' : ''
+                isHovered ? 'bg-surface' : ''
               } ${weekend ? 'bg-danger/[0.03]' : ''}`}
               style={{ height: rowH }}
               onMouseEnter={() => setHoverIdx(i)}
@@ -78,14 +78,14 @@ export function BarChart({ bars, formatValue = (v) => v.toFixed(1) }: BarChartPr
               <div className="flex w-[88px] shrink-0 items-center gap-1.5 pl-2">
                 <span
                   className={`w-[26px] text-right text-sm font-bold tabular-nums ${
-                    weekend ? 'text-danger' : 'text-ink dark:text-ink-dark'
+                    weekend ? 'text-danger' : 'text-ink'
                   }`}
                 >
                   {bar.label}
                 </span>
                 <span
                   className={`w-[22px] text-[11px] font-medium ${
-                    weekend ? 'text-danger/60' : 'text-muted dark:text-muted-dark'
+                    weekend ? 'text-danger/60' : 'text-muted'
                   }`}
                 >
                   {bar.sublabel}
@@ -98,7 +98,7 @@ export function BarChart({ bars, formatValue = (v) => v.toFixed(1) }: BarChartPr
                 {gridLines.map((v) => (
                   <div
                     key={v}
-                    className="absolute top-0 h-full w-px bg-border dark:bg-border-dark"
+                    className="absolute top-0 h-full w-px bg-border"
                     style={{ left: `${(v / maxVal) * 100}%` }}
                   />
                 ))}
@@ -133,8 +133,8 @@ export function BarChart({ bars, formatValue = (v) => v.toFixed(1) }: BarChartPr
                   <span
                     className={`ml-2 shrink-0 text-xs tabular-nums transition-colors duration-100 ${
                       isHovered
-                        ? 'font-bold text-ink dark:text-ink-dark'
-                        : 'font-medium text-muted dark:text-muted-dark'
+                        ? 'font-bold text-ink'
+                        : 'font-medium text-muted'
                     }`}
                   >
                     {formatValue(total)}h
@@ -144,8 +144,8 @@ export function BarChart({ bars, formatValue = (v) => v.toFixed(1) }: BarChartPr
 
               {/* Hover tooltip */}
               {isHovered && total > 0 && (
-                <div className="pointer-events-none absolute left-[96px] top-full z-20 mt-1 rounded-xl border border-border bg-card px-3 py-2 shadow-lg dark:border-border-dark dark:bg-card-dark">
-                  <div className="mb-1.5 text-xs font-bold text-ink dark:text-ink-dark">
+                <div className="pointer-events-none absolute left-[96px] top-full z-20 mt-1 rounded-xl border border-border bg-card px-3 py-2 shadow-lg">
+                  <div className="mb-1.5 text-xs font-bold text-ink">
                     {bar.label} {bar.sublabel} — {formatValue(total)}h
                   </div>
                   <div className="space-y-1">
@@ -155,8 +155,8 @@ export function BarChart({ bars, formatValue = (v) => v.toFixed(1) }: BarChartPr
                           className="inline-block h-2.5 w-2.5 rounded-sm"
                           style={{ backgroundColor: seg.color }}
                         />
-                        <span className="text-muted dark:text-muted-dark">{seg.name}</span>
-                        <span className="ml-auto font-semibold tabular-nums text-ink dark:text-ink-dark">
+                        <span className="text-muted">{seg.name}</span>
+                        <span className="ml-auto font-semibold tabular-nums text-ink">
                           {formatValue(seg.value)}h
                         </span>
                       </div>

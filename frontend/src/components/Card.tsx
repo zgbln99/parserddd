@@ -13,7 +13,7 @@ export function Card({ children, className, ...props }: React.HTMLAttributes<HTM
 
 export function CardHeader({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={clsx('border-b border-border px-6 py-4 dark:border-border-dark', className)}>
+    <div className={clsx('border-b border-border px-6 py-4', className)}>
       {children}
     </div>
   );
@@ -35,7 +35,7 @@ export function StatCard({
   color?: 'primary' | 'green' | 'orange' | 'red';
 }) {
   const iconStyles: Record<string, string> = {
-    primary: 'bg-primary-50 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400',
+    primary: 'bg-primary-50 text-primary-600 dark:bg-primary-900/30',
     green: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400',
     orange: 'bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400',
     red: 'bg-rose-50 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400',
@@ -62,10 +62,10 @@ export function StatCard({
           </div>
         )}
         <div className="min-w-0">
-          <p className="truncate text-xs font-semibold uppercase tracking-wider text-muted dark:text-muted-dark">
+          <p className="truncate text-xs font-semibold uppercase tracking-wider text-muted">
             {label}
           </p>
-          <p className="mt-1 text-2xl font-bold tracking-tight text-ink dark:text-ink-dark">{value}</p>
+          <p className="mt-1 text-2xl font-bold tracking-tight text-ink">{value}</p>
         </div>
       </div>
     </Card>

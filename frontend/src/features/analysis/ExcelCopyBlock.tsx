@@ -40,7 +40,7 @@ export function ExcelCopyBlock({ summary, monthlyDays }: ExcelCopyBlockProps) {
         <thead>
           <tr>
             {cols.map((c) => (
-              <th key={c.header} className="border border-white/30 bg-black/[0.04] px-2 py-1 text-center font-bold text-muted dark:text-muted-dark dark:border-white/10 dark:bg-white/10 dark:text-gray-400">
+              <th key={c.header} className="border border-border bg-black/[0.04] px-2 py-1 text-center font-bold text-muted dark:bg-white/10">
                 {c.header}
               </th>
             ))}
@@ -49,8 +49,8 @@ export function ExcelCopyBlock({ summary, monthlyDays }: ExcelCopyBlockProps) {
         <tbody>
           <tr>
             {cols.map((c) => (
-              <td key={c.header} className="border border-white/30 bg-white/50 px-2 py-1 text-center font-mono dark:border-white/10 dark:bg-white/5">
-                {c.value || <span className="text-gray-300 dark:text-gray-600">&mdash;</span>}
+              <td key={c.header} className="border border-border bg-white/50 px-2 py-1 text-center font-mono dark:bg-white/5">
+                {c.value || <span className="text-muted">&mdash;</span>}
               </td>
             ))}
           </tr>
@@ -58,7 +58,7 @@ export function ExcelCopyBlock({ summary, monthlyDays }: ExcelCopyBlockProps) {
       </table>
       <button
         onClick={handleCopy}
-        className="flex items-center gap-1 rounded-lg bg-black/[0.06] px-2.5 py-1.5 text-xs font-medium text-gray-700 transition hover:bg-black/10 dark:bg-white/10 dark:text-gray-300 dark:hover:bg-white/15"
+        className="flex items-center gap-1 rounded-lg bg-black/[0.06] px-2.5 py-1.5 text-xs font-medium text-muted transition hover:bg-black/10 dark:bg-white/10 dark:hover:bg-white/15"
       >
         {copied ? <Check size={13} /> : <ClipboardCopy size={13} />}
         {copied ? 'OK!' : 'Kopiuj'}

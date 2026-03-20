@@ -155,7 +155,7 @@ export function ReaderPage() {
 
   return (
     <div className="animate-slide-up">
-      <h1 className="mb-6 text-2xl font-bold tracking-tight text-ink dark:text-ink-dark">{t('readerTitle')}</h1>
+      <h1 className="mb-6 text-2xl font-bold tracking-tight text-ink">{t('readerTitle')}</h1>
 
       {/* Upload zone */}
       {!result && !loading && (
@@ -163,7 +163,7 @@ export function ReaderPage() {
           className={`cursor-pointer border-2 border-dashed transition-all duration-200 ${
             dragging
               ? 'border-primary-400 bg-primary-50/50 dark:border-primary-500 dark:bg-primary-900/10'
-              : 'border-border hover:border-primary-300 dark:border-border-dark dark:hover:border-primary-600'
+              : 'border-border hover:border-primary-300'
           }`}
           onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
           onDragLeave={() => setDragging(false)}
@@ -171,12 +171,12 @@ export function ReaderPage() {
           onClick={() => fileRef.current?.click()}
         >
           <div className="flex flex-col items-center gap-4 py-16">
-            <div className={`rounded-2xl bg-primary-50 p-5 transition-transform duration-200 dark:bg-primary-900/20 ${dragging ? 'scale-110' : ''}`}>
-              <Upload size={32} className="text-primary-600 dark:text-primary-400" />
+            <div className={`rounded-2xl bg-primary-50 p-5 transition-transform duration-200 ${dragging ? 'scale-110' : ''}`}>
+              <Upload size={32} className="text-primary-600" />
             </div>
             <div className="text-center">
-              <p className="text-sm font-semibold text-ink dark:text-ink-dark">{t('readerDropHint')}</p>
-              <p className="mt-1 text-xs text-muted dark:text-muted-dark">{t('readerSelectFile')}</p>
+              <p className="text-sm font-semibold text-ink">{t('readerDropHint')}</p>
+              <p className="mt-1 text-xs text-muted">{t('readerSelectFile')}</p>
             </div>
             <button className="btn-press mt-1 rounded-xl bg-primary-600 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-primary-700">
               {t('readerUploadBtn')}
@@ -189,7 +189,7 @@ export function ReaderPage() {
       {/* Loading */}
       {loading && (
         <Card className="py-16">
-          <div className="flex flex-col items-center gap-3 text-muted dark:text-muted-dark">
+          <div className="flex flex-col items-center gap-3 text-muted">
             <Spinner size="lg" />
             <p className="text-sm font-medium">{t('readerAnalyzing')}</p>
           </div>
@@ -204,7 +204,7 @@ export function ReaderPage() {
             <p className="text-sm">{error}</p>
             <button
               onClick={() => { setError(''); setResult(null); }}
-              className="mt-2 rounded-xl border border-border px-4 py-2 text-sm font-medium text-ink transition hover:bg-surface dark:border-border-dark dark:text-ink-dark dark:hover:bg-surface-dark"
+              className="mt-2 rounded-xl border border-border px-4 py-2 text-sm font-medium text-ink transition hover:bg-surface"
             >
               {t('readerUploadBtn')}
             </button>
@@ -217,11 +217,11 @@ export function ReaderPage() {
         <div>
           <div className="mb-4 flex items-center justify-between">
             <div className="min-w-0">
-              <p className="truncate text-lg font-semibold text-ink dark:text-ink-dark">
+              <p className="truncate text-lg font-semibold text-ink">
                 {result.driver_info?.driver_name || result.source_file || t('analysisTitle')}
               </p>
               {result.source_file && result.driver_info?.driver_name && (
-                <div className="flex items-center gap-1.5 text-sm text-muted dark:text-muted-dark">
+                <div className="flex items-center gap-1.5 text-sm text-muted">
                   <FileText size={14} />
                   {result.source_file}
                 </div>
@@ -244,7 +244,7 @@ export function ReaderPage() {
               )}
               <button
                 onClick={() => { setResult(null); setError(''); setSaved(false); setOriginalFile(null); }}
-                className="rounded-xl border border-border px-4 py-2 text-sm font-medium text-ink transition hover:bg-surface dark:border-border-dark dark:text-ink-dark dark:hover:bg-surface-dark"
+                className="rounded-xl border border-border px-4 py-2 text-sm font-medium text-ink transition hover:bg-surface"
               >
                 {t('readerUploadBtn')}
               </button>
@@ -264,7 +264,7 @@ export function ReaderPage() {
             <button
               onClick={() => setActiveFileIndex(Math.max(0, activeFileIndex - 1))}
               disabled={activeFileIndex === 0}
-              className="rounded-lg p-2 text-muted transition hover:bg-surface disabled:opacity-30 dark:text-muted-dark dark:hover:bg-surface-dark"
+              className="rounded-lg p-2 text-muted transition hover:bg-surface disabled:opacity-30"
             >
               <ChevronLeft size={16} />
             </button>
@@ -278,8 +278,8 @@ export function ReaderPage() {
                     : fr.error
                     ? 'text-danger hover:bg-danger/5'
                     : fr.loading
-                    ? 'text-muted dark:text-muted-dark'
-                    : 'text-ink hover:bg-surface dark:text-ink-dark dark:hover:bg-surface-dark'
+                    ? 'text-muted'
+                    : 'text-ink hover:bg-surface'
                 }`}
               >
                 {fr.loading ? <Spinner size="sm" /> : null}
@@ -291,16 +291,16 @@ export function ReaderPage() {
             <button
               onClick={() => setActiveFileIndex(Math.min(multiResults.length - 1, activeFileIndex + 1))}
               disabled={activeFileIndex >= multiResults.length - 1}
-              className="rounded-lg p-2 text-muted transition hover:bg-surface disabled:opacity-30 dark:text-muted-dark dark:hover:bg-surface-dark"
+              className="rounded-lg p-2 text-muted transition hover:bg-surface disabled:opacity-30"
             >
               <ChevronRight size={16} />
             </button>
-            <span className="ml-auto text-xs text-muted dark:text-muted-dark">
+            <span className="ml-auto text-xs text-muted">
               {activeFileIndex + 1} / {multiResults.length}
             </span>
             <button
               onClick={() => { setMultiResults([]); setResult(null); setError(''); setSaved(false); setOriginalFile(null); }}
-              className="rounded-xl border border-border px-3 py-1.5 text-xs font-medium text-ink transition hover:bg-surface dark:border-border-dark dark:text-ink-dark dark:hover:bg-surface-dark"
+              className="rounded-xl border border-border px-3 py-1.5 text-xs font-medium text-ink transition hover:bg-surface"
             >
               {t('readerUploadBtn')}
             </button>
@@ -309,7 +309,7 @@ export function ReaderPage() {
           {/* Active file result */}
           {multiResults[activeFileIndex]?.loading && (
             <Card className="py-16">
-              <div className="flex flex-col items-center gap-3 text-muted dark:text-muted-dark">
+              <div className="flex flex-col items-center gap-3 text-muted">
                 <Spinner size="lg" />
                 <p className="text-sm font-medium">{t('readerAnalyzing')}</p>
               </div>
@@ -340,10 +340,10 @@ export function ReaderPage() {
       {/* Save to Dropbox modal */}
       <Modal open={showSaveModal} onClose={() => setShowSaveModal(false)} title={t('readerSaveToDropbox')}>
         <div className="space-y-4">
-          <p className="text-sm text-muted dark:text-muted-dark">{t('readerSelectDriver')}</p>
+          <p className="text-sm text-muted">{t('readerSelectDriver')}</p>
 
           <div className="relative">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted dark:text-muted-dark" />
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
             <input
               type="text"
               value={driverSearch}
@@ -356,21 +356,21 @@ export function ReaderPage() {
           {driversLoading ? (
             <div className="flex justify-center py-6"><Spinner /></div>
           ) : (
-            <div className="max-h-[300px] overflow-y-auto rounded-lg border border-border dark:border-border-dark">
+            <div className="max-h-[300px] overflow-y-auto rounded-lg border border-border">
               {filteredDrivers.map((d) => (
                 <div
                   key={d.name}
                   onClick={() => setSelectedDriverName(d.name)}
-                  className={`cursor-pointer px-4 py-2.5 text-sm transition hover:bg-primary-50 dark:hover:bg-primary-900/10 ${
-                    selectedDriverName === d.name ? 'bg-primary-50 font-semibold text-primary-700 dark:bg-primary-900/20 dark:text-primary-400' : 'text-ink dark:text-ink-dark'
+                  className={`cursor-pointer px-4 py-2.5 text-sm transition hover:bg-primary-50 ${
+                    selectedDriverName === d.name ? 'bg-primary-50 font-semibold text-primary-700' : 'text-ink'
                   }`}
                 >
                   {d.name}
-                  {d.card_number && <span className="ml-2 text-xs text-muted dark:text-muted-dark">{d.card_number}</span>}
+                  {d.card_number && <span className="ml-2 text-xs text-muted">{d.card_number}</span>}
                 </div>
               ))}
               {filteredDrivers.length === 0 && (
-                <p className="py-6 text-center text-sm text-muted dark:text-muted-dark">{t('noData')}</p>
+                <p className="py-6 text-center text-sm text-muted">{t('noData')}</p>
               )}
             </div>
           )}
@@ -380,7 +380,7 @@ export function ReaderPage() {
           <div className="flex justify-end gap-2">
             <button
               onClick={() => setShowSaveModal(false)}
-              className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-ink transition hover:bg-surface dark:border-border-dark dark:text-ink-dark dark:hover:bg-surface-dark"
+              className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-ink transition hover:bg-surface"
             >
               {t('cancel')}
             </button>

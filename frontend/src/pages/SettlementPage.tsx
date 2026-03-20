@@ -186,7 +186,7 @@ export function SettlementPage() {
       <Card className="mb-6 p-3 sm:p-5">
         <div className="flex flex-wrap items-end gap-4">
           <div>
-            <label className="mb-1 block text-sm font-medium text-muted dark:text-muted-dark">
+            <label className="mb-1 block text-sm font-medium text-muted">
               {t('settlementPeriod')}
             </label>
             <input
@@ -232,11 +232,11 @@ export function SettlementPage() {
         <Card className="mb-6 p-6">
           <div className="flex flex-col items-center gap-4">
             <Spinner size="lg" />
-            <p className="text-sm font-medium text-muted dark:text-muted-dark">{t('settlementLoading')}</p>
+            <p className="text-sm font-medium text-muted">{t('settlementLoading')}</p>
             {progress.total > 0 && (
               <>
                 <div className="w-full max-w-md">
-                  <div className="mb-1 flex justify-between text-xs text-muted dark:text-muted-dark">
+                  <div className="mb-1 flex justify-between text-xs text-muted">
                     <span>{progress.current} / {progress.total}</span>
                     <span>{Math.round((progress.current / progress.total) * 100)}%</span>
                   </div>
@@ -248,7 +248,7 @@ export function SettlementPage() {
                   </div>
                 </div>
                 {progress.name && (
-                  <p className="text-xs text-muted dark:text-muted-dark">{progress.name}</p>
+                  <p className="text-xs text-muted">{progress.name}</p>
                 )}
               </>
             )}
@@ -266,7 +266,7 @@ export function SettlementPage() {
 
       {/* Empty state */}
       {!loading && !error && !drivers.length && !period && (
-        <p className="py-20 text-center text-sm text-muted dark:text-muted-dark">{t('settlementNoData')}</p>
+        <p className="py-20 text-center text-sm text-muted">{t('settlementNoData')}</p>
       )}
 
       {/* Results */}
@@ -277,49 +277,49 @@ export function SettlementPage() {
             <Card className="p-4 text-center">
               <Users size={20} className="mx-auto mb-1 text-primary-500" />
               <p className="text-2xl font-bold">{drivers.length}</p>
-              <p className="text-xs text-muted dark:text-muted-dark">{t('settlementDrivers')}</p>
+              <p className="text-xs text-muted">{t('settlementDrivers')}</p>
             </Card>
             <Card className="p-4 text-center">
               <Clock size={20} className="mx-auto mb-1 text-blue-500" />
               <p className="text-2xl font-bold">{fmtH(totals.work)}</p>
-              <p className="text-xs text-muted dark:text-muted-dark">{t('analysisWorkTime')}</p>
+              <p className="text-xs text-muted">{t('analysisWorkTime')}</p>
             </Card>
             <Card className="p-4 text-center">
               <Moon size={20} className="mx-auto mb-1 text-indigo-500" />
               <p className="text-2xl font-bold">{fmtDec(totals.n25)}</p>
-              <p className="text-xs text-muted dark:text-muted-dark">{t('analysisNight25')}</p>
+              <p className="text-xs text-muted">{t('analysisNight25')}</p>
             </Card>
             <Card className="p-4 text-center">
               <Moon size={20} className="mx-auto mb-1 text-purple-500" />
               <p className="text-2xl font-bold">{fmtDec(totals.n40)}</p>
-              <p className="text-xs text-muted dark:text-muted-dark">{t('analysisNight40')}</p>
+              <p className="text-xs text-muted">{t('analysisNight40')}</p>
             </Card>
             <Card className="p-4 text-center">
               <UtensilsCrossed size={20} className="mx-auto mb-1 text-amber-500" />
               <p className="text-2xl font-bold">{totals.diets}</p>
-              <p className="text-xs text-muted dark:text-muted-dark">{t('analysisDiet')}</p>
+              <p className="text-xs text-muted">{t('analysisDiet')}</p>
             </Card>
             <Card className="p-4 text-center">
               <Download size={20} className="mx-auto mb-1 text-success" />
               <p className="text-2xl font-bold">{fmtEur(totals.vma)}</p>
-              <p className="text-xs text-muted dark:text-muted-dark">VMA</p>
+              <p className="text-xs text-muted">VMA</p>
             </Card>
           </div>
 
           {/* Driver table */}
           <Card className="overflow-hidden">
-            <div className="border-b border-white/20 px-5 py-3 dark:border-white/5">
+            <div className="border-b border-border px-5 py-3">
               <h2 className="text-sm font-semibold">
                 {monthLabel(period, locale)} — {drivers.length} {t('settlementDrivers').toLowerCase()}
               </h2>
             </div>
             {/* Mobile card view */}
-            <div className="block sm:hidden divide-y divide-border dark:divide-border-dark">
+            <div className="block sm:hidden divide-y divide-border">
               {drivers.map((d, i) => (
                 <div key={d.card_number || d.driver_name} className="p-4 space-y-1.5">
                   <div className="flex items-center justify-between gap-2 mb-2">
                     <p className="text-sm font-bold truncate">
-                      <span className="text-muted dark:text-muted-dark mr-1.5">{i + 1}.</span>
+                      <span className="text-muted mr-1.5">{i + 1}.</span>
                       {d.driver_name}
                     </p>
                     <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400 shrink-0">{fmtEur(d.summary.vma_amount)}</span>
@@ -352,23 +352,23 @@ export function SettlementPage() {
             <div className="hidden sm:block overflow-x-auto">
               <table className="w-full min-w-[800px] text-sm">
                 <thead>
-                  <tr className="border-b border-border dark:border-border-dark">
-                    <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted dark:text-muted-dark">#</th>
-                    <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted dark:text-muted-dark">{t('settlementPersonalNr')}</th>
-                    <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted dark:text-muted-dark">{t('driversName')}</th>
-                    <th className="whitespace-nowrap px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-muted dark:text-muted-dark">{t('analysisShifts')}</th>
-                    <th className="whitespace-nowrap px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-muted dark:text-muted-dark">{t('analysisWorkTime')}</th>
-                    <th className="whitespace-nowrap px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-muted dark:text-muted-dark">{t('analysisNight25')}</th>
-                    <th className="whitespace-nowrap px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-muted dark:text-muted-dark">{t('analysisNight40')}</th>
-                    <th className="whitespace-nowrap px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-muted dark:text-muted-dark">{t('analysisDiet')}</th>
-                    <th className="whitespace-nowrap px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-muted dark:text-muted-dark">VMA</th>
+                  <tr className="border-b border-border">
+                    <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted">#</th>
+                    <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted">{t('settlementPersonalNr')}</th>
+                    <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted">{t('driversName')}</th>
+                    <th className="whitespace-nowrap px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-muted">{t('analysisShifts')}</th>
+                    <th className="whitespace-nowrap px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-muted">{t('analysisWorkTime')}</th>
+                    <th className="whitespace-nowrap px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-muted">{t('analysisNight25')}</th>
+                    <th className="whitespace-nowrap px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-muted">{t('analysisNight40')}</th>
+                    <th className="whitespace-nowrap px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-muted">{t('analysisDiet')}</th>
+                    <th className="whitespace-nowrap px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-muted">VMA</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-border dark:divide-border-dark">
+                <tbody className="divide-y divide-border">
                   {drivers.map((d, i) => (
-                    <tr key={d.card_number || d.driver_name} className="transition hover:bg-primary-50/30 dark:hover:bg-primary-900/10">
-                      <td className="whitespace-nowrap px-4 py-3 text-muted dark:text-muted-dark">{i + 1}</td>
-                      <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-muted dark:text-muted-dark">{d.personal_nr}</td>
+                    <tr key={d.card_number || d.driver_name} className="transition hover:bg-primary-50/30">
+                      <td className="whitespace-nowrap px-4 py-3 text-muted">{i + 1}</td>
+                      <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-muted">{d.personal_nr}</td>
                       <td className="whitespace-nowrap px-4 py-3 font-semibold">{d.driver_name}</td>
                       <td className="whitespace-nowrap px-4 py-3 text-right">
                         <Badge variant="gray">{d.summary.total_shifts}</Badge>
@@ -390,7 +390,7 @@ export function SettlementPage() {
                   ))}
                 </tbody>
                 <tfoot>
-                  <tr className="border-t-2 border-white/30 bg-black/[0.02] font-semibold dark:border-white/10 dark:bg-white/5">
+                  <tr className="border-t-2 border-border bg-black/[0.02] font-semibold dark:bg-white/5">
                     <td className="px-4 py-3" colSpan={3}>{t('settlementTotal')}</td>
                     <td className="whitespace-nowrap px-4 py-3 text-right">{totals.shifts}</td>
                     <td className="whitespace-nowrap px-4 py-3 text-right font-mono">{fmtH(totals.work)}</td>

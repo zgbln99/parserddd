@@ -103,7 +103,7 @@ export function DriverKmPage() {
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
           {t('driverKmTitle')}
         </h1>
-        <p className="text-sm text-muted dark:text-muted-dark mt-1">
+        <p className="text-sm text-muted mt-1">
           {t('driverKmSubtitle')}
         </p>
       </div>
@@ -114,7 +114,7 @@ export function DriverKmPage() {
           {/* Date range */}
           <div className="flex flex-wrap items-end gap-4">
             <div>
-              <label className="block text-xs font-medium text-muted dark:text-muted-dark mb-1">
+              <label className="block text-xs font-medium text-muted mb-1">
                 {t('driverKmDateFrom')}
               </label>
               <input
@@ -125,7 +125,7 @@ export function DriverKmPage() {
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted dark:text-muted-dark mb-1">
+              <label className="block text-xs font-medium text-muted mb-1">
                 {t('driverKmDateTo')}
               </label>
               <input
@@ -148,7 +148,7 @@ export function DriverKmPage() {
           {/* Driver selection */}
           <div>
             <div className="flex items-center gap-3 mb-2">
-              <div className="flex items-center gap-1 text-xs font-medium text-muted dark:text-muted-dark">
+              <div className="flex items-center gap-1 text-xs font-medium text-muted">
                 <Users className="w-3.5 h-3.5" />
                 {t('driverKmSelectDrivers')}
                 <span className="ml-1 text-blue-600 dark:text-blue-400">
@@ -163,14 +163,14 @@ export function DriverKmPage() {
               </button>
               <button
                 onClick={selectNone}
-                className="text-xs text-gray-400 hover:text-muted dark:text-muted-dark dark:hover:text-gray-300"
+                className="text-xs text-muted hover:text-ink"
               >
                 {t('driverKmSelectNone')}
               </button>
             </div>
 
             {loadingDrivers ? (
-              <div className="flex items-center gap-2 text-sm text-muted dark:text-muted-dark py-2">
+              <div className="flex items-center gap-2 text-sm text-muted py-2">
                 <Spinner size="sm" />
                 <span>{t('driverKmLoadingDrivers')}</span>
               </div>
@@ -185,7 +185,7 @@ export function DriverKmPage() {
                       className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
                         selected
                           ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 ring-1 ring-blue-300 dark:ring-blue-700'
-                          : 'bg-gray-100 dark:bg-gray-800 text-muted dark:text-muted-dark hover:bg-gray-200 dark:hover:bg-gray-700'
+                          : 'bg-gray-100 dark:bg-gray-800 text-muted hover:bg-gray-200 dark:hover:bg-gray-700'
                       }`}
                     >
                       {selected && <Check className="w-3 h-3" />}
@@ -209,7 +209,7 @@ export function DriverKmPage() {
 
       {/* Loading */}
       {loading && (
-        <div className="flex items-center justify-center gap-3 py-12 text-muted dark:text-muted-dark">
+        <div className="flex items-center justify-center gap-3 py-12 text-muted">
           <Spinner />
           <span>{t('driverKmLoading')}</span>
         </div>
@@ -217,7 +217,7 @@ export function DriverKmPage() {
 
       {/* Empty state */}
       {!loading && !error && results.length === 0 && !hasResults && (
-        <div className="text-center py-12 text-muted dark:text-muted-dark">
+        <div className="text-center py-12 text-muted">
           <Calendar className="w-12 h-12 mx-auto mb-3 opacity-40" />
           <p>{t('driverKmNoData')}</p>
         </div>
@@ -225,7 +225,7 @@ export function DriverKmPage() {
 
       {/* No drivers for period */}
       {!loading && hasResults && results.length === 0 && (
-        <div className="text-center py-12 text-muted dark:text-muted-dark">
+        <div className="text-center py-12 text-muted">
           <MapPin className="w-12 h-12 mx-auto mb-3 opacity-40" />
           <p>{t('driverKmNoDrivers')}</p>
         </div>
@@ -238,26 +238,26 @@ export function DriverKmPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
-                  <th className="text-left px-4 py-3 font-semibold text-muted dark:text-muted-dark w-8" />
-                  <th className="text-left px-4 py-3 font-semibold text-muted dark:text-muted-dark">
+                  <th className="text-left px-4 py-3 font-semibold text-muted w-8" />
+                  <th className="text-left px-4 py-3 font-semibold text-muted">
                     {t('driverKmDriver')}
                   </th>
-                  <th className="text-left px-4 py-3 font-semibold text-muted dark:text-muted-dark">
+                  <th className="text-left px-4 py-3 font-semibold text-muted">
                     {t('driverKmPlate')}
                   </th>
-                  <th className="text-left px-4 py-3 font-semibold text-muted dark:text-muted-dark">
+                  <th className="text-left px-4 py-3 font-semibold text-muted">
                     {t('driverKmFirstUse')}
                   </th>
-                  <th className="text-left px-4 py-3 font-semibold text-muted dark:text-muted-dark">
+                  <th className="text-left px-4 py-3 font-semibold text-muted">
                     {t('driverKmLastUse')}
                   </th>
-                  <th className="text-right px-4 py-3 font-semibold text-muted dark:text-muted-dark">
+                  <th className="text-right px-4 py-3 font-semibold text-muted">
                     {t('driverKmOdoBegin')}
                   </th>
-                  <th className="text-right px-4 py-3 font-semibold text-muted dark:text-muted-dark">
+                  <th className="text-right px-4 py-3 font-semibold text-muted">
                     {t('driverKmOdoEnd')}
                   </th>
-                  <th className="text-right px-4 py-3 font-semibold text-muted dark:text-muted-dark">
+                  <th className="text-right px-4 py-3 font-semibold text-muted">
                     {t('driverKmDistance')}
                   </th>
                 </tr>
@@ -277,7 +277,7 @@ export function DriverKmPage() {
                         }`}
                         onClick={() => hasMultiple && toggleExpand(driver.driver_name)}
                       >
-                        <td className="px-4 py-3 text-muted dark:text-muted-dark">
+                        <td className="px-4 py-3 text-muted">
                           {hasMultiple && (
                             isExpanded
                               ? <ChevronDown className="w-4 h-4" />
@@ -292,22 +292,22 @@ export function DriverKmPage() {
                             <td className="px-4 py-3 text-gray-700 dark:text-gray-300 font-mono text-xs">
                               {driver.vehicles[0].plate}
                             </td>
-                            <td className="px-4 py-3 text-muted dark:text-muted-dark text-xs">
+                            <td className="px-4 py-3 text-muted text-xs">
                               {driver.vehicles[0].first_use?.slice(0, 10)}
                             </td>
-                            <td className="px-4 py-3 text-muted dark:text-muted-dark text-xs">
+                            <td className="px-4 py-3 text-muted text-xs">
                               {driver.vehicles[0].last_use?.slice(0, 10)}
                             </td>
-                            <td className="px-4 py-3 text-right text-muted dark:text-muted-dark font-mono text-xs">
+                            <td className="px-4 py-3 text-right text-muted font-mono text-xs">
                               {fmtKm(driver.vehicles[0].odometer_begin_km)}
                             </td>
-                            <td className="px-4 py-3 text-right text-muted dark:text-muted-dark font-mono text-xs">
+                            <td className="px-4 py-3 text-right text-muted font-mono text-xs">
                               {fmtKm(driver.vehicles[0].odometer_end_km)}
                             </td>
                           </>
                         ) : (
                           <>
-                            <td className="px-4 py-3 text-muted dark:text-muted-dark text-xs">
+                            <td className="px-4 py-3 text-muted text-xs">
                               {driver.vehicles.length} {t('driverKmVehiclesCount')}
                             </td>
                             <td className="px-4 py-3" />
@@ -332,19 +332,19 @@ export function DriverKmPage() {
                           <td className="px-4 py-2 text-gray-700 dark:text-gray-300 font-mono text-xs">
                             {v.plate}
                           </td>
-                          <td className="px-4 py-2 text-muted dark:text-muted-dark text-xs">
+                          <td className="px-4 py-2 text-muted text-xs">
                             {v.first_use?.slice(0, 10)}
                           </td>
-                          <td className="px-4 py-2 text-muted dark:text-muted-dark text-xs">
+                          <td className="px-4 py-2 text-muted text-xs">
                             {v.last_use?.slice(0, 10)}
                           </td>
-                          <td className="px-4 py-2 text-right text-muted dark:text-muted-dark font-mono text-xs">
+                          <td className="px-4 py-2 text-right text-muted font-mono text-xs">
                             {fmtKm(v.odometer_begin_km)}
                           </td>
-                          <td className="px-4 py-2 text-right text-muted dark:text-muted-dark font-mono text-xs">
+                          <td className="px-4 py-2 text-right text-muted font-mono text-xs">
                             {fmtKm(v.odometer_end_km)}
                           </td>
-                          <td className="px-4 py-2 text-right text-muted dark:text-muted-dark font-mono text-xs">
+                          <td className="px-4 py-2 text-right text-muted font-mono text-xs">
                             {fmtKm(v.distance_km)}
                           </td>
                         </tr>
@@ -359,7 +359,7 @@ export function DriverKmPage() {
                   <td className="px-4 py-3 text-gray-900 dark:text-white">
                     {t('driverKmTotal')}
                   </td>
-                  <td className="px-4 py-3 text-muted dark:text-muted-dark text-xs">
+                  <td className="px-4 py-3 text-muted text-xs">
                     {results.length} {t('driverKmDriversCount')}
                   </td>
                   <td className="px-4 py-3" />

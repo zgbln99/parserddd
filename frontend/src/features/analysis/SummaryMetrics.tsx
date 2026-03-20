@@ -32,9 +32,9 @@ export function SummaryMetrics({ summary: s, vma, locale }: SummaryMetricsProps)
       {/* Key metrics - highlighted */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-xl border border-primary-200 bg-primary-50 p-4 text-center dark:border-primary-800 dark:bg-primary-900/30">
-          <p className="text-xs font-bold uppercase tracking-wider text-primary-500 dark:text-primary-400">{t('analysisWorkTime')}</p>
+          <p className="text-xs font-bold uppercase tracking-wider text-primary-500">{t('analysisWorkTime')}</p>
           <p className="mt-1 text-2xl font-extrabold text-primary-700 dark:text-primary-300">{s.total_work_hm}</p>
-          <p className="mt-0.5 text-xs text-primary-500/70 dark:text-primary-400/70">{s.total_work_decimal}h</p>
+          <p className="mt-0.5 text-xs text-primary-500/70/70">{s.total_work_decimal}h</p>
         </div>
         <div className="rounded-xl border border-violet-200 bg-violet-50 p-4 text-center dark:border-violet-800 dark:bg-violet-900/30" title={locale === 'de' ? 'Arbeit 22:00-06:00 unter 2h = 25% Zuschlag' : 'Praca w godz. 22:00-06:00 poniżej 2h = 25% dodatku'}>
           <p className="text-xs font-bold uppercase tracking-wider text-violet-500 dark:text-violet-400">{t('analysisNight25')}</p>
@@ -66,7 +66,7 @@ export function SummaryMetrics({ summary: s, vma, locale }: SummaryMetricsProps)
           { label: t('analysisNight25') + ' + ' + t('analysisNight40'), value: fmtNight(s.night_25_minutes + s.night_40_minutes, s.total_night_hm) },
         ].map(({ label, value }) => (
           <div key={label} className="rounded-xl bg-black/[0.02] p-3 text-center dark:bg-white/5">
-            <p className="text-xs font-bold uppercase tracking-wider text-muted dark:text-muted-dark">{label}</p>
+            <p className="text-xs font-bold uppercase tracking-wider text-muted">{label}</p>
             <p className="mt-0.5 text-xl font-extrabold">{value}</p>
           </div>
         ))}

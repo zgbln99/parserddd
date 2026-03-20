@@ -413,7 +413,7 @@ export function TollCollectPage() {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
             {t('tollTitle')}
           </h1>
-          <p className="text-sm text-muted dark:text-muted-dark mt-1">
+          <p className="text-sm text-muted mt-1">
             {t('tollSubtitle')}
           </p>
         </div>
@@ -457,13 +457,13 @@ export function TollCollectPage() {
             )}
 
             {dbxLoading && (
-              <div className="flex items-center justify-center py-8 text-muted dark:text-muted-dark">
+              <div className="flex items-center justify-center py-8 text-muted">
                 <Loader2 className="w-5 h-5 animate-spin" />
               </div>
             )}
 
             {!dbxLoading && dbxFiles.length === 0 && (
-              <p className="text-sm text-muted dark:text-muted-dark py-4 text-center">
+              <p className="text-sm text-muted py-4 text-center">
                 {t('tollDbxEmpty')}
               </p>
             )}
@@ -495,9 +495,9 @@ export function TollCollectPage() {
                   {years.map(([year, files]) => (
                     <div key={year}>
                       <div className="flex items-center gap-2 px-3 py-1.5 mb-1">
-                        <span className="text-xs font-bold text-muted dark:text-muted-dark uppercase tracking-wider">{year}</span>
+                        <span className="text-xs font-bold text-muted uppercase tracking-wider">{year}</span>
                         <div className="flex-1 border-t border-gray-200 dark:border-gray-700" />
-                        <span className="text-xs text-muted dark:text-muted-dark">{files.length}</span>
+                        <span className="text-xs text-muted">{files.length}</span>
                       </div>
                       <div className="space-y-0.5">
                         {files.map(f => {
@@ -508,7 +508,7 @@ export function TollCollectPage() {
                               key={f.path}
                               className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/30 group"
                             >
-                              <FileText className="w-4 h-4 text-muted dark:text-muted-dark shrink-0" />
+                              <FileText className="w-4 h-4 text-muted shrink-0" />
                               {period && (
                                 <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs font-mono font-medium shrink-0">
                                   <Calendar className="w-3 h-3" />
@@ -527,12 +527,12 @@ export function TollCollectPage() {
                                   </span>
                                 ) : f.name}
                               </button>
-                              <span className="text-xs text-muted dark:text-muted-dark shrink-0 hidden sm:inline">
+                              <span className="text-xs text-muted shrink-0 hidden sm:inline">
                                 {fmtSize(f.size)}
                               </span>
                               <button
                                 onClick={() => handleDeleteFromDropbox(f.path)}
-                                className="text-gray-300 hover:text-red-500 dark:text-gray-600 dark:hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                                className="text-muted hover:text-red-500 dark:hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
                                 title={t('tollDbxDelete')}
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
@@ -559,11 +559,11 @@ export function TollCollectPage() {
             onDragOver={e => e.preventDefault()}
             onDrop={handleDrop}
           >
-            <Upload className="w-12 h-12 text-muted dark:text-muted-dark mb-4" />
-            <p className="text-sm font-medium text-muted dark:text-muted-dark">
+            <Upload className="w-12 h-12 text-muted mb-4" />
+            <p className="text-sm font-medium text-muted">
               {t('tollUpload')}
             </p>
-            <p className="text-xs text-muted dark:text-muted-dark mt-1">
+            <p className="text-xs text-muted mt-1">
               {t('tollUploadHint')}
             </p>
             <input
@@ -590,7 +590,7 @@ export function TollCollectPage() {
         <>
           {/* File info + actions */}
           <div className="flex items-center gap-3 flex-wrap">
-            <div className="flex items-center gap-2 text-sm text-muted dark:text-muted-dark">
+            <div className="flex items-center gap-2 text-sm text-muted">
               <FileText className="w-4 h-4" />
               <span className="font-medium">{fileName}</span>
               <span>— {rows.length} {t('tollRows')}</span>
@@ -624,7 +624,7 @@ export function TollCollectPage() {
 
             <button
               onClick={() => { setRows([]); setFileName(''); setError(''); setLastFile(null); setDbxSaved(false); }}
-              className="inline-flex items-center gap-1 text-xs text-muted dark:text-muted-dark hover:text-red-500 transition-colors"
+              className="inline-flex items-center gap-1 text-xs text-muted hover:text-red-500 transition-colors"
             >
               <X className="w-3 h-3" /> {t('tollNewFile')}
             </button>
@@ -648,11 +648,11 @@ export function TollCollectPage() {
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
                 {/* Search */}
                 <div className="col-span-2 sm:col-span-1">
-                  <label className="block text-xs text-muted dark:text-muted-dark mb-1">
+                  <label className="block text-xs text-muted mb-1">
                     {t('tollSearch')}
                   </label>
                   <div className="relative">
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted dark:text-muted-dark" />
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted" />
                     <input
                       type="text"
                       value={searchText}
@@ -663,7 +663,7 @@ export function TollCollectPage() {
                     {searchText && (
                       <button
                         onClick={() => setSearchText('')}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-muted dark:text-muted-dark"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-muted hover:text-ink"
                       >
                         <X className="w-3.5 h-3.5" />
                       </button>
@@ -672,7 +672,7 @@ export function TollCollectPage() {
                 </div>
                 {/* Date from */}
                 <div>
-                  <label className="block text-xs text-muted dark:text-muted-dark mb-1">
+                  <label className="block text-xs text-muted mb-1">
                     {t('tollDateFrom')}
                   </label>
                   <input
@@ -684,7 +684,7 @@ export function TollCollectPage() {
                 </div>
                 {/* Date to */}
                 <div>
-                  <label className="block text-xs text-muted dark:text-muted-dark mb-1">
+                  <label className="block text-xs text-muted mb-1">
                     {t('tollDateTo')}
                   </label>
                   <input
@@ -696,7 +696,7 @@ export function TollCollectPage() {
                 </div>
                 {/* Time from */}
                 <div>
-                  <label className="block text-xs text-muted dark:text-muted-dark mb-1">
+                  <label className="block text-xs text-muted mb-1">
                     {t('tollTimeFrom')}
                   </label>
                   <input
@@ -708,7 +708,7 @@ export function TollCollectPage() {
                 </div>
                 {/* Time to */}
                 <div>
-                  <label className="block text-xs text-muted dark:text-muted-dark mb-1">
+                  <label className="block text-xs text-muted mb-1">
                     {t('tollTimeTo')}
                   </label>
                   <input
@@ -726,25 +726,25 @@ export function TollCollectPage() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <Card>
               <div className="p-3 text-center">
-                <div className="text-xs text-muted dark:text-muted-dark">{t('tollVehicles')}</div>
+                <div className="text-xs text-muted">{t('tollVehicles')}</div>
                 <div className="text-xl font-bold text-gray-900 dark:text-white mt-1">{byVehicle.length}</div>
               </div>
             </Card>
             <Card>
               <div className="p-3 text-center">
-                <div className="text-xs text-muted dark:text-muted-dark">{t('tollTrips')}</div>
+                <div className="text-xs text-muted">{t('tollTrips')}</div>
                 <div className="text-xl font-bold text-gray-900 dark:text-white mt-1">{filtered.length}</div>
               </div>
             </Card>
             <Card>
               <div className="p-3 text-center">
-                <div className="text-xs text-muted dark:text-muted-dark">{t('tollTotalKm')}</div>
+                <div className="text-xs text-muted">{t('tollTotalKm')}</div>
                 <div className="text-xl font-bold text-blue-600 dark:text-blue-400 mt-1">{fmtKm(grandTotalKm)}</div>
               </div>
             </Card>
             <Card>
               <div className="p-3 text-center">
-                <div className="text-xs text-muted dark:text-muted-dark">{t('tollTotalMaut')}</div>
+                <div className="text-xs text-muted">{t('tollTotalMaut')}</div>
                 <div className="text-xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">{fmtEur(grandTotalAmount)}</div>
               </div>
             </Card>
@@ -760,7 +760,7 @@ export function TollCollectPage() {
               {t('tollSelectAll')}
             </button>
             {selectedPlates.size > 0 && (
-              <span className="text-xs text-muted dark:text-muted-dark">
+              <span className="text-xs text-muted">
                 {selectedPlates.size} / {byVehicle.length} {t('tollSelected')}
               </span>
             )}
@@ -782,29 +782,29 @@ export function TollCollectPage() {
                   <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
                     <th className="w-8 px-3 py-3" />
                     <th className="w-8 px-1 py-3">
-                      <button onClick={toggleSelectAll} className="text-gray-400 hover:text-muted dark:text-muted-dark dark:hover:text-gray-200">
+                      <button onClick={toggleSelectAll} className="text-muted hover:text-ink">
                         {allSelected ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
                       </button>
                     </th>
-                    <th className="text-left px-3 py-3 font-semibold text-muted dark:text-muted-dark">
+                    <th className="text-left px-3 py-3 font-semibold text-muted">
                       {t('tollVehicle')}
                     </th>
-                    <th className="text-left px-3 py-3 font-semibold text-muted dark:text-muted-dark">
+                    <th className="text-left px-3 py-3 font-semibold text-muted">
                       {t('tollDate')}
                     </th>
-                    <th className="text-left px-3 py-3 font-semibold text-muted dark:text-muted-dark">
+                    <th className="text-left px-3 py-3 font-semibold text-muted">
                       {t('tollTime')}
                     </th>
-                    <th className="text-left px-3 py-3 font-semibold text-muted dark:text-muted-dark hidden lg:table-cell">
+                    <th className="text-left px-3 py-3 font-semibold text-muted hidden lg:table-cell">
                       {t('tollRoute')}
                     </th>
-                    <th className="text-left px-3 py-3 font-semibold text-muted dark:text-muted-dark hidden md:table-cell">
+                    <th className="text-left px-3 py-3 font-semibold text-muted hidden md:table-cell">
                       {t('tollBookingType')}
                     </th>
-                    <th className="text-right px-3 py-3 font-semibold text-muted dark:text-muted-dark">
+                    <th className="text-right px-3 py-3 font-semibold text-muted">
                       km
                     </th>
-                    <th className="text-right px-3 py-3 font-semibold text-muted dark:text-muted-dark">
+                    <th className="text-right px-3 py-3 font-semibold text-muted">
                       {t('tollMaut')}
                     </th>
                   </tr>
@@ -820,7 +820,7 @@ export function TollCollectPage() {
                           className={`border-b border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/30 font-medium ${selectedPlates.has(plate) ? 'bg-emerald-50/50 dark:bg-emerald-900/10' : ''}`}
                           onClick={() => togglePlate(plate)}
                         >
-                          <td className="px-3 py-3 text-muted dark:text-muted-dark">
+                          <td className="px-3 py-3 text-muted">
                             {isExpanded
                               ? <ChevronDown className="w-4 h-4" />
                               : <ChevronRight className="w-4 h-4" />}
@@ -828,7 +828,7 @@ export function TollCollectPage() {
                           <td className="px-1 py-3">
                             <button
                               onClick={(e) => { e.stopPropagation(); toggleSelectPlate(plate); }}
-                              className="text-muted dark:text-muted-dark hover:text-emerald-600 dark:hover:text-emerald-400"
+                              className="text-muted hover:text-emerald-600 dark:hover:text-emerald-400"
                             >
                               {selectedPlates.has(plate)
                                 ? <CheckSquare className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
@@ -837,11 +837,11 @@ export function TollCollectPage() {
                           </td>
                           <td className="px-3 py-3 text-gray-900 dark:text-white">
                             <div className="flex items-center gap-2">
-                              <Truck className="w-4 h-4 text-muted dark:text-muted-dark" />
+                              <Truck className="w-4 h-4 text-muted" />
                               <span className="font-mono">{plate}</span>
                             </div>
                           </td>
-                          <td className="px-3 py-3 text-muted dark:text-muted-dark text-xs" colSpan={2}>
+                          <td className="px-3 py-3 text-muted text-xs" colSpan={2}>
                             {data.rows.length} {t('tollTripsCount')}
                           </td>
                           <td className="px-3 py-3 hidden lg:table-cell" />
@@ -862,19 +862,19 @@ export function TollCollectPage() {
                           >
                             <td className="px-3 py-2" />
                             <td className="px-1 py-2" />
-                            <td className="px-3 py-2 font-mono text-muted dark:text-muted-dark">{r.bookingNr}</td>
+                            <td className="px-3 py-2 font-mono text-muted">{r.bookingNr}</td>
                             <td className="px-3 py-2 text-gray-700 dark:text-gray-300">{r.date}</td>
-                            <td className="px-3 py-2 text-muted dark:text-muted-dark">{r.time}</td>
-                            <td className="px-3 py-2 text-muted dark:text-muted-dark hidden lg:table-cell max-w-xs truncate" title={r.route}>
+                            <td className="px-3 py-2 text-muted">{r.time}</td>
+                            <td className="px-3 py-2 text-muted hidden lg:table-cell max-w-xs truncate" title={r.route}>
                               {r.route}
                             </td>
-                            <td className="px-3 py-2 text-muted dark:text-muted-dark hidden md:table-cell">
+                            <td className="px-3 py-2 text-muted hidden md:table-cell">
                               {r.bookingType}
                             </td>
-                            <td className="px-3 py-2 text-right text-muted dark:text-muted-dark font-mono">
+                            <td className="px-3 py-2 text-right text-muted font-mono">
                               {fmtKm(r.km)}
                             </td>
-                            <td className="px-3 py-2 text-right text-muted dark:text-muted-dark font-mono">
+                            <td className="px-3 py-2 text-right text-muted font-mono">
                               {fmtEur(r.amount)}
                             </td>
                           </tr>
@@ -890,7 +890,7 @@ export function TollCollectPage() {
                     <td className="px-3 py-3 text-gray-900 dark:text-white">
                       RAZEM
                     </td>
-                    <td className="px-3 py-3 text-muted dark:text-muted-dark text-xs" colSpan={2}>
+                    <td className="px-3 py-3 text-muted text-xs" colSpan={2}>
                       {byVehicle.length} {t('tollVehiclesCount')}, {filtered.length} {t('tollTripsCount')}
                     </td>
                     <td className="px-3 py-3 hidden lg:table-cell" />

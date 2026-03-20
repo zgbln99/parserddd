@@ -37,11 +37,11 @@ export function Modal({ open, onClose, title, children, wide }: ModalProps) {
     >
       <div className={`relative w-full max-w-[calc(100%-2rem)] ${wide ? 'sm:max-w-5xl' : 'sm:max-w-3xl'} mb-12 card rounded-2xl animate-scale-in`}>
         {title && (
-          <div className="flex items-center justify-between border-b border-border px-4 py-3 sm:px-6 sm:py-4 dark:border-border-dark">
-            <h3 className="text-base sm:text-lg font-bold truncate mr-2 text-ink dark:text-ink-dark">{title}</h3>
+          <div className="flex items-center justify-between border-b border-border px-4 py-3 sm:px-6 sm:py-4">
+            <h3 className="text-base sm:text-lg font-bold truncate mr-2 text-ink">{title}</h3>
             <button
               onClick={onClose}
-              className="shrink-0 rounded-lg min-h-[44px] min-w-[44px] flex items-center justify-center text-muted transition-all hover:bg-surface hover:text-ink dark:text-muted-dark dark:hover:bg-surface-dark dark:hover:text-ink-dark"
+              className="shrink-0 rounded-lg min-h-[44px] min-w-[44px] flex items-center justify-center text-muted transition-all hover:bg-surface hover:text-ink"
             >
               <X size={18} />
             </button>

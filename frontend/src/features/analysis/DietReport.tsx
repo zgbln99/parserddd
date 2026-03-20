@@ -73,25 +73,25 @@ export function DietReport({ shifts, driverName, cardNumber, summary }: DietRepo
     <div className="overflow-hidden px-2 sm:px-4 pb-4">
       <table className="w-full text-xs sm:text-sm">
         <thead>
-          <tr className="border-b border-border dark:border-border-dark">
-            <th className="px-2 py-2 text-left text-xs font-semibold text-muted dark:text-muted-dark">{t('syncDate')}</th>
-            <th className="px-2 py-2 text-left text-xs font-semibold text-muted dark:text-muted-dark">{t('analysisWeekday')}</th>
-            <th className="px-2 py-2 text-left text-xs font-semibold text-muted dark:text-muted-dark">{t('analysisDuration')}</th>
-            <th className="px-2 py-2 text-center text-xs font-semibold text-muted dark:text-muted-dark">{t('analysisDiet')}</th>
+          <tr className="border-b border-border">
+            <th className="px-2 py-2 text-left text-xs font-semibold text-muted">{t('syncDate')}</th>
+            <th className="px-2 py-2 text-left text-xs font-semibold text-muted">{t('analysisWeekday')}</th>
+            <th className="px-2 py-2 text-left text-xs font-semibold text-muted">{t('analysisDuration')}</th>
+            <th className="px-2 py-2 text-center text-xs font-semibold text-muted">{t('analysisDiet')}</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-border dark:divide-border-dark">
+        <tbody className="divide-y divide-border">
           {shifts.map((sh, i) => {
             const isWeekend = sh.weekday === 'So' || sh.weekday === 'Nd';
             return (
-              <tr key={i} className={isWeekend ? 'text-gray-400 dark:text-gray-600' : ''}>
+              <tr key={i} className={isWeekend ? 'text-muted' : ''}>
                 <td className="whitespace-nowrap px-2 py-1.5 font-medium">{sh.shift_date}</td>
                 <td className={`whitespace-nowrap px-2 py-1.5 font-bold ${isWeekend ? 'text-rose-400' : ''}`}>{localizeWeekday(sh.weekday, locale)}</td>
                 <td className="whitespace-nowrap px-2 py-1.5">{sh.duration_hm}</td>
                 <td className="whitespace-nowrap px-2 py-1.5 text-center">
                   {sh.has_diet
                     ? <Badge variant="green">{t('yes')}</Badge>
-                    : <span className="text-gray-300 dark:text-gray-600">{t('no')}</span>}
+                    : <span className="text-muted">{t('no')}</span>}
                 </td>
               </tr>
             );
@@ -101,7 +101,7 @@ export function DietReport({ shifts, driverName, cardNumber, summary }: DietRepo
       <div className="mt-3 flex justify-end">
         <button
           onClick={handlePrint}
-          className="flex min-h-[44px] items-center gap-1.5 rounded-lg border border-border dark:border-border-dark px-3 py-1.5 text-xs font-medium text-muted dark:text-muted-dark transition hover:bg-surface dark:hover:bg-surface-dark"
+          className="flex min-h-[44px] items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted transition hover:bg-surface"
         >
           <Printer size={13} />
           {t('analysisPrint')}

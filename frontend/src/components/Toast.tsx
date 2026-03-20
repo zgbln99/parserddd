@@ -66,16 +66,16 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           <div
             key={t.id}
             className={clsx(
-              'relative flex items-center gap-3 rounded-xl border bg-card px-4 py-3 shadow-sm overflow-hidden dark:bg-card-dark',
+              'relative flex items-center gap-3 rounded-xl border bg-card px-4 py-3 shadow-sm overflow-hidden',
               borderStyles[t.type],
               t.exiting ? 'animate-slide-out-right' : 'animate-slide-up',
             )}
           >
             {icons[t.type]}
-            <span className="text-sm font-medium text-ink dark:text-ink-dark">{t.message}</span>
+            <span className="text-sm font-medium text-ink">{t.message}</span>
             <button
               onClick={() => dismiss(t.id)}
-              className="ml-2 shrink-0 rounded-lg p-1 text-muted transition hover:bg-surface hover:text-ink dark:text-muted-dark dark:hover:bg-surface-dark dark:hover:text-ink-dark"
+              className="ml-2 shrink-0 rounded-lg p-1 text-muted transition hover:bg-surface hover:text-ink"
             >
               <X size={14} />
             </button>

@@ -91,8 +91,8 @@ export function GlobalSearch() {
       <div className="fixed inset-0 bg-black/30" onClick={() => { setOpen(false); setQuery(''); }} />
       <div className="relative w-full max-w-lg rounded-2xl card shadow-xl animate-scale-in overflow-hidden">
         {/* Search input */}
-        <div className="flex items-center gap-3 border-b border-border px-4 py-3 dark:border-border-dark">
-          <Search size={18} className="text-muted dark:text-muted-dark shrink-0" />
+        <div className="flex items-center gap-3 border-b border-border px-4 py-3">
+          <Search size={18} className="text-muted shrink-0" />
           <input
             ref={inputRef}
             type="text"
@@ -100,15 +100,15 @@ export function GlobalSearch() {
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyNav}
             placeholder={`${t('search')}... (Ctrl+K)`}
-            className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted text-ink dark:text-ink-dark dark:placeholder:text-muted-dark"
+            className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted text-ink"
           />
-          <kbd className="hidden sm:inline-flex items-center gap-1 rounded border border-border px-1.5 py-0.5 text-[10px] font-medium text-muted dark:text-muted-dark dark:border-border-dark">ESC</kbd>
+          <kbd className="hidden sm:inline-flex items-center gap-1 rounded border border-border px-1.5 py-0.5 text-[10px] font-medium text-muted">ESC</kbd>
         </div>
 
         {/* Results */}
         <div className="max-h-[50vh] overflow-y-auto p-2">
           {filtered.length === 0 ? (
-            <p className="py-8 text-center text-sm text-muted dark:text-muted-dark">{t('noData')}</p>
+            <p className="py-8 text-center text-sm text-muted">{t('noData')}</p>
           ) : (
             filtered.map((item, i) => {
               const Icon = item.icon;
@@ -118,8 +118,8 @@ export function GlobalSearch() {
                   onClick={() => handleSelect(item.to)}
                   className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition ${
                     i === selectedIndex
-                      ? 'bg-primary-50 text-primary-700 dark:bg-primary-900/20 dark:text-primary-400'
-                      : 'text-ink hover:bg-surface dark:text-ink-dark dark:hover:bg-surface-dark'
+                      ? 'bg-primary-50 text-primary-700'
+                      : 'text-ink hover:bg-surface'
                   }`}
                 >
                   <Icon size={18} className="shrink-0" />

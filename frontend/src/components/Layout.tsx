@@ -50,7 +50,7 @@ export function Layout({ children }: { children: ReactNode }) {
   };
 
   return (
-    <div className="flex min-h-screen bg-surface dark:bg-surface-dark">
+    <div className="flex min-h-screen bg-surface">
       {/* Sidebar overlay (mobile) */}
       {sidebarOpen && (
         <div
@@ -74,30 +74,30 @@ export function Layout({ children }: { children: ReactNode }) {
               <Truck size={20} />
             </div>
             <div className="min-w-0 flex-1">
-              <span className="block text-sm font-bold leading-tight text-ink dark:text-ink-dark">Tachoprüfung</span>
-              <span className="text-[11px] font-medium text-muted dark:text-muted-dark">LTS Logistik GmbH</span>
+              <span className="block text-sm font-bold leading-tight text-ink">Tachoprüfung</span>
+              <span className="text-[11px] font-medium text-muted">LTS Logistik GmbH</span>
             </div>
             <button
               onClick={() => setSidebarOpen(false)}
-              className="rounded-lg p-1.5 text-muted hover:bg-surface hover:text-ink lg:hidden dark:text-muted-dark dark:hover:bg-surface-dark dark:hover:text-ink-dark"
+              className="rounded-lg p-1.5 text-muted hover:bg-surface hover:text-ink lg:hidden"
             >
               <ChevronLeft size={18} />
             </button>
           </div>
           {isAdmin && (
-            <div className="mt-3 flex items-center gap-2 rounded-lg bg-accent-light px-3 py-1.5 dark:bg-accent/10">
-              <Shield size={12} className="text-accent-dark dark:text-accent" />
-              <span className="text-[11px] font-semibold text-accent-dark dark:text-accent">Administrator</span>
+            <div className="mt-3 flex items-center gap-2 rounded-lg bg-accent-light px-3 py-1.5">
+              <Shield size={12} className="text-accent-dark" />
+              <span className="text-[11px] font-semibold text-accent-dark">Administrator</span>
             </div>
           )}
         </div>
 
         {/* Divider */}
-        <div className="mx-4 h-px bg-border dark:bg-border-dark" />
+        <div className="mx-4 h-px bg-border" />
 
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto px-3 py-4">
-          <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-widest text-muted dark:text-muted-dark">Menu</p>
+          <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-widest text-muted">Menu</p>
           <div className="space-y-0.5">
             {navItems.map(({ to, icon: Icon, labelKey }) => (
               <NavLink
@@ -110,7 +110,7 @@ export function Layout({ children }: { children: ReactNode }) {
                     'group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-[13px] font-medium transition-all duration-150',
                     isActive
                       ? 'bg-primary-600 text-white'
-                      : 'text-muted hover:bg-surface hover:text-ink dark:text-muted-dark dark:hover:bg-surface-dark dark:hover:text-ink-dark',
+                      : 'text-muted hover:bg-surface hover:text-ink',
                   )
                 }
               >
@@ -122,11 +122,11 @@ export function Layout({ children }: { children: ReactNode }) {
         </nav>
 
         {/* Bottom controls */}
-        <div className="border-t border-border p-3 dark:border-border-dark">
+        <div className="border-t border-border p-3">
           <div className="flex items-center gap-0.5">
             <button
               onClick={() => setLocale(locale === 'pl' ? 'de' : 'pl' as Locale)}
-              className="flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-medium text-muted transition hover:bg-surface hover:text-ink dark:text-muted-dark dark:hover:bg-surface-dark dark:hover:text-ink-dark"
+              className="flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-medium text-muted transition hover:bg-surface hover:text-ink"
               title={locale === 'pl' ? 'Deutsch' : 'Polski'}
             >
               <Globe size={14} />
@@ -134,7 +134,7 @@ export function Layout({ children }: { children: ReactNode }) {
             </button>
             <button
               onClick={toggle}
-              className="rounded-lg p-2 text-muted transition hover:bg-surface hover:text-ink dark:text-muted-dark dark:hover:bg-surface-dark dark:hover:text-ink-dark"
+              className="rounded-lg p-2 text-muted transition hover:bg-surface hover:text-ink"
               title={theme === 'dark' ? t('lightMode') : t('darkMode')}
             >
               {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
@@ -142,7 +142,7 @@ export function Layout({ children }: { children: ReactNode }) {
             <div className="flex-1" />
             <button
               onClick={handleLogout}
-              className="flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-medium text-muted transition hover:bg-danger/5 hover:text-danger dark:text-muted-dark dark:hover:bg-danger/10 dark:hover:text-danger"
+              className="flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-medium text-muted transition hover:bg-danger/5 hover:text-danger dark:hover:text-danger"
             >
               <LogOut size={14} />
               <span className="hidden sm:inline">{t('logout')}</span>
@@ -159,13 +159,13 @@ export function Layout({ children }: { children: ReactNode }) {
             {/* Mobile menu button */}
             <button
               onClick={() => setSidebarOpen(true)}
-              className="rounded-lg p-2.5 text-muted hover:bg-surface lg:hidden dark:text-muted-dark dark:hover:bg-surface-dark min-h-[44px] min-w-[44px] flex items-center justify-center"
+              className="rounded-lg p-2.5 text-muted hover:bg-surface lg:hidden min-h-[44px] min-w-[44px] flex items-center justify-center"
             >
               <Menu size={22} />
             </button>
 
             {/* Date filter */}
-            <Calendar size={14} className="hidden text-muted sm:block dark:text-muted-dark" />
+            <Calendar size={14} className="hidden text-muted sm:block" />
             <div className="flex flex-1 flex-wrap items-center gap-2">
               {[
                 { label: t('filterThisMonth'), fn: () => { const now = new Date(); setDateFrom(`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`); const last = new Date(now.getFullYear(), now.getMonth()+1, 0); setDateTo(`${last.getFullYear()}-${String(last.getMonth()+1).padStart(2,'0')}-${String(last.getDate()).padStart(2,'0')}`); }},
@@ -175,7 +175,7 @@ export function Layout({ children }: { children: ReactNode }) {
                 <button
                   key={label}
                   onClick={fn}
-                  className="hidden rounded-lg border border-border px-2.5 py-1 text-xs font-medium text-muted transition hover:border-primary-300 hover:text-ink sm:inline-flex dark:border-border-dark dark:text-muted-dark dark:hover:border-primary-600 dark:hover:text-ink-dark"
+                  className="hidden rounded-lg border border-border px-2.5 py-1 text-xs font-medium text-muted transition hover:border-primary-300 hover:text-ink sm:inline-flex"
                 >
                   {label}
                 </button>
@@ -186,7 +186,7 @@ export function Layout({ children }: { children: ReactNode }) {
                 onChange={(e) => setDateFrom(e.target.value)}
                 className="input rounded-lg px-3 py-2 text-sm sm:text-xs sm:px-2 sm:py-1 dark:[color-scheme:dark] min-h-[44px] sm:min-h-0"
               />
-              <span className="text-xs text-muted dark:text-muted-dark">—</span>
+              <span className="text-xs text-muted">—</span>
               <input
                 type="date"
                 value={dateTo}
@@ -208,7 +208,7 @@ export function Layout({ children }: { children: ReactNode }) {
             <div className="flex items-center gap-1 lg:hidden">
               <button
                 onClick={toggle}
-                className="rounded-lg p-2 text-muted hover:bg-surface dark:text-muted-dark dark:hover:bg-surface-dark"
+                className="rounded-lg p-2 text-muted hover:bg-surface"
               >
                 {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
               </button>
@@ -224,7 +224,7 @@ export function Layout({ children }: { children: ReactNode }) {
         </main>
 
         {/* Mobile bottom nav */}
-        <nav className="fixed inset-x-0 bottom-0 z-30 topbar border-t border-border lg:hidden dark:border-border-dark safe-bottom">
+        <nav className="fixed inset-x-0 bottom-0 z-30 topbar border-t border-border lg:hidden safe-bottom">
           <div className="flex items-stretch justify-around">
             {navItems.slice(0, 5).map(({ to, icon: Icon, labelKey }) => (
               <NavLink
@@ -235,8 +235,8 @@ export function Layout({ children }: { children: ReactNode }) {
                   clsx(
                     'flex flex-1 flex-col items-center gap-1 py-3 text-[11px] font-medium transition-colors min-h-[56px] justify-center',
                     isActive
-                      ? 'text-primary-600 dark:text-primary-400'
-                      : 'text-muted dark:text-muted-dark',
+                      ? 'text-primary-600'
+                      : 'text-muted',
                   )
                 }
               >
@@ -247,7 +247,7 @@ export function Layout({ children }: { children: ReactNode }) {
             {navItems.length > 5 && (
               <button
                 onClick={() => setSidebarOpen(true)}
-                className="flex flex-1 flex-col items-center gap-1 py-3 text-[11px] font-medium text-muted dark:text-muted-dark min-h-[56px] justify-center"
+                className="flex flex-1 flex-col items-center gap-1 py-3 text-[11px] font-medium text-muted min-h-[56px] justify-center"
               >
                 <Menu size={20} />
                 <span>{t('navMore')}</span>

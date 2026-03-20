@@ -199,18 +199,18 @@ export function VehiclesPage() {
   return (
     <div className="animate-slide-up">
       <h1 className="mb-1 text-2xl font-bold tracking-tight">{t('vehiclesTitle')}</h1>
-      <p className="mb-6 text-sm text-muted dark:text-muted-dark">{t('vehiclesSubtitle')}</p>
+      <p className="mb-6 text-sm text-muted">{t('vehiclesSubtitle')}</p>
 
       {/* Step 1: Vehicle selector + period + generate */}
       <Card className="mb-6 p-3 sm:p-5">
         <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-end gap-4">
           {/* Vehicle selector */}
           <div className="w-full sm:min-w-[250px] flex-1">
-            <label className="mb-1 block text-sm font-medium text-muted dark:text-muted-dark">
+            <label className="mb-1 block text-sm font-medium text-muted">
               {t('vehiclesName')}
             </label>
             {vehiclesLoading ? (
-              <div className="flex items-center gap-2 rounded-lg border border-border dark:border-border-dark px-3 py-2 text-sm text-muted dark:text-muted-dark dark:bg-white/5">
+              <div className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm text-muted dark:bg-white/5">
                 <Spinner size="sm" />
                 {t('loading')}
               </div>
@@ -221,7 +221,7 @@ export function VehiclesPage() {
               </div>
             ) : (
               <div className="relative">
-                <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted dark:text-muted-dark" />
+                <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
                 <input
                   type="text"
                   value={searchQuery}
@@ -235,7 +235,7 @@ export function VehiclesPage() {
 
           {/* Period */}
           <div>
-            <label className="mb-1 block text-sm font-medium text-muted dark:text-muted-dark">
+            <label className="mb-1 block text-sm font-medium text-muted">
               {t('vehiclesPeriod')}
             </label>
             <input
@@ -248,7 +248,7 @@ export function VehiclesPage() {
 
           {/* Time from */}
           <div>
-            <label className="mb-1 block text-sm font-medium text-muted dark:text-muted-dark">
+            <label className="mb-1 block text-sm font-medium text-muted">
               {t('vehiclesTimeFrom')}
             </label>
             <input
@@ -261,7 +261,7 @@ export function VehiclesPage() {
 
           {/* Time to */}
           <div>
-            <label className="mb-1 block text-sm font-medium text-muted dark:text-muted-dark">
+            <label className="mb-1 block text-sm font-medium text-muted">
               {t('vehiclesTimeTo')}
             </label>
             <input
@@ -296,43 +296,43 @@ export function VehiclesPage() {
 
         {/* Vehicle list / selection */}
         {!vehiclesLoading && !vehiclesError && vehicleList.length > 0 && (
-          <div className="mt-4 max-h-[240px] overflow-y-auto overflow-x-hidden sm:overflow-x-auto rounded-lg border border-border dark:border-border-dark">
+          <div className="mt-4 max-h-[240px] overflow-y-auto overflow-x-hidden sm:overflow-x-auto rounded-lg border border-border">
             <table className="w-full sm:min-w-[600px] text-sm">
               <thead className="sticky top-0 bg-black/[0.02] dark:bg-white/5">
-                <tr className="border-b border-border dark:border-border-dark">
-                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-muted dark:text-muted-dark">{t('vehiclesName')}</th>
-                  <th className="hidden sm:table-cell px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-muted dark:text-muted-dark">VIN</th>
-                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-muted dark:text-muted-dark">
+                <tr className="border-b border-border">
+                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-muted">{t('vehiclesName')}</th>
+                  <th className="hidden sm:table-cell px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-muted">VIN</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-muted">
                     {locale === 'de' ? 'Kennzeichen' : 'Rejestracja'}
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border dark:divide-border-dark">
+              <tbody className="divide-y divide-border">
                 {filteredVehicles.map((v) => (
                   <tr
                     key={v.id}
                     onClick={() => setSelectedVehicleId(v.id)}
                     className={`cursor-pointer transition ${
                       v.id === selectedVehicleId
-                        ? 'bg-primary-50 dark:bg-primary-900/20'
-                        : 'hover:bg-surface dark:hover:bg-surface-dark'
+                        ? 'bg-primary-50'
+                        : 'hover:bg-surface'
                     }`}
                   >
                     <td className="px-3 py-2">
                       <div className="flex items-center gap-2">
-                        <Truck size={14} className={v.id === selectedVehicleId ? 'text-primary-500' : 'text-muted dark:text-muted-dark'} />
-                        <span className={v.id === selectedVehicleId ? 'font-semibold text-primary-700 dark:text-primary-400' : ''}>
+                        <Truck size={14} className={v.id === selectedVehicleId ? 'text-primary-500' : 'text-muted'} />
+                        <span className={v.id === selectedVehicleId ? 'font-semibold text-primary-700' : ''}>
                           {v.name}
                         </span>
                       </div>
                     </td>
-                    <td className="hidden sm:table-cell px-3 py-2 font-mono text-xs text-muted dark:text-muted-dark">{v.vin || '-'}</td>
-                    <td className="px-3 py-2 text-muted dark:text-muted-dark">{v.license_plate || '-'}</td>
+                    <td className="hidden sm:table-cell px-3 py-2 font-mono text-xs text-muted">{v.vin || '-'}</td>
+                    <td className="px-3 py-2 text-muted">{v.license_plate || '-'}</td>
                   </tr>
                 ))}
                 {filteredVehicles.length === 0 && (
                   <tr>
-                    <td colSpan={3} className="px-3 py-6 text-center text-muted dark:text-muted-dark">{t('noData')}</td>
+                    <td colSpan={3} className="px-3 py-6 text-center text-muted">{t('noData')}</td>
                   </tr>
                 )}
               </tbody>
@@ -357,7 +357,7 @@ export function VehiclesPage() {
         <Card className="mb-6 p-6">
           <div className="flex flex-col items-center gap-4">
             <Spinner size="lg" />
-            <p className="text-sm font-medium text-muted dark:text-muted-dark">{t('vehiclesLoading')}</p>
+            <p className="text-sm font-medium text-muted">{t('vehiclesLoading')}</p>
           </div>
         </Card>
       )}
@@ -372,17 +372,17 @@ export function VehiclesPage() {
 
       {/* Empty state - no vehicle selected */}
       {!loading && !error && !activity && !period && (
-        <p className="py-20 text-center text-sm text-muted dark:text-muted-dark">{t('vehiclesNoData')}</p>
+        <p className="py-20 text-center text-sm text-muted">{t('vehiclesNoData')}</p>
       )}
 
       {/* No activity for selected vehicle/period */}
       {!loading && !error && !activity && period && (
         <Card className="p-6">
-          <p className="mb-4 text-center text-sm text-muted dark:text-muted-dark">{t('vehiclesNoActivity')}</p>
+          <p className="mb-4 text-center text-sm text-muted">{t('vehiclesNoActivity')}</p>
           {debugInfo && (
             <div className="mx-auto max-w-md rounded-lg bg-black/[0.02] p-4 text-xs dark:bg-white/5">
-              <p className="mb-2 font-semibold text-muted dark:text-muted-dark">Samsara API debug:</p>
-              <div className="space-y-1 text-muted dark:text-muted-dark">
+              <p className="mb-2 font-semibold text-muted">Samsara API debug:</p>
+              <div className="space-y-1 text-muted">
                 <p>API calls: <span className="font-mono font-bold">{debugInfo.api_calls}</span></p>
                 <p>Raw trips: <span className="font-mono font-bold">{debugInfo.raw_trips}</span></p>
                 <p>Vehicles with data: <span className="font-mono font-bold">{debugInfo.vehicles_with_data}</span></p>
@@ -418,17 +418,17 @@ export function VehiclesPage() {
             <Card className="p-4 text-center">
               <Truck size={20} className="mx-auto mb-1 text-primary-500" />
               <p className="text-lg font-bold">{activity.vehicle_name}</p>
-              <p className="text-xs text-muted dark:text-muted-dark">{monthLabel(period, locale)}</p>
+              <p className="text-xs text-muted">{monthLabel(period, locale)}</p>
             </Card>
             <Card className="p-4 text-center">
               <Calendar size={20} className="mx-auto mb-1 text-blue-500" />
               <p className="text-2xl font-bold">{hasTimeFilter ? filteredDays.length : activity.active_days}</p>
-              <p className="text-xs text-muted dark:text-muted-dark">{t('vehiclesActiveDays')}</p>
+              <p className="text-xs text-muted">{t('vehiclesActiveDays')}</p>
             </Card>
             <Card className="p-4 text-center">
               <MapPin size={20} className="mx-auto mb-1 text-success" />
               <p className="text-2xl font-bold">{fmtKm(hasTimeFilter ? filteredTotalKm : activity.total_km)}</p>
-              <p className="text-xs text-muted dark:text-muted-dark">{t('vehiclesTotalKm')}</p>
+              <p className="text-xs text-muted">{t('vehiclesTotalKm')}</p>
               {activity.distance_source === 'stats' && (
                 <p className="mt-1 text-[10px] text-amber-500">(odometer)</p>
               )}
@@ -436,16 +436,16 @@ export function VehiclesPage() {
             <Card className="p-4 text-center">
               <RefreshCw size={20} className="mx-auto mb-1 text-amber-500" />
               <p className="text-2xl font-bold">{Math.floor(totalMinutes / 60)}h {totalMinutes % 60}m</p>
-              <p className="text-xs text-muted dark:text-muted-dark">{t('vehiclesDuration')}</p>
+              <p className="text-xs text-muted">{t('vehiclesDuration')}</p>
             </Card>
           </div>
 
           {/* Debug info (collapsible) */}
           {debugInfo && (
             <details className="mb-4">
-              <summary className="cursor-pointer text-xs text-gray-400 hover:text-muted dark:text-muted-dark">Samsara API debug</summary>
+              <summary className="cursor-pointer text-xs text-muted hover:text-ink">Samsara API debug</summary>
               <div className="mt-2 rounded-lg bg-black/[0.02] p-3 text-xs dark:bg-white/5">
-                <div className="space-y-1 text-muted dark:text-muted-dark">
+                <div className="space-y-1 text-muted">
                   <p>API calls: <span className="font-mono font-bold">{debugInfo.api_calls}</span></p>
                   <p>Raw trips: <span className="font-mono font-bold">{debugInfo.raw_trips}</span></p>
                   {debugInfo.stats_vehicles != null && (
@@ -475,13 +475,13 @@ export function VehiclesPage() {
 
           {/* Day-by-day table */}
           <Card className="overflow-hidden">
-            <div className="border-b border-white/20 px-5 py-3 dark:border-white/5">
+            <div className="border-b border-border px-5 py-3">
               <h2 className="text-sm font-semibold">
                 {activity.vehicle_name} — {monthLabel(period, locale)}
               </h2>
             </div>
             {/* Mobile card view */}
-            <div className="block sm:hidden divide-y divide-border dark:divide-border-dark">
+            <div className="block sm:hidden divide-y divide-border">
               {filteredDays.map((day) => {
                 const wd = weekday(day.date);
                 const isSunday = new Date(day.date + 'T00:00:00').getDay() === 0;
@@ -498,7 +498,7 @@ export function VehiclesPage() {
                     <div className="flex items-center justify-between gap-2 mb-2">
                       <p className="text-sm font-bold">
                         {fmtDate(day.date)}
-                        <span className={`ml-2 text-xs ${isSunday ? 'font-bold text-danger' : 'text-muted dark:text-muted-dark'}`}>{wd}</span>
+                        <span className={`ml-2 text-xs ${isSunday ? 'font-bold text-danger' : 'text-muted'}`}>{wd}</span>
                       </p>
                       <Badge variant={isShortDay ? 'orange' : day.duration_h >= 10 ? 'blue' : 'gray'}>{day.duration_hm}</Badge>
                     </div>
@@ -506,7 +506,7 @@ export function VehiclesPage() {
                     <CardField label={t('vehiclesBeginDriving')} value={fmtDateTime(day.begin_driving)} />
                     <CardField label={t('vehiclesLastDriving')} value={fmtDateTime(day.last_driving)} />
                     {day.last_location && (
-                      <div className="mt-1 flex items-start gap-1.5 text-xs text-muted dark:text-muted-dark">
+                      <div className="mt-1 flex items-start gap-1.5 text-xs text-muted">
                         <MapPin size={12} className="mt-0.5 shrink-0" />
                         <span className="line-clamp-2">{day.last_location}</span>
                       </div>
@@ -528,28 +528,28 @@ export function VehiclesPage() {
             <div className="hidden sm:block overflow-x-auto">
               <table className="w-full min-w-[800px] text-sm">
                 <thead>
-                  <tr className="border-b border-border dark:border-border-dark">
-                    <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted dark:text-muted-dark">
+                  <tr className="border-b border-border">
+                    <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted">
                       {t('vehiclesDate')}
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted dark:text-muted-dark">
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted">
                       {locale === 'de' ? 'Letzte Position' : 'Ostatnia pozycja'}
                     </th>
-                    <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted dark:text-muted-dark">
+                    <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted">
                       {t('vehiclesDistance')}
                     </th>
-                    <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted dark:text-muted-dark">
+                    <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted">
                       {t('vehiclesBeginDriving')}
                     </th>
-                    <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted dark:text-muted-dark">
+                    <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted">
                       {t('vehiclesLastDriving')}
                     </th>
-                    <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted dark:text-muted-dark">
+                    <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted">
                       {t('vehiclesDuration')}
                     </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-border dark:divide-border-dark">
+                <tbody className="divide-y divide-border">
                   {filteredDays.map((day) => {
                     const wd = weekday(day.date);
                     const isSunday = new Date(day.date + 'T00:00:00').getDay() === 0;
@@ -565,25 +565,25 @@ export function VehiclesPage() {
                               ? 'bg-rose-50/50 dark:bg-rose-900/10'
                               : isSaturday
                                 ? 'bg-amber-50/30 dark:bg-amber-900/10'
-                                : 'hover:bg-primary-50/30 dark:hover:bg-primary-900/10'
+                                : 'hover:bg-primary-50/30'
                         }`}
                       >
                         <td className="whitespace-nowrap px-4 py-2.5">
                           <span className="font-medium">{fmtDate(day.date)}</span>
-                          <span className={`ml-2 text-xs ${isSunday ? 'font-bold text-danger' : 'text-muted dark:text-muted-dark'}`}>
+                          <span className={`ml-2 text-xs ${isSunday ? 'font-bold text-danger' : 'text-muted'}`}>
                             {wd}
                           </span>
                         </td>
-                        <td className="max-w-[280px] truncate px-4 py-2.5 text-xs text-muted dark:text-muted-dark" title={day.last_location || ''}>
+                        <td className="max-w-[280px] truncate px-4 py-2.5 text-xs text-muted" title={day.last_location || ''}>
                           {day.last_location || '-'}
                         </td>
                         <td className="whitespace-nowrap px-4 py-2.5 font-mono text-sm">
                           {day.distance_km > 0 ? fmtKm(day.distance_km) : '-'}
                         </td>
-                        <td className="whitespace-nowrap px-4 py-2.5 text-muted dark:text-muted-dark">
+                        <td className="whitespace-nowrap px-4 py-2.5 text-muted">
                           {fmtDateTime(day.begin_driving)}
                         </td>
-                        <td className="whitespace-nowrap px-4 py-2.5 text-muted dark:text-muted-dark">
+                        <td className="whitespace-nowrap px-4 py-2.5 text-muted">
                           {fmtDateTime(day.last_driving)}
                         </td>
                         <td className="whitespace-nowrap px-4 py-2.5">
@@ -596,7 +596,7 @@ export function VehiclesPage() {
                   })}
                 </tbody>
                 <tfoot>
-                  <tr className="border-t-2 border-white/30 bg-black/[0.02] font-semibold dark:border-white/10 dark:bg-white/5">
+                  <tr className="border-t-2 border-border bg-black/[0.02] font-semibold dark:bg-white/5">
                     <td className="px-4 py-3">Ings.</td>
                     <td className="px-4 py-3"></td>
                     <td className="px-4 py-3 font-mono">{fmtKm(hasTimeFilter ? filteredTotalKm : activity.total_km)}</td>
