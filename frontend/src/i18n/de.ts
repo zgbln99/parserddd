@@ -479,11 +479,10 @@ export const de: Record<TranslationKey, string> = {
   nightSimPreset2x30: '2× 30 Min.',
   nightSimTotalWork: 'Arbeit gesamt',
   nightSimTotalBreak: 'Pausen gesamt',
-  nightSimMonthlyGross: 'Bruttogehalt/Monat',
-  nightSimCostTitle: 'Nachtzuschlag-Kostenrechner',
-  nightSimCost25: 'Zuschlag 25 % (Nacht)',
-  nightSimCost40: 'Zuschlag 40 % (Nacht)',
-  nightSimCostTotal: 'Gesamtkosten Zuschläge',
+  nightSimLohnTitle: 'Lohnabrechnung — Rechner',
+  nightSimFestbezug: 'Festbezug (brutto/Monat)',
+  nightSimStundenfaktor: 'Stundenfaktor (EUR/Std)',
+  nightSimBruttoGesamt: 'Brutto gesamt',
 
   // Offline
   offlineMode: 'Offline-Modus — Daten aus Cache',

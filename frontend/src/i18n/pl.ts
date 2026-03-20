@@ -477,11 +477,10 @@ export const pl = {
   nightSimPreset2x30: '2× 30 min',
   nightSimTotalWork: 'Praca łącznie',
   nightSimTotalBreak: 'Przerwy łącznie',
-  nightSimMonthlyGross: 'Wynagrodzenie brutto/mies.',
-  nightSimCostTitle: 'Kalkulator kosztów dodatków nocnych',
-  nightSimCost25: 'Dodatek 25% (nocne)',
-  nightSimCost40: 'Dodatek 40% (nocne)',
-  nightSimCostTotal: 'Łączny koszt dodatków',
+  nightSimLohnTitle: 'Lohnabrechnung — kalkulator',
+  nightSimFestbezug: 'Festbezug (brutto/mies.)',
+  nightSimStundenfaktor: 'Stundenfaktor (EUR/Std)',
+  nightSimBruttoGesamt: 'Brutto gesamt',
 
   // Offline
   offlineMode: 'Tryb offline — dane z cache',

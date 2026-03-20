@@ -178,6 +178,7 @@ export function NightSimulatorPage() {
     { id: _nextBreakId++, afterMinutes: 270, durationMinutes: 45 },
   ]);
   const [monthlyGross, setMonthlyGross] = useState('');
+  const [stundenfaktor, setStundenfaktor] = useState('');
   const [results, setResults] = useState<DayResult[] | null>(null);
 
   const wdNames = locale === 'de'
@@ -231,15 +232,16 @@ export function NightSimulatorPage() {
   }, [results]);
 
   const costCalc = useMemo(() => {
-    if (!totals || totals.totalWork <= 0) return null;
+    if (!totals) return null;
     const gross = parseFloat(monthlyGross.replace(',', '.'));
-    if (!gross || gross <= 0) return null;
-    const totalWorkH = totals.totalWork / 60;
-    const hourlyRate = gross / totalWorkH;
-    const cost25 = (totals.night25 / 60) * hourlyRate * 0.25;
-    const cost40 = (totals.night40 / 60) * hourlyRate * 0.40;
-    return { gross, hourlyRate, cost25, cost40, total: cost25 + cost40 };
-  }, [totals, monthlyGross]);
+    const faktor = parseFloat(stundenfaktor.replace(',', '.'));
+    if (!gross || gross <= 0 || !faktor || faktor <= 0) return null;
+    const h25 = totals.night25 / 60;
+    const h40 = totals.night40 / 60;
+    const cost25 = h25 * faktor * 0.25;
+    const cost40 = h40 * faktor * 0.40;
+    return { gross, faktor, h25, h40, cost25, cost40, total: gross + cost25 + cost40 };
+  }, [totals, monthlyGross, stundenfaktor]);
 
   const handleReset = () => {
     setResults(null);
@@ -250,6 +252,7 @@ export function NightSimulatorPage() {
     setExcludeWeekends(false);
     setBreaks([{ id: _nextBreakId++, afterMinutes: 270, durationMinutes: 45 }]);
     setMonthlyGross('');
+    setStundenfaktor('');
   };
 
   const addBreak = () => {
@@ -288,6 +291,11 @@ export function NightSimulatorPage() {
   const fmtMin = (m: number) => {
     const decimal = (m / 60).toFixed(2);
     return `${minutesToHm(m)} (${decimal}h)`;
+  };
+
+  /** Format EUR amount German-style: 2.750,00 */
+  const fmtEur = (v: number) => {
+    return v.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   };
 
   return (
@@ -369,18 +377,42 @@ export function NightSimulatorPage() {
               />
               {t('nightSimExcludeWeekends')}
             </label>
+          </div>
+        </div>
+
+        {/* Lohnabrechnung inputs */}
+        <div className="mt-4 border-t border-border pt-4">
+          <div className="mb-2 flex items-center gap-2">
+            <Calculator size={16} className="text-muted" />
+            <span className="text-sm font-semibold">{t('nightSimLohnTitle')}</span>
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
-              <label className="mb-1 block text-xs font-semibold text-muted">{t('nightSimMonthlyGross')}</label>
+              <label className="mb-1 block text-xs font-semibold text-muted">{t('nightSimFestbezug')}</label>
               <div className="flex items-center gap-1.5">
                 <input
                   type="text"
                   inputMode="decimal"
                   value={monthlyGross}
                   onChange={(e) => setMonthlyGross(e.target.value)}
-                  placeholder={locale === 'de' ? 'z.B. 2800' : 'np. 2800'}
-                  className={`w-28 ${inputCls}`}
+                  placeholder={locale === 'de' ? 'z.B. 2750' : 'np. 2750'}
+                  className={`w-32 ${inputCls}`}
                 />
                 <span className="text-xs text-muted">EUR</span>
+              </div>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-muted">{t('nightSimStundenfaktor')}</label>
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={stundenfaktor}
+                  onChange={(e) => setStundenfaktor(e.target.value)}
+                  placeholder={locale === 'de' ? 'z.B. 14,10' : 'np. 14,10'}
+                  className={`w-32 ${inputCls}`}
+                />
+                <span className="text-xs text-muted">EUR/Std</span>
               </div>
             </div>
           </div>
@@ -520,31 +552,65 @@ export function NightSimulatorPage() {
             </Card>
           </div>
 
-          {/* Cost calculator */}
+          {/* Lohnabrechnung-style Brutto-Bezüge */}
           {costCalc && (
-            <Card className="p-4 sm:p-5">
-              <div className="mb-3 flex flex-wrap items-center gap-2">
-                <Calculator size={16} className="text-primary-600" />
-                <span className="text-sm font-semibold">{t('nightSimCostTitle')}</span>
-                <span className="text-xs text-muted">
-                  ({costCalc.gross.toFixed(0)} EUR ÷ {(totals!.totalWork / 60).toFixed(1)}h = {costCalc.hourlyRate.toFixed(2)} EUR/h)
-                </span>
+            <Card className="overflow-hidden">
+              <div className="border-b border-border px-4 py-3 sm:px-5">
+                <p className="text-sm font-bold">Brutto-Bezüge</p>
               </div>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                <div className="rounded-lg bg-amber-50 p-3 dark:bg-amber-900/10">
-                  <p className="text-xs font-medium text-amber-700 dark:text-amber-300">{t('nightSimCost25')}</p>
-                  <p className="text-xs text-muted">{(totals!.night25 / 60).toFixed(2)}h × {costCalc.hourlyRate.toFixed(2)} × 25%</p>
-                  <p className="mt-1 text-xl font-bold text-amber-600 dark:text-amber-400">{costCalc.cost25.toFixed(2)} EUR</p>
-                </div>
-                <div className="rounded-lg bg-rose-50 p-3 dark:bg-rose-900/10">
-                  <p className="text-xs font-medium text-rose-700 dark:text-rose-300">{t('nightSimCost40')}</p>
-                  <p className="text-xs text-muted">{(totals!.night40 / 60).toFixed(2)}h × {costCalc.hourlyRate.toFixed(2)} × 40%</p>
-                  <p className="mt-1 text-xl font-bold text-rose-600 dark:text-rose-400">{costCalc.cost40.toFixed(2)} EUR</p>
-                </div>
-                <div className="rounded-lg bg-primary-50 p-3 dark:bg-primary-900/10">
-                  <p className="text-xs font-medium">{t('nightSimCostTotal')}</p>
-                  <p className="mt-1 text-2xl font-bold text-primary-600">{costCalc.total.toFixed(2)} EUR</p>
-                </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border bg-surface text-xs">
+                      <th className="px-4 py-2 text-left font-semibold text-muted">Lohnart</th>
+                      <th className="px-4 py-2 text-left font-semibold text-muted">Bezeichnung</th>
+                      <th className="px-4 py-2 text-center font-semibold text-muted">Einheit</th>
+                      <th className="px-4 py-2 text-right font-semibold text-muted">Menge</th>
+                      <th className="px-4 py-2 text-right font-semibold text-muted">Faktor</th>
+                      <th className="px-4 py-2 text-right font-semibold text-muted">Prozentsatz</th>
+                      <th className="px-4 py-2 text-right font-semibold text-muted">Betrag</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border font-mono text-sm">
+                    <tr>
+                      <td className="px-4 py-2.5 text-muted">200</td>
+                      <td className="px-4 py-2.5 font-semibold">Festbezug Lohn/Gehalt</td>
+                      <td className="px-4 py-2.5"></td>
+                      <td className="px-4 py-2.5"></td>
+                      <td className="px-4 py-2.5"></td>
+                      <td className="px-4 py-2.5"></td>
+                      <td className="px-4 py-2.5 text-right font-semibold">{fmtEur(costCalc.gross)}</td>
+                    </tr>
+                    <tr className="bg-amber-50/50 dark:bg-amber-900/5">
+                      <td className="px-4 py-2.5 text-muted">203</td>
+                      <td className="px-4 py-2.5 font-medium text-amber-700 dark:text-amber-300">25% Nachtzuschlag</td>
+                      <td className="px-4 py-2.5 text-center text-muted">Std</td>
+                      <td className="px-4 py-2.5 text-right">{costCalc.h25.toFixed(2).replace('.', ',')}</td>
+                      <td className="px-4 py-2.5 text-right">{costCalc.faktor.toFixed(2).replace('.', ',')}</td>
+                      <td className="px-4 py-2.5 text-right">25,00</td>
+                      <td className="px-4 py-2.5 text-right font-semibold text-amber-600 dark:text-amber-400">{fmtEur(costCalc.cost25)}</td>
+                    </tr>
+                    <tr className="bg-rose-50/50 dark:bg-rose-900/5">
+                      <td className="px-4 py-2.5 text-muted">204</td>
+                      <td className="px-4 py-2.5 font-medium text-rose-700 dark:text-rose-300">40% Nachtzuschlag</td>
+                      <td className="px-4 py-2.5 text-center text-muted">Std</td>
+                      <td className="px-4 py-2.5 text-right">{costCalc.h40.toFixed(2).replace('.', ',')}</td>
+                      <td className="px-4 py-2.5 text-right">{costCalc.faktor.toFixed(2).replace('.', ',')}</td>
+                      <td className="px-4 py-2.5 text-right">40,00</td>
+                      <td className="px-4 py-2.5 text-right font-semibold text-rose-600 dark:text-rose-400">{fmtEur(costCalc.cost40)}</td>
+                    </tr>
+                  </tbody>
+                  <tfoot>
+                    <tr className="border-t-2 border-border bg-surface">
+                      <td className="px-4 py-3" colSpan={6}>
+                        <span className="font-bold">{t('nightSimBruttoGesamt')}</span>
+                      </td>
+                      <td className="px-4 py-3 text-right font-mono text-lg font-bold text-primary-600">
+                        {fmtEur(costCalc.total)}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
               </div>
             </Card>
           )}
