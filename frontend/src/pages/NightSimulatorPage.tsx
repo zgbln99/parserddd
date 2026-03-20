@@ -1,84 +1,20 @@
 import { useState, useMemo } from 'react';
-import { Moon, Play, RotateCcw } from 'lucide-react';
+import { Moon, Play, RotateCcw, Plus, Trash2, Coffee } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { Card } from '../components/Card';
 import { minutesToHm } from '../lib/utils';
 
-/**
- * Night hours calculation — identical to backend calculate_shift_night_hours().
- *
- * Night window: 22:00–06:00
- *   22:00–00:00 → always 25%
- *   00:00–04:00 → 40% if shift started before midnight, else 25%
- *   04:00–06:00 → always 25%
- */
-function calcNightMinutes(
-  shiftStartH: number,
-  shiftStartM: number,
-  shiftEndH: number,
-  shiftEndM: number,
-): { night25: number; night40: number } {
-  // Convert to minutes from a base of 00:00 on day 0
-  let startMin = shiftStartH * 60 + shiftStartM;
-  let endMin = shiftEndH * 60 + shiftEndM;
+/* ── Types ── */
 
-  // If end <= start, shift crosses midnight → end is next day
-  if (endMin <= startMin) {
-    endMin += 24 * 60;
-  }
-
-  let night25 = 0;
-  let night40 = 0;
-
-  // Process each calendar day the shift spans
-  // Day 0 starts at minute 0, day 1 at 1440, etc.
-  const firstDay = Math.floor(startMin / (24 * 60));
-  const lastDay = Math.floor((endMin - 1) / (24 * 60));
-
-  for (let day = firstDay; day <= lastDay; day++) {
-    const dayBase = day * 24 * 60;
-    const chunkStart = Math.max(startMin, dayBase);
-    const chunkEnd = Math.min(endMin, dayBase + 24 * 60);
-
-    // 22:00–00:00 → always 25%
-    const r1Start = dayBase + 22 * 60;
-    const r1End = dayBase + 24 * 60;
-    const o1Start = Math.max(chunkStart, r1Start);
-    const o1End = Math.min(chunkEnd, r1End);
-    if (o1End > o1Start) {
-      night25 += o1End - o1Start;
-    }
-
-    // 00:00–04:00 → 40% if shift started before this day's midnight, else 25%
-    const r2Start = dayBase;
-    const r2End = dayBase + 4 * 60;
-    const o2Start = Math.max(chunkStart, r2Start);
-    const o2End = Math.min(chunkEnd, r2End);
-    if (o2End > o2Start) {
-      const mins = o2End - o2Start;
-      // shift_start < day_base means shift started before 00:00 of this calendar day
-      if (startMin < dayBase) {
-        night40 += mins;
-      } else {
-        night25 += mins;
-      }
-    }
-
-    // 04:00–06:00 → always 25%
-    const r3Start = dayBase + 4 * 60;
-    const r3End = dayBase + 6 * 60;
-    const o3Start = Math.max(chunkStart, r3Start);
-    const o3End = Math.min(chunkEnd, r3End);
-    if (o3End > o3Start) {
-      night25 += o3End - o3Start;
-    }
-  }
-
-  return { night25, night40 };
+interface BreakSlot {
+  id: number;
+  afterMinutes: number;   // break starts X minutes after shift start
+  durationMinutes: number; // break duration
 }
 
-function daysInMonth(year: number, month: number): number {
-  return new Date(year, month, 0).getDate();
+interface WorkInterval {
+  start: number; // absolute minutes
+  end: number;
 }
 
 interface DayResult {
@@ -88,7 +24,144 @@ interface DayResult {
   night25: number;
   night40: number;
   totalNight: number;
+  breakMinutes: number;
+  workMinutes: number;
 }
+
+/* ── Calculation (identical to backend calculate_shift_night_hours) ── */
+
+function calcNightForIntervals(
+  intervals: WorkInterval[],
+  shiftStartMin: number,
+): { night25: number; night40: number } {
+  let night25 = 0;
+  let night40 = 0;
+
+  for (const iv of intervals) {
+    const firstDay = Math.floor(iv.start / (24 * 60));
+    const lastDay = Math.floor(Math.max(iv.start, iv.end - 1) / (24 * 60));
+
+    for (let day = firstDay; day <= lastDay; day++) {
+      const dayBase = day * 24 * 60;
+      const chunkStart = Math.max(iv.start, dayBase);
+      const chunkEnd = Math.min(iv.end, dayBase + 24 * 60);
+      if (chunkEnd <= chunkStart) continue;
+
+      // 22:00–00:00 → always 25%
+      const o1Start = Math.max(chunkStart, dayBase + 22 * 60);
+      const o1End = Math.min(chunkEnd, dayBase + 24 * 60);
+      if (o1End > o1Start) night25 += o1End - o1Start;
+
+      // 00:00–04:00 → 40% if shift started before midnight, else 25%
+      const o2Start = Math.max(chunkStart, dayBase);
+      const o2End = Math.min(chunkEnd, dayBase + 4 * 60);
+      if (o2End > o2Start) {
+        if (shiftStartMin < dayBase) {
+          night40 += o2End - o2Start;
+        } else {
+          night25 += o2End - o2Start;
+        }
+      }
+
+      // 04:00–06:00 → always 25%
+      const o3Start = Math.max(chunkStart, dayBase + 4 * 60);
+      const o3End = Math.min(chunkEnd, dayBase + 6 * 60);
+      if (o3End > o3Start) night25 += o3End - o3Start;
+    }
+  }
+
+  return { night25, night40 };
+}
+
+/**
+ * Build work intervals from shift times + breaks.
+ * Breaks are defined as "after X minutes from shift start, pause Y minutes".
+ * The parser skips work_type==0 intervals — here we do the same by splitting
+ * the shift into work-only intervals around the breaks.
+ */
+function buildWorkIntervals(
+  shiftStartMin: number,
+  shiftEndMin: number,
+  breaks: BreakSlot[],
+): WorkInterval[] {
+  // Sort breaks by when they start (absolute time)
+  const sortedBreaks = [...breaks]
+    .map((b) => ({
+      start: shiftStartMin + b.afterMinutes,
+      end: shiftStartMin + b.afterMinutes + b.durationMinutes,
+    }))
+    .filter((b) => b.start < shiftEndMin && b.end > shiftStartMin)
+    .sort((a, b) => a.start - b.start);
+
+  // Merge overlapping breaks
+  const merged: { start: number; end: number }[] = [];
+  for (const brk of sortedBreaks) {
+    const clamped = { start: Math.max(brk.start, shiftStartMin), end: Math.min(brk.end, shiftEndMin) };
+    if (merged.length > 0 && clamped.start <= merged[merged.length - 1].end) {
+      merged[merged.length - 1].end = Math.max(merged[merged.length - 1].end, clamped.end);
+    } else {
+      merged.push({ ...clamped });
+    }
+  }
+
+  // Build work intervals (gaps between breaks)
+  const intervals: WorkInterval[] = [];
+  let cursor = shiftStartMin;
+  for (const brk of merged) {
+    if (cursor < brk.start) {
+      intervals.push({ start: cursor, end: brk.start });
+    }
+    cursor = brk.end;
+  }
+  if (cursor < shiftEndMin) {
+    intervals.push({ start: cursor, end: shiftEndMin });
+  }
+
+  return intervals;
+}
+
+function daysInMonth(year: number, month: number): number {
+  return new Date(year, month, 0).getDate();
+}
+
+/* ── Presets ── */
+
+interface BreakPreset {
+  labelKey: string;
+  breaks: Omit<BreakSlot, 'id'>[];
+}
+
+const BREAK_PRESETS: BreakPreset[] = [
+  {
+    labelKey: 'nightSimPresetNone',
+    breaks: [],
+  },
+  {
+    // 1x 45 min after 4.5h (EU 561/2006 standard)
+    labelKey: 'nightSimPreset45',
+    breaks: [{ afterMinutes: 270, durationMinutes: 45 }],
+  },
+  {
+    // 15 min + 30 min (split EU break)
+    labelKey: 'nightSimPresetSplit',
+    breaks: [
+      { afterMinutes: 120, durationMinutes: 15 },
+      { afterMinutes: 330, durationMinutes: 30 },
+    ],
+  },
+  {
+    // 2x 30 min breaks
+    labelKey: 'nightSimPreset2x30',
+    breaks: [
+      { afterMinutes: 180, durationMinutes: 30 },
+      { afterMinutes: 390, durationMinutes: 30 },
+    ],
+  },
+];
+
+let _nextBreakId = 1;
+
+/* ── Component ── */
 
 export function NightSimulatorPage() {
   const { t, locale } = useI18n();
@@ -101,6 +174,9 @@ export function NightSimulatorPage() {
   const [endH, setEndH] = useState('06');
   const [endM, setEndM] = useState('00');
   const [excludeWeekends, setExcludeWeekends] = useState(false);
+  const [breaks, setBreaks] = useState<BreakSlot[]>([
+    { id: _nextBreakId++, afterMinutes: 270, durationMinutes: 45 },
+  ]);
   const [results, setResults] = useState<DayResult[] | null>(null);
 
   const wdNames = locale === 'de'
@@ -112,6 +188,15 @@ export function NightSimulatorPage() {
     const sM = parseInt(startM, 10) || 0;
     const eH = parseInt(endH, 10) || 0;
     const eM = parseInt(endM, 10) || 0;
+
+    let shiftStartMin = sH * 60 + sM;
+    let shiftEndMin = eH * 60 + eM;
+    if (shiftEndMin <= shiftStartMin) shiftEndMin += 24 * 60;
+
+    const totalShiftMin = shiftEndMin - shiftStartMin;
+    const totalBreakMin = breaks.reduce((s, b) => s + b.durationMinutes, 0);
+
+    const workIntervals = buildWorkIntervals(shiftStartMin, shiftEndMin, breaks);
     const numDays = daysInMonth(year, month);
     const days: DayResult[] = [];
 
@@ -122,12 +207,13 @@ export function NightSimulatorPage() {
       const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
 
       if (excludeWeekends && isWeekend) {
-        days.push({ day: d, weekday: wd, isWeekend, night25: 0, night40: 0, totalNight: 0 });
+        days.push({ day: d, weekday: wd, isWeekend, night25: 0, night40: 0, totalNight: 0, breakMinutes: 0, workMinutes: 0 });
         continue;
       }
 
-      const { night25, night40 } = calcNightMinutes(sH, sM, eH, eM);
-      days.push({ day: d, weekday: wd, isWeekend, night25, night40, totalNight: night25 + night40 });
+      const { night25, night40 } = calcNightForIntervals(workIntervals, shiftStartMin);
+      const workMin = totalShiftMin - totalBreakMin;
+      days.push({ day: d, weekday: wd, isWeekend, night25, night40, totalNight: night25 + night40, breakMinutes: totalBreakMin, workMinutes: workMin });
     }
 
     setResults(days);
@@ -138,7 +224,9 @@ export function NightSimulatorPage() {
     const n25 = results.reduce((s, r) => s + r.night25, 0);
     const n40 = results.reduce((s, r) => s + r.night40, 0);
     const workingDays = results.filter((r) => r.totalNight > 0).length;
-    return { night25: n25, night40: n40, total: n25 + n40, workingDays };
+    const totalWork = results.reduce((s, r) => s + r.workMinutes, 0);
+    const totalBreak = results.reduce((s, r) => s + r.breakMinutes, 0);
+    return { night25: n25, night40: n40, total: n25 + n40, workingDays, totalWork, totalBreak };
   }, [results]);
 
   const handleReset = () => {
@@ -148,6 +236,32 @@ export function NightSimulatorPage() {
     setEndH('06');
     setEndM('00');
     setExcludeWeekends(false);
+    setBreaks([{ id: _nextBreakId++, afterMinutes: 270, durationMinutes: 45 }]);
+  };
+
+  const addBreak = () => {
+    setBreaks((prev) => [...prev, { id: _nextBreakId++, afterMinutes: 180, durationMinutes: 30 }]);
+  };
+
+  const removeBreak = (id: number) => {
+    setBreaks((prev) => prev.filter((b) => b.id !== id));
+  };
+
+  const updateBreak = (id: number, field: 'afterMinutes' | 'durationMinutes', value: number) => {
+    setBreaks((prev) => prev.map((b) => (b.id === id ? { ...b, [field]: value } : b)));
+  };
+
+  const applyPreset = (preset: BreakPreset) => {
+    setBreaks(preset.breaks.map((b) => ({ ...b, id: _nextBreakId++ })));
+  };
+
+  // Shift duration for displaying break "after X min" as actual clock time
+  const shiftStartTotalMin = (parseInt(startH, 10) || 0) * 60 + (parseInt(startM, 10) || 0);
+  const breakToTime = (afterMin: number) => {
+    const abs = (shiftStartTotalMin + afterMin) % (24 * 60);
+    const h = Math.floor(abs / 60);
+    const m = abs % 60;
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
   };
 
   const hours = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
@@ -245,6 +359,77 @@ export function NightSimulatorPage() {
           </div>
         </div>
 
+        {/* Breaks section */}
+        <div className="mt-5 border-t border-border pt-4">
+          <div className="mb-3 flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2">
+              <Coffee size={16} className="text-muted" />
+              <span className="text-sm font-semibold">{t('nightSimBreaks')}</span>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {BREAK_PRESETS.map((preset, i) => (
+                <button
+                  key={i}
+                  onClick={() => applyPreset(preset)}
+                  className="rounded-md border border-border px-2.5 py-1 text-xs font-medium text-muted transition hover:border-primary-300 hover:text-ink"
+                >
+                  {t(preset.labelKey as any)}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {breaks.length === 0 && (
+            <p className="mb-3 text-xs text-muted italic">{t('nightSimNoBreaks')}</p>
+          )}
+
+          <div className="space-y-2">
+            {breaks.map((brk) => (
+              <div key={brk.id} className="flex flex-wrap items-center gap-2 rounded-lg bg-surface p-2.5">
+                <span className="text-xs text-muted whitespace-nowrap">{t('nightSimBreakAfter')}</span>
+                <select
+                  value={brk.afterMinutes}
+                  onChange={(e) => updateBreak(brk.id, 'afterMinutes', Number(e.target.value))}
+                  className="input rounded-md px-2 py-1.5 text-xs"
+                >
+                  {Array.from({ length: 49 }, (_, i) => i * 15).map((m) => (
+                    <option key={m} value={m}>
+                      {minutesToHm(m)} ({breakToTime(m)})
+                    </option>
+                  ))}
+                </select>
+                <span className="text-xs text-muted whitespace-nowrap">{t('nightSimBreakDuration')}</span>
+                <select
+                  value={brk.durationMinutes}
+                  onChange={(e) => updateBreak(brk.id, 'durationMinutes', Number(e.target.value))}
+                  className="input rounded-md px-2 py-1.5 text-xs"
+                >
+                  {[15, 30, 45, 60, 90].map((m) => (
+                    <option key={m} value={m}>{m} min</option>
+                  ))}
+                </select>
+                <span className="ml-auto text-[10px] text-muted">
+                  {breakToTime(brk.afterMinutes)}–{breakToTime(brk.afterMinutes + brk.durationMinutes)}
+                </span>
+                <button
+                  onClick={() => removeBreak(brk.id)}
+                  className="rounded-md p-1.5 text-muted transition hover:bg-danger/10 hover:text-danger"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            ))}
+          </div>
+
+          <button
+            onClick={addBreak}
+            className="mt-2 flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-muted transition hover:bg-surface hover:text-ink"
+          >
+            <Plus size={14} />
+            {t('nightSimAddBreak')}
+          </button>
+        </div>
+
         {/* Buttons */}
         <div className="mt-5 flex flex-wrap gap-3">
           <button
@@ -281,10 +466,18 @@ export function NightSimulatorPage() {
       {results && totals && (
         <>
           {/* Summary cards */}
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
             <Card className="p-4 text-center">
               <p className="text-xs text-muted">{t('nightSimWorkDays')}</p>
               <p className="mt-1 text-2xl font-bold">{totals.workingDays}</p>
+            </Card>
+            <Card className="p-4 text-center">
+              <p className="text-xs text-muted">{t('nightSimTotalWork')}</p>
+              <p className="mt-1 text-lg font-bold">{fmtMin(totals.totalWork)}</p>
+            </Card>
+            <Card className="p-4 text-center">
+              <p className="text-xs text-muted">{t('nightSimTotalBreak')}</p>
+              <p className="mt-1 text-lg font-bold text-muted">{fmtMin(totals.totalBreak)}</p>
             </Card>
             <Card className="p-4 text-center">
               <p className="text-xs text-muted">{t('analysisNight25')}</p>
@@ -308,6 +501,8 @@ export function NightSimulatorPage() {
                   <tr className="border-b border-border">
                     <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted">{t('nightSimDay')}</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted">{t('analysisWeekday')}</th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-muted">{t('analysisWorkTime')}</th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-muted">{t('analysisBreaks')}</th>
                     <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400">{t('analysisNight25')}</th>
                     <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-rose-600 dark:text-rose-400">{t('analysisNight40')}</th>
                     <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-muted">{t('nightSimTotal')}</th>
@@ -321,6 +516,12 @@ export function NightSimulatorPage() {
                     >
                       <td className="px-4 py-2 font-medium">{r.day}</td>
                       <td className={`px-4 py-2 ${r.isWeekend ? 'font-bold text-rose-400' : 'text-muted'}`}>{r.weekday}</td>
+                      <td className="px-4 py-2 text-right text-muted">
+                        {r.workMinutes > 0 ? minutesToHm(r.workMinutes) : '—'}
+                      </td>
+                      <td className="px-4 py-2 text-right text-muted">
+                        {r.breakMinutes > 0 ? minutesToHm(r.breakMinutes) : '—'}
+                      </td>
                       <td className="px-4 py-2 text-right font-medium text-amber-600 dark:text-amber-400">
                         {r.night25 > 0 ? minutesToHm(r.night25) : '—'}
                       </td>
@@ -335,6 +536,8 @@ export function NightSimulatorPage() {
                   {/* Totals row */}
                   <tr className="border-t-2 border-border bg-surface font-bold">
                     <td className="px-4 py-3" colSpan={2}>{t('settlementTotal')}</td>
+                    <td className="px-4 py-3 text-right">{fmtMin(totals.totalWork)}</td>
+                    <td className="px-4 py-3 text-right text-muted">{fmtMin(totals.totalBreak)}</td>
                     <td className="px-4 py-3 text-right text-amber-600 dark:text-amber-400">{fmtMin(totals.night25)}</td>
                     <td className="px-4 py-3 text-right text-rose-600 dark:text-rose-400">{fmtMin(totals.night40)}</td>
                     <td className="px-4 py-3 text-right text-primary-600">{fmtMin(totals.total)}</td>
