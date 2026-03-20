@@ -479,6 +479,13 @@ export const de: Record<TranslationKey, string> = {
   nightSimPreset2x30: '2× 30 Min.',
   nightSimTotalWork: 'Arbeit gesamt',
   nightSimTotalBreak: 'Pausen gesamt',
+  nightSimHourlyRate: 'Stundensatz',
+  nightSimCurrency: 'EUR/h',
+  nightSimCostTitle: 'Nachtzuschlag-Kostenrechner',
+  nightSimCostRate: 'Satz',
+  nightSimCost25: 'Zuschlag 25 % (Nacht)',
+  nightSimCost40: 'Zuschlag 40 % (Nacht)',
+  nightSimCostTotal: 'Gesamtkosten Zuschläge',
 
   // Offline
   offlineMode: 'Offline-Modus — Daten aus Cache',
