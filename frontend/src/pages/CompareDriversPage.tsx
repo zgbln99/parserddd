@@ -544,7 +544,7 @@ export function CompareDriversPage() {
                             <span className="font-semibold text-emerald-600 dark:text-emerald-400">{sh.start}</span>
                             <span className="text-gray-300 dark:text-gray-600">→</span>
                             <span className="font-semibold text-rose-500 dark:text-rose-400">{sh.end}</span>
-                            <span className="text-gray-500">{sh.duration_hm}</span>
+                            <span className="text-muted dark:text-muted-dark">{sh.duration_hm}</span>
                           </div>
                         </div>
                       );
@@ -635,7 +635,7 @@ export function CompareDriversPage() {
             </button>
             <button
               onClick={handlePrint}
-              className="flex min-h-[44px] items-center gap-2 rounded-xl border border-white/30 dark:border-white/10 px-5 py-2.5 text-sm font-semibold text-gray-600 transition hover:bg-black/[0.03] dark:text-muted dark:text-muted-dark dark:hover:bg-white/5"
+              className="flex min-h-[44px] items-center gap-2 rounded-xl border border-border dark:border-border-dark px-5 py-2.5 text-sm font-semibold text-muted dark:text-muted-dark transition hover:bg-surface dark:hover:bg-surface-dark"
             >
               <Printer size={16} />
               {t('comparePrint')}
