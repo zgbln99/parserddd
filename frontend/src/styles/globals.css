@@ -19,8 +19,13 @@
   --animate-fade-in: fade-in 0.4s ease-out;
   --animate-slide-up: slide-up 0.4s cubic-bezier(0.16, 1, 0.3, 1);
   --animate-slide-in-right: slide-in-right 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-slide-out-right: slide-out-right 0.25s cubic-bezier(0.4, 0, 1, 1) forwards;
   --animate-scale-in: scale-in 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   --animate-glow-pulse: glow-pulse 3s ease-in-out infinite;
+  --animate-float: float 6s ease-in-out infinite;
+  --animate-shimmer: shimmer 2s linear infinite;
+  --animate-border-dance: border-dance 4s linear infinite;
+  --animate-toast-progress: toast-progress 4s linear forwards;
 }
 
 @custom-variant dark (&:where(.dark, .dark *));
@@ -40,6 +45,11 @@
   to { opacity: 1; transform: translateX(0); }
 }
 
+@keyframes slide-out-right {
+  from { opacity: 1; transform: translateX(0); }
+  to { opacity: 0; transform: translateX(16px); }
+}
+
 @keyframes scale-in {
   from { opacity: 0; transform: scale(0.92); }
   to { opacity: 1; transform: scale(1); }
@@ -48,6 +58,33 @@
 @keyframes glow-pulse {
   0%, 100% { opacity: 0.4; }
   50% { opacity: 0.8; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  33% { transform: translateY(-12px) rotate(1deg); }
+  66% { transform: translateY(6px) rotate(-1deg); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes border-dance {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes toast-progress {
+  from { width: 100%; }
+  to { width: 0%; }
+}
+
+@keyframes upload-dash {
+  0% { stroke-dashoffset: 0; }
+  100% { stroke-dashoffset: 24; }
 }
 
 /* --- BASE --- */
@@ -64,6 +101,16 @@ body {
 
 .dark {
   color-scheme: dark;
+}
+
+/* Branded text selection */
+::selection {
+  background: rgba(59, 130, 246, 0.2);
+  color: inherit;
+}
+
+.dark ::selection {
+  background: rgba(96, 165, 250, 0.25);
 }
 
 /* --- GLASSMORPHISM UTILITIES --- */
@@ -185,6 +232,15 @@ body {
 }
 
 /* --- SCROLLBAR --- */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(156, 163, 175, 0.25) transparent;
+}
+
+.dark * {
+  scrollbar-color: rgba(75, 85, 99, 0.3) transparent;
+}
+
 ::-webkit-scrollbar {
   width: 5px;
   height: 5px;
@@ -283,4 +339,91 @@ body {
 
 .dark .glass-table td {
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+/* --- SHIMMER SKELETON --- */
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(0, 0, 0, 0.06) 25%,
+    rgba(0, 0, 0, 0.1) 50%,
+    rgba(0, 0, 0, 0.06) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2s linear infinite;
+}
+
+.dark .skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.04) 25%,
+    rgba(255, 255, 255, 0.08) 50%,
+    rgba(255, 255, 255, 0.04) 75%
+  );
+  background-size: 200% 100%;
+}
+
+/* --- UPLOAD ZONE --- */
+.upload-zone {
+  position: relative;
+  overflow: hidden;
+}
+
+.upload-zone::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 2px;
+  background: linear-gradient(90deg, rgba(59,130,246,0.3), rgba(139,92,246,0.3), rgba(236,72,153,0.3), rgba(59,130,246,0.3));
+  background-size: 300% 100%;
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.upload-zone:hover::before,
+.upload-zone.dragging::before {
+  opacity: 1;
+  animation: border-dance 4s linear infinite;
+}
+
+/* --- TOAST PROGRESS BAR --- */
+.toast-progress {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 2px;
+  border-radius: 0 0 0.75rem 0.75rem;
+  animation: toast-progress 4s linear forwards;
+}
+
+/* --- BUTTON PRESS --- */
+.btn-press {
+  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.btn-press:active {
+  transform: scale(0.97);
+}
+
+/* --- GRADIENT BUTTON --- */
+.btn-gradient {
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-gradient::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(rgba(255,255,255,0) 0%, rgba(255,255,255,0.1) 100%);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.btn-gradient:hover::after {
+  opacity: 1;
 }

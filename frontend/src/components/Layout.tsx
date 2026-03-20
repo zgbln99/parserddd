@@ -107,7 +107,7 @@ export function Layout({ children }: { children: ReactNode }) {
                 onClick={() => setSidebarOpen(false)}
                 className={({ isActive }) =>
                   clsx(
-                    'group flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium transition-all duration-150',
+                    'group relative flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium transition-all duration-150',
                     isActive
                       ? 'bg-blue-50 text-blue-700 dark:bg-white/10 dark:text-white'
                       : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900 dark:text-slate-400 dark:hover:bg-white/[0.06] dark:hover:text-slate-200',
@@ -116,6 +116,9 @@ export function Layout({ children }: { children: ReactNode }) {
               >
                 {({ isActive }) => (
                   <>
+                    {isActive && (
+                      <div className="absolute left-0 top-1/2 -translate-y-1/2 h-6 w-[3px] rounded-r-full bg-blue-600 dark:bg-blue-400 shadow-sm shadow-blue-600/50 dark:shadow-blue-400/50" />
+                    )}
                     <div className={clsx(
                       'flex h-8 w-8 items-center justify-center rounded-lg transition-colors',
                       isActive

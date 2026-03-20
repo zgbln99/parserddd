@@ -160,9 +160,9 @@ export function ReaderPage() {
       {/* Upload zone */}
       {!result && !loading && (
         <Card
-          className={`cursor-pointer border-2 border-dashed transition ${
+          className={`upload-zone cursor-pointer border-2 border-dashed transition ${
             dragging
-              ? 'border-primary-400 bg-primary-50 dark:border-primary-500 dark:bg-primary-900/20'
+              ? 'dragging border-primary-400 bg-primary-50/50 dark:border-primary-500 dark:bg-primary-900/20'
               : 'border-white/30 hover:border-primary-300 dark:border-white/10 dark:hover:border-primary-600'
           }`}
           onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
@@ -170,13 +170,15 @@ export function ReaderPage() {
           onDrop={onDrop}
           onClick={() => fileRef.current?.click()}
         >
-          <div className="flex flex-col items-center gap-3 py-16">
-            <div className="rounded-2xl bg-primary-50 p-4 dark:bg-primary-900/20">
-              <Upload size={32} className="text-primary-500" />
+          <div className="flex flex-col items-center gap-4 py-16">
+            <div className={`rounded-2xl bg-gradient-to-br from-primary-50 to-primary-100 p-5 shadow-lg shadow-primary-500/10 transition-transform duration-300 dark:from-primary-900/30 dark:to-primary-800/20 ${dragging ? 'scale-110' : 'hover:scale-105'}`}>
+              <Upload size={36} className={`text-primary-500 transition-transform duration-300 ${dragging ? 'animate-bounce' : ''}`} />
             </div>
-            <p className="text-sm font-medium text-gray-600 dark:text-gray-400">{t('readerDropHint')}</p>
-            <p className="text-xs text-gray-400">{t('readerSelectFile')}</p>
-            <button className="mt-2 rounded-xl bg-primary-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-primary-700 dark:bg-primary-500">
+            <div className="text-center">
+              <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">{t('readerDropHint')}</p>
+              <p className="mt-1 text-xs text-gray-400">{t('readerSelectFile')}</p>
+            </div>
+            <button className="btn-press mt-1 rounded-xl bg-gradient-to-r from-primary-500 to-primary-600 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-primary-500/25 transition hover:shadow-primary-500/40 dark:from-primary-500 dark:to-primary-600">
               {t('readerUploadBtn')}
             </button>
           </div>
@@ -234,7 +236,7 @@ export function ReaderPage() {
               ) : (
                 <button
                   onClick={openSaveModal}
-                  className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:brightness-110"
+                  className="btn-press flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-500/25 transition hover:shadow-xl hover:shadow-blue-500/40"
                 >
                   <FolderUp size={14} />
                   {t('readerSaveToDropbox')}

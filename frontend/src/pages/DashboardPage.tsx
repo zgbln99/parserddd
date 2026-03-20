@@ -111,7 +111,7 @@ export function DashboardPage() {
         <p>{error}</p>
         <button
           onClick={() => { setError(''); loadDashboard(); }}
-          className="mt-2 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 px-4 py-2 min-h-[44px] text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:brightness-110"
+          className="btn-press mt-2 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 px-4 py-2 min-h-[44px] text-sm font-semibold text-white shadow-lg shadow-blue-500/25 transition hover:shadow-xl hover:shadow-blue-500/40"
         >
           {t('tryAgain')}
         </button>

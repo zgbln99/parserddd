@@ -8,6 +8,7 @@ interface Toast {
   id: number;
   message: string;
   type: ToastType;
+  exiting?: boolean;
 }
 
 interface ToastContextValue {
@@ -20,20 +21,24 @@ const ToastContext = createContext<ToastContextValue>({
 
 let nextId = 0;
 
+const DURATION = 4000;
+const EXIT_DURATION = 250;
+
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
+
+  const dismiss = useCallback((id: number) => {
+    setToasts((prev) => prev.map((t) => t.id === id ? { ...t, exiting: true } : t));
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, EXIT_DURATION);
+  }, []);
 
   const addToast = useCallback((message: string, type: ToastType = 'info') => {
     const id = ++nextId;
     setToasts((prev) => [...prev, { id, message, type }]);
-    setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 4000);
-  }, []);
-
-  const dismiss = useCallback((id: number) => {
-    setToasts((prev) => prev.filter((t) => t.id !== id));
-  }, []);
+    setTimeout(() => dismiss(id), DURATION);
+  }, [dismiss]);
 
   const icons: Record<ToastType, ReactNode> = {
     success: <CheckCircle size={18} className="text-emerald-500 shrink-0" />,
@@ -47,6 +52,12 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     info: 'border-blue-200 dark:border-blue-800',
   };
 
+  const progressColors: Record<ToastType, string> = {
+    success: 'bg-emerald-500',
+    error: 'bg-rose-500',
+    info: 'bg-blue-500',
+  };
+
   return (
     <ToastContext.Provider value={{ toast: addToast }}>
       {children}
@@ -56,8 +67,9 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           <div
             key={t.id}
             className={clsx(
-              'flex items-center gap-3 rounded-xl border bg-white/95 px-4 py-3 shadow-lg backdrop-blur-sm dark:bg-slate-800/95 animate-slide-up',
+              'relative flex items-center gap-3 rounded-xl border bg-white/95 px-4 py-3 shadow-lg backdrop-blur-sm dark:bg-slate-800/95 overflow-hidden',
               styles[t.type],
+              t.exiting ? 'animate-slide-out-right' : 'animate-slide-up',
             )}
           >
             {icons[t.type]}
@@ -68,6 +80,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             >
               <X size={14} />
             </button>
+            {/* Progress bar */}
+            <div className={clsx('toast-progress', progressColors[t.type])} />
           </div>
         ))}
       </div>

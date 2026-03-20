@@ -41,8 +41,17 @@ export function StatCard({
     red: 'from-rose-500 to-rose-600 shadow-rose-200 dark:shadow-rose-900/30',
   };
 
+  const topAccent: Record<string, string> = {
+    primary: 'from-blue-400 via-blue-500 to-blue-600',
+    green: 'from-emerald-400 via-emerald-500 to-emerald-600',
+    orange: 'from-amber-400 via-amber-500 to-amber-600',
+    red: 'from-rose-400 via-rose-500 to-rose-600',
+  };
+
   return (
-    <Card className="p-5">
+    <Card className="relative overflow-hidden p-5">
+      {/* Top gradient accent line */}
+      <div className={clsx('absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r', topAccent[color])} />
       <div className="flex items-center gap-4">
         {icon && (
           <div className={clsx(
