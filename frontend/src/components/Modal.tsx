@@ -32,16 +32,16 @@ export function Modal({ open, onClose, title, children, wide }: ModalProps) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4 pt-4 sm:pt-[8vh] backdrop-blur-md animate-fade-in"
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/30 p-4 pt-4 sm:pt-[8vh] animate-fade-in"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className={`relative w-full max-w-[calc(100%-2rem)] ${wide ? 'sm:max-w-5xl' : 'sm:max-w-3xl'} mb-12 glass-card rounded-2xl animate-scale-in`}>
+      <div className={`relative w-full max-w-[calc(100%-2rem)] ${wide ? 'sm:max-w-5xl' : 'sm:max-w-3xl'} mb-12 card rounded-2xl animate-scale-in`}>
         {title && (
-          <div className="flex items-center justify-between border-b border-white/20 px-4 py-3 sm:px-6 sm:py-4 dark:border-white/5">
-            <h3 className="text-base sm:text-lg font-bold truncate mr-2">{title}</h3>
+          <div className="flex items-center justify-between border-b border-border px-4 py-3 sm:px-6 sm:py-4 dark:border-border-dark">
+            <h3 className="text-base sm:text-lg font-bold truncate mr-2 text-ink dark:text-ink-dark">{title}</h3>
             <button
               onClick={onClose}
-              className="shrink-0 rounded-xl min-h-[44px] min-w-[44px] flex items-center justify-center text-gray-400 transition-all hover:bg-black/5 hover:text-gray-600 dark:hover:bg-white/5 dark:hover:text-gray-300"
+              className="shrink-0 rounded-lg min-h-[44px] min-w-[44px] flex items-center justify-center text-muted transition-all hover:bg-surface hover:text-ink dark:text-muted-dark dark:hover:bg-surface-dark dark:hover:text-ink-dark"
             >
               <X size={18} />
             </button>

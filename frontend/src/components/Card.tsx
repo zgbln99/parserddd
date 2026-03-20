@@ -3,7 +3,7 @@ import { clsx } from 'clsx';
 export function Card({ children, className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={clsx('glass-card rounded-2xl', className)}
+      className={clsx('card', className)}
       {...props}
     >
       {children}
@@ -13,7 +13,7 @@ export function Card({ children, className, ...props }: React.HTMLAttributes<HTM
 
 export function CardHeader({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={clsx('border-b border-white/20 px-6 py-4 dark:border-white/5', className)}>
+    <div className={clsx('border-b border-border px-6 py-4 dark:border-border-dark', className)}>
       {children}
     </div>
   );
@@ -34,38 +34,38 @@ export function StatCard({
   icon?: React.ReactNode;
   color?: 'primary' | 'green' | 'orange' | 'red';
 }) {
-  const iconBg: Record<string, string> = {
-    primary: 'from-blue-500 to-blue-600 shadow-blue-200 dark:shadow-blue-900/30',
-    green: 'from-emerald-500 to-emerald-600 shadow-emerald-200 dark:shadow-emerald-900/30',
-    orange: 'from-amber-500 to-amber-600 shadow-amber-200 dark:shadow-amber-900/30',
-    red: 'from-rose-500 to-rose-600 shadow-rose-200 dark:shadow-rose-900/30',
+  const iconStyles: Record<string, string> = {
+    primary: 'bg-primary-50 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400',
+    green: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400',
+    orange: 'bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400',
+    red: 'bg-rose-50 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400',
   };
 
-  const topAccent: Record<string, string> = {
-    primary: 'from-blue-400 via-blue-500 to-blue-600',
-    green: 'from-emerald-400 via-emerald-500 to-emerald-600',
-    orange: 'from-amber-400 via-amber-500 to-amber-600',
-    red: 'from-rose-400 via-rose-500 to-rose-600',
+  const accentColors: Record<string, string> = {
+    primary: 'bg-primary-500',
+    green: 'bg-emerald-500',
+    orange: 'bg-amber-500',
+    red: 'bg-rose-500',
   };
 
   return (
     <Card className="relative overflow-hidden p-5">
-      {/* Top gradient accent line */}
-      <div className={clsx('absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r', topAccent[color])} />
-      <div className="flex items-center gap-4">
+      {/* Left accent bar */}
+      <div className={clsx('absolute left-0 top-3 bottom-3 w-[3px] rounded-r-full', accentColors[color])} />
+      <div className="flex items-center gap-4 pl-2">
         {icon && (
           <div className={clsx(
-            'flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br text-white shadow-lg',
-            iconBg[color],
+            'flex h-11 w-11 items-center justify-center rounded-xl',
+            iconStyles[color],
           )}>
             {icon}
           </div>
         )}
         <div className="min-w-0">
-          <p className="truncate text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+          <p className="truncate text-xs font-semibold uppercase tracking-wider text-muted dark:text-muted-dark">
             {label}
           </p>
-          <p className="mt-1 text-2xl font-bold tracking-tight">{value}</p>
+          <p className="mt-1 text-2xl font-bold tracking-tight text-ink dark:text-ink-dark">{value}</p>
         </div>
       </div>
     </Card>

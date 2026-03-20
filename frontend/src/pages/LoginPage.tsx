@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useI18n } from '../i18n';
 import { useTheme } from '../hooks/useTheme';
-import { Sun, Moon, Globe, Lock } from 'lucide-react';
+import { Sun, Moon, Globe, Lock, Truck } from 'lucide-react';
 import type { Locale } from '../i18n';
 import { Spinner } from '../components/Spinner';
 
@@ -28,27 +28,25 @@ export function LoginPage() {
   };
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden p-4">
-      {/* Animated gradient background */}
-      <div className="pointer-events-none fixed inset-0 bg-mesh" />
+    <div className="relative flex min-h-screen items-center justify-center p-4 bg-surface dark:bg-surface-dark">
+      {/* Subtle background decoration */}
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
-        <div className="absolute -right-32 -top-32 h-[500px] w-[500px] rounded-full bg-gradient-to-br from-blue-400/30 to-violet-400/30 blur-[100px] animate-float dark:from-blue-600/15 dark:to-violet-600/15" />
-        <div className="absolute -bottom-32 -left-32 h-[400px] w-[400px] rounded-full bg-gradient-to-tr from-pink-400/20 to-amber-400/20 blur-[100px] animate-float dark:from-pink-600/10 dark:to-amber-600/10" style={{ animationDelay: '2s' }} />
-        <div className="absolute left-1/2 top-1/2 h-[300px] w-[300px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-gradient-to-r from-cyan-400/10 to-blue-400/10 blur-[80px] animate-float dark:from-cyan-600/5 dark:to-blue-600/5" style={{ animationDelay: '4s' }} />
+        <div className="absolute -right-48 -top-48 h-[600px] w-[600px] rounded-full bg-primary-100/50 blur-[120px] dark:bg-primary-900/20" />
+        <div className="absolute -bottom-48 -left-48 h-[500px] w-[500px] rounded-full bg-accent-light/40 blur-[120px] dark:bg-accent/5" />
       </div>
 
       {/* Controls */}
       <div className="fixed right-4 top-4 z-10 flex items-center gap-1">
         <button
           onClick={() => setLocale(locale === 'pl' ? 'de' : 'pl' as Locale)}
-          className="flex items-center gap-1 rounded-xl px-2.5 py-1.5 text-xs font-medium text-gray-500 transition hover:bg-white/60 dark:text-gray-400 dark:hover:bg-white/5"
+          className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-muted transition hover:bg-card hover:text-ink dark:text-muted-dark dark:hover:bg-card-dark dark:hover:text-ink-dark"
         >
           <Globe size={14} />
           {locale === 'pl' ? 'DE' : 'PL'}
         </button>
         <button
           onClick={toggle}
-          className="rounded-xl p-2 text-gray-500 transition hover:bg-white/60 dark:text-gray-400 dark:hover:bg-white/5"
+          className="rounded-lg p-2 text-muted transition hover:bg-card hover:text-ink dark:text-muted-dark dark:hover:bg-card-dark dark:hover:text-ink-dark"
         >
           {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
         </button>
@@ -56,20 +54,20 @@ export function LoginPage() {
 
       <form
         onSubmit={handleSubmit}
-        className="relative w-[calc(100%-1rem)] sm:w-full max-w-sm glass-card rounded-3xl p-5 sm:p-8 animate-scale-in"
+        className="relative w-[calc(100%-1rem)] sm:w-full max-w-sm card rounded-2xl p-5 sm:p-8 animate-scale-in"
       >
         <div className="mb-8 text-center">
           {/* Icon */}
-          <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 via-blue-600 to-violet-600 shadow-xl shadow-blue-500/25 dark:shadow-blue-500/10">
-            <Lock size={32} className="text-white" />
+          <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary-600 text-white">
+            <Truck size={28} />
           </div>
           <img src="https://ltslog.de/logo.png" alt="LTS" className="mx-auto mb-3 h-10 dark:brightness-200 dark:contrast-50" />
-          <h1 className="text-xl font-bold tracking-tight">{t('loginTitle')}</h1>
-          <p className="mt-1.5 text-sm text-gray-500 dark:text-gray-400">{t('loginSubtitle')}</p>
+          <h1 className="text-xl font-bold tracking-tight text-ink dark:text-ink-dark">{t('loginTitle')}</h1>
+          <p className="mt-1.5 text-sm text-muted dark:text-muted-dark">{t('loginSubtitle')}</p>
         </div>
 
         {error && (
-          <div className="mb-4 animate-slide-up rounded-xl bg-rose-500/10 px-4 py-3 text-sm font-medium text-rose-600 ring-1 ring-rose-500/20 dark:text-rose-400">
+          <div className="mb-4 animate-slide-up rounded-lg bg-danger/5 px-4 py-3 text-sm font-medium text-danger border border-danger/15">
             {error}
           </div>
         )}
@@ -81,13 +79,13 @@ export function LoginPage() {
           placeholder={t('loginPlaceholder')}
           autoFocus
           required
-          className="glass-input mb-4 w-full rounded-xl px-4 py-3.5 text-sm outline-none"
+          className="input mb-4 w-full rounded-xl px-4 py-3.5 text-sm"
         />
 
         <button
           type="submit"
           disabled={loading}
-          className="btn-press flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-500 via-blue-600 to-violet-600 px-4 py-3.5 text-sm font-semibold text-white shadow-lg shadow-blue-500/25 transition-all duration-300 hover:shadow-xl hover:shadow-blue-500/40 disabled:opacity-50 dark:shadow-blue-500/10 dark:hover:shadow-blue-500/20"
+          className="btn-press flex w-full items-center justify-center gap-2 rounded-xl bg-primary-600 px-4 py-3.5 text-sm font-semibold text-white transition-all duration-200 hover:bg-primary-700 disabled:opacity-50"
         >
           {loading ? <Spinner size="sm" className="border-white/30 border-t-white" /> : t('login')}
         </button>

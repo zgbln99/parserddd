@@ -155,15 +155,15 @@ export function ReaderPage() {
 
   return (
     <div className="animate-slide-up">
-      <h1 className="mb-6 text-2xl font-bold tracking-tight">{t('readerTitle')}</h1>
+      <h1 className="mb-6 text-2xl font-bold tracking-tight text-ink dark:text-ink-dark">{t('readerTitle')}</h1>
 
       {/* Upload zone */}
       {!result && !loading && (
         <Card
-          className={`upload-zone cursor-pointer border-2 border-dashed transition ${
+          className={`cursor-pointer border-2 border-dashed transition-all duration-200 ${
             dragging
-              ? 'dragging border-primary-400 bg-primary-50/50 dark:border-primary-500 dark:bg-primary-900/20'
-              : 'border-white/30 hover:border-primary-300 dark:border-white/10 dark:hover:border-primary-600'
+              ? 'border-primary-400 bg-primary-50/50 dark:border-primary-500 dark:bg-primary-900/10'
+              : 'border-border hover:border-primary-300 dark:border-border-dark dark:hover:border-primary-600'
           }`}
           onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
           onDragLeave={() => setDragging(false)}
@@ -171,14 +171,14 @@ export function ReaderPage() {
           onClick={() => fileRef.current?.click()}
         >
           <div className="flex flex-col items-center gap-4 py-16">
-            <div className={`rounded-2xl bg-gradient-to-br from-primary-50 to-primary-100 p-5 shadow-lg shadow-primary-500/10 transition-transform duration-300 dark:from-primary-900/30 dark:to-primary-800/20 ${dragging ? 'scale-110' : 'hover:scale-105'}`}>
-              <Upload size={36} className={`text-primary-500 transition-transform duration-300 ${dragging ? 'animate-bounce' : ''}`} />
+            <div className={`rounded-2xl bg-primary-50 p-5 transition-transform duration-200 dark:bg-primary-900/20 ${dragging ? 'scale-110' : ''}`}>
+              <Upload size={32} className="text-primary-600 dark:text-primary-400" />
             </div>
             <div className="text-center">
-              <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">{t('readerDropHint')}</p>
-              <p className="mt-1 text-xs text-gray-400">{t('readerSelectFile')}</p>
+              <p className="text-sm font-semibold text-ink dark:text-ink-dark">{t('readerDropHint')}</p>
+              <p className="mt-1 text-xs text-muted dark:text-muted-dark">{t('readerSelectFile')}</p>
             </div>
-            <button className="btn-press mt-1 rounded-xl bg-gradient-to-r from-primary-500 to-primary-600 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-primary-500/25 transition hover:shadow-primary-500/40 dark:from-primary-500 dark:to-primary-600">
+            <button className="btn-press mt-1 rounded-xl bg-primary-600 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-primary-700">
               {t('readerUploadBtn')}
             </button>
           </div>
@@ -189,7 +189,7 @@ export function ReaderPage() {
       {/* Loading */}
       {loading && (
         <Card className="py-16">
-          <div className="flex flex-col items-center gap-3 text-gray-400">
+          <div className="flex flex-col items-center gap-3 text-muted dark:text-muted-dark">
             <Spinner size="lg" />
             <p className="text-sm font-medium">{t('readerAnalyzing')}</p>
           </div>
@@ -199,12 +199,12 @@ export function ReaderPage() {
       {/* Error */}
       {error && (
         <Card className="py-12">
-          <div className="flex flex-col items-center gap-3 text-rose-500">
+          <div className="flex flex-col items-center gap-3 text-danger">
             <AlertCircle size={32} />
             <p className="text-sm">{error}</p>
             <button
               onClick={() => { setError(''); setResult(null); }}
-              className="mt-2 rounded-xl border border-white/30 dark:border-white/10 px-4 py-2 text-sm font-medium"
+              className="mt-2 rounded-xl border border-border px-4 py-2 text-sm font-medium text-ink transition hover:bg-surface dark:border-border-dark dark:text-ink-dark dark:hover:bg-surface-dark"
             >
               {t('readerUploadBtn')}
             </button>
@@ -217,11 +217,11 @@ export function ReaderPage() {
         <div>
           <div className="mb-4 flex items-center justify-between">
             <div className="min-w-0">
-              <p className="truncate text-lg font-semibold text-gray-900 dark:text-gray-100">
+              <p className="truncate text-lg font-semibold text-ink dark:text-ink-dark">
                 {result.driver_info?.driver_name || result.source_file || t('analysisTitle')}
               </p>
               {result.source_file && result.driver_info?.driver_name && (
-                <div className="flex items-center gap-1.5 text-sm text-gray-500">
+                <div className="flex items-center gap-1.5 text-sm text-muted dark:text-muted-dark">
                   <FileText size={14} />
                   {result.source_file}
                 </div>
@@ -229,14 +229,14 @@ export function ReaderPage() {
             </div>
             <div className="flex items-center gap-2">
               {saved ? (
-                <span className="flex items-center gap-1.5 text-sm font-medium text-emerald-600 dark:text-emerald-400">
+                <span className="flex items-center gap-1.5 text-sm font-medium text-success">
                   <Check size={16} />
                   {t('readerSaved')}
                 </span>
               ) : (
                 <button
                   onClick={openSaveModal}
-                  className="btn-press flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-500/25 transition hover:shadow-xl hover:shadow-blue-500/40"
+                  className="btn-press flex items-center gap-2 rounded-xl bg-primary-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary-700"
                 >
                   <FolderUp size={14} />
                   {t('readerSaveToDropbox')}
@@ -244,7 +244,7 @@ export function ReaderPage() {
               )}
               <button
                 onClick={() => { setResult(null); setError(''); setSaved(false); setOriginalFile(null); }}
-                className="rounded-xl border border-white/30 dark:border-white/10 px-4 py-2 text-sm font-medium transition hover:bg-black/[0.03] dark:hover:bg-white/5"
+                className="rounded-xl border border-border px-4 py-2 text-sm font-medium text-ink transition hover:bg-surface dark:border-border-dark dark:text-ink-dark dark:hover:bg-surface-dark"
               >
                 {t('readerUploadBtn')}
               </button>
@@ -264,7 +264,7 @@ export function ReaderPage() {
             <button
               onClick={() => setActiveFileIndex(Math.max(0, activeFileIndex - 1))}
               disabled={activeFileIndex === 0}
-              className="rounded-lg p-2 text-gray-500 transition hover:bg-black/5 disabled:opacity-30 dark:hover:bg-white/5"
+              className="rounded-lg p-2 text-muted transition hover:bg-surface disabled:opacity-30 dark:text-muted-dark dark:hover:bg-surface-dark"
             >
               <ChevronLeft size={16} />
             </button>
@@ -274,33 +274,33 @@ export function ReaderPage() {
                 onClick={() => setActiveFileIndex(i)}
                 className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${
                   i === activeFileIndex
-                    ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400'
+                    ? 'bg-primary-600 text-white'
                     : fr.error
-                    ? 'text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/10'
+                    ? 'text-danger hover:bg-danger/5'
                     : fr.loading
-                    ? 'text-gray-400'
-                    : 'text-gray-600 hover:bg-black/5 dark:text-gray-400 dark:hover:bg-white/5'
+                    ? 'text-muted dark:text-muted-dark'
+                    : 'text-ink hover:bg-surface dark:text-ink-dark dark:hover:bg-surface-dark'
                 }`}
               >
                 {fr.loading ? <Spinner size="sm" /> : null}
                 {fr.file.name.replace('.ddd', '')}
-                {fr.result && <Check size={12} className="ml-1 inline text-emerald-500" />}
-                {fr.error && <AlertCircle size={12} className="ml-1 inline text-rose-500" />}
+                {fr.result && <Check size={12} className="ml-1 inline text-success" />}
+                {fr.error && <AlertCircle size={12} className="ml-1 inline text-danger" />}
               </button>
             ))}
             <button
               onClick={() => setActiveFileIndex(Math.min(multiResults.length - 1, activeFileIndex + 1))}
               disabled={activeFileIndex >= multiResults.length - 1}
-              className="rounded-lg p-2 text-gray-500 transition hover:bg-black/5 disabled:opacity-30 dark:hover:bg-white/5"
+              className="rounded-lg p-2 text-muted transition hover:bg-surface disabled:opacity-30 dark:text-muted-dark dark:hover:bg-surface-dark"
             >
               <ChevronRight size={16} />
             </button>
-            <span className="ml-auto text-xs text-gray-400">
+            <span className="ml-auto text-xs text-muted dark:text-muted-dark">
               {activeFileIndex + 1} / {multiResults.length}
             </span>
             <button
               onClick={() => { setMultiResults([]); setResult(null); setError(''); setSaved(false); setOriginalFile(null); }}
-              className="rounded-xl border border-white/30 dark:border-white/10 px-3 py-1.5 text-xs font-medium transition hover:bg-black/[0.03] dark:hover:bg-white/5"
+              className="rounded-xl border border-border px-3 py-1.5 text-xs font-medium text-ink transition hover:bg-surface dark:border-border-dark dark:text-ink-dark dark:hover:bg-surface-dark"
             >
               {t('readerUploadBtn')}
             </button>
@@ -309,7 +309,7 @@ export function ReaderPage() {
           {/* Active file result */}
           {multiResults[activeFileIndex]?.loading && (
             <Card className="py-16">
-              <div className="flex flex-col items-center gap-3 text-gray-400">
+              <div className="flex flex-col items-center gap-3 text-muted dark:text-muted-dark">
                 <Spinner size="lg" />
                 <p className="text-sm font-medium">{t('readerAnalyzing')}</p>
               </div>
@@ -317,7 +317,7 @@ export function ReaderPage() {
           )}
           {multiResults[activeFileIndex]?.error && (
             <Card className="py-12">
-              <div className="flex flex-col items-center gap-3 text-rose-500">
+              <div className="flex flex-col items-center gap-3 text-danger">
                 <AlertCircle size={32} />
                 <p className="text-sm">{multiResults[activeFileIndex].error}</p>
               </div>
@@ -340,54 +340,54 @@ export function ReaderPage() {
       {/* Save to Dropbox modal */}
       <Modal open={showSaveModal} onClose={() => setShowSaveModal(false)} title={t('readerSaveToDropbox')}>
         <div className="space-y-4">
-          <p className="text-sm text-gray-500">{t('readerSelectDriver')}</p>
+          <p className="text-sm text-muted dark:text-muted-dark">{t('readerSelectDriver')}</p>
 
           <div className="relative">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted dark:text-muted-dark" />
             <input
               type="text"
               value={driverSearch}
               onChange={(e) => setDriverSearch(e.target.value)}
               placeholder={t('driversSearch')}
-              className="glass-input w-full rounded-xl py-2 pl-9 pr-3 text-sm outline-none"
+              className="input w-full rounded-xl py-2 pl-9 pr-3 text-sm"
             />
           </div>
 
           {driversLoading ? (
             <div className="flex justify-center py-6"><Spinner /></div>
           ) : (
-            <div className="max-h-[300px] overflow-y-auto rounded-lg border border-white/20 dark:border-white/5">
+            <div className="max-h-[300px] overflow-y-auto rounded-lg border border-border dark:border-border-dark">
               {filteredDrivers.map((d) => (
                 <div
                   key={d.name}
                   onClick={() => setSelectedDriverName(d.name)}
-                  className={`cursor-pointer px-4 py-2.5 text-sm transition hover:bg-blue-50 dark:hover:bg-blue-900/10 ${
-                    selectedDriverName === d.name ? 'bg-blue-50 font-semibold text-blue-700 dark:bg-blue-900/20 dark:text-blue-400' : ''
+                  className={`cursor-pointer px-4 py-2.5 text-sm transition hover:bg-primary-50 dark:hover:bg-primary-900/10 ${
+                    selectedDriverName === d.name ? 'bg-primary-50 font-semibold text-primary-700 dark:bg-primary-900/20 dark:text-primary-400' : 'text-ink dark:text-ink-dark'
                   }`}
                 >
                   {d.name}
-                  {d.card_number && <span className="ml-2 text-xs text-gray-400">{d.card_number}</span>}
+                  {d.card_number && <span className="ml-2 text-xs text-muted dark:text-muted-dark">{d.card_number}</span>}
                 </div>
               ))}
               {filteredDrivers.length === 0 && (
-                <p className="py-6 text-center text-sm text-gray-400">{t('noData')}</p>
+                <p className="py-6 text-center text-sm text-muted dark:text-muted-dark">{t('noData')}</p>
               )}
             </div>
           )}
 
-          {saveError && <p className="text-sm text-rose-500">{saveError}</p>}
+          {saveError && <p className="text-sm text-danger">{saveError}</p>}
 
           <div className="flex justify-end gap-2">
             <button
               onClick={() => setShowSaveModal(false)}
-              className="rounded-lg border border-white/30 dark:border-white/10 px-4 py-2 text-sm font-medium transition hover:bg-black/[0.03] dark:hover:bg-white/5"
+              className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-ink transition hover:bg-surface dark:border-border-dark dark:text-ink-dark dark:hover:bg-surface-dark"
             >
               {t('cancel')}
             </button>
             <button
               onClick={handleSaveToDropbox}
               disabled={!selectedDriverName || saving}
-              className="rounded-lg bg-gradient-to-r from-blue-500 to-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:brightness-110 disabled:opacity-50"
+              className="btn-press rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary-700 disabled:opacity-50"
             >
               {saving ? t('loading') : t('readerSaveConfirm')}
             </button>

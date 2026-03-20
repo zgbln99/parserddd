@@ -18,31 +18,31 @@ const REFRESH_INTERVAL = 60_000; // 60 seconds
 const MAX_VISIBLE = 10;
 
 function daysColor(days: number | null): string {
-  if (days === null) return 'text-rose-500';
-  if (days > 30) return 'text-rose-500';
-  if (days > 14) return 'text-amber-500';
-  if (days > 7) return 'text-yellow-500 dark:text-yellow-400';
-  return 'text-emerald-600 dark:text-emerald-400';
+  if (days === null) return 'text-danger';
+  if (days > 30) return 'text-danger';
+  if (days > 14) return 'text-warning';
+  if (days > 7) return 'text-amber-500';
+  return 'text-success';
 }
 
 function daysBg(days: number | null): string {
-  if (days === null) return 'bg-rose-500/5 dark:bg-rose-500/5';
-  if (days > 30) return 'bg-rose-500/5 dark:bg-rose-500/5';
-  if (days > 14) return 'bg-amber-500/5 dark:bg-amber-500/5';
+  if (days === null) return 'bg-danger/[0.03]';
+  if (days > 30) return 'bg-danger/[0.03]';
+  if (days > 14) return 'bg-warning/[0.03]';
   return '';
 }
 
 function expiryColor(daysLeft: number): string {
-  if (daysLeft < 0) return 'text-rose-600 dark:text-rose-400';
-  if (daysLeft <= 30) return 'text-rose-500';
-  if (daysLeft <= 90) return 'text-amber-500';
-  return 'text-emerald-600 dark:text-emerald-400';
+  if (daysLeft < 0) return 'text-danger';
+  if (daysLeft <= 30) return 'text-danger';
+  if (daysLeft <= 90) return 'text-warning';
+  return 'text-success';
 }
 
 function expiryBg(daysLeft: number): string {
-  if (daysLeft < 0) return 'bg-rose-500/5 dark:bg-rose-500/5';
-  if (daysLeft <= 30) return 'bg-rose-500/5 dark:bg-rose-500/5';
-  if (daysLeft <= 90) return 'bg-amber-500/5 dark:bg-amber-500/5';
+  if (daysLeft < 0) return 'bg-danger/[0.03]';
+  if (daysLeft <= 30) return 'bg-danger/[0.03]';
+  if (daysLeft <= 90) return 'bg-warning/[0.03]';
   return '';
 }
 
@@ -106,12 +106,12 @@ export function DashboardPage() {
 
   if (error) {
     return (
-      <div className="flex flex-col items-center gap-3 py-20 text-rose-500 animate-fade-in">
+      <div className="flex flex-col items-center gap-3 py-20 text-danger animate-fade-in">
         <AlertCircle size={32} />
         <p>{error}</p>
         <button
           onClick={() => { setError(''); loadDashboard(); }}
-          className="btn-press mt-2 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 px-4 py-2 min-h-[44px] text-sm font-semibold text-white shadow-lg shadow-blue-500/25 transition hover:shadow-xl hover:shadow-blue-500/40"
+          className="btn-press mt-2 rounded-xl bg-primary-600 px-4 py-2 min-h-[44px] text-sm font-semibold text-white transition hover:bg-primary-700"
         >
           {t('tryAgain')}
         </button>
@@ -141,7 +141,7 @@ export function DashboardPage() {
 
   return (
     <div className="animate-slide-up">
-      <h1 className="mb-6 text-2xl font-bold tracking-tight">{t('dashTitle')}</h1>
+      <h1 className="mb-6 text-2xl font-bold tracking-tight text-ink dark:text-ink-dark">{t('dashTitle')}</h1>
 
       {/* Stats */}
       <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -176,11 +176,11 @@ export function DashboardPage() {
 
         {/* Stale drivers */}
         <Card className="p-0 overflow-hidden">
-          <div className="flex items-center gap-2 border-b border-white/20 px-5 py-4 dark:border-white/5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 shadow-md shadow-amber-500/20">
-              <Clock size={16} className="text-white" />
+          <div className="flex items-center gap-3 border-b border-border px-5 py-4 dark:border-border-dark">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-warning/10 text-warning">
+              <Clock size={16} />
             </div>
-            <h3 className="text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+            <h3 className="text-sm font-semibold uppercase tracking-wider text-muted dark:text-muted-dark">
               {t('dashStaleDrivers')}
             </h3>
             {overdueCount > 0 && (
@@ -188,36 +188,36 @@ export function DashboardPage() {
             )}
           </div>
           {staleDrivers.length === 0 ? (
-            <p className="px-5 py-8 text-center text-sm text-gray-400">{t('dashNoStale')}</p>
+            <p className="px-5 py-8 text-center text-sm text-muted dark:text-muted-dark">{t('dashNoStale')}</p>
           ) : (
             <div>
-              <div className="divide-y divide-black/[0.03] dark:divide-white/[0.03]">
+              <div className="divide-y divide-border dark:divide-border-dark">
                 {visibleStale.map((d) => (
                   <Link
                     key={d.card_number || d.name}
                     to="/drivers"
-                    className={`flex items-center gap-3 px-5 py-3 min-h-[44px] transition-colors hover:bg-blue-500/5 ${daysBg(d.days_since)}`}
+                    className={`flex items-center gap-3 px-5 py-3 min-h-[44px] transition-colors hover:bg-primary-50 dark:hover:bg-primary-900/10 ${daysBg(d.days_since)}`}
                   >
                     <div className="flex-1 min-w-0">
-                      <p className="truncate text-sm font-medium">{d.name}</p>
+                      <p className="truncate text-sm font-medium text-ink dark:text-ink-dark">{d.name}</p>
                       {d.card_number && (
-                        <p className="truncate text-xs text-gray-400">{d.card_number}</p>
+                        <p className="truncate text-xs text-muted dark:text-muted-dark">{d.card_number}</p>
                       )}
                     </div>
                     <div className="shrink-0 text-right">
                       <span className={`text-sm font-bold tabular-nums ${daysColor(d.days_since)}`}>
                         {d.days_since === null ? '—' : d.days_since}
                       </span>
-                      <p className="text-xs text-gray-400">{t('dashDaysSince')}</p>
+                      <p className="text-xs text-muted dark:text-muted-dark">{t('dashDaysSince')}</p>
                     </div>
                   </Link>
                 ))}
               </div>
               {staleDrivers.length > MAX_VISIBLE && (
-                <div className="border-t border-white/20 px-5 py-3 dark:border-white/5">
+                <div className="border-t border-border px-5 py-3 dark:border-border-dark">
                   <button
                     onClick={() => setShowAllStale(!showAllStale)}
-                    className="flex w-full items-center justify-center gap-1 min-h-[44px] text-xs font-medium text-blue-600 transition hover:text-blue-700 dark:text-blue-400"
+                    className="flex w-full items-center justify-center gap-1 min-h-[44px] text-xs font-semibold text-primary-600 transition hover:text-primary-700 dark:text-primary-400"
                   >
                     {showAllStale
                       ? t('close')
@@ -233,11 +233,11 @@ export function DashboardPage() {
 
         {/* Expiring cards */}
         <Card className="p-0 overflow-hidden">
-          <div className="flex items-center gap-2 border-b border-white/20 px-5 py-4 dark:border-white/5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-rose-500 to-pink-600 shadow-md shadow-rose-500/20">
-              <CreditCard size={16} className="text-white" />
+          <div className="flex items-center gap-2 border-b border-border px-5 py-4 dark:border-border-dark">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-danger/10 text-danger">
+              <CreditCard size={16} />
             </div>
-            <h3 className="flex-1 text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+            <h3 className="flex-1 text-sm font-semibold uppercase tracking-wider text-muted dark:text-muted-dark">
               {t('dashExpiringCards')}
             </h3>
             {expiringCritical > 0 && (
@@ -246,7 +246,7 @@ export function DashboardPage() {
             <button
               onClick={handleScanExpiry}
               disabled={scanning}
-              className="flex items-center gap-1.5 rounded-lg border border-white/30 px-3 py-1.5 min-h-[44px] text-xs font-medium text-gray-600 transition hover:bg-white/40 disabled:opacity-50 dark:border-white/10 dark:text-gray-400 dark:hover:bg-white/5"
+              className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 min-h-[44px] text-xs font-medium text-muted transition hover:border-primary-300 hover:text-ink disabled:opacity-50 dark:border-border-dark dark:text-muted-dark dark:hover:border-primary-600 dark:hover:text-ink-dark"
             >
               {scanning ? <Spinner size="sm" /> : <RefreshCw size={12} />}
               {scanning ? t('loading') : t('dashScanCards')}
@@ -254,29 +254,29 @@ export function DashboardPage() {
           </div>
           {expiringCards.length === 0 ? (
             <div className="px-5 py-8 text-center">
-              <p className="text-sm text-gray-400">{t('dashNoExpiring')}</p>
+              <p className="text-sm text-muted dark:text-muted-dark">{t('dashNoExpiring')}</p>
             </div>
           ) : (
             <div>
-              <div className="divide-y divide-black/[0.03] dark:divide-white/[0.03]">
+              <div className="divide-y divide-border dark:divide-border-dark">
                 {visibleExpiring.map((c) => (
                   <div
                     key={c.card_number}
                     className={`flex items-center gap-3 px-5 py-3 min-h-[44px] ${expiryBg(c.days_left)}`}
                   >
                     <div className="flex-1 min-w-0">
-                      <p className="truncate text-sm font-medium">
+                      <p className="truncate text-sm font-medium text-ink dark:text-ink-dark">
                         {c.driver_name || c.card_number}
                       </p>
-                      <p className="truncate text-xs text-gray-400">
+                      <p className="truncate text-xs text-muted dark:text-muted-dark">
                         {t('dashCardExpiry')}: {formatDate(c.card_expiry_date, locale)}
                       </p>
                     </div>
                     <div className="shrink-0 text-right">
                       {c.days_left < 0 ? (
                         <div className="flex items-center gap-1">
-                          <AlertTriangle size={14} className="text-rose-500" />
-                          <span className="text-sm font-bold text-rose-600 dark:text-rose-400">
+                          <AlertTriangle size={14} className="text-danger" />
+                          <span className="text-sm font-bold text-danger">
                             {t('dashExpired')}
                           </span>
                         </div>
@@ -285,7 +285,7 @@ export function DashboardPage() {
                           <span className={`text-sm font-bold tabular-nums ${expiryColor(c.days_left)}`}>
                             {c.days_left}
                           </span>
-                          <p className="text-xs text-gray-400">{t('dashDaysLeft')}</p>
+                          <p className="text-xs text-muted dark:text-muted-dark">{t('dashDaysLeft')}</p>
                         </>
                       )}
                     </div>
@@ -293,10 +293,10 @@ export function DashboardPage() {
                 ))}
               </div>
               {expiringCards.length > MAX_VISIBLE && (
-                <div className="border-t border-white/20 px-5 py-3 dark:border-white/5">
+                <div className="border-t border-border px-5 py-3 dark:border-border-dark">
                   <button
                     onClick={() => setShowAllExpiring(!showAllExpiring)}
-                    className="flex w-full items-center justify-center gap-1 min-h-[44px] text-xs font-medium text-blue-600 transition hover:text-blue-700 dark:text-blue-400"
+                    className="flex w-full items-center justify-center gap-1 min-h-[44px] text-xs font-semibold text-primary-600 transition hover:text-primary-700 dark:text-primary-400"
                   >
                     {showAllExpiring
                       ? t('close')
@@ -315,37 +315,37 @@ export function DashboardPage() {
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
         {/* Sync info */}
         <Card className="p-4 sm:p-6">
-          <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+          <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-muted dark:text-muted-dark">
             {t('dashSyncStatus')}
           </h3>
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-600 dark:text-gray-400">{t('syncStatus')}</span>
+              <span className="text-sm text-muted dark:text-muted-dark">{t('syncStatus')}</span>
               {syncBadge}
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-600 dark:text-gray-400">{t('dashLastSync')}</span>
-              <span className="text-sm font-medium">{formatDateTime(data.last_sync, locale)}</span>
+              <span className="text-sm text-muted dark:text-muted-dark">{t('dashLastSync')}</span>
+              <span className="text-sm font-medium text-ink dark:text-ink-dark">{formatDateTime(data.last_sync, locale)}</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-600 dark:text-gray-400">{t('dashTotalSynced')}</span>
-              <span className="text-sm font-medium">{data.synced_count}</span>
+              <span className="text-sm text-muted dark:text-muted-dark">{t('dashTotalSynced')}</span>
+              <span className="text-sm font-medium text-ink dark:text-ink-dark">{data.synced_count}</span>
             </div>
           </div>
 
           {/* Connection status */}
           {connections && (
-            <div className="mt-4 border-t border-white/20 pt-4 dark:border-white/5">
+            <div className="mt-4 border-t border-border pt-4 dark:border-border-dark">
               <div className="space-y-2">
                 <div className="flex items-center gap-3 py-1">
-                  <Cloud size={18} className={connections.dropbox ? 'text-emerald-500' : 'text-rose-400'} />
-                  <span className="flex-1 text-sm">{connections.dropbox ? t('dropboxConnected') : t('dropboxDisconnected')}</span>
-                  <span className={`h-2.5 w-2.5 rounded-full shadow-sm ${connections.dropbox ? 'bg-emerald-500 shadow-emerald-500/50' : 'bg-rose-400 shadow-rose-400/50'}`} />
+                  <Cloud size={18} className={connections.dropbox ? 'text-success' : 'text-danger'} />
+                  <span className="flex-1 text-sm text-ink dark:text-ink-dark">{connections.dropbox ? t('dropboxConnected') : t('dropboxDisconnected')}</span>
+                  <span className={`h-2.5 w-2.5 rounded-full ${connections.dropbox ? 'bg-success' : 'bg-danger'}`} />
                 </div>
                 <div className="flex items-center gap-3 py-1">
-                  <Truck size={18} className={connections.samsara ? 'text-emerald-500' : 'text-rose-400'} />
-                  <span className="flex-1 text-sm">{connections.samsara ? t('samsaraConnected') : t('samsaraDisconnected')}</span>
-                  <span className={`h-2.5 w-2.5 rounded-full shadow-sm ${connections.samsara ? 'bg-emerald-500 shadow-emerald-500/50' : 'bg-rose-400 shadow-rose-400/50'}`} />
+                  <Truck size={18} className={connections.samsara ? 'text-success' : 'text-danger'} />
+                  <span className="flex-1 text-sm text-ink dark:text-ink-dark">{connections.samsara ? t('samsaraConnected') : t('samsaraDisconnected')}</span>
+                  <span className={`h-2.5 w-2.5 rounded-full ${connections.samsara ? 'bg-success' : 'bg-danger'}`} />
                 </div>
               </div>
             </div>
@@ -354,25 +354,25 @@ export function DashboardPage() {
 
         {/* Quick actions */}
         <Card className="p-4 sm:p-6">
-          <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+          <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-muted dark:text-muted-dark">
             {t('dashQuickActions')}
           </h3>
-          <div className="space-y-2">
+          <div className="space-y-1">
             {[
-              { to: '/drivers', label: t('dashViewDrivers'), icon: Users, gradient: 'from-blue-500 to-blue-600' },
-              { to: '/reader', label: t('dashOpenReader'), icon: FileText, gradient: 'from-violet-500 to-violet-600' },
-              { to: '/sync', label: t('dashViewSync'), icon: RefreshCw, gradient: 'from-emerald-500 to-emerald-600' },
-            ].map(({ to, label, icon: Icon, gradient }) => (
+              { to: '/drivers', label: t('dashViewDrivers'), icon: Users, bg: 'bg-primary-50 text-primary-600 dark:bg-primary-900/20 dark:text-primary-400' },
+              { to: '/reader', label: t('dashOpenReader'), icon: FileText, bg: 'bg-accent-light text-accent-dark dark:bg-accent/10 dark:text-accent' },
+              { to: '/sync', label: t('dashViewSync'), icon: RefreshCw, bg: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400' },
+            ].map(({ to, label, icon: Icon, bg }) => (
               <Link
                 key={to}
                 to={to}
-                className="flex items-center gap-3 rounded-xl px-4 py-3 min-h-[44px] text-sm font-medium transition-all hover:bg-blue-500/5 dark:hover:bg-white/5"
+                className="flex items-center gap-3 rounded-xl px-4 py-3 min-h-[44px] text-sm font-medium transition-all hover:bg-surface dark:hover:bg-surface-dark"
               >
-                <div className={`flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br ${gradient} text-white shadow-sm`}>
+                <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${bg}`}>
                   <Icon size={16} />
                 </div>
-                <span className="flex-1">{label}</span>
-                <ArrowRight size={16} className="text-gray-300 dark:text-gray-600" />
+                <span className="flex-1 text-ink dark:text-ink-dark">{label}</span>
+                <ArrowRight size={16} className="text-muted dark:text-muted-dark" />
               </Link>
             ))}
           </div>
