@@ -451,6 +451,24 @@ export const de: Record<TranslationKey, string> = {
   samVehiclesCount: 'Fahrzeuge',
   samExportExcel: 'Excel exportieren',
 
+  // Night simulator
+  navNightSim: 'Nacht (Sim.)',
+  nightSimTitle: 'Nachtstunden-Simulator',
+  nightSimSubtitle: 'Simulation der Nachtzuschläge 25 % und 40 % — identisch wie der Parser',
+  nightSimMonth: 'Monat',
+  nightSimStart: 'Schichtbeginn',
+  nightSimEnd: 'Schichtende',
+  nightSimGenerate: 'Simulieren',
+  nightSimReset: 'Zurücksetzen',
+  nightSimExcludeWeekends: 'Wochenenden auslassen',
+  nightSimWorkDays: 'Arbeitstage',
+  nightSimTotal: 'Nacht gesamt',
+  nightSimDay: 'Tag',
+  nightSimRules: 'Berechnungsregeln (identisch wie Parser)',
+  nightSimAlways25: 'immer 25 %',
+  nightSim40rule: '40 % wenn Schicht vor Mitternacht begann, sonst 25 %',
+  nightSimRestSkip: 'Simulator nimmt durchgehende Arbeit (ohne Pausen) im angegebenen Zeitraum an',
+
   // Offline
   offlineMode: 'Offline-Modus — Daten aus Cache',
   offlineReady: 'App ist offline verfügbar',

@@ -22,6 +22,7 @@ const VerstossePage = lazy(() => import('./pages/VerstossePage').then(m => ({ de
 const DriverKmPage = lazy(() => import('./pages/DriverKmPage').then(m => ({ default: m.DriverKmPage })));
 const TollCollectPage = lazy(() => import('./pages/TollCollectPage').then(m => ({ default: m.TollCollectPage })));
 const SamsaraKmPage = lazy(() => import('./pages/SamsaraKmPage').then(m => ({ default: m.SamsaraKmPage })));
+const NightSimulatorPage = lazy(() => import('./pages/NightSimulatorPage').then(m => ({ default: m.NightSimulatorPage })));
 
 
 function PageFallback() {
@@ -84,6 +85,7 @@ export function App() {
           <Route path="/driver-km" element={<AdminRoute><DriverKmPage /></AdminRoute>} />
           <Route path="/toll" element={<AdminRoute><TollCollectPage /></AdminRoute>} />
           <Route path="/samsara-km" element={<AdminRoute><SamsaraKmPage /></AdminRoute>} />
+          <Route path="/night-sim" element={<AdminRoute><NightSimulatorPage /></AdminRoute>} />
           <Route path="/analysis" element={<ProtectedRoute><AnalysisPage /></ProtectedRoute>} />
           <Route path="/verstosse" element={<ProtectedRoute><VerstossePage /></ProtectedRoute>} />
 

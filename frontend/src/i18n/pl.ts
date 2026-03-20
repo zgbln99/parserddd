@@ -449,6 +449,24 @@ export const pl = {
   samVehiclesCount: 'pojazdów',
   samExportExcel: 'Eksport do Excel',
 
+  // Night simulator
+  navNightSim: 'Nocne (sym.)',
+  nightSimTitle: 'Symulator godzin nocnych',
+  nightSimSubtitle: 'Symulacja dodatków nocnych 25% i 40% — identycznie jak parser',
+  nightSimMonth: 'Miesiąc',
+  nightSimStart: 'Początek zmiany',
+  nightSimEnd: 'Koniec zmiany',
+  nightSimGenerate: 'Symuluj',
+  nightSimReset: 'Resetuj',
+  nightSimExcludeWeekends: 'Pomiń weekendy',
+  nightSimWorkDays: 'Dni roboczych',
+  nightSimTotal: 'Razem nocne',
+  nightSimDay: 'Dzień',
+  nightSimRules: 'Zasady naliczania (identyczne jak parser)',
+  nightSimAlways25: 'zawsze 25%',
+  nightSim40rule: '40% jeśli zmiana zaczęła się przed północą, inaczej 25%',
+  nightSimRestSkip: 'Symulator zakłada ciągłą pracę (bez przerw) w podanym zakresie godzin',
+
   // Offline
   offlineMode: 'Tryb offline — dane z cache',
   offlineReady: 'Aplikacja gotowa do pracy offline',
