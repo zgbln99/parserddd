@@ -177,7 +177,7 @@ export function NightSimulatorPage() {
   const [breaks, setBreaks] = useState<BreakSlot[]>([
     { id: _nextBreakId++, afterMinutes: 270, durationMinutes: 45 },
   ]);
-  const [hourlyRate, setHourlyRate] = useState('');
+  const [monthlyGross, setMonthlyGross] = useState('');
   const [results, setResults] = useState<DayResult[] | null>(null);
 
   const wdNames = locale === 'de'
@@ -231,13 +231,15 @@ export function NightSimulatorPage() {
   }, [results]);
 
   const costCalc = useMemo(() => {
-    if (!totals) return null;
-    const rate = parseFloat(hourlyRate.replace(',', '.'));
-    if (!rate || rate <= 0) return null;
-    const cost25 = (totals.night25 / 60) * rate * 0.25;
-    const cost40 = (totals.night40 / 60) * rate * 0.40;
-    return { rate, cost25, cost40, total: cost25 + cost40 };
-  }, [totals, hourlyRate]);
+    if (!totals || totals.totalWork <= 0) return null;
+    const gross = parseFloat(monthlyGross.replace(',', '.'));
+    if (!gross || gross <= 0) return null;
+    const totalWorkH = totals.totalWork / 60;
+    const hourlyRate = gross / totalWorkH;
+    const cost25 = (totals.night25 / 60) * hourlyRate * 0.25;
+    const cost40 = (totals.night40 / 60) * hourlyRate * 0.40;
+    return { gross, hourlyRate, cost25, cost40, total: cost25 + cost40 };
+  }, [totals, monthlyGross]);
 
   const handleReset = () => {
     setResults(null);
@@ -247,7 +249,7 @@ export function NightSimulatorPage() {
     setEndM('00');
     setExcludeWeekends(false);
     setBreaks([{ id: _nextBreakId++, afterMinutes: 270, durationMinutes: 45 }]);
-    setHourlyRate('');
+    setMonthlyGross('');
   };
 
   const addBreak = () => {
@@ -368,17 +370,17 @@ export function NightSimulatorPage() {
               {t('nightSimExcludeWeekends')}
             </label>
             <div>
-              <label className="mb-1 block text-xs font-semibold text-muted">{t('nightSimHourlyRate')}</label>
+              <label className="mb-1 block text-xs font-semibold text-muted">{t('nightSimMonthlyGross')}</label>
               <div className="flex items-center gap-1.5">
                 <input
                   type="text"
                   inputMode="decimal"
-                  value={hourlyRate}
-                  onChange={(e) => setHourlyRate(e.target.value)}
-                  placeholder="np. 25.00"
+                  value={monthlyGross}
+                  onChange={(e) => setMonthlyGross(e.target.value)}
+                  placeholder={locale === 'de' ? 'z.B. 2800' : 'np. 2800'}
                   className={`w-28 ${inputCls}`}
                 />
-                <span className="text-xs text-muted">{t('nightSimCurrency')}</span>
+                <span className="text-xs text-muted">EUR</span>
               </div>
             </div>
           </div>
@@ -521,25 +523,27 @@ export function NightSimulatorPage() {
           {/* Cost calculator */}
           {costCalc && (
             <Card className="p-4 sm:p-5">
-              <div className="mb-3 flex items-center gap-2">
+              <div className="mb-3 flex flex-wrap items-center gap-2">
                 <Calculator size={16} className="text-primary-600" />
                 <span className="text-sm font-semibold">{t('nightSimCostTitle')}</span>
-                <span className="text-xs text-muted">({t('nightSimCostRate')}: {costCalc.rate.toFixed(2)} {t('nightSimCurrency')})</span>
+                <span className="text-xs text-muted">
+                  ({costCalc.gross.toFixed(0)} EUR ÷ {(totals!.totalWork / 60).toFixed(1)}h = {costCalc.hourlyRate.toFixed(2)} EUR/h)
+                </span>
               </div>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <div className="rounded-lg bg-amber-50 p-3 dark:bg-amber-900/10">
-                  <p className="text-xs text-muted">{t('nightSimCost25')}</p>
-                  <p className="text-xs text-muted">{fmtMin(totals!.night25)} × {costCalc.rate.toFixed(2)} × 25%</p>
-                  <p className="mt-1 text-xl font-bold text-amber-600 dark:text-amber-400">{costCalc.cost25.toFixed(2)} {t('nightSimCurrency')}</p>
+                  <p className="text-xs font-medium text-amber-700 dark:text-amber-300">{t('nightSimCost25')}</p>
+                  <p className="text-xs text-muted">{(totals!.night25 / 60).toFixed(2)}h × {costCalc.hourlyRate.toFixed(2)} × 25%</p>
+                  <p className="mt-1 text-xl font-bold text-amber-600 dark:text-amber-400">{costCalc.cost25.toFixed(2)} EUR</p>
                 </div>
                 <div className="rounded-lg bg-rose-50 p-3 dark:bg-rose-900/10">
-                  <p className="text-xs text-muted">{t('nightSimCost40')}</p>
-                  <p className="text-xs text-muted">{fmtMin(totals!.night40)} × {costCalc.rate.toFixed(2)} × 40%</p>
-                  <p className="mt-1 text-xl font-bold text-rose-600 dark:text-rose-400">{costCalc.cost40.toFixed(2)} {t('nightSimCurrency')}</p>
+                  <p className="text-xs font-medium text-rose-700 dark:text-rose-300">{t('nightSimCost40')}</p>
+                  <p className="text-xs text-muted">{(totals!.night40 / 60).toFixed(2)}h × {costCalc.hourlyRate.toFixed(2)} × 40%</p>
+                  <p className="mt-1 text-xl font-bold text-rose-600 dark:text-rose-400">{costCalc.cost40.toFixed(2)} EUR</p>
                 </div>
                 <div className="rounded-lg bg-primary-50 p-3 dark:bg-primary-900/10">
-                  <p className="text-xs text-muted">{t('nightSimCostTotal')}</p>
-                  <p className="mt-1 text-2xl font-bold text-primary-600">{costCalc.total.toFixed(2)} {t('nightSimCurrency')}</p>
+                  <p className="text-xs font-medium">{t('nightSimCostTotal')}</p>
+                  <p className="mt-1 text-2xl font-bold text-primary-600">{costCalc.total.toFixed(2)} EUR</p>
                 </div>
               </div>
             </Card>
