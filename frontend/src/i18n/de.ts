@@ -194,6 +194,7 @@ export const de: Record<TranslationKey, string> = {
 
   // PDF export
   analysisExportPdf: 'PDF-Export',
+  analysisExportArbeitszeitnachweis: 'Arbeitszeitnachweis',
 
   // Driver alerts
   driversOverdueAlert: 'Überfälliger Download (>28 Tage)',

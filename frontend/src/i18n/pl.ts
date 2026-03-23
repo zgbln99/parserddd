@@ -192,6 +192,7 @@ export const pl = {
 
   // PDF export
   analysisExportPdf: 'Eksport PDF',
+  analysisExportArbeitszeitnachweis: 'Czas pracy (sąd)',
 
   // Driver alerts
   driversOverdueAlert: 'Przeterminowane pobranie (>28 dni)',

@@ -6,14 +6,14 @@ import type { DriverConfig, MonthlyDays } from '../lib/api';
 import { Badge } from '../components/Badge';
 import { Spinner } from '../components/Spinner';
 import { BarChart } from '../components/BarChart';
-import { Download, FileText, ClipboardCopy, Check, Printer, BarChart3, UtensilsCrossed, Table2, Settings, CalendarDays, Sheet } from 'lucide-react';
+import { Download, FileText, ClipboardCopy, Check, Printer, BarChart3, UtensilsCrossed, Table2, Settings, CalendarDays, Sheet, Scale } from 'lucide-react';
 import type { AnalysisResult, ShiftDetail } from '../types';
 import { DriverConfigEditor } from './DriverConfigEditor';
 import { useAuth } from '../hooks/useAuth';
 import { minutesToHm } from '../lib/utils';
 import { exportToXlsx, generateGoogleSheetsUrl } from '../lib/xlsx-export';
 import { useToast } from '../components/Toast';
-import { generateAnalysisPdf } from '../lib/pdf-generator';
+import { generateAnalysisPdf, generateArbeitszeitnachweisePdf } from '../lib/pdf-generator';
 
 function fmtNight(minutes: number, hm: string) {
   const decimal = (minutes / 60).toFixed(2);
@@ -181,6 +181,10 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
 
   const handlePdfExport = () => {
     generateAnalysisPdf(di.driver_name || 'Fahrer', di.card_number || '', s as any, shifts as any);
+  };
+
+  const handleArbeitszeitPdf = () => {
+    generateArbeitszeitnachweisePdf(di.driver_name || 'Fahrer', di.card_number || '', s as any, shifts as any);
   };
 
   const handleDatevExport = () => {
@@ -724,6 +728,13 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
         >
           <FileText size={16} />
           {t('analysisExportPdf')}
+        </button>
+        <button
+          onClick={handleArbeitszeitPdf}
+          className="flex min-h-[44px] items-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 px-5 py-2.5 text-sm font-semibold text-indigo-700 transition hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-900/20 dark:text-indigo-400 dark:hover:bg-indigo-900/30"
+        >
+          <Scale size={16} />
+          {t('analysisExportArbeitszeitnachweis')}
         </button>
         <button
           onClick={handleDatevExport}
