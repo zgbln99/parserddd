@@ -2018,7 +2018,7 @@ export async function generateVerstossePdf(
 
 // ═══════════════════════════════════════════════════════════════
 //  5) ARBEITSZEITNACHWEIS PDF — Court-ready work time document
-//     Landscape, clean table + compliance statement
+//     Single landscape A4, full-width table + compliance text
 // ═══════════════════════════════════════════════════════════════
 
 export async function generateArbeitszeitnachweisePdf(
@@ -2037,21 +2037,20 @@ export async function generateArbeitszeitnachweisePdf(
   }
 
   const font = fonts ? 'Inter' : 'helvetica';
+  const m = 10; // tighter margins for max table width
 
   const periodStr = shifts.length > 0
     ? `${shifts[0].shift_date} – ${shifts[shifts.length - 1].shift_date}`
     : '';
 
   const allVehicles = [...new Set(shifts.flatMap((s) => s.vehicles))];
-  const nightTotal = summary.total_night_minutes || (summary.night_25_minutes + summary.night_40_minutes);
   const weekendDays = ['So', 'Sa', 'Nd'];
 
   let y = drawHeader(c, 'Arbeitszeitnachweis', `${driverName}  ·  Kartennr. ${cardNumber}  ·  ${periodStr}`);
 
-  // ── Driver info line ──
-  y += 1;
+  // ── Compact info line ──
   doc.setFont(font, 'normal');
-  doc.setFontSize(7);
+  doc.setFontSize(6.5);
   doc.setTextColor(...C.gray);
   const infoLine = [
     `Fahrer: ${driverName}`,
@@ -2059,14 +2058,15 @@ export async function generateArbeitszeitnachweisePdf(
     `Zeitraum: ${periodStr}`,
     `Schichten: ${summary.total_shifts}`,
     allVehicles.length > 0 ? `Fahrzeuge: ${allVehicles.join(', ')}` : '',
-  ].filter(Boolean).join('   ·   ');
-  doc.text(infoLine, M, y);
-  y += 5;
+  ].filter(Boolean).join('  ·  ');
+  doc.text(infoLine, m, y);
+  y += 3;
 
   // ════════════════════════════════════════
-  //  SHIFTS TABLE — full width landscape
+  //  SHIFTS TABLE — full width, compact
   // ════════════════════════════════════════
 
+  const tableW = W - 2 * m;
   const shiftHead = [['Tag', 'Datum', 'Beginn', 'Ende', 'Dauer', 'Lenkzeit', 'Arbeit', 'Bereitsch.', 'Pause', 'N25%', 'N40%', 'Spesen']];
   const shiftBody = shifts.map((s) => [
     s.weekday,
@@ -2097,40 +2097,52 @@ export async function generateArbeitszeitnachweisePdf(
     String(summary.diet_count),
   ]);
 
+  // Dynamic font size: shrink for many shifts to fit on one page
+  const rowCount = shiftBody.length;
+  // Available space: from y to (H - footer(10) - compliance(22) - signatures(14)) ≈ H - 46
+  const availH = H - 46 - y;
+  // Each row ≈ fontSize * 0.6 + 2*padding. Solve for fontSize.
+  const maxFontForFit = Math.max(4.5, Math.min(7, (availH / rowCount - 1.2) / 0.65));
+  const tblFont = Math.round(maxFontForFit * 10) / 10;
+  const tblPad = tblFont >= 6 ? 1.2 : 0.8;
+
   autoTable(doc, {
     startY: y,
     head: shiftHead,
     body: shiftBody,
     theme: 'grid',
+    tableWidth: tableW,
     styles: {
       font: font,
-      fontSize: 7,
-      cellPadding: 1.5,
+      fontSize: tblFont,
+      cellPadding: tblPad,
       textColor: C.dark,
       lineColor: [200, 210, 220],
-      lineWidth: 0.2,
+      lineWidth: 0.15,
+      overflow: 'ellipsize',
     },
     headStyles: {
       fillColor: C.primary,
       textColor: C.white,
       fontStyle: 'bold',
-      fontSize: 7,
+      fontSize: tblFont,
+      cellPadding: tblPad,
     },
     columnStyles: {
-      0:  { cellWidth: 14 },                        // Tag
-      1:  { cellWidth: 24 },                        // Datum
-      2:  { cellWidth: 18 },                        // Beginn
-      3:  { cellWidth: 18 },                        // Ende
-      4:  { cellWidth: 18, halign: 'right' },       // Dauer
-      5:  { cellWidth: 20, halign: 'right' },       // Lenkzeit
-      6:  { cellWidth: 20, halign: 'right' },       // Arbeit
-      7:  { cellWidth: 22, halign: 'right' },       // Bereitschaft
-      8:  { cellWidth: 18, halign: 'right' },       // Pause
-      9:  { cellWidth: 18, halign: 'right' },       // N25%
-      10: { cellWidth: 18, halign: 'right' },       // N40%
-      11: { cellWidth: 14, halign: 'center' },      // Spesen
+      0:  { cellWidth: 'auto' },                    // Tag
+      1:  { cellWidth: 'auto' },                    // Datum
+      2:  { cellWidth: 'auto' },                    // Beginn
+      3:  { cellWidth: 'auto' },                    // Ende
+      4:  { halign: 'right' },                      // Dauer
+      5:  { halign: 'right' },                      // Lenkzeit
+      6:  { halign: 'right' },                      // Arbeit
+      7:  { halign: 'right' },                      // Bereitschaft
+      8:  { halign: 'right' },                      // Pause
+      9:  { halign: 'right' },                      // N25%
+      10: { halign: 'right' },                      // N40%
+      11: { halign: 'center' },                     // Spesen
     },
-    margin: { left: M, right: M },
+    margin: { left: m, right: m },
     didParseCell(data) {
       if (data.section === 'body') {
         const isLastRow = data.row.index === shiftBody.length - 1;
@@ -2152,119 +2164,57 @@ export async function generateArbeitszeitnachweisePdf(
       }
     },
   });
-  y = (doc as any).lastAutoTable.finalY + 6;
+  y = (doc as any).lastAutoTable.finalY + 3;
 
   // ════════════════════════════════════════
-  //  SUMMARY + COMPLIANCE BLOCK
+  //  COMPLIANCE TEXT (no box, just text)
   // ════════════════════════════════════════
 
-  // Check if we need a new page
-  if (y > H - 45) {
-    doc.addPage();
-    y = 15;
-  }
-
-  // Summary line
   doc.setFont(font, 'bold');
-  doc.setFontSize(7.5);
-  doc.setTextColor(...C.dark);
-  const sumLine = `Arbeitszeit: ${summary.total_work_hm} (${dec(summary.total_work_minutes)}h)` +
-    `   ·   Lenkzeit: ${summary.total_driving_hm} (${dec(summary.total_driving_minutes)}h)` +
-    `   ·   Pausen: ${summary.total_break_hm}` +
-    `   ·   Nacht 25%: ${summary.night_25_hm} (${dec(summary.night_25_minutes)}h)` +
-    `   ·   Nacht 40%: ${summary.night_40_hm} (${dec(summary.night_40_minutes)}h)`;
-  doc.text(sumLine, M, y);
-  y += 6;
-
-  // ── Green compliance box ──
-  const boxW = W - 2 * M;
-  const boxH = 24;
-  doc.setFillColor(240, 253, 244);
-  doc.roundedRect(M, y, boxW, boxH, 2, 2, 'F');
-  doc.setDrawColor(...C.success);
-  doc.setLineWidth(0.5);
-  doc.roundedRect(M, y, boxW, boxH, 2, 2, 'S');
-
-  // Green accent bar
-  doc.setFillColor(...C.success);
-  doc.roundedRect(M, y, 3.5, boxH, 2, 2, 'F');
-  doc.rect(M + 1.5, y, 2, boxH, 'F');
-
-  // Checkmark circle
-  const circX = M + 12;
-  const circY = y + boxH / 2;
-  doc.setFillColor(...C.success);
-  doc.circle(circX, circY, 4, 'F');
-  doc.setFont(font, 'bold');
-  doc.setFontSize(10);
-  doc.setTextColor(...C.white);
-  doc.text('✓', circX - 2.2, circY + 3);
-
-  // Title
-  doc.setFont(font, 'bold');
-  doc.setFontSize(11);
-  doc.setTextColor(...C.success);
-  doc.text('Keine Verstöße festgestellt', M + 20, y + 7);
-
-  // Description
-  doc.setFont(font, 'normal');
   doc.setFontSize(7);
   doc.setTextColor(...C.dark);
-  doc.text(
-    'Die Auswertung der digitalen Fahrerkarte hat ergeben, dass im oben genannten Zeitraum keine Verstöße gegen die geltenden',
-    M + 20, y + 12,
-  );
-  doc.text(
-    'Vorschriften festgestellt wurden. Insbesondere wurden die Vorgaben der folgenden Rechtsvorschriften eingehalten:',
-    M + 20, y + 16,
-  );
-
-  // Legal refs in a compact line
-  doc.setFontSize(6);
-  doc.setTextColor(...C.gray);
-  doc.text(
-    'VO (EG) 561/2006 (Lenk-/Ruhezeiten)  ·  ArbZG §§ 3, 4 (Arbeitszeit/Pausen)  ·  RL 2002/15/EG (Nachtarbeit)  ·  VO (EU) 165/2014 (Fahrtenschreiber)  ·  FPersV',
-    M + 20, y + 20,
-  );
-  y += boxH + 6;
-
-  // ════════════════════════════════════════
-  //  SIGNATURE SECTION
-  // ════════════════════════════════════════
-
-  if (y > H - 28) {
-    doc.addPage();
-    y = 15;
-  }
-
-  // Disclaimer
+  doc.text('Ergebnis der Auswertung:', m, y);
   doc.setFont(font, 'normal');
-  doc.setFontSize(6);
+  doc.text(
+    'Die Auswertung der digitalen Fahrerkarte hat ergeben, dass im oben genannten Zeitraum keine Verstöße gegen die Vorschriften',
+    m + 38, y,
+  );
+  y += 3.5;
+  doc.text(
+    'der VO (EG) Nr. 561/2006 (Lenk- und Ruhezeiten), des ArbZG §§ 3, 4 (Arbeitszeit, Pausen), der Richtlinie 2002/15/EG (Nachtarbeit)',
+    m, y,
+  );
+  y += 3.5;
+  doc.text(
+    'sowie der VO (EU) Nr. 165/2014 (Fahrtenschreiber) und der FPersV (Fahrpersonalverordnung) festgestellt wurden.',
+    m, y,
+  );
+  y += 5;
+
+  // ════════════════════════════════════════
+  //  SIGNATURES — one line
+  // ════════════════════════════════════════
+
+  doc.setFont(font, 'normal');
+  doc.setFontSize(5.5);
   doc.setTextColor(...C.gray);
   doc.text(
-    'Dieses Dokument wurde maschinell auf Basis der gespeicherten Daten der digitalen Fahrerkarte (VO (EU) Nr. 165/2014) erstellt und dient als Nachweis der Arbeits-, Lenk- und Ruhezeiten.',
-    M, y,
+    'Grundlage: Gespeicherte Daten der digitalen Fahrerkarte gemäß VO (EU) Nr. 165/2014. Maschinell erstellt.',
+    m, y,
   );
-  y += 6;
+  y += 4;
 
-  // Signature lines
-  const sigW = (W - 2 * M - 40) / 3;
-
+  const sigW = (W - 2 * m - 30) / 3;
   doc.setDrawColor(...C.dark);
-  doc.setLineWidth(0.3);
-  // Line 1: Ort/Datum
-  doc.line(M, y, M + sigW, y);
-  // Line 2: Verantwortlicher
-  doc.line(M + sigW + 20, y, M + 2 * sigW + 20, y);
-  // Line 3: Fahrer
-  doc.line(M + 2 * (sigW + 20), y, M + 3 * sigW + 40, y);
+  doc.setLineWidth(0.25);
+  doc.line(m, y, m + sigW, y);
+  doc.line(m + sigW + 15, y, m + 2 * sigW + 15, y);
+  doc.line(m + 2 * (sigW + 15), y, m + 3 * sigW + 30, y);
 
-  doc.setFont(font, 'normal');
-  doc.setFontSize(6.5);
-  doc.setTextColor(...C.gray);
-  doc.text('Ort, Datum', M, y + 4);
-  doc.text('Unterschrift Verantwortlicher', M + sigW + 20, y + 4);
-  doc.text('Unterschrift Fahrer', M + 2 * (sigW + 20), y + 4);
+  doc.setFontSize(6);
+  doc.text('Ort, Datum', m, y + 3.5);
+  doc.text('Unterschrift Verantwortlicher', m + sigW + 15, y + 3.5);
+  doc.text('Unterschrift Fahrer', m + 2 * (sigW + 15), y + 3.5);
 
   // ── Footer ──
   drawFooter(c);
