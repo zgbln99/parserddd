@@ -40,6 +40,10 @@ export const de: Record<TranslationKey, string> = {
 
   // Dashboard
   dashTitle: 'Übersicht',
+  greetMorning: 'Guten Morgen',
+  greetAfternoon: 'Guten Tag',
+  greetEvening: 'Guten Abend',
+  greetNight: 'Gute Nacht',
   dashDrivers: 'Fahrer',
   dashFiles: 'Dateien',
   dashLastSync: 'Letzte Synchronisierung',

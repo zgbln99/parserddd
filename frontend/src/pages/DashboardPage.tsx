@@ -3,8 +3,10 @@ import { Link } from 'react-router-dom';
 import {
   Users, FileText, RefreshCw, AlertCircle, ArrowRight, Upload,
   Cloud, Truck, Clock, CreditCard, AlertTriangle,
+  Sun, Moon, Sunrise, Sunset,
 } from 'lucide-react';
 import { useI18n } from '../i18n';
+import { useAuth } from '../hooks/useAuth';
 import { fetchDashboard, fetchConnectionStatus, scanCardExpiry } from '../lib/api';
 import type { StaleDriver, ExpiringCard } from '../lib/api';
 import { formatDateTime, formatDate } from '../lib/format';
@@ -14,6 +16,14 @@ import { Spinner } from '../components/Spinner';
 import { DashboardSkeleton } from '../components/Skeleton';
 
 const REFRESH_INTERVAL = 60_000; // 60 seconds
+
+function getTimeOfDay(t: (key: any) => string) {
+  const h = new Date().getHours();
+  if (h >= 5 && h < 12) return { greeting: t('greetMorning'), Icon: Sunrise, color: 'text-amber-500' };
+  if (h >= 12 && h < 17) return { greeting: t('greetAfternoon'), Icon: Sun, color: 'text-amber-400' };
+  if (h >= 17 && h < 21) return { greeting: t('greetEvening'), Icon: Sunset, color: 'text-orange-500' };
+  return { greeting: t('greetNight'), Icon: Moon, color: 'text-indigo-400' };
+}
 
 const MAX_VISIBLE = 10;
 
@@ -60,6 +70,7 @@ interface DashboardData {
 
 export function DashboardPage() {
   const { t, locale } = useI18n();
+  const { role } = useAuth();
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState('');
   const [connections, setConnections] = useState<{ dropbox: boolean; samsara: boolean } | null>(null);
@@ -141,7 +152,23 @@ export function DashboardPage() {
 
   return (
     <div className="animate-slide-up">
-      <h1 className="mb-6 text-2xl font-bold tracking-tight text-ink">{t('dashTitle')}</h1>
+      {(() => {
+        const { greeting, Icon, color } = getTimeOfDay(t);
+        const roleName = t(`role${role.charAt(0).toUpperCase()}${role.slice(1)}` as any);
+        return (
+          <div className="mb-6 flex items-center gap-3">
+            <div className={`flex h-10 w-10 items-center justify-center rounded-xl bg-surface ${color} transition-colors`}>
+              <Icon size={22} />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight text-ink">
+                {greeting}, {roleName}
+              </h1>
+              <p className="text-sm text-muted">{t('dashTitle')}</p>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Stats */}
       <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

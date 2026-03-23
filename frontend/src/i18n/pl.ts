@@ -38,6 +38,10 @@ export const pl = {
 
   // Dashboard
   dashTitle: 'Pulpit',
+  greetMorning: 'Dzień dobry',
+  greetAfternoon: 'Dzień dobry',
+  greetEvening: 'Dobry wieczór',
+  greetNight: 'Dobranoc',
   dashDrivers: 'Kierowcy',
   dashFiles: 'Pliki',
   dashLastSync: 'Ostatnia synchronizacja',
