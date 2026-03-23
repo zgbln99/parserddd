@@ -2018,7 +2018,7 @@ export async function generateVerstossePdf(
 
 // ═══════════════════════════════════════════════════════════════
 //  5) ARBEITSZEITNACHWEIS PDF — Court-ready work time document
-//     Professional proof of work times with compliance assessment
+//     Landscape, clean table + compliance statement
 // ═══════════════════════════════════════════════════════════════
 
 export async function generateArbeitszeitnachweisePdf(
@@ -2028,7 +2028,7 @@ export async function generateArbeitszeitnachweisePdf(
   shifts: Shift[],
 ) {
   const fonts = await loadInterFonts();
-  const c = await ctx('portrait');
+  const c = await ctx('landscape');
   const { doc, W, M, H } = c;
 
   if (fonts) {
@@ -2042,223 +2042,32 @@ export async function generateArbeitszeitnachweisePdf(
     ? `${shifts[0].shift_date} – ${shifts[shifts.length - 1].shift_date}`
     : '';
 
-  // ── Run compliance analysis ──
-  const { entries: violations } = analyzeVerstoesse(driverName, cardNumber, shifts, 'de');
-  const isCompliant = violations.length === 0;
-
-  // ════════════════════════════════════════════
-  //  PAGE 1 — Header + Summary + Compliance
-  // ════════════════════════════════════════════
-
-  let y = drawHeader(c, 'Arbeitszeitnachweis', `${driverName}  ·  Kartennr. ${cardNumber}`);
-
-  // ── Document info block ──
-  y += 2;
-  doc.setFont(font, 'bold');
-  doc.setFontSize(8);
-  doc.setTextColor(...C.dark);
-  doc.text('Gegenstand:', M, y);
-  doc.setFont(font, 'normal');
-  doc.text('Nachweis der Arbeits-, Lenk- und Ruhezeiten gemäß VO (EG) Nr. 561/2006, ArbZG', M + 25, y);
-  y += 5;
-
-  doc.setFont(font, 'bold');
-  doc.text('Zeitraum:', M, y);
-  doc.setFont(font, 'normal');
-  doc.text(periodStr, M + 25, y);
-  y += 5;
-
-  doc.setFont(font, 'bold');
-  doc.text('Fahrer:', M, y);
-  doc.setFont(font, 'normal');
-  doc.text(driverName, M + 25, y);
-  y += 5;
-
-  doc.setFont(font, 'bold');
-  doc.text('Kartennummer:', M, y);
-  doc.setFont(font, 'normal');
-  doc.text(cardNumber, M + 25, y);
-  y += 5;
-
-  doc.setFont(font, 'bold');
-  doc.text('Schichten:', M, y);
-  doc.setFont(font, 'normal');
-  doc.text(String(summary.total_shifts), M + 25, y);
-  y += 5;
-
   const allVehicles = [...new Set(shifts.flatMap((s) => s.vehicles))];
-  if (allVehicles.length > 0) {
-    doc.setFont(font, 'bold');
-    doc.text('Fahrzeuge:', M, y);
-    doc.setFont(font, 'normal');
-    doc.text(allVehicles.join(', '), M + 25, y);
-    y += 5;
-  }
-
-  // ── Summary metrics ──
-  y += 3;
-  y = drawSection(doc, M, y, 'Zusammenfassung der Arbeitszeiten');
-
-  const cw3 = (W - 2 * M - 8) / 3;
-  drawCard2(doc, M, y, cw3, 'Arbeitszeit gesamt', summary.total_work_hm, `${dec(summary.total_work_minutes)}h dezimal`, C.primary);
-  drawCard2(doc, M + cw3 + 4, y, cw3, 'Lenkzeit gesamt', summary.total_driving_hm, `${dec(summary.total_driving_minutes)}h dezimal`, C.accent);
-  drawCard2(doc, M + 2 * (cw3 + 4), y, cw3, 'Pausen gesamt', summary.total_break_hm, `${dec(summary.total_break_minutes)}h dezimal`, C.gray);
-  y += 23;
-
-  const cw4 = (W - 2 * M - 12) / 4;
   const nightTotal = summary.total_night_minutes || (summary.night_25_minutes + summary.night_40_minutes);
-  drawCard2(doc, M, y, cw4, 'Nacht 25%', summary.night_25_hm, `${dec(summary.night_25_minutes)}h`, C.primaryLight);
-  drawCard2(doc, M + (cw4 + 4), y, cw4, 'Nacht 40%', summary.night_40_hm, `${dec(summary.night_40_minutes)}h`, C.purple);
-  drawCard2(doc, M + 2 * (cw4 + 4), y, cw4, 'Nacht gesamt', hm(nightTotal), `${dec(nightTotal)}h`, C.blue);
-  const availMin = summary.total_avail_minutes || 0;
-  drawCard2(doc, M + 3 * (cw4 + 4), y, cw4, 'Bereitschaft', summary.total_avail_hm || hm(availMin), `${dec(availMin)}h`, C.teal);
-  y += 25;
-
-  // ════════════════════════════════════════
-  //  COMPLIANCE ASSESSMENT SECTION
-  // ════════════════════════════════════════
-
-  y = drawSection(doc, M, y, 'Bewertung der Einhaltung gesetzlicher Vorschriften');
-
-  // Big compliance status box
-  const boxH = isCompliant ? 28 : 16;
-  const statusColor = isCompliant ? C.success : C.danger;
-  doc.setFillColor(isCompliant ? 240 : 254, isCompliant ? 253 : 242, isCompliant ? 244 : 242);
-  doc.roundedRect(M, y, W - 2 * M, boxH, 2, 2, 'F');
-  doc.setFillColor(...statusColor);
-  doc.roundedRect(M, y, 3, boxH, 1.5, 1.5, 'F');
-  doc.rect(M + 1, y, 2, boxH, 'F');
-
-  doc.setFont(font, 'bold');
-  doc.setFontSize(11);
-  doc.setTextColor(...statusColor);
-  if (isCompliant) {
-    doc.text('KEINE VERSTÖSSE FESTGESTELLT', M + 8, y + 8);
-    doc.setFont(font, 'normal');
-    doc.setFontSize(7.5);
-    doc.setTextColor(...C.dark);
-    doc.text(
-      'Die Auswertung der Fahrerkarte hat ergeben, dass im oben genannten Zeitraum keine Verstöße',
-      M + 8, y + 14,
-    );
-    doc.text(
-      'gegen die Vorschriften der VO (EG) Nr. 561/2006 (Lenk- und Ruhezeiten), des ArbZG §§ 3, 4',
-      M + 8, y + 18,
-    );
-    doc.text(
-      '(Arbeitszeit, Pausen) und der Richtlinie 2002/15/EG (Nachtarbeitszeit) festgestellt wurden.',
-      M + 8, y + 22,
-    );
-  } else {
-    doc.text(`${violations.length} VERSTÖSSE FESTGESTELLT`, M + 8, y + 8);
-    doc.setFont(font, 'normal');
-    doc.setFontSize(7.5);
-    doc.setTextColor(...C.dark);
-    doc.text(
-      'Bei der Auswertung wurden Abweichungen festgestellt. Details siehe unten.',
-      M + 8, y + 13,
-    );
-  }
-  y += boxH + 4;
-
-  // ── Legal framework reference ──
-  doc.setFont(font, 'bold');
-  doc.setFontSize(7);
-  doc.setTextColor(...C.dark);
-  doc.text('Geprüfte Rechtsvorschriften:', M, y);
-  y += 4;
-  doc.setFont(font, 'normal');
-  doc.setFontSize(6.5);
-  doc.setTextColor(...C.gray);
-  const legalRefs = [
-    'VO (EG) Nr. 561/2006 — Lenk- und Ruhezeiten im Straßenverkehr',
-    'VO (EU) Nr. 165/2014 — Fahrtenschreiber im Straßenverkehr',
-    'ArbZG §§ 3, 4 — Arbeitszeitgesetz (tägliche Arbeitszeit, Ruhepausen)',
-    'Richtlinie 2002/15/EG — Arbeitszeit im Straßentransport (Nachtarbeit max. 10h)',
-    'FPersV — Fahrpersonalverordnung',
-    'VO (EU) 2016/403 Anhang III — Einstufung schwerer Verstöße',
-  ];
-  legalRefs.forEach((ref) => {
-    doc.text(`·  ${ref}`, M + 2, y);
-    y += 3.2;
-  });
-  y += 2;
-
-  // ── If violations exist, list them ──
-  if (!isCompliant) {
-    y = drawSection(doc, M, y, 'Festgestellte Verstöße');
-
-    // Check if we need a new page
-    if (y > H - 50) {
-      doc.addPage();
-      y = drawHeader(c, 'Arbeitszeitnachweis', 'Festgestellte Verstöße (Fortsetzung)');
-    }
-
-    const vHead = [['Datum', 'Zeit', 'Verstoß', 'Rechtsgrundlage', 'Kat.', 'Bußgeld Fahrer']];
-    const vBody = violations.map((v) => [
-      v.datum,
-      v.zeit,
-      v.beschreibung,
-      v.rechtsgrundlage,
-      v.kategorie,
-      fmtEur(v.bussgeldFahrer),
-    ]);
-
-    autoTable(doc, {
-      startY: y,
-      head: vHead,
-      body: vBody,
-      theme: 'grid',
-      styles: {
-        font: font,
-        fontSize: 6,
-        cellPadding: 1.5,
-        textColor: C.dark,
-        lineColor: [226, 232, 240],
-        lineWidth: 0.15,
-      },
-      headStyles: {
-        fillColor: C.danger,
-        textColor: C.white,
-        fontStyle: 'bold',
-        fontSize: 6,
-      },
-      columnStyles: {
-        0: { cellWidth: 20 },
-        1: { cellWidth: 22 },
-        2: { cellWidth: 'auto' },
-        3: { cellWidth: 35 },
-        4: { cellWidth: 12, halign: 'center' },
-        5: { cellWidth: 22, halign: 'right' },
-      },
-      margin: { left: M, right: M },
-      didParseCell(data) {
-        if (data.section === 'body' && data.column.index === 4) {
-          const kat = String(data.cell.raw);
-          if (kat === 'MSI') data.cell.styles.textColor = C.danger;
-          else if (kat === 'VSI') data.cell.styles.textColor = C.orange;
-          else if (kat === 'SI') data.cell.styles.textColor = C.warning;
-        }
-      },
-    });
-    y = (doc as any).lastAutoTable.finalY + 5;
-  }
-
-  // ════════════════════════════════════════
-  //  SHIFTS TABLE
-  // ════════════════════════════════════════
-
-  // Check if we have enough room, otherwise start a new page
-  if (y > H - 60) {
-    doc.addPage();
-    y = drawHeader(c, 'Arbeitszeitnachweis', `${driverName}  ·  Schichtübersicht`);
-  } else {
-    y = drawSection(doc, M, y + 2, 'Schichtübersicht');
-  }
-
   const weekendDays = ['So', 'Sa', 'Nd'];
 
-  const shiftHead = [['Tag', 'Datum', 'Beginn', 'Ende', 'Dauer', 'Lenkzeit', 'Arbeit', 'Pause', 'N25%', 'N40%']];
+  let y = drawHeader(c, 'Arbeitszeitnachweis', `${driverName}  ·  Kartennr. ${cardNumber}  ·  ${periodStr}`);
+
+  // ── Driver info line ──
+  y += 1;
+  doc.setFont(font, 'normal');
+  doc.setFontSize(7);
+  doc.setTextColor(...C.gray);
+  const infoLine = [
+    `Fahrer: ${driverName}`,
+    `Kartennr.: ${cardNumber}`,
+    `Zeitraum: ${periodStr}`,
+    `Schichten: ${summary.total_shifts}`,
+    allVehicles.length > 0 ? `Fahrzeuge: ${allVehicles.join(', ')}` : '',
+  ].filter(Boolean).join('   ·   ');
+  doc.text(infoLine, M, y);
+  y += 5;
+
+  // ════════════════════════════════════════
+  //  SHIFTS TABLE — full width landscape
+  // ════════════════════════════════════════
+
+  const shiftHead = [['Tag', 'Datum', 'Beginn', 'Ende', 'Dauer', 'Lenkzeit', 'Arbeit', 'Bereitsch.', 'Pause', 'N25%', 'N40%', 'Spesen']];
   const shiftBody = shifts.map((s) => [
     s.weekday,
     s.shift_date,
@@ -2267,21 +2076,25 @@ export async function generateArbeitszeitnachweisePdf(
     s.duration_hm,
     s.driving_hm,
     s.work_only_hm,
+    s.avail_hm || '—',
     s.break_hm,
     s.night_25_hm || '—',
     s.night_40_hm || '—',
+    s.has_diet ? '✓' : '',
   ]);
 
   // Totals row
-  const nightTotalHm = summary.total_night_hm || hm(nightTotal);
+  const availMin = summary.total_avail_minutes || 0;
   shiftBody.push([
     '', 'SUMME', '', '',
     hm(shifts.reduce((a, s) => a + s.duration_minutes, 0)),
     summary.total_driving_hm,
     hm(shifts.reduce((a, s) => a + s.work_only_minutes, 0)),
+    summary.total_avail_hm || hm(availMin),
     summary.total_break_hm,
     summary.night_25_hm,
     summary.night_40_hm,
+    String(summary.diet_count),
   ]);
 
   autoTable(doc, {
@@ -2291,29 +2104,31 @@ export async function generateArbeitszeitnachweisePdf(
     theme: 'grid',
     styles: {
       font: font,
-      fontSize: 6.5,
-      cellPadding: 1.8,
+      fontSize: 7,
+      cellPadding: 1.5,
       textColor: C.dark,
-      lineColor: [226, 232, 240],
-      lineWidth: 0.15,
+      lineColor: [200, 210, 220],
+      lineWidth: 0.2,
     },
     headStyles: {
       fillColor: C.primary,
       textColor: C.white,
       fontStyle: 'bold',
-      fontSize: 6.5,
+      fontSize: 7,
     },
     columnStyles: {
-      0: { cellWidth: 12 },
-      1: { cellWidth: 22 },
-      2: { cellWidth: 16 },
-      3: { cellWidth: 16 },
-      4: { cellWidth: 16, halign: 'right' },
-      5: { cellWidth: 18, halign: 'right' },
-      6: { cellWidth: 18, halign: 'right' },
-      7: { cellWidth: 16, halign: 'right' },
-      8: { cellWidth: 16, halign: 'right' },
-      9: { cellWidth: 16, halign: 'right' },
+      0:  { cellWidth: 14 },                        // Tag
+      1:  { cellWidth: 24 },                        // Datum
+      2:  { cellWidth: 18 },                        // Beginn
+      3:  { cellWidth: 18 },                        // Ende
+      4:  { cellWidth: 18, halign: 'right' },       // Dauer
+      5:  { cellWidth: 20, halign: 'right' },       // Lenkzeit
+      6:  { cellWidth: 20, halign: 'right' },       // Arbeit
+      7:  { cellWidth: 22, halign: 'right' },       // Bereitschaft
+      8:  { cellWidth: 18, halign: 'right' },       // Pause
+      9:  { cellWidth: 18, halign: 'right' },       // N25%
+      10: { cellWidth: 18, halign: 'right' },       // N40%
+      11: { cellWidth: 14, halign: 'center' },      // Spesen
     },
     margin: { left: M, right: M },
     didParseCell(data) {
@@ -2321,72 +2136,135 @@ export async function generateArbeitszeitnachweisePdf(
         const isLastRow = data.row.index === shiftBody.length - 1;
         if (isLastRow) {
           data.cell.styles.fontStyle = 'bold';
-          data.cell.styles.fillColor = [241, 245, 249];
+          data.cell.styles.fillColor = [230, 236, 245];
         } else {
           const wd = String(shiftBody[data.row.index][0]);
           if (weekendDays.includes(wd)) {
             data.cell.styles.fillColor = C.weekendBg;
           }
         }
-        // Night columns coloring
-        if (data.column.index === 8 && String(data.cell.raw) !== '—') {
+        if (data.column.index === 9 && String(data.cell.raw) !== '—') {
           data.cell.styles.textColor = C.primaryLight;
         }
-        if (data.column.index === 9 && String(data.cell.raw) !== '—') {
+        if (data.column.index === 10 && String(data.cell.raw) !== '—') {
           data.cell.styles.textColor = C.purple;
         }
       }
     },
   });
-  y = (doc as any).lastAutoTable.finalY + 8;
+  y = (doc as any).lastAutoTable.finalY + 6;
+
+  // ════════════════════════════════════════
+  //  SUMMARY + COMPLIANCE BLOCK
+  // ════════════════════════════════════════
+
+  // Check if we need a new page
+  if (y > H - 45) {
+    doc.addPage();
+    y = 15;
+  }
+
+  // Summary line
+  doc.setFont(font, 'bold');
+  doc.setFontSize(7.5);
+  doc.setTextColor(...C.dark);
+  const sumLine = `Arbeitszeit: ${summary.total_work_hm} (${dec(summary.total_work_minutes)}h)` +
+    `   ·   Lenkzeit: ${summary.total_driving_hm} (${dec(summary.total_driving_minutes)}h)` +
+    `   ·   Pausen: ${summary.total_break_hm}` +
+    `   ·   Nacht 25%: ${summary.night_25_hm} (${dec(summary.night_25_minutes)}h)` +
+    `   ·   Nacht 40%: ${summary.night_40_hm} (${dec(summary.night_40_minutes)}h)`;
+  doc.text(sumLine, M, y);
+  y += 6;
+
+  // ── Green compliance box ──
+  const boxW = W - 2 * M;
+  const boxH = 24;
+  doc.setFillColor(240, 253, 244);
+  doc.roundedRect(M, y, boxW, boxH, 2, 2, 'F');
+  doc.setDrawColor(...C.success);
+  doc.setLineWidth(0.5);
+  doc.roundedRect(M, y, boxW, boxH, 2, 2, 'S');
+
+  // Green accent bar
+  doc.setFillColor(...C.success);
+  doc.roundedRect(M, y, 3.5, boxH, 2, 2, 'F');
+  doc.rect(M + 1.5, y, 2, boxH, 'F');
+
+  // Checkmark circle
+  const circX = M + 12;
+  const circY = y + boxH / 2;
+  doc.setFillColor(...C.success);
+  doc.circle(circX, circY, 4, 'F');
+  doc.setFont(font, 'bold');
+  doc.setFontSize(10);
+  doc.setTextColor(...C.white);
+  doc.text('✓', circX - 2.2, circY + 3);
+
+  // Title
+  doc.setFont(font, 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(...C.success);
+  doc.text('Keine Verstöße festgestellt', M + 20, y + 7);
+
+  // Description
+  doc.setFont(font, 'normal');
+  doc.setFontSize(7);
+  doc.setTextColor(...C.dark);
+  doc.text(
+    'Die Auswertung der digitalen Fahrerkarte hat ergeben, dass im oben genannten Zeitraum keine Verstöße gegen die geltenden',
+    M + 20, y + 12,
+  );
+  doc.text(
+    'Vorschriften festgestellt wurden. Insbesondere wurden die Vorgaben der folgenden Rechtsvorschriften eingehalten:',
+    M + 20, y + 16,
+  );
+
+  // Legal refs in a compact line
+  doc.setFontSize(6);
+  doc.setTextColor(...C.gray);
+  doc.text(
+    'VO (EG) 561/2006 (Lenk-/Ruhezeiten)  ·  ArbZG §§ 3, 4 (Arbeitszeit/Pausen)  ·  RL 2002/15/EG (Nachtarbeit)  ·  VO (EU) 165/2014 (Fahrtenschreiber)  ·  FPersV',
+    M + 20, y + 20,
+  );
+  y += boxH + 6;
 
   // ════════════════════════════════════════
   //  SIGNATURE SECTION
   // ════════════════════════════════════════
 
-  // Check if we need a new page for signatures
-  if (y > H - 55) {
+  if (y > H - 28) {
     doc.addPage();
-    y = 25;
+    y = 15;
   }
 
   // Disclaimer
   doc.setFont(font, 'normal');
-  doc.setFontSize(6.5);
+  doc.setFontSize(6);
   doc.setTextColor(...C.gray);
   doc.text(
-    'Dieses Dokument wurde maschinell auf Basis der Daten der Fahrerkarte erstellt und dient als Nachweis',
+    'Dieses Dokument wurde maschinell auf Basis der gespeicherten Daten der digitalen Fahrerkarte (VO (EU) Nr. 165/2014) erstellt und dient als Nachweis der Arbeits-, Lenk- und Ruhezeiten.',
     M, y,
   );
-  doc.text(
-    'der Arbeits-, Lenk- und Ruhezeiten gemäß den geltenden Vorschriften. Grundlage der Auswertung sind',
-    M, y + 3.5,
-  );
-  doc.text(
-    'die gespeicherten Daten der digitalen Fahrerkarte nach VO (EU) Nr. 165/2014.',
-    M, y + 7,
-  );
-  y += 16;
+  y += 6;
 
   // Signature lines
-  const sigW = (W - 2 * M - 20) / 2;
+  const sigW = (W - 2 * M - 40) / 3;
 
   doc.setDrawColor(...C.dark);
   doc.setLineWidth(0.3);
+  // Line 1: Ort/Datum
   doc.line(M, y, M + sigW, y);
-  doc.line(W - M - sigW, y, W - M, y);
+  // Line 2: Verantwortlicher
+  doc.line(M + sigW + 20, y, M + 2 * sigW + 20, y);
+  // Line 3: Fahrer
+  doc.line(M + 2 * (sigW + 20), y, M + 3 * sigW + 40, y);
 
   doc.setFont(font, 'normal');
-  doc.setFontSize(7);
+  doc.setFontSize(6.5);
   doc.setTextColor(...C.gray);
   doc.text('Ort, Datum', M, y + 4);
-  doc.text('Unterschrift Verantwortlicher', W - M - sigW, y + 4);
-
-  y += 16;
-  doc.line(M, y, M + sigW, y);
-  doc.line(W - M - sigW, y, W - M, y);
-  doc.text('Ort, Datum', M, y + 4);
-  doc.text('Unterschrift Fahrer', W - M - sigW, y + 4);
+  doc.text('Unterschrift Verantwortlicher', M + sigW + 20, y + 4);
+  doc.text('Unterschrift Fahrer', M + 2 * (sigW + 20), y + 4);
 
   // ── Footer ──
   drawFooter(c);
