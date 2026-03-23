@@ -506,17 +506,19 @@ def api_login():
         session['logged_in'] = True
         session['role'] = 'admin'
         session['username'] = 'admin'
+        session['permissions'] = []
         _record_login('admin', 'admin')
         _clear_rate_limit(ip)
-        return jsonify({'ok': True, 'role': 'admin', 'username': 'admin'})
+        return jsonify({'ok': True, 'role': 'admin', 'username': 'admin', 'permissions': ROLE_PERMISSIONS['admin']})
     # Check hardcoded portal password
     if password == PORTAL_PASSWORD:
         session['logged_in'] = True
         session['role'] = 'user'
         session['username'] = 'user'
+        session['permissions'] = []
         _record_login('user', 'user')
         _clear_rate_limit(ip)
-        return jsonify({'ok': True, 'role': 'user', 'username': 'user'})
+        return jsonify({'ok': True, 'role': 'user', 'username': 'user', 'permissions': ROLE_PERMISSIONS['user']})
     # Check users from JSON file
     for u in _load_users():
         if _verify_password(password, u.get('password_hash', '')):
