@@ -2221,22 +2221,16 @@ export async function generateArbeitszeitnachweisePdf(
   doc.setFont(font, 'normal');
   doc.setFontSize(7);
   doc.setTextColor(60, 65, 75);
-  doc.text(
-    'Die Auswertung der digitalen Fahrerkarte hat ergeben, dass im oben genannten Zeitraum keine Verstöße gegen die Vorschriften',
-    m, y,
-  );
-  y += 3.8;
-  doc.text(
-    'der VO (EG) Nr. 561/2006 (Lenk- und Ruhezeiten), des ArbZG §§ 3, 4 (Arbeitszeit, Pausen), der Richtlinie 2002/15/EG',
-    m, y,
-  );
-  y += 3.8;
-  doc.text(
-    '(Nachtarbeit) sowie der VO (EU) Nr. 165/2014 (Fahrtenschreiber) und der FPersV (Fahrpersonalverordnung) festgestellt wurden.',
-    m, y,
-  );
+  const complianceText =
+    'Die Auswertung der digitalen Fahrerkarte hat ergeben, dass im oben genannten Zeitraum keine Verstöße gegen die Vorschriften ' +
+    'der VO (EG) Nr. 561/2006 (Lenk- und Ruhezeiten), des ArbZG §§ 3, 4 (Arbeitszeit, Pausen), der Richtlinie 2002/15/EG ' +
+    '(Nachtarbeit) sowie der VO (EU) Nr. 165/2014 (Fahrtenschreiber) und der FPersV (Fahrpersonalverordnung) festgestellt wurden.';
+  const textMaxW = W - 2 * m;
+  const lines = doc.splitTextToSize(complianceText, textMaxW);
+  doc.text(lines, m, y);
+  y += lines.length * 3.8;
 
-  y += 8;
+  y += 6;
 
   // ════════════════════════════════════════
   //  SIGNATURES — with proper spacing
