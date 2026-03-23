@@ -8,6 +8,10 @@ import { ThemeProvider } from './hooks/useTheme';
 import { DateFilterProvider } from './hooks/useDateFilter';
 import { App } from './App';
 import { ToastProvider } from './components/Toast';
+import { initAccent } from './components/AccentPicker';
+
+// Apply saved accent color before render
+initAccent();
 
 // Register service worker for PWA
 if ('serviceWorker' in navigator) {

@@ -1,4 +1,5 @@
 import { clsx } from 'clsx';
+import { useCountUp } from '../hooks/useCountUp';
 
 export function Card({ children, className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
@@ -65,9 +66,16 @@ export function StatCard({
           <p className="truncate text-xs font-semibold uppercase tracking-wider text-muted">
             {label}
           </p>
-          <p className="mt-1 text-2xl font-bold tracking-tight text-ink">{value}</p>
+          <p className="mt-1 text-2xl font-bold tracking-tight text-ink">
+            {typeof value === 'number' ? <AnimatedNumber value={value} /> : value}
+          </p>
         </div>
       </div>
     </Card>
   );
+}
+
+function AnimatedNumber({ value }: { value: number }) {
+  const display = useCountUp(value);
+  return <>{display.toLocaleString()}</>;
 }
