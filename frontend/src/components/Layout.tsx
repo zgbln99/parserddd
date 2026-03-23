@@ -13,6 +13,7 @@ import { useDateFilter } from '../hooks/useDateFilter';
 import { clsx } from 'clsx';
 import type { ReactNode } from 'react';
 import { AccentPicker } from './AccentPicker';
+import { PageTransition } from './PageTransition';
 
 const baseNavItems = [
   { to: '/', icon: LayoutDashboard, labelKey: 'navDashboard' as const, permission: 'dashboard' },
@@ -312,8 +313,8 @@ export function Layout({ children }: { children: ReactNode }) {
 
         {/* Content */}
         <main className="flex-1 px-4 py-6 pb-24 sm:px-6 lg:px-8 lg:pb-6">
-          <div className="mx-auto max-w-[1400px] animate-fade-in">
-            {children}
+          <div className="mx-auto max-w-[1400px]">
+            <PageTransition>{children}</PageTransition>
           </div>
         </main>
 

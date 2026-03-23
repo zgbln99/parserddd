@@ -84,6 +84,25 @@
   100% { background-position: 200% 0; }
 }
 
+@keyframes page-enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes page-exit {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(-6px); }
+}
+
+.page-enter {
+  animation: page-enter 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.page-exit {
+  animation: page-exit 0.15s cubic-bezier(0.4, 0, 1, 1) both;
+  pointer-events: none;
+}
+
 /* --- BASE --- */
 html, body {
   overflow-x: hidden;
