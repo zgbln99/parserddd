@@ -1,7 +1,29 @@
-import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useMemo, type ReactNode } from 'react';
 import { authLogin, authLogout, authStatus } from '../lib/api';
 
 export type UserRole = 'admin' | 'dispatcher' | 'user' | 'driver';
+
+// Client-side permission map — mirror of backend ROLE_PERMISSIONS
+// Used as fallback when backend doesn't return permissions
+const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
+  admin: [
+    'dashboard', 'drivers', 'reader', 'analysis', 'compare', 'settlement',
+    'vehicles', 'driver_km', 'toll', 'samsara_km', 'config', 'night_sim',
+    'admin', 'sync', 'verstosse', 'export', 'ddd_preview',
+  ],
+  dispatcher: [
+    'dashboard', 'drivers', 'reader', 'analysis', 'compare', 'settlement',
+    'vehicles', 'driver_km', 'toll', 'samsara_km', 'verstosse', 'export',
+    'ddd_preview', 'sync',
+  ],
+  user: [
+    'dashboard', 'drivers', 'reader', 'analysis', 'sync', 'verstosse',
+    'ddd_preview',
+  ],
+  driver: [
+    'dashboard', 'reader', 'ddd_preview',
+  ],
+};
 
 interface AuthContextValue {
   loggedIn: boolean | null; // null = loading
@@ -37,14 +59,14 @@ function parseRole(role?: string): UserRole {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [loggedIn, setLoggedIn] = useState<boolean | null>(null);
   const [role, setRole] = useState<UserRole>('user');
-  const [permissions, setPermissions] = useState<string[]>([]);
+  const [serverPermissions, setServerPermissions] = useState<string[]>([]);
 
   useEffect(() => {
     authStatus()
       .then((data) => {
         setLoggedIn(data.logged_in);
         setRole(parseRole((data as any).role));
-        setPermissions((data as any).permissions || []);
+        setServerPermissions((data as any).permissions || []);
       })
       .catch(() => setLoggedIn(false));
   }, []);
@@ -53,15 +75,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const result = await authLogin(password);
     setLoggedIn(true);
     setRole(parseRole((result as any).role));
-    setPermissions((result as any).permissions || []);
+    setServerPermissions((result as any).permissions || []);
   }, []);
 
   const logout = useCallback(async () => {
     await authLogout();
     setLoggedIn(false);
     setRole('user');
-    setPermissions([]);
+    setServerPermissions([]);
   }, []);
+
+  // Merge: role-based defaults + any extra server permissions
+  const permissions = useMemo(() => {
+    const rolePerms = ROLE_PERMISSIONS[role] || [];
+    const merged = new Set([...rolePerms, ...serverPermissions]);
+    return Array.from(merged);
+  }, [role, serverPermissions]);
 
   const hasPermission = useCallback(
     (perm: string) => permissions.includes(perm),
