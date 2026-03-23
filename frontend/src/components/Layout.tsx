@@ -13,37 +13,49 @@ import { clsx } from 'clsx';
 import type { ReactNode } from 'react';
 
 const baseNavItems = [
-  { to: '/', icon: LayoutDashboard, labelKey: 'navDashboard' as const },
-  { to: '/drivers', icon: Users, labelKey: 'navDrivers' as const },
-  { to: '/reader', icon: FileText, labelKey: 'navReader' as const },
-  { to: '/verstosse', icon: ShieldAlert, labelKey: 'navVerstosse' as const },
+  { to: '/', icon: LayoutDashboard, labelKey: 'navDashboard' as const, permission: 'dashboard' },
+  { to: '/drivers', icon: Users, labelKey: 'navDrivers' as const, permission: 'drivers' },
+  { to: '/reader', icon: FileText, labelKey: 'navReader' as const, permission: 'reader' },
+  { to: '/verstosse', icon: ShieldAlert, labelKey: 'navVerstosse' as const, permission: 'verstosse' },
 ];
 
 export function Layout({ children }: { children: ReactNode }) {
   const { t, locale, setLocale } = useI18n();
   const { theme, toggle } = useTheme();
-  const { logout, isAdmin } = useAuth();
+  const { logout, isAdmin, isDispatcher, role, hasPermission } = useAuth();
   const { dateFrom, dateTo, setDateFrom, setDateTo, clear } = useDateFilter();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  const navItems = [
+  const allNavItems = [
     ...baseNavItems,
+    ...(isDispatcher
+      ? [
+          { to: '/compare', icon: GitCompareArrows, labelKey: 'navCompare' as const, permission: 'compare' },
+          { to: '/settlement', icon: Receipt, labelKey: 'navSettlement' as const, permission: 'settlement' },
+          { to: '/vehicles', icon: Truck, labelKey: 'navVehicles' as const, permission: 'vehicles' },
+          { to: '/driver-km', icon: Gauge, labelKey: 'navDriverKm' as const, permission: 'driver_km' },
+          { to: '/toll', icon: Coins, labelKey: 'navTollCollect' as const, permission: 'toll' },
+          { to: '/samsara-km', icon: Route, labelKey: 'navSamsaraKm' as const, permission: 'samsara_km' },
+        ]
+      : []
+    ),
     ...(isAdmin
       ? [
-          { to: '/compare', icon: GitCompareArrows, labelKey: 'navCompare' as const },
-          { to: '/settlement', icon: Receipt, labelKey: 'navSettlement' as const },
-          { to: '/vehicles', icon: Truck, labelKey: 'navVehicles' as const },
-          { to: '/driver-km', icon: Gauge, labelKey: 'navDriverKm' as const },
-          { to: '/toll', icon: Coins, labelKey: 'navTollCollect' as const },
-          { to: '/samsara-km', icon: Route, labelKey: 'navSamsaraKm' as const },
-          { to: '/config', icon: UserCog, labelKey: 'navDriverConfig' as const },
-          { to: '/night-sim', icon: MoonStar, labelKey: 'navNightSim' as const },
-          { to: '/admin', icon: Shield, labelKey: 'navAdmin' as const },
+          { to: '/config', icon: UserCog, labelKey: 'navDriverConfig' as const, permission: 'config' },
+          { to: '/night-sim', icon: MoonStar, labelKey: 'navNightSim' as const, permission: 'night_sim' },
+          { to: '/admin', icon: Shield, labelKey: 'navAdmin' as const, permission: 'admin' },
         ]
-      : [{ to: '/sync', icon: RefreshCw, labelKey: 'navSync' as const }]
+      : []
+    ),
+    ...(!isAdmin && !isDispatcher && hasPermission('sync')
+      ? [{ to: '/sync', icon: RefreshCw, labelKey: 'navSync' as const, permission: 'sync' }]
+      : []
     ),
   ];
+
+  // Filter by permissions
+  const navItems = allNavItems.filter((item) => hasPermission(item.permission));
 
   const handleLogout = async () => {
     await logout();
@@ -85,10 +97,16 @@ export function Layout({ children }: { children: ReactNode }) {
               <ChevronLeft size={18} />
             </button>
           </div>
-          {isAdmin && (
-            <div className="mt-3 flex items-center gap-2 rounded-lg bg-accent-light px-3 py-1.5">
-              <Shield size={12} className="text-accent-dark" />
-              <span className="text-[11px] font-semibold text-accent-dark">Administrator</span>
+          {(role === 'admin' || role === 'dispatcher') && (
+            <div className={`mt-3 flex items-center gap-2 rounded-lg px-3 py-1.5 ${
+              role === 'admin' ? 'bg-accent-light' : 'bg-blue-50 dark:bg-blue-900/20'
+            }`}>
+              <Shield size={12} className={role === 'admin' ? 'text-accent-dark' : 'text-blue-600'} />
+              <span className={`text-[11px] font-semibold ${
+                role === 'admin' ? 'text-accent-dark' : 'text-blue-700 dark:text-blue-400'
+              }`}>
+                {role === 'admin' ? 'Administrator' : t('roleDispatcher')}
+              </span>
             </div>
           )}
         </div>

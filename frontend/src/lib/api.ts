@@ -149,6 +149,16 @@ export const analyzeUploadedFile = async (file: File) => {
   });
 };
 
+// DDD file preview (hex dump + decoded structure)
+export const previewDddFile = async (file: File) => {
+  const form = new FormData();
+  form.append('file', file);
+  return request<import('../types').DddPreviewData>('/api/preview-ddd', {
+    method: 'POST',
+    body: form,
+  });
+};
+
 // Connection status
 export const fetchConnectionStatus = () =>
   request<{ dropbox: boolean; samsara: boolean }>('/api/status/connections');
@@ -190,17 +200,18 @@ export interface UserEntry {
   id: number;
   name: string;
   role: string;
+  permissions: string[];
   created: string;
 }
 
 export const fetchUsers = () =>
   request<{ users: UserEntry[] }>('/api/admin/users');
 
-export const createUser = (name: string, password: string, role: string) =>
+export const createUser = (name: string, password: string, role: string, permissions?: string[]) =>
   request<{ ok: boolean; id: number }>('/api/admin/users', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, password, role }),
+    body: JSON.stringify({ name, password, role, permissions }),
   });
 
 export const deleteUser = (id: number) =>

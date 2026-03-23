@@ -489,4 +489,43 @@ export const de: Record<TranslationKey, string> = {
   offlineMode: 'Offline-Modus — Daten aus Cache',
   offlineReady: 'App ist offline verfügbar',
   offlineSyncing: 'Synchronisierung...',
+
+  // DDD Preview
+  dddPreview: 'DDD-Vorschau',
+  dddPreviewTitle: 'DDD-Dateivorschau',
+  dddPreviewInfo: 'Informationen',
+  dddPreviewHex: 'Hex-Dump',
+  dddPreviewActivities: 'Aktivitäten',
+  dddPreviewVehicles: 'Fahrzeuge',
+  dddPreviewPlaces: 'Orte',
+  dddPreviewEvents: 'Ereignisse',
+  dddPreviewFileSize: 'Dateigröße',
+  dddPreviewOffset: 'Offset',
+  dddPreviewActivity: 'Aktivität',
+  dddPreviewRecords: 'Datensätze',
+  dddPreviewChanges: 'Aktivitätsänderungen',
+  dddPreviewCountry: 'Land',
+  dddPreviewRegion: 'Region',
+  dddPreviewEventType: 'Ereignistyp',
+
+  // Roles & Permissions
+  roleAdmin: 'Administrator',
+  roleDispatcher: 'Disponent',
+  roleUser: 'Benutzer',
+  roleDriver: 'Fahrer',
+  permDashboard: 'Übersicht',
+  permDrivers: 'Fahrer',
+  permReader: 'Kartenleser',
+  permAnalysis: 'Analyse',
+  permCompare: 'Vergleich',
+  permSettlement: 'Abrechnung',
+  permVehicles: 'Fahrzeuge',
+  permExport: 'Export',
+  permAdmin: 'Verwaltung',
+  permSync: 'Synchronisierung',
+
+  // Drag & drop enhancements
+  readerOnlyDdd: 'Nur .ddd-Dateien werden unterstützt',
+  readerFilesQueued: 'Dateien in Warteschlange',
+  readerProcessing: 'Verarbeitung',
 };

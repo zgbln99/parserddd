@@ -60,6 +60,36 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
   return <Layout>{children}</Layout>;
 }
 
+/** Route for admin + dispatcher roles */
+function DispatcherRoute({ children }: { children: React.ReactNode }) {
+  const { loggedIn, isDispatcher } = useAuth();
+  if (loggedIn === null) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <Spinner size="lg" />
+      </div>
+    );
+  }
+  if (!loggedIn) return <Navigate to="/login" replace />;
+  if (!isDispatcher) return <Navigate to="/" replace />;
+  return <Layout>{children}</Layout>;
+}
+
+/** Route that checks a specific permission */
+function PermissionRoute({ children, permission }: { children: React.ReactNode; permission: string }) {
+  const { loggedIn, hasPermission } = useAuth();
+  if (loggedIn === null) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <Spinner size="lg" />
+      </div>
+    );
+  }
+  if (!loggedIn) return <Navigate to="/login" replace />;
+  if (!hasPermission(permission)) return <Navigate to="/" replace />;
+  return <Layout>{children}</Layout>;
+}
+
 export function App() {
   const { loggedIn } = useAuth();
 
@@ -74,20 +104,20 @@ export function App() {
             element={loggedIn ? <Navigate to="/" replace /> : <LoginPage />}
           />
           <Route path="/" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
-          <Route path="/drivers" element={<ProtectedRoute><DriversPage /></ProtectedRoute>} />
+          <Route path="/drivers" element={<PermissionRoute permission="drivers"><DriversPage /></PermissionRoute>} />
           <Route path="/reader" element={<ProtectedRoute><ReaderPage /></ProtectedRoute>} />
-          <Route path="/sync" element={<ProtectedRoute><SyncPage /></ProtectedRoute>} />
+          <Route path="/sync" element={<PermissionRoute permission="sync"><SyncPage /></PermissionRoute>} />
           <Route path="/admin" element={<AdminRoute><AdminPage /></AdminRoute>} />
           <Route path="/config" element={<AdminRoute><DriverConfigPage /></AdminRoute>} />
-          <Route path="/compare" element={<AdminRoute><CompareDriversPage /></AdminRoute>} />
-          <Route path="/settlement" element={<AdminRoute><SettlementPage /></AdminRoute>} />
-          <Route path="/vehicles" element={<AdminRoute><VehiclesPage /></AdminRoute>} />
-          <Route path="/driver-km" element={<AdminRoute><DriverKmPage /></AdminRoute>} />
-          <Route path="/toll" element={<AdminRoute><TollCollectPage /></AdminRoute>} />
-          <Route path="/samsara-km" element={<AdminRoute><SamsaraKmPage /></AdminRoute>} />
+          <Route path="/compare" element={<DispatcherRoute><CompareDriversPage /></DispatcherRoute>} />
+          <Route path="/settlement" element={<DispatcherRoute><SettlementPage /></DispatcherRoute>} />
+          <Route path="/vehicles" element={<DispatcherRoute><VehiclesPage /></DispatcherRoute>} />
+          <Route path="/driver-km" element={<DispatcherRoute><DriverKmPage /></DispatcherRoute>} />
+          <Route path="/toll" element={<DispatcherRoute><TollCollectPage /></DispatcherRoute>} />
+          <Route path="/samsara-km" element={<DispatcherRoute><SamsaraKmPage /></DispatcherRoute>} />
           <Route path="/night-sim" element={<AdminRoute><NightSimulatorPage /></AdminRoute>} />
           <Route path="/analysis" element={<ProtectedRoute><AnalysisPage /></ProtectedRoute>} />
-          <Route path="/verstosse" element={<ProtectedRoute><VerstossePage /></ProtectedRoute>} />
+          <Route path="/verstosse" element={<PermissionRoute permission="verstosse"><VerstossePage /></PermissionRoute>} />
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

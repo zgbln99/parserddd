@@ -276,6 +276,65 @@ def admin_required(f):
     return decorated
 
 
+def dispatcher_required(f):
+    """Require admin or dispatcher role."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not session.get('logged_in'):
+            return jsonify({'error': 'Unauthorized'}), 401
+        if session.get('role') not in ('admin', 'dispatcher'):
+            return jsonify({'error': 'Dispatcher access required'}), 403
+        return f(*args, **kwargs)
+    return decorated
+
+
+# Role-based permission definitions
+ROLE_PERMISSIONS = {
+    'admin': [
+        'dashboard', 'drivers', 'reader', 'analysis', 'compare', 'settlement',
+        'vehicles', 'driver_km', 'toll', 'samsara_km', 'config', 'night_sim',
+        'admin', 'sync', 'verstosse', 'export', 'ddd_preview',
+    ],
+    'dispatcher': [
+        'dashboard', 'drivers', 'reader', 'analysis', 'compare', 'settlement',
+        'vehicles', 'driver_km', 'toll', 'samsara_km', 'verstosse', 'export',
+        'ddd_preview', 'sync',
+    ],
+    'user': [
+        'dashboard', 'drivers', 'reader', 'analysis', 'sync', 'verstosse',
+        'ddd_preview',
+    ],
+    'driver': [
+        'dashboard', 'reader', 'ddd_preview',
+    ],
+}
+
+
+def has_permission(permission: str) -> bool:
+    """Check if current session user has the given permission."""
+    role = session.get('role', 'user')
+    # Check role-based permissions
+    if permission in ROLE_PERMISSIONS.get(role, []):
+        return True
+    # Check custom user permissions
+    custom_perms = session.get('permissions', [])
+    return permission in custom_perms
+
+
+def permission_required(permission: str):
+    """Decorator: require a specific permission."""
+    def decorator(f):
+        @wraps(f)
+        def decorated(*args, **kwargs):
+            if not session.get('logged_in'):
+                return jsonify({'error': 'Unauthorized'}), 401
+            if not has_permission(permission):
+                return jsonify({'error': f'Permission required: {permission}'}), 403
+            return f(*args, **kwargs)
+        return decorated
+    return decorator
+
+
 def _record_login(role: str, username: str = ''):
     """Append a login event to the history file."""
     entry = {
@@ -462,12 +521,17 @@ def api_login():
     for u in _load_users():
         if _verify_password(password, u.get('password_hash', '')):
             role = u.get('role', 'user')
+            if role not in ROLE_PERMISSIONS:
+                role = 'user'
             session['logged_in'] = True
             session['role'] = role
             session['username'] = u.get('name', '')
+            custom_perms = u.get('permissions', [])
+            session['permissions'] = custom_perms
             _record_login(role, u.get('name', ''))
             _clear_rate_limit(ip)
-            return jsonify({'ok': True, 'role': role, 'username': u.get('name', '')})
+            perms = list(set(ROLE_PERMISSIONS.get(role, []) + custom_perms))
+            return jsonify({'ok': True, 'role': role, 'username': u.get('name', ''), 'permissions': perms})
     _record_failed_login(ip)
     return jsonify({'error': 'Nieprawidłowe hasło'}), 401
 
@@ -482,10 +546,14 @@ def api_logout():
 
 @app.route('/api/auth/status')
 def api_auth_status():
+    role = session.get('role', 'user')
+    custom_perms = session.get('permissions', [])
+    perms = list(set(ROLE_PERMISSIONS.get(role, []) + custom_perms))
     return jsonify({
         'logged_in': bool(session.get('logged_in')),
-        'role': session.get('role', 'user'),
+        'role': role,
         'username': session.get('username', ''),
+        'permissions': perms,
     })
 
 
@@ -1264,6 +1332,71 @@ def api_analyze_upload():
     finally:
         if 'tmp_path' in locals():
             os.unlink(tmp_path)
+
+
+@app.route('/api/preview-ddd', methods=['POST'])
+@login_required
+def api_preview_ddd():
+    """Return DDD file preview: hex dump + decoded card structure."""
+    if 'file' not in request.files:
+        return jsonify({'error': 'Brak pliku'}), 400
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'error': 'Nie wybrano pliku'}), 400
+    try:
+        file_data = file.read()
+        file_size = len(file_data)
+        # Hex dump (first 8KB)
+        hex_dump = file_data[:8192].hex()
+
+        # Parse the DDD file for structured data
+        with tempfile.NamedTemporaryFile(suffix='.ddd', delete=False) as tmp:
+            tmp.write(file_data)
+            tmp_path = tmp.name
+
+        try:
+            data = parse_ddd_file(tmp_path)
+        finally:
+            os.unlink(tmp_path)
+
+        # Extract card info
+        card_info = get_driver_info(data)
+
+        # Extract activity records summary
+        activity_records = []
+        for rec in get_activity_records(data):
+            date_str = rec.get('activity_record_date', '')
+            changes = rec.get('activity_change_info', [])
+            driving_mins = 0
+            for i, ch in enumerate(changes):
+                if ch.get('work_type') == 1:  # driving
+                    end_min = changes[i + 1]['minutes'] if i + 1 < len(changes) else 1440
+                    driving_mins += max(0, end_min - ch['minutes'])
+            activity_records.append({
+                'date': date_str[:10] if date_str else '',
+                'total_activities': len(changes),
+                'driving_minutes': driving_mins,
+            })
+
+        # Extract vehicles
+        vehicle_records = get_vehicle_records(data)
+
+        # Extract places and events
+        card_places = get_card_places(data)
+        card_events = get_card_events(data)
+
+        _log_activity('preview_ddd', card_info.get('driver_name', ''))
+        return jsonify({
+            'file_size': file_size,
+            'hex_dump': hex_dump,
+            'card_info': card_info,
+            'activity_records': activity_records,
+            'vehicle_records': vehicle_records,
+            'card_places': card_places,
+            'card_events': card_events,
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 @app.route('/api/analyze/dropbox')
@@ -2526,12 +2659,20 @@ def api_config_history():
 
 # --- User management ---
 
+@app.route('/api/admin/roles')
+@admin_required
+def api_list_roles():
+    """Return available roles and their default permissions."""
+    return jsonify({'roles': ROLE_PERMISSIONS})
+
+
 @app.route('/api/admin/users')
 @admin_required
 def api_list_users():
     users = _load_users()
     # Strip password hashes
     safe = [{'id': u.get('id'), 'name': u.get('name'), 'role': u.get('role', 'user'),
+             'permissions': u.get('permissions', []),
              'created': u.get('created', '')} for u in users]
     return jsonify({'users': safe})
 
@@ -2545,8 +2686,11 @@ def api_create_user():
     role = data.get('role', 'user')
     if not name or not password:
         return jsonify({'error': 'Name and password required'}), 400
-    if role not in ('user', 'admin'):
+    if role not in ('user', 'admin', 'dispatcher', 'driver'):
         role = 'user'
+    permissions = data.get('permissions', [])
+    if not isinstance(permissions, list):
+        permissions = []
     users = _load_users()
     new_id = max((u.get('id', 0) for u in users), default=0) + 1
     users.append({
@@ -2554,6 +2698,7 @@ def api_create_user():
         'name': name,
         'password_hash': _hash_password(password),
         'role': role,
+        'permissions': permissions,
         'created': datetime.now(UTC).isoformat(),
     })
     _save_users(users)

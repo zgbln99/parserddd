@@ -1,20 +1,22 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import { Upload, FileText, AlertCircle, FolderUp, Check, Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Upload, FileText, AlertCircle, FolderUp, Check, Search, ChevronLeft, ChevronRight, Eye, X, Trash2 } from 'lucide-react';
 import { useI18n } from '../i18n';
-import { analyzeUploadedFile, fetchDrivers, saveReaderFileToDropbox } from '../lib/api';
+import { analyzeUploadedFile, fetchDrivers, saveReaderFileToDropbox, previewDddFile } from '../lib/api';
 import { Spinner } from '../components/Spinner';
 import { Card } from '../components/Card';
 import { Modal } from '../components/Modal';
 import { AnalysisView } from '../features/AnalysisView';
+import { DddPreview } from '../components/DddPreview';
 import { useDateFilter } from '../hooks/useDateFilter';
 import { useToast } from '../components/Toast';
-import type { AnalysisResult, Driver } from '../types';
+import type { AnalysisResult, Driver, DddPreviewData } from '../types';
 
 interface FileResult {
   file: File;
   result: AnalysisResult | null;
   error: string;
   loading: boolean;
+  progress: number; // 0-100
 }
 
 export function ReaderPage() {
@@ -31,6 +33,12 @@ export function ReaderPage() {
   // Multi-file support
   const [multiResults, setMultiResults] = useState<FileResult[]>([]);
   const [activeFileIndex, setActiveFileIndex] = useState(0);
+
+  // DDD Preview state
+  const [previewFile, setPreviewFile] = useState<File | null>(null);
+  const [previewData, setPreviewData] = useState<DddPreviewData | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
 
   // Save to Dropbox state
   const [showSaveModal, setShowSaveModal] = useState(false);
@@ -81,25 +89,60 @@ export function ReaderPage() {
       result: null,
       error: '',
       loading: true,
+      progress: 0,
     }));
     setMultiResults([...results]);
     setLoading(true);
 
-    for (let i = 0; i < files.length; i++) {
+    // Process up to 3 files concurrently
+    const concurrency = 3;
+    let nextIdx = 0;
+
+    const processFile = async (i: number) => {
+      results[i] = { ...results[i], progress: 10 };
+      setMultiResults([...results]);
       try {
+        results[i] = { ...results[i], progress: 30 };
+        setMultiResults([...results]);
         const data = await analyzeUploadedFile(files[i]);
-        results[i] = { ...results[i], result: data, loading: false };
+        results[i] = { ...results[i], result: data, loading: false, progress: 100 };
       } catch (e: any) {
-        results[i] = { ...results[i], error: e.message, loading: false };
+        results[i] = { ...results[i], error: e.message, loading: false, progress: 100 };
       }
       setMultiResults([...results]);
-    }
+    };
+
+    const runWorker = async () => {
+      while (nextIdx < files.length) {
+        const idx = nextIdx++;
+        await processFile(idx);
+      }
+    };
+
+    const workers = Array.from({ length: Math.min(concurrency, files.length) }, () => runWorker());
+    await Promise.all(workers);
 
     setLoading(false);
     const ok = results.filter((r) => r.result).length;
     const fail = results.filter((r) => r.error).length;
     toast(`${ok} / ${files.length} ${t('files')} OK${fail ? `, ${fail} ${t('error')}` : ''}`, ok === files.length ? 'success' : 'info');
   }, [handleFile, toast, t]);
+
+  const handlePreviewFile = useCallback(async (file: File) => {
+    setPreviewFile(file);
+    setShowPreview(true);
+    setPreviewLoading(true);
+    setPreviewData(null);
+    try {
+      const data = await previewDddFile(file);
+      setPreviewData(data);
+    } catch (e: any) {
+      toast(e.message, 'error');
+      setShowPreview(false);
+    } finally {
+      setPreviewLoading(false);
+    }
+  }, [toast]);
 
   const openSaveModal = useCallback(() => {
     setShowSaveModal(true);
@@ -135,13 +178,17 @@ export function ReaderPage() {
       e.preventDefault();
       setDragging(false);
       const files = Array.from(e.dataTransfer.files).filter((f) => f.name.endsWith('.ddd'));
+      if (files.length === 0) {
+        toast(t('readerOnlyDdd'), 'error');
+        return;
+      }
       if (files.length > 1) {
         handleMultipleFiles(files);
       } else if (files[0]) {
         handleFile(files[0]);
       }
     },
-    [handleFile, handleMultipleFiles],
+    [handleFile, handleMultipleFiles, toast, t],
   );
 
   const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -158,11 +205,11 @@ export function ReaderPage() {
       <h1 className="mb-6 text-2xl font-bold tracking-tight text-ink">{t('readerTitle')}</h1>
 
       {/* Upload zone */}
-      {!result && !loading && (
+      {!result && !loading && multiResults.length === 0 && (
         <Card
-          className={`cursor-pointer border-2 border-dashed transition-all duration-200 ${
+          className={`cursor-pointer border-2 border-dashed transition-all duration-300 ${
             dragging
-              ? 'border-primary-400 bg-primary-50/50 dark:border-primary-500 dark:bg-primary-900/10'
+              ? 'border-primary-400 bg-primary-50/50 scale-[1.01] shadow-lg dark:border-primary-500 dark:bg-primary-900/10'
               : 'border-border hover:border-primary-300'
           }`}
           onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
@@ -171,16 +218,18 @@ export function ReaderPage() {
           onClick={() => fileRef.current?.click()}
         >
           <div className="flex flex-col items-center gap-4 py-16">
-            <div className={`rounded-2xl bg-primary-50 p-5 transition-transform duration-200 ${dragging ? 'scale-110' : ''}`}>
+            <div className={`rounded-2xl bg-primary-50 p-5 transition-transform duration-300 ${dragging ? 'scale-125 rotate-6' : ''}`}>
               <Upload size={32} className="text-primary-600" />
             </div>
             <div className="text-center">
-              <p className="text-sm font-semibold text-ink">{t('readerDropHint')}</p>
+              <p className="text-sm font-semibold text-ink">{t('readerMultiDrop')}</p>
               <p className="mt-1 text-xs text-muted">{t('readerSelectFile')}</p>
             </div>
-            <button className="btn-press mt-1 rounded-xl bg-primary-600 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-primary-700">
-              {t('readerUploadBtn')}
-            </button>
+            <div className="flex items-center gap-2">
+              <button className="btn-press rounded-xl bg-primary-600 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-primary-700">
+                {t('readerUploadBtn')}
+              </button>
+            </div>
           </div>
           <input ref={fileRef} type="file" accept=".ddd" multiple onChange={onFileChange} className="hidden" />
         </Card>
@@ -242,6 +291,16 @@ export function ReaderPage() {
                   {t('readerSaveToDropbox')}
                 </button>
               )}
+              {originalFile && (
+                <button
+                  onClick={() => handlePreviewFile(originalFile)}
+                  className="flex items-center gap-1.5 rounded-xl border border-border px-4 py-2 text-sm font-medium text-ink transition hover:bg-surface"
+                  title={t('dddPreviewTitle')}
+                >
+                  <Eye size={14} />
+                  {t('dddPreview')}
+                </button>
+              )}
               <button
                 onClick={() => { setResult(null); setError(''); setSaved(false); setOriginalFile(null); }}
                 className="rounded-xl border border-border px-4 py-2 text-sm font-medium text-ink transition hover:bg-surface"
@@ -259,6 +318,24 @@ export function ReaderPage() {
       {/* Multi-file results */}
       {multiResults.length > 1 && (
         <div>
+          {/* Overall progress bar */}
+          {loading && (
+            <div className="mb-4">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-medium text-muted">{t('readerAnalyzing')}</span>
+                <span className="text-xs font-semibold text-ink">
+                  {multiResults.filter((r) => !r.loading).length} / {multiResults.length}
+                </span>
+              </div>
+              <div className="h-2 w-full rounded-full bg-black/5 dark:bg-white/10 overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-primary-500 transition-all duration-500"
+                  style={{ width: `${(multiResults.filter((r) => !r.loading).length / multiResults.length) * 100}%` }}
+                />
+              </div>
+            </div>
+          )}
+
           {/* File selector tabs */}
           <div className="mb-4 flex flex-wrap items-center gap-2">
             <button
@@ -272,7 +349,7 @@ export function ReaderPage() {
               <button
                 key={i}
                 onClick={() => setActiveFileIndex(i)}
-                className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+                className={`relative rounded-lg px-3 py-1.5 text-xs font-medium transition overflow-hidden ${
                   i === activeFileIndex
                     ? 'bg-primary-600 text-white'
                     : fr.error
@@ -282,10 +359,18 @@ export function ReaderPage() {
                     : 'text-ink hover:bg-surface'
                 }`}
               >
-                {fr.loading ? <Spinner size="sm" /> : null}
-                {fr.file.name.replace('.ddd', '')}
-                {fr.result && <Check size={12} className="ml-1 inline text-success" />}
-                {fr.error && <AlertCircle size={12} className="ml-1 inline text-danger" />}
+                {fr.loading && (
+                  <div
+                    className="absolute inset-0 bg-primary-100/50 dark:bg-primary-900/20 transition-all duration-300"
+                    style={{ width: `${fr.progress}%` }}
+                  />
+                )}
+                <span className="relative flex items-center gap-1">
+                  {fr.loading ? <Spinner size="sm" /> : null}
+                  {fr.file.name.replace('.ddd', '')}
+                  {fr.result && <Check size={12} className="text-success" />}
+                  {fr.error && <AlertCircle size={12} className="text-danger" />}
+                </span>
               </button>
             ))}
             <button
@@ -298,6 +383,17 @@ export function ReaderPage() {
             <span className="ml-auto text-xs text-muted">
               {activeFileIndex + 1} / {multiResults.length}
             </span>
+            {/* Preview button */}
+            {multiResults[activeFileIndex]?.file && (
+              <button
+                onClick={(e) => { e.stopPropagation(); handlePreviewFile(multiResults[activeFileIndex].file); }}
+                className="flex items-center gap-1 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-ink transition hover:bg-surface"
+                title={t('dddPreviewTitle')}
+              >
+                <Eye size={14} />
+                {t('dddPreview')}
+              </button>
+            )}
             <button
               onClick={() => { setMultiResults([]); setResult(null); setError(''); setSaved(false); setOriginalFile(null); }}
               className="rounded-xl border border-border px-3 py-1.5 text-xs font-medium text-ink transition hover:bg-surface"
@@ -336,6 +432,15 @@ export function ReaderPage() {
           )}
         </div>
       )}
+
+      {/* DDD Preview modal */}
+      <Modal open={showPreview} onClose={() => setShowPreview(false)} title={`${t('dddPreviewTitle')} — ${previewFile?.name || ''}`}>
+        {previewLoading ? (
+          <div className="flex justify-center py-12"><Spinner size="lg" /></div>
+        ) : previewData ? (
+          <DddPreview data={previewData} />
+        ) : null}
+      </Modal>
 
       {/* Save to Dropbox modal */}
       <Modal open={showSaveModal} onClose={() => setShowSaveModal(false)} title={t('readerSaveToDropbox')}>

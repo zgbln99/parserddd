@@ -115,7 +115,9 @@ export function UsersTab() {
               onChange={(e) => setNewRole(e.target.value)}
               className="input rounded-xl px-3 py-1.5 text-sm outline-none"
             >
+              <option value="driver">{t('roleDriver')}</option>
               <option value="user">User</option>
+              <option value="dispatcher">{t('roleDispatcher')}</option>
               <option value="admin">Admin</option>
             </select>
           </div>
@@ -139,7 +141,7 @@ export function UsersTab() {
               <div className="flex items-center justify-between">
                 <div>
                   <span className="font-medium">{u.name}</span>
-                  <span className="ml-2"><Badge variant={u.role === 'admin' ? 'red' : 'gray'}>{u.role}</Badge></span>
+                  <span className="ml-2"><Badge variant={u.role === 'admin' ? 'red' : u.role === 'dispatcher' ? 'blue' : u.role === 'driver' ? 'green' : 'gray'}>{u.role}</Badge></span>
                 </div>
                 <button
                   onClick={() => handleDelete(u.id, u.name)}
@@ -168,7 +170,7 @@ export function UsersTab() {
                   <td className="px-4 py-2 font-mono text-xs text-muted">{u.id}</td>
                   <td className="px-4 py-2 font-medium">{u.name}</td>
                   <td className="px-4 py-2">
-                    <Badge variant={u.role === 'admin' ? 'red' : 'gray'}>{u.role}</Badge>
+                    <Badge variant={u.role === 'admin' ? 'red' : u.role === 'dispatcher' ? 'blue' : u.role === 'driver' ? 'green' : 'gray'}>{u.role}</Badge>
                   </td>
                   <td className="px-4 py-2 text-xs text-muted">{u.created ? new Date(u.created).toLocaleDateString() : ''}</td>
                   <td className="px-4 py-2">

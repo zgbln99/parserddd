@@ -146,3 +146,28 @@ export interface DashboardData {
   last_sync_errors: number;
   last_sync_uploaded: number;
 }
+
+// DDD File Preview
+export interface DddPreviewActivityRecord {
+  date: string;
+  total_activities: number;
+  driving_minutes: number;
+}
+
+export interface DddPreviewVehicle {
+  plate: string;
+  first_use: string;
+  last_use: string;
+  odometer_begin_km: number;
+  odometer_end_km: number;
+}
+
+export interface DddPreviewData {
+  file_size: number;
+  hex_dump: string;
+  card_info: Record<string, string>;
+  activity_records: DddPreviewActivityRecord[];
+  vehicle_records: DddPreviewVehicle[];
+  card_places: CardPlace[];
+  card_events: CardEvent[];
+}

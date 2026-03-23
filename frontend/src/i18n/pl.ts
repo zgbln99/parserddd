@@ -487,6 +487,45 @@ export const pl = {
   offlineMode: 'Tryb offline — dane z cache',
   offlineReady: 'Aplikacja gotowa do pracy offline',
   offlineSyncing: 'Synchronizacja...',
+
+  // DDD Preview
+  dddPreview: 'Podgląd DDD',
+  dddPreviewTitle: 'Podgląd pliku DDD',
+  dddPreviewInfo: 'Informacje',
+  dddPreviewHex: 'Hex Dump',
+  dddPreviewActivities: 'Aktywności',
+  dddPreviewVehicles: 'Pojazdy',
+  dddPreviewPlaces: 'Miejsca',
+  dddPreviewEvents: 'Zdarzenia',
+  dddPreviewFileSize: 'Rozmiar pliku',
+  dddPreviewOffset: 'Offset',
+  dddPreviewActivity: 'Aktywność',
+  dddPreviewRecords: 'Rekordy',
+  dddPreviewChanges: 'zmian aktywności',
+  dddPreviewCountry: 'Kraj',
+  dddPreviewRegion: 'Region',
+  dddPreviewEventType: 'Typ zdarzenia',
+
+  // Roles & Permissions
+  roleAdmin: 'Administrator',
+  roleDispatcher: 'Dyspozytor',
+  roleUser: 'Użytkownik',
+  roleDriver: 'Kierowca',
+  permDashboard: 'Pulpit',
+  permDrivers: 'Kierowcy',
+  permReader: 'Czytnik kart',
+  permAnalysis: 'Analiza',
+  permCompare: 'Porównanie',
+  permSettlement: 'Rozliczenie',
+  permVehicles: 'Pojazdy',
+  permExport: 'Eksport',
+  permAdmin: 'Administracja',
+  permSync: 'Synchronizacja',
+
+  // Drag & drop enhancements
+  readerOnlyDdd: 'Obsługiwane są tylko pliki .ddd',
+  readerFilesQueued: 'plików w kolejce',
+  readerProcessing: 'Przetwarzanie',
 } as const;
 
 export type TranslationKey = keyof typeof pl;
