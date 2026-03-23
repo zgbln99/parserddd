@@ -2037,7 +2037,7 @@ export async function generateArbeitszeitnachweisePdf(
   }
 
   const font = fonts ? 'Inter' : 'helvetica';
-  const m = 10; // tighter margins for max table width
+  const m = 14; // consistent margins
 
   const periodStr = shifts.length > 0
     ? `${shifts[0].shift_date} – ${shifts[shifts.length - 1].shift_date}`
@@ -2048,22 +2048,51 @@ export async function generateArbeitszeitnachweisePdf(
 
   let y = drawHeader(c, 'Arbeitszeitnachweis', `${driverName}  ·  Kartennr. ${cardNumber}  ·  ${periodStr}`);
 
-  // ── Compact info line ──
+  // ── Driver info block — structured, not crammed ──
+  y += 2;
+  const col1x = m;
+  const col1vx = m + 24;
+  const col2x = m + 95;
+  const col2vx = m + 119;
+
+  doc.setFontSize(7.5);
+
+  doc.setFont(font, 'bold');
+  doc.setTextColor(...C.dark);
+  doc.text('Fahrer:', col1x, y);
   doc.setFont(font, 'normal');
-  doc.setFontSize(6.5);
-  doc.setTextColor(...C.gray);
-  const infoLine = [
-    `Fahrer: ${driverName}`,
-    `Kartennr.: ${cardNumber}`,
-    `Zeitraum: ${periodStr}`,
-    `Schichten: ${summary.total_shifts}`,
-    allVehicles.length > 0 ? `Fahrzeuge: ${allVehicles.join(', ')}` : '',
-  ].filter(Boolean).join('  ·  ');
-  doc.text(infoLine, m, y);
-  y += 3;
+  doc.setTextColor(...C.dark);
+  doc.text(driverName, col1vx, y);
+
+  doc.setFont(font, 'bold');
+  doc.text('Zeitraum:', col2x, y);
+  doc.setFont(font, 'normal');
+  doc.text(periodStr, col2vx, y);
+
+  y += 4.5;
+
+  doc.setFont(font, 'bold');
+  doc.text('Kartennummer:', col1x, y);
+  doc.setFont(font, 'normal');
+  doc.text(cardNumber, col1vx, y);
+
+  if (allVehicles.length > 0) {
+    doc.setFont(font, 'bold');
+    doc.text('Fahrzeuge:', col2x, y);
+    doc.setFont(font, 'normal');
+    doc.text(allVehicles.join(', '), col2vx, y);
+  }
+
+  y += 6;
+
+  // ── Thin separator ──
+  doc.setDrawColor(210, 218, 228);
+  doc.setLineWidth(0.2);
+  doc.line(m, y, W - m, y);
+  y += 4;
 
   // ════════════════════════════════════════
-  //  SHIFTS TABLE — full width, compact
+  //  SHIFTS TABLE — full width, polished
   // ════════════════════════════════════════
 
   const tableW = W - 2 * m;
@@ -2097,14 +2126,15 @@ export async function generateArbeitszeitnachweisePdf(
     String(summary.diet_count),
   ]);
 
-  // Dynamic font size: shrink for many shifts to fit on one page
+  // Dynamic font size to fit on one page
   const rowCount = shiftBody.length;
-  // Available space: from y to (H - footer(10) - compliance(22) - signatures(14)) ≈ H - 46
-  const availH = H - 46 - y;
-  // Each row ≈ fontSize * 0.6 + 2*padding. Solve for fontSize.
-  const maxFontForFit = Math.max(4.5, Math.min(7, (availH / rowCount - 1.2) / 0.65));
+  // Reserve space: footer ~10, compliance ~18, signatures ~16, spacing ~10
+  const reserveBelow = 54;
+  const availH = H - reserveBelow - y;
+  // Row height ≈ fontSize * 0.65 + 2 * padding
+  const maxFontForFit = Math.max(5, Math.min(7, (availH / rowCount - 2) / 0.65));
   const tblFont = Math.round(maxFontForFit * 10) / 10;
-  const tblPad = tblFont >= 6 ? 1.2 : 0.8;
+  const tblPad = tblFont >= 6.5 ? 1.5 : tblFont >= 5.5 ? 1.2 : 1;
 
   autoTable(doc, {
     startY: y,
@@ -2117,7 +2147,7 @@ export async function generateArbeitszeitnachweisePdf(
       fontSize: tblFont,
       cellPadding: tblPad,
       textColor: C.dark,
-      lineColor: [200, 210, 220],
+      lineColor: [210, 218, 228],
       lineWidth: 0.15,
       overflow: 'ellipsize',
     },
@@ -2126,95 +2156,105 @@ export async function generateArbeitszeitnachweisePdf(
       textColor: C.white,
       fontStyle: 'bold',
       fontSize: tblFont,
-      cellPadding: tblPad,
+      cellPadding: tblPad + 0.3,
     },
     columnStyles: {
-      0:  { cellWidth: 'auto' },                    // Tag
-      1:  { cellWidth: 'auto' },                    // Datum
-      2:  { cellWidth: 'auto' },                    // Beginn
-      3:  { cellWidth: 'auto' },                    // Ende
-      4:  { halign: 'right' },                      // Dauer
-      5:  { halign: 'right' },                      // Lenkzeit
-      6:  { halign: 'right' },                      // Arbeit
-      7:  { halign: 'right' },                      // Bereitschaft
-      8:  { halign: 'right' },                      // Pause
-      9:  { halign: 'right' },                      // N25%
-      10: { halign: 'right' },                      // N40%
-      11: { halign: 'center' },                     // Spesen
+      0:  { cellWidth: 'auto' },
+      1:  { cellWidth: 'auto' },
+      2:  { cellWidth: 'auto' },
+      3:  { cellWidth: 'auto' },
+      4:  { halign: 'right' },
+      5:  { halign: 'right' },
+      6:  { halign: 'right' },
+      7:  { halign: 'right' },
+      8:  { halign: 'right' },
+      9:  { halign: 'right' },
+      10: { halign: 'right' },
+      11: { halign: 'center' },
     },
     margin: { left: m, right: m },
+    alternateRowStyles: {
+      fillColor: [248, 250, 252],
+    },
     didParseCell(data) {
       if (data.section === 'body') {
         const isLastRow = data.row.index === shiftBody.length - 1;
         if (isLastRow) {
           data.cell.styles.fontStyle = 'bold';
-          data.cell.styles.fillColor = [230, 236, 245];
+          data.cell.styles.fillColor = [226, 232, 240];
+          data.cell.styles.textColor = C.dark;
         } else {
           const wd = String(shiftBody[data.row.index][0]);
           if (weekendDays.includes(wd)) {
             data.cell.styles.fillColor = C.weekendBg;
           }
         }
-        if (data.column.index === 9 && String(data.cell.raw) !== '—') {
-          data.cell.styles.textColor = C.primaryLight;
+        if (data.column.index === 9 && String(data.cell.raw) !== '—' && !isLastRow) {
+          data.cell.styles.textColor = [79, 70, 229];
         }
-        if (data.column.index === 10 && String(data.cell.raw) !== '—') {
+        if (data.column.index === 10 && String(data.cell.raw) !== '—' && !isLastRow) {
           data.cell.styles.textColor = C.purple;
         }
       }
     },
   });
-  y = (doc as any).lastAutoTable.finalY + 3;
+  y = (doc as any).lastAutoTable.finalY;
 
   // ════════════════════════════════════════
-  //  COMPLIANCE TEXT (no box, just text)
+  //  COMPLIANCE TEXT — with breathing room
   // ════════════════════════════════════════
 
-  doc.setFont(font, 'bold');
-  doc.setFontSize(7);
-  doc.setTextColor(...C.dark);
-  doc.text('Ergebnis der Auswertung:', m, y);
-  doc.setFont(font, 'normal');
-  doc.text(
-    'Die Auswertung der digitalen Fahrerkarte hat ergeben, dass im oben genannten Zeitraum keine Verstöße gegen die Vorschriften',
-    m + 38, y,
-  );
-  y += 3.5;
-  doc.text(
-    'der VO (EG) Nr. 561/2006 (Lenk- und Ruhezeiten), des ArbZG §§ 3, 4 (Arbeitszeit, Pausen), der Richtlinie 2002/15/EG (Nachtarbeit)',
-    m, y,
-  );
-  y += 3.5;
-  doc.text(
-    'sowie der VO (EU) Nr. 165/2014 (Fahrtenschreiber) und der FPersV (Fahrpersonalverordnung) festgestellt wurden.',
-    m, y,
-  );
+  y += 8;
+
+  // Subtle separator
+  doc.setDrawColor(210, 218, 228);
+  doc.setLineWidth(0.2);
+  doc.line(m, y, W - m, y);
   y += 5;
 
-  // ════════════════════════════════════════
-  //  SIGNATURES — one line
-  // ════════════════════════════════════════
+  doc.setFont(font, 'bold');
+  doc.setFontSize(8);
+  doc.setTextColor(...C.dark);
+  doc.text('Ergebnis der Auswertung', m, y);
+  y += 5;
 
   doc.setFont(font, 'normal');
-  doc.setFontSize(5.5);
-  doc.setTextColor(...C.gray);
+  doc.setFontSize(7);
+  doc.setTextColor(60, 65, 75);
   doc.text(
-    'Grundlage: Gespeicherte Daten der digitalen Fahrerkarte gemäß VO (EU) Nr. 165/2014. Maschinell erstellt.',
+    'Die Auswertung der digitalen Fahrerkarte hat ergeben, dass im oben genannten Zeitraum keine Verstöße gegen die Vorschriften',
     m, y,
   );
-  y += 4;
+  y += 3.8;
+  doc.text(
+    'der VO (EG) Nr. 561/2006 (Lenk- und Ruhezeiten), des ArbZG §§ 3, 4 (Arbeitszeit, Pausen), der Richtlinie 2002/15/EG',
+    m, y,
+  );
+  y += 3.8;
+  doc.text(
+    '(Nachtarbeit) sowie der VO (EU) Nr. 165/2014 (Fahrtenschreiber) und der FPersV (Fahrpersonalverordnung) festgestellt wurden.',
+    m, y,
+  );
 
-  const sigW = (W - 2 * m - 30) / 3;
-  doc.setDrawColor(...C.dark);
-  doc.setLineWidth(0.25);
+  y += 8;
+
+  // ════════════════════════════════════════
+  //  SIGNATURES — with proper spacing
+  // ════════════════════════════════════════
+
+  const sigW = (W - 2 * m - 40) / 3;
+  doc.setDrawColor(100, 116, 139);
+  doc.setLineWidth(0.3);
   doc.line(m, y, m + sigW, y);
-  doc.line(m + sigW + 15, y, m + 2 * sigW + 15, y);
-  doc.line(m + 2 * (sigW + 15), y, m + 3 * sigW + 30, y);
+  doc.line(m + sigW + 20, y, m + 2 * sigW + 20, y);
+  doc.line(m + 2 * (sigW + 20), y, m + 3 * sigW + 40, y);
 
-  doc.setFontSize(6);
-  doc.text('Ort, Datum', m, y + 3.5);
-  doc.text('Unterschrift Verantwortlicher', m + sigW + 15, y + 3.5);
-  doc.text('Unterschrift Fahrer', m + 2 * (sigW + 15), y + 3.5);
+  doc.setFont(font, 'normal');
+  doc.setFontSize(6.5);
+  doc.setTextColor(...C.gray);
+  doc.text('Ort, Datum', m, y + 4);
+  doc.text('Unterschrift Verantwortlicher', m + sigW + 20, y + 4);
+  doc.text('Unterschrift Fahrer', m + 2 * (sigW + 20), y + 4);
 
   // ── Footer ──
   drawFooter(c);
