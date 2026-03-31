@@ -314,7 +314,7 @@ export function TollCollectPage() {
     const q = searchText.toLowerCase().trim();
     return allRows.filter(r => {
       if (q) {
-        const haystack = `${r.plate} ${r.route} ${r.bookingNr} ${r.bookingType} ${r.type}`.toLowerCase();
+        const haystack = r.plate.toLowerCase();
         if (!haystack.includes(q)) return false;
       }
       if (dateFrom && r.date < dateFrom) return false;
