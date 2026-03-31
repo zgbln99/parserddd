@@ -443,6 +443,28 @@ export const pl = {
 
   // Samsara KM
   navSamsaraKm: 'km dzień/noc',
+
+  // Payroll
+  navPayroll: 'Wypłaty',
+  payrollTitle: 'Rozliczenia miesięczne',
+  payrollSubtitle: 'Zaznaczaj kierowców z nowymi plikami — śledź kogo już policzyłeś',
+  payrollTotal: 'Kierowcy',
+  payrollNewFiles: 'Nowe pliki',
+  payrollDone: 'Policzeni',
+  payrollRemaining: 'Pozostało',
+  payrollProgress: 'Postęp rozliczeń',
+  payrollShowOnlyNew: 'Tylko z nowymi plikami',
+  payrollSearchPlaceholder: 'Szukaj kierowcy...',
+  payrollCheckAll: 'Zaznacz wszystkich',
+  payrollUncheckAll: 'Odznacz wszystkich',
+  payrollDriver: 'Kierowca',
+  payrollCard: 'Karta',
+  payrollFilesNew: 'Nowe pliki',
+  payrollLastDownload: 'Ostatnie pobranie',
+  payrollStatus: 'Status',
+  payrollChecked: 'Policzony',
+  payrollPending: 'Do policzenia',
+
   samTitle: 'Kilometry dzień / noc',
   samSubtitle: 'Analiza CSV z Samsary — kilometry z podziałem na zmianę dzienną i nocną',
   samUpload: 'Przeciągnij CSV z Samsary lub kliknij',

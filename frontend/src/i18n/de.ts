@@ -445,6 +445,28 @@ export const de: Record<TranslationKey, string> = {
 
   // Samsara KM
   navSamsaraKm: 'km Tag/Nacht',
+
+  // Payroll
+  navPayroll: 'Abrechnung',
+  payrollTitle: 'Monatsabrechnung',
+  payrollSubtitle: 'Fahrer mit neuen Dateien markieren — Fortschritt verfolgen',
+  payrollTotal: 'Fahrer',
+  payrollNewFiles: 'Neue Dateien',
+  payrollDone: 'Erledigt',
+  payrollRemaining: 'Verbleibend',
+  payrollProgress: 'Abrechnungsfortschritt',
+  payrollShowOnlyNew: 'Nur mit neuen Dateien',
+  payrollSearchPlaceholder: 'Fahrer suchen...',
+  payrollCheckAll: 'Alle markieren',
+  payrollUncheckAll: 'Alle abwählen',
+  payrollDriver: 'Fahrer',
+  payrollCard: 'Karte',
+  payrollFilesNew: 'Neue Dateien',
+  payrollLastDownload: 'Letzter Download',
+  payrollStatus: 'Status',
+  payrollChecked: 'Erledigt',
+  payrollPending: 'Ausstehend',
+
   samTitle: 'Kilometer Tag / Nacht',
   samSubtitle: 'Analyse der Samsara-CSV — Kilometer aufgeteilt nach Tag- und Nachtschicht',
   samUpload: 'Samsara CSV hierher ziehen oder klicken',
