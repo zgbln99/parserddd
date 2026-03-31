@@ -9,7 +9,7 @@ import {
   deleteTollCollectFile,
   type TollCollectFile,
 } from '../lib/api';
-import { exportTollToXlsx, type TollVehicleGroup } from '../lib/xlsx-export';
+import { exportTollToXlsx, type TollVehicleGroup, type MonthData } from '../lib/xlsx-export';
 
 interface TollRow {
   plate: string;
@@ -142,20 +142,29 @@ function fmtSize(bytes: number) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+interface LoadedMonth {
+  period: string; // YYYY-MM
+  rows: TollRow[];
+  fileName: string;
+  file: File | null; // null if loaded from Dropbox
+}
+
 export function TollCollectPage() {
   const { t } = useI18n();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [rows, setRows] = useState<TollRow[]>([]);
-  const [fileName, setFileName] = useState('');
+
+  // Multi-month state
+  const [months, setMonths] = useState<LoadedMonth[]>([]);
   const [error, setError] = useState('');
-  const [lastFile, setLastFile] = useState<File | null>(null);
-  const [savePeriod, setSavePeriod] = useState(''); // YYYY-MM for Dropbox save
+
+  // Tours per vehicle
+  const [tours, setTours] = useState<Record<string, string>>({});
 
   // Dropbox state
   const [dbxFiles, setDbxFiles] = useState<TollCollectFile[]>([]);
   const [dbxLoading, setDbxLoading] = useState(false);
-  const [dbxSaving, setDbxSaving] = useState(false);
-  const [dbxSaved, setDbxSaved] = useState(false);
+  const [dbxSaving, setDbxSaving] = useState<string | null>(null); // period being saved
+  const [dbxSavedPeriods, setDbxSavedPeriods] = useState<Set<string>>(new Set());
   const [dbxDownloading, setDbxDownloading] = useState<string | null>(null);
   const [dbxError, setDbxError] = useState('');
   const [showDbxFiles, setShowDbxFiles] = useState(false);
@@ -172,6 +181,9 @@ export function TollCollectPage() {
 
   // Selected vehicles for Excel export
   const [selectedPlates, setSelectedPlates] = useState<Set<string>>(new Set());
+
+  // All rows merged from all months
+  const allRows = useMemo(() => months.flatMap(m => m.rows), [months]);
 
   // Load Dropbox file list
   const loadDbxFiles = useCallback(async () => {
@@ -194,14 +206,7 @@ export function TollCollectPage() {
     }
   }, [showDbxFiles, dbxFiles.length, dbxLoading, loadDbxFiles]);
 
-  const handleFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setError('');
-    setFileName(file.name);
-    setLastFile(file);
-    setDbxSaved(false);
-
+  const addFileAsMonth = useCallback((file: File, fileObj: File | null = file) => {
     const reader = new FileReader();
     reader.onload = (ev) => {
       try {
@@ -211,18 +216,16 @@ export function TollCollectPage() {
           setError('Nie znaleziono danych w pliku CSV');
           return;
         }
-        setRows(parsed);
-        // Auto-detect month from first date in data
+        // Auto-detect period from first date
         const firstDate = parsed.find(r => r.date)?.date || '';
-        if (firstDate.length >= 7) setSavePeriod(firstDate.slice(0, 7));
-        // Reset filters
-        setSearchText('');
-        setDateFrom('');
-        setDateTo('');
-        setTimeFrom('');
-        setTimeTo('');
-        setExpandedPlates(new Set());
-        setSelectedPlates(new Set());
+        const period = firstDate.length >= 7 ? firstDate.slice(0, 7) : new Date().toISOString().slice(0, 7);
+
+        setMonths(prev => {
+          // Replace if same period exists, otherwise add
+          const filtered = prev.filter(m => m.period !== period);
+          return [...filtered, { period, rows: parsed, fileName: file.name, file: fileObj }]
+            .sort((a, b) => a.period.localeCompare(b.period));
+        });
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err));
       }
@@ -230,37 +233,43 @@ export function TollCollectPage() {
     reader.readAsText(file, 'utf-8');
   }, []);
 
+  const handleFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    setError('');
+    for (let i = 0; i < files.length; i++) {
+      addFileAsMonth(files[i]);
+    }
+    // Reset input so same file can be re-selected
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  }, [addFileAsMonth]);
+
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
-    const file = e.dataTransfer.files[0];
-    if (!file) return;
-    // Simulate file input
-    const dt = new DataTransfer();
-    dt.items.add(file);
-    if (fileInputRef.current) {
-      fileInputRef.current.files = dt.files;
-      fileInputRef.current.dispatchEvent(new Event('change', { bubbles: true }));
+    setError('');
+    const files = e.dataTransfer.files;
+    for (let i = 0; i < files.length; i++) {
+      addFileAsMonth(files[i]);
     }
-  }, []);
+  }, [addFileAsMonth]);
 
-  // Save current file to Dropbox
-  const handleSaveToDropbox = useCallback(async () => {
-    if (!lastFile) return;
-    setDbxSaving(true);
+  // Save specific month to Dropbox
+  const handleSaveToDropbox = useCallback(async (month: LoadedMonth) => {
+    if (!month.file) return;
+    setDbxSaving(month.period);
     setDbxError('');
     try {
-      await uploadTollCollectFile(lastFile, savePeriod || undefined);
-      setDbxSaved(true);
-      // Refresh file list if visible
+      await uploadTollCollectFile(month.file, month.period || undefined);
+      setDbxSavedPeriods(prev => new Set([...prev, month.period]));
       if (showDbxFiles) loadDbxFiles();
     } catch (err) {
       setDbxError(err instanceof Error ? err.message : String(err));
     } finally {
-      setDbxSaving(false);
+      setDbxSaving(null);
     }
-  }, [lastFile, savePeriod, showDbxFiles, loadDbxFiles]);
+  }, [showDbxFiles, loadDbxFiles]);
 
-  // Load file from Dropbox
+  // Load file from Dropbox — adds as a month
   const handleLoadFromDropbox = useCallback(async (path: string, name: string) => {
     setDbxDownloading(path);
     setDbxError('');
@@ -272,18 +281,15 @@ export function TollCollectPage() {
         setError('Nie znaleziono danych w pliku CSV');
         return;
       }
-      setRows(parsed);
-      setFileName(name);
-      setLastFile(null); // no File object - came from Dropbox
-      setDbxSaved(true);
-      // Reset filters
-      setSearchText('');
-      setDateFrom('');
-      setDateTo('');
-      setTimeFrom('');
-      setTimeTo('');
-      setExpandedPlates(new Set());
-      setSelectedPlates(new Set());
+      const firstDate = parsed.find(r => r.date)?.date || '';
+      const period = firstDate.length >= 7 ? firstDate.slice(0, 7) : new Date().toISOString().slice(0, 7);
+
+      setMonths(prev => {
+        const filtered = prev.filter(m => m.period !== period);
+        return [...filtered, { period, rows: parsed, fileName: name, file: null }]
+          .sort((a, b) => a.period.localeCompare(b.period));
+      });
+      setDbxSavedPeriods(prev => new Set([...prev, period]));
     } catch (err) {
       setDbxError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -306,7 +312,7 @@ export function TollCollectPage() {
   // Filtered rows
   const filtered = useMemo(() => {
     const q = searchText.toLowerCase().trim();
-    return rows.filter(r => {
+    return allRows.filter(r => {
       if (q) {
         const haystack = `${r.plate} ${r.route} ${r.bookingNr} ${r.bookingType} ${r.type}`.toLowerCase();
         if (!haystack.includes(q)) return false;
@@ -317,7 +323,7 @@ export function TollCollectPage() {
       if (timeTo && r.time > timeTo) return false;
       return true;
     });
-  }, [rows, searchText, dateFrom, dateTo, timeFrom, timeTo]);
+  }, [allRows, searchText, dateFrom, dateTo, timeFrom, timeTo]);
 
   // Group by vehicle
   const byVehicle = useMemo(() => {
@@ -371,6 +377,7 @@ export function TollCollectPage() {
       .filter(([plate]) => selectedPlates.has(plate))
       .map(([plate, data]): TollVehicleGroup => ({
         plate,
+        tour: tours[plate] || '',
         rows: data.rows.map(r => ({
           plate: r.plate,
           date: r.date,
@@ -394,15 +401,35 @@ export function TollCollectPage() {
 
     if (selected.length === 0) return;
 
+    // Build per-month raw data
+    const monthDataMap: MonthData[] = months.map(m => ({
+      period: m.period,
+      rows: m.rows.map(r => ({
+        plate: r.plate,
+        date: r.date,
+        time: r.time,
+        route: r.route,
+        bookingNr: r.bookingNr,
+        bookingType: r.bookingType,
+        type: r.type,
+        axleClass: r.axleClass,
+        weightClass: r.weightClass,
+        emissionClass: r.emissionClass,
+        co2Class: r.co2Class,
+        km: r.km,
+        amount: r.amount,
+        statementNr: r.statementNr,
+        raw: r.raw,
+      })),
+    }));
+
     // Detect period from data
-    const dates = selected.flatMap(v => v.rows.map(r => r.date)).filter(Boolean).sort();
-    const periodStr = dates.length > 0
-      ? (dates[0].slice(0, 7) === dates[dates.length - 1].slice(0, 7)
-        ? dates[0].slice(0, 7)
-        : `${dates[0].slice(0, 7)}_${dates[dates.length - 1].slice(0, 7)}`)
+    const periods = months.map(m => m.period).sort();
+    const periodStr = periods.length > 0
+      ? (periods.length === 1 ? periods[0] : `${periods[0]}_${periods[periods.length - 1]}`)
       : new Date().toISOString().slice(0, 7);
 
-    exportTollToXlsx(selected, periodStr, 'LTS Logistik GmbH');
+    exportTollToXlsx(selected, periodStr, 'LTS Logistik GmbH', monthDataMap);
   };
 
   return (
@@ -550,29 +577,81 @@ export function TollCollectPage() {
         </Card>
       )}
 
-      {/* Upload area */}
-      {rows.length === 0 && (
+      {/* Upload area — always visible */}
+      <Card>
+        <div
+          className={`flex flex-col items-center justify-center ${months.length === 0 ? 'py-16' : 'py-6'} px-4 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:border-blue-400 dark:hover:border-blue-500 transition-colors`}
+          onClick={() => fileInputRef.current?.click()}
+          onDragOver={e => e.preventDefault()}
+          onDrop={handleDrop}
+        >
+          <Upload className={`${months.length === 0 ? 'w-12 h-12 mb-4' : 'w-8 h-8 mb-2'} text-muted`} />
+          <p className="text-sm font-medium text-muted">
+            {t('tollMultiUpload')}
+          </p>
+          <p className="text-xs text-muted mt-1">
+            {t('tollUploadHint')}
+          </p>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv,.txt"
+            multiple
+            className="hidden"
+            onChange={handleFileUpload}
+          />
+        </div>
+      </Card>
+
+      {/* Loaded months list */}
+      {months.length > 0 && (
         <Card>
-          <div
-            className="flex flex-col items-center justify-center py-16 px-4 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:border-blue-400 dark:hover:border-blue-500 transition-colors"
-            onClick={() => fileInputRef.current?.click()}
-            onDragOver={e => e.preventDefault()}
-            onDrop={handleDrop}
-          >
-            <Upload className="w-12 h-12 text-muted mb-4" />
-            <p className="text-sm font-medium text-muted">
-              {t('tollUpload')}
-            </p>
-            <p className="text-xs text-muted mt-1">
-              {t('tollUploadHint')}
-            </p>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".csv,.txt"
-              className="hidden"
-              onChange={handleFileUpload}
-            />
+          <div className="p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                <Calendar className="w-4 h-4" />
+                {t('tollLoadedMonths')} ({months.length} {t('tollMonths')})
+              </h3>
+              <button
+                onClick={() => { setMonths([]); setError(''); setTours({}); setSelectedPlates(new Set()); setExpandedPlates(new Set()); setDbxSavedPeriods(new Set()); }}
+                className="text-xs text-muted hover:text-red-500 transition-colors"
+              >
+                {t('clear')}
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {months.map(m => (
+                <div
+                  key={m.period}
+                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800"
+                >
+                  <Calendar className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                  <span className="text-sm font-mono font-medium text-blue-700 dark:text-blue-300">{m.period}</span>
+                  <span className="text-xs text-muted">({m.rows.length} {t('tollRows')})</span>
+                  {/* Save to Dropbox */}
+                  {m.file && !dbxSavedPeriods.has(m.period) && (
+                    <button
+                      onClick={() => handleSaveToDropbox(m)}
+                      disabled={dbxSaving === m.period}
+                      className="text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 disabled:opacity-50"
+                      title={t('tollDbxSave')}
+                    >
+                      {dbxSaving === m.period ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CloudUpload className="w-3.5 h-3.5" />}
+                    </button>
+                  )}
+                  {dbxSavedPeriods.has(m.period) && (
+                    <CloudUpload className="w-3.5 h-3.5 text-green-500" />
+                  )}
+                  <button
+                    onClick={() => setMonths(prev => prev.filter(pm => pm.period !== m.period))}
+                    className="text-muted hover:text-red-500 transition-colors"
+                    title={t('tollRemoveMonth')}
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
         </Card>
       )}
@@ -586,49 +665,8 @@ export function TollCollectPage() {
       )}
 
       {/* Results */}
-      {rows.length > 0 && (
+      {allRows.length > 0 && (
         <>
-          {/* File info + actions */}
-          <div className="flex items-center gap-3 flex-wrap">
-            <div className="flex items-center gap-2 text-sm text-muted">
-              <FileText className="w-4 h-4" />
-              <span className="font-medium">{fileName}</span>
-              <span>— {rows.length} {t('tollRows')}</span>
-            </div>
-
-            {/* Save to Dropbox */}
-            {lastFile && !dbxSaved && (
-              <div className="inline-flex items-center gap-2">
-                <input
-                  type="month"
-                  value={savePeriod}
-                  onChange={e => setSavePeriod(e.target.value)}
-                  className="rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-2 py-1 text-xs text-gray-900 dark:text-white"
-                />
-                <button
-                  onClick={handleSaveToDropbox}
-                  disabled={dbxSaving}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-300 dark:hover:bg-blue-900/50 transition-colors disabled:opacity-50"
-                >
-                  {dbxSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CloudUpload className="w-3.5 h-3.5" />}
-                  {t('tollDbxSave')}
-                </button>
-              </div>
-            )}
-            {dbxSaved && (
-              <span className="inline-flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
-                <CloudUpload className="w-3.5 h-3.5" />
-                {t('tollDbxSaved')}
-              </span>
-            )}
-
-            <button
-              onClick={() => { setRows([]); setFileName(''); setError(''); setLastFile(null); setDbxSaved(false); }}
-              className="inline-flex items-center gap-1 text-xs text-muted hover:text-red-500 transition-colors"
-            >
-              <X className="w-3 h-3" /> {t('tollNewFile')}
-            </button>
-          </div>
 
           {/* Filters */}
           <Card>
@@ -789,6 +827,9 @@ export function TollCollectPage() {
                     <th className="text-left px-3 py-3 font-semibold text-muted">
                       {t('tollVehicle')}
                     </th>
+                    <th className="text-left px-3 py-3 font-semibold text-muted hidden sm:table-cell">
+                      {t('tollTour')}
+                    </th>
                     <th className="text-left px-3 py-3 font-semibold text-muted">
                       {t('tollDate')}
                     </th>
@@ -841,6 +882,15 @@ export function TollCollectPage() {
                               <span className="font-mono">{plate}</span>
                             </div>
                           </td>
+                          <td className="px-3 py-3 hidden sm:table-cell" onClick={e => e.stopPropagation()}>
+                            <input
+                              type="text"
+                              value={tours[plate] || ''}
+                              onChange={e => setTours(prev => ({ ...prev, [plate]: e.target.value }))}
+                              placeholder={t('tollTourPlaceholder')}
+                              className="w-full rounded border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 px-2 py-1 text-xs text-gray-900 dark:text-white placeholder-gray-400 focus:border-blue-400 focus:outline-none"
+                            />
+                          </td>
                           <td className="px-3 py-3 text-muted text-xs" colSpan={2}>
                             {data.rows.length} {t('tollTripsCount')}
                           </td>
@@ -862,6 +912,7 @@ export function TollCollectPage() {
                           >
                             <td className="px-3 py-2" />
                             <td className="px-1 py-2" />
+                            <td className="px-3 py-2 hidden sm:table-cell" />
                             <td className="px-3 py-2 font-mono text-muted">{r.bookingNr}</td>
                             <td className="px-3 py-2 text-gray-700 dark:text-gray-300">{r.date}</td>
                             <td className="px-3 py-2 text-muted">{r.time}</td>
@@ -890,6 +941,7 @@ export function TollCollectPage() {
                     <td className="px-3 py-3 text-gray-900 dark:text-white">
                       RAZEM
                     </td>
+                    <td className="px-3 py-3 hidden sm:table-cell" />
                     <td className="px-3 py-3 text-muted text-xs" colSpan={2}>
                       {byVehicle.length} {t('tollVehiclesCount')}, {filtered.length} {t('tollTripsCount')}
                     </td>

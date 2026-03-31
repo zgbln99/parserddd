@@ -430,6 +430,14 @@ export const pl = {
   tollSelectAll: 'Zaznacz wszystkie',
   tollSelected: 'zaznaczonych',
   tollExportExcel: 'Eksport do Excel',
+  tollAddMonth: 'Dodaj miesiąc',
+  tollLoadedMonths: 'Załadowane miesiące',
+  tollRemoveMonth: 'Usuń miesiąc',
+  tollNoMonths: 'Załaduj pliki CSV — każdy plik to jeden miesiąc',
+  tollTour: 'Tour',
+  tollTourPlaceholder: 'Wpisz tour...',
+  tollMonths: 'mies.',
+  tollMultiUpload: 'Przeciągnij pliki CSV lub kliknij (wiele plików jednocześnie)',
 
   // Samsara KM
   navSamsaraKm: 'km dzień/noc',

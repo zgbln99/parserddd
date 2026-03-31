@@ -432,6 +432,14 @@ export const de: Record<TranslationKey, string> = {
   tollSelectAll: 'Alle auswählen',
   tollSelected: 'ausgewählt',
   tollExportExcel: 'Excel exportieren',
+  tollAddMonth: 'Monat hinzufügen',
+  tollLoadedMonths: 'Geladene Monate',
+  tollRemoveMonth: 'Monat entfernen',
+  tollNoMonths: 'CSV-Dateien laden — jede Datei entspricht einem Monat',
+  tollTour: 'Tour',
+  tollTourPlaceholder: 'Tour eingeben...',
+  tollMonths: 'Mon.',
+  tollMultiUpload: 'CSV-Dateien ziehen oder klicken (mehrere Dateien gleichzeitig)',
 
   // Samsara KM
   navSamsaraKm: 'km Tag/Nacht',

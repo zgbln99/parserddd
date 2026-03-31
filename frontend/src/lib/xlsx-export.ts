@@ -139,9 +139,15 @@ export interface TollExportRow {
 
 export interface TollVehicleGroup {
   plate: string;
+  tour?: string;
   rows: TollExportRow[];
   totalKm: number;
   totalAmount: number;
+}
+
+export interface MonthData {
+  period: string;
+  rows: TollExportRow[];
 }
 
 function applyNumberFormat(ws: XLSX.WorkSheet, row: number, col: number, fmt: string) {
@@ -153,6 +159,7 @@ export function exportTollToXlsx(
   vehicles: TollVehicleGroup[],
   period: string,
   companyName: string,
+  monthsData?: MonthData[],
 ) {
   const wb = XLSX.utils.book_new();
 
@@ -161,9 +168,9 @@ export function exportTollToXlsx(
   const grandTotalTrips = vehicles.reduce((s, v) => s + v.rows.length, 0);
 
   // ── Sheet 1: Übersicht (Summary) ──
-  const ovHeaders = ['Kennzeichen', 'Fahrten', 'Kilometer', 'Mautbetrag (EUR)'];
-  const ovRows: (string | number)[][] = vehicles.map(v => [v.plate, v.rows.length, v.totalKm, v.totalAmount]);
-  const ovFooter = ['GESAMT / RAZEM', grandTotalTrips, grandTotalKm, grandTotalAmount];
+  const ovHeaders = ['Kennzeichen', 'Tour', 'Fahrten', 'Kilometer', 'Mautbetrag (EUR)'];
+  const ovRows: (string | number)[][] = vehicles.map(v => [v.plate, v.tour || '', v.rows.length, v.totalKm, v.totalAmount]);
+  const ovFooter = ['GESAMT / RAZEM', '', grandTotalTrips, grandTotalKm, grandTotalAmount];
 
   const overviewData: (string | number)[][] = [
     [companyName],
@@ -177,22 +184,22 @@ export function exportTollToXlsx(
   ];
 
   const wsOverview = XLSX.utils.aoa_to_sheet(overviewData);
-  wsOverview['!cols'] = [{ wch: 20 }, { wch: 12 }, { wch: 14 }, { wch: 18 }];
+  wsOverview['!cols'] = [{ wch: 20 }, { wch: 20 }, { wch: 12 }, { wch: 14 }, { wch: 18 }];
   wsOverview['!merges'] = [
-    { s: { r: 0, c: 0 }, e: { r: 0, c: 3 } },
-    { s: { r: 1, c: 0 }, e: { r: 1, c: 3 } },
-    { s: { r: 2, c: 0 }, e: { r: 2, c: 3 } },
+    { s: { r: 0, c: 0 }, e: { r: 0, c: 4 } },
+    { s: { r: 1, c: 0 }, e: { r: 1, c: 4 } },
+    { s: { r: 2, c: 0 }, e: { r: 2, c: 4 } },
   ];
   // AutoFilter on header row (row 4)
-  wsOverview['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 4, c: 0 }, e: { r: 4 + vehicles.length, c: 3 } }) };
+  wsOverview['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 4, c: 0 }, e: { r: 4 + vehicles.length, c: 4 } }) };
   // Number formats
   for (let r = 5; r < 5 + vehicles.length; r++) {
-    applyNumberFormat(wsOverview, r, 2, '#,##0.0');
-    applyNumberFormat(wsOverview, r, 3, '#,##0.00 €');
+    applyNumberFormat(wsOverview, r, 3, '#,##0.0');
+    applyNumberFormat(wsOverview, r, 4, '#,##0.00 €');
   }
   const totalRow = 5 + vehicles.length + 1;
-  applyNumberFormat(wsOverview, totalRow, 2, '#,##0.0');
-  applyNumberFormat(wsOverview, totalRow, 3, '#,##0.00 €');
+  applyNumberFormat(wsOverview, totalRow, 3, '#,##0.0');
+  applyNumberFormat(wsOverview, totalRow, 4, '#,##0.00 €');
 
   XLSX.utils.book_append_sheet(wb, wsOverview, 'Übersicht');
 
@@ -226,7 +233,7 @@ export function exportTollToXlsx(
 
     const data: (string | number)[][] = [
       [companyName],
-      [`Fahrzeug / Pojazd: ${v.plate}`],
+      [`Fahrzeug / Pojazd: ${v.plate}${v.tour ? `  |  Tour: ${v.tour}` : ''}`],
       [`Zeitraum / Okres: ${period}`],
       [],
       vehHeaders,
@@ -276,28 +283,35 @@ export function exportTollToXlsx(
     XLSX.utils.book_append_sheet(wb, ws, sheetName);
   }
 
-  // ── Last sheet: Rohdaten / Dane surowe (all raw CSV columns) ──
-  // Collect all unique raw column headers
-  const rawHeaderSet = new Set<string>();
-  for (const v of vehicles) {
-    for (const r of v.rows) {
+  // ── Rohdaten sheets: one per month if monthsData provided, otherwise single sheet ──
+  const monthSources = monthsData && monthsData.length > 0
+    ? monthsData
+    : [{ period: 'all', rows: vehicles.flatMap(v => v.rows) }];
+
+  for (const md of monthSources) {
+    // Collect all unique raw column headers for this month
+    const rawHeaderSet = new Set<string>();
+    for (const r of md.rows) {
       for (const key of Object.keys(r.raw)) rawHeaderSet.add(key);
     }
-  }
-  const rawHeaders = Array.from(rawHeaderSet);
-  const allRawRows: string[][] = [];
-  for (const v of vehicles) {
-    const sorted = [...v.rows].sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
+    const rawHeaders = Array.from(rawHeaderSet);
+    const rawRows: string[][] = [];
+    const sorted = [...md.rows].sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
     for (const r of sorted) {
-      allRawRows.push(rawHeaders.map(h => r.raw[h] || ''));
+      rawRows.push(rawHeaders.map(h => r.raw[h] || ''));
     }
+
+    const wsRaw = XLSX.utils.aoa_to_sheet([rawHeaders, ...rawRows]);
+    wsRaw['!cols'] = rawHeaders.map(h => ({ wch: Math.max(h.length + 2, 12) }));
+    if (rawHeaders.length > 0) {
+      wsRaw['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: rawRows.length, c: rawHeaders.length - 1 } }) };
+    }
+
+    const sheetName = monthSources.length === 1
+      ? 'Rohdaten'
+      : `Rohdaten ${md.period}`.slice(0, 31);
+    XLSX.utils.book_append_sheet(wb, wsRaw, sheetName);
   }
-
-  const wsRaw = XLSX.utils.aoa_to_sheet([rawHeaders, ...allRawRows]);
-  wsRaw['!cols'] = rawHeaders.map(h => ({ wch: Math.max(h.length + 2, 12) }));
-  wsRaw['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: allRawRows.length, c: rawHeaders.length - 1 } }) };
-
-  XLSX.utils.book_append_sheet(wb, wsRaw, 'Rohdaten');
 
   const safePeriod = period.replace(/[^a-zA-Z0-9_-]/g, '') || 'Maut';
   XLSX.writeFile(wb, `Maut_${safePeriod}_${vehicles.length}Fzg.xlsx`);
