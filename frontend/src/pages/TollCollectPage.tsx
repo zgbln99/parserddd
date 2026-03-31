@@ -9,7 +9,7 @@ import {
   deleteTollCollectFile,
   type TollCollectFile,
 } from '../lib/api';
-import { exportTollToXlsx, type TollVehicleGroup, type MonthData } from '../lib/xlsx-export';
+import { exportTollToXlsx, type TollVehicleGroup } from '../lib/xlsx-export';
 
 interface TollRow {
   plate: string;
@@ -381,21 +381,22 @@ export function TollCollectPage() {
       .map(([plate, data]): TollVehicleGroup => {
         // Apply per-vehicle custom date range if set
         const range = vehicleDateRanges[plate];
-        let filteredRows = data.rows;
-        if (range?.from || range?.to) {
-          filteredRows = data.rows.filter(r => {
-            if (range.from && r.date < range.from) return false;
-            if (range.to && r.date > range.to) return false;
-            return true;
-          });
-        }
-        const totalKm = filteredRows.reduce((s, r) => s + r.km, 0);
-        const totalAmount = filteredRows.reduce((s, r) => s + r.amount, 0);
+        // Use ALL rows for this plate from allRows (bypass global date filter)
+        const allVehicleRows = allRows.filter(r => r.plate === plate);
+        let exportRows = range?.from || range?.to
+          ? allVehicleRows.filter(r => {
+              if (range.from && r.date < range.from) return false;
+              if (range.to && r.date > range.to) return false;
+              return true;
+            })
+          : data.rows; // no custom range — use globally filtered rows
+        const totalKm = exportRows.reduce((s, r) => s + r.km, 0);
+        const totalAmount = exportRows.reduce((s, r) => s + r.amount, 0);
         return {
           plate,
           tour: tours[plate] || '',
           dateRange: range?.from || range?.to ? `${range.from || '...'} – ${range.to || '...'}` : undefined,
-          rows: filteredRows.map(r => ({
+          rows: exportRows.map(r => ({
             plate: r.plate,
             date: r.date,
             time: r.time,
@@ -419,35 +420,13 @@ export function TollCollectPage() {
 
     if (selected.length === 0) return;
 
-    // Build per-month raw data
-    const monthDataMap: MonthData[] = months.map(m => ({
-      period: m.period,
-      rows: m.rows.map(r => ({
-        plate: r.plate,
-        date: r.date,
-        time: r.time,
-        route: r.route,
-        bookingNr: r.bookingNr,
-        bookingType: r.bookingType,
-        type: r.type,
-        axleClass: r.axleClass,
-        weightClass: r.weightClass,
-        emissionClass: r.emissionClass,
-        co2Class: r.co2Class,
-        km: r.km,
-        amount: r.amount,
-        statementNr: r.statementNr,
-        raw: r.raw,
-      })),
-    }));
-
     // Detect period from data
     const periods = months.map(m => m.period).sort();
     const periodStr = periods.length > 0
       ? (periods.length === 1 ? periods[0] : `${periods[0]}_${periods[periods.length - 1]}`)
       : new Date().toISOString().slice(0, 7);
 
-    exportTollToXlsx(selected, periodStr, 'LTS Logistik GmbH', monthDataMap);
+    exportTollToXlsx(selected, periodStr, 'LTS Logistik GmbH');
   };
 
   return (

@@ -189,7 +189,6 @@ export function exportTollToXlsx(
   vehicles: TollVehicleGroup[],
   period: string,
   companyName: string,
-  monthsData?: MonthData[],
 ) {
   const wb = XLSX.utils.book_new();
 
@@ -198,10 +197,14 @@ export function exportTollToXlsx(
   const grandTotalTrips = vehicles.reduce((s, v) => s + v.rows.length, 0);
 
   // ── Sheet 1: Übersicht (Summary) ──
-  // Sorted month periods for columns
-  const monthPeriods = monthsData && monthsData.length > 1
-    ? [...monthsData].sort((a, b) => a.period.localeCompare(b.period)).map(m => m.period)
-    : [];
+  // Detect months from actual vehicle data
+  const allMonthSet = new Set<string>();
+  for (const v of vehicles) {
+    for (const r of v.rows) {
+      if (r.date.length >= 7) allMonthSet.add(r.date.slice(0, 7));
+    }
+  }
+  const monthPeriods = Array.from(allMonthSet).sort();
   const hasMultiMonths = monthPeriods.length > 1;
 
   // Pre-compute per-vehicle per-month Maut amounts
@@ -475,28 +478,18 @@ export function exportTollToXlsx(
     XLSX.utils.book_append_sheet(wb, ws, sheetName);
   }
 
-  // ── Rohdaten sheets: one per month, filtered to selected vehicles only ──
-  const selectedPlates = new Set(vehicles.map(v => v.plate));
-  const monthSources = monthsData && monthsData.length > 0
-    ? monthsData
-    : [{ period: 'all', rows: vehicles.flatMap(v => v.rows) }];
+  // ── Rohdaten sheets: one per vehicle (uses each vehicle's already-filtered rows) ──
+  for (const v of vehicles) {
+    if (v.rows.length === 0) continue;
 
-  for (const md of monthSources) {
-    // Only include rows for selected vehicles
-    const filteredRows = md.rows.filter(r => selectedPlates.has(r.plate));
-    if (filteredRows.length === 0) continue;
-
-    // Collect all unique raw column headers
+    // Collect all unique raw column headers for this vehicle
     const rawHeaderSet = new Set<string>();
-    for (const r of filteredRows) {
+    for (const r of v.rows) {
       for (const key of Object.keys(r.raw)) rawHeaderSet.add(key);
     }
     const rawHeaders = Array.from(rawHeaderSet);
-    const rawRows: string[][] = [];
-    const sorted = [...filteredRows].sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
-    for (const r of sorted) {
-      rawRows.push(rawHeaders.map(h => r.raw[h] || ''));
-    }
+    const sorted = [...v.rows].sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
+    const rawRows: string[][] = sorted.map(r => rawHeaders.map(h => r.raw[h] || ''));
 
     const wsRaw = XLSX.utils.aoa_to_sheet([rawHeaders, ...rawRows]);
     wsRaw['!cols'] = rawHeaders.map(h => ({ wch: Math.max(h.length + 2, 12) }));
@@ -504,10 +497,17 @@ export function exportTollToXlsx(
       wsRaw['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: rawRows.length, c: rawHeaders.length - 1 } }) };
     }
 
-    const sheetName = monthSources.length === 1
-      ? 'Rohdaten'
-      : `Rohdaten ${md.period}`.slice(0, 31);
-    XLSX.utils.book_append_sheet(wb, wsRaw, sheetName);
+    // Style header row
+    for (let c = 0; c < rawHeaders.length; c++) {
+      styleCell(wsRaw, 0, c, {
+        font: { ...FONT_BOLD, color: { rgb: 'FFFFFF' } },
+        fill: FILL_HEADER,
+        border: BORDERS_ALL,
+      });
+    }
+
+    const rawSheetName = `Roh ${v.plate}`.replace(/[\\/*?[\]:]/g, '').slice(0, 31);
+    XLSX.utils.book_append_sheet(wb, wsRaw, rawSheetName);
   }
 
   const safePeriod = period.replace(/[^a-zA-Z0-9_-]/g, '') || 'Maut';
