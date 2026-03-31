@@ -188,16 +188,22 @@ export function exportTollToXlsx(
   }
 
   // Build headers: Kennzeichen | Tour | Fahrten | Kilometer | [Maut per month...] | Maut Gesamt
-  const ovHeaders: string[] = ['Kennzeichen', 'Tour', 'Fahrten', 'Kilometer'];
+  const ovHeaders: string[] = ['Nr.', 'Kennzeichen', 'Tour', 'Fahrten', 'Kilometer'];
   if (hasMultiMonths) {
-    for (const mp of monthPeriods) ovHeaders.push(`Maut ${mp}`);
+    for (const mp of monthPeriods) {
+      // Format month nicely: 2026-01 -> "Jan 2026"
+      const [y, m] = mp.split('-');
+      const monthNames = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
+      const label = `Maut ${monthNames[parseInt(m, 10) - 1]} ${y}`;
+      ovHeaders.push(label);
+    }
   }
-  ovHeaders.push('Mautbetrag (EUR)');
+  ovHeaders.push('Maut Gesamt (EUR)');
   const colCount_ov = ovHeaders.length;
 
   // Build rows
-  const ovRows: (string | number)[][] = vehicles.map(v => {
-    const row: (string | number)[] = [v.plate, v.tour || '', v.rows.length, v.totalKm];
+  const ovRows: (string | number)[][] = vehicles.map((v, idx) => {
+    const row: (string | number)[] = [idx + 1, v.plate, v.tour || '', v.rows.length, v.totalKm];
     if (hasMultiMonths) {
       const byMonth = vehicleMonthAmounts.get(v.plate)!;
       for (const mp of monthPeriods) row.push(byMonth.get(mp) || 0);
@@ -207,7 +213,7 @@ export function exportTollToXlsx(
   });
 
   // Footer
-  const ovFooter: (string | number)[] = ['GESAMT / RAZEM', '', grandTotalTrips, grandTotalKm];
+  const ovFooter: (string | number)[] = ['', 'GESAMT', '', grandTotalTrips, grandTotalKm];
   if (hasMultiMonths) {
     for (const mp of monthPeriods) {
       const monthTotal = vehicles.reduce((s, v) => {
@@ -221,8 +227,9 @@ export function exportTollToXlsx(
 
   const overviewData: (string | number)[][] = [
     [companyName],
-    ['Mautaufstellung / Zestawienie opłat drogowych'],
-    [`Zeitraum / Okres: ${period}`],
+    ['Mautaufstellung'],
+    [`Zeitraum: ${period}`],
+    [`Anzahl Fahrzeuge: ${vehicles.length}  |  Anzahl Fahrten: ${grandTotalTrips}`],
     [],
     ovHeaders,
     ...ovRows,
@@ -231,28 +238,29 @@ export function exportTollToXlsx(
   ];
 
   const wsOverview = XLSX.utils.aoa_to_sheet(overviewData);
-  const ovColWidths: { wch: number }[] = [{ wch: 20 }, { wch: 20 }, { wch: 12 }, { wch: 14 }];
+  const ovColWidths: { wch: number }[] = [{ wch: 6 }, { wch: 18 }, { wch: 20 }, { wch: 10 }, { wch: 14 }];
   if (hasMultiMonths) {
     for (const _mp of monthPeriods) ovColWidths.push({ wch: 18 });
   }
-  ovColWidths.push({ wch: 18 });
+  ovColWidths.push({ wch: 20 });
   wsOverview['!cols'] = ovColWidths;
   wsOverview['!merges'] = [
     { s: { r: 0, c: 0 }, e: { r: 0, c: colCount_ov - 1 } },
     { s: { r: 1, c: 0 }, e: { r: 1, c: colCount_ov - 1 } },
     { s: { r: 2, c: 0 }, e: { r: 2, c: colCount_ov - 1 } },
+    { s: { r: 3, c: 0 }, e: { r: 3, c: colCount_ov - 1 } },
   ];
-  wsOverview['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 4, c: 0 }, e: { r: 4 + vehicles.length, c: colCount_ov - 1 } }) };
-  // Number formats: km col (3), per-month Maut cols, and Gesamt Maut col
-  for (let r = 5; r < 5 + vehicles.length; r++) {
-    applyNumberFormat(wsOverview, r, 3, '#,##0.0');
-    for (let c = 4; c < colCount_ov; c++) {
+  wsOverview['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 5, c: 0 }, e: { r: 5 + vehicles.length, c: colCount_ov - 1 } }) };
+  // Number formats: km col (4), per-month Maut cols (5+), and Gesamt Maut col
+  for (let r = 6; r < 6 + vehicles.length; r++) {
+    applyNumberFormat(wsOverview, r, 4, '#,##0.0');
+    for (let c = 5; c < colCount_ov; c++) {
       applyNumberFormat(wsOverview, r, c, '#,##0.00 €');
     }
   }
-  const totalRow = 5 + vehicles.length + 1;
-  applyNumberFormat(wsOverview, totalRow, 3, '#,##0.0');
-  for (let c = 4; c < colCount_ov; c++) {
+  const totalRow = 6 + vehicles.length + 1;
+  applyNumberFormat(wsOverview, totalRow, 4, '#,##0.0');
+  for (let c = 5; c < colCount_ov; c++) {
     applyNumberFormat(wsOverview, totalRow, c, '#,##0.00 €');
   }
 
@@ -288,8 +296,8 @@ export function exportTollToXlsx(
 
     const data: (string | number)[][] = [
       [companyName],
-      [`Fahrzeug / Pojazd: ${v.plate}${v.tour ? `  |  Tour: ${v.tour}` : ''}`],
-      [`Zeitraum / Okres: ${period}`],
+      [`Fahrzeug: ${v.plate}${v.tour ? `  |  Tour: ${v.tour}` : ''}`],
+      [`Zeitraum: ${period}`],
       [],
       vehHeaders,
     ];
@@ -311,7 +319,7 @@ export function exportTollToXlsx(
     const footerIdx = data.length;
     data.push([
       '', '', '', '', '', '', '', '', '', '', '',
-      'GESAMT / RAZEM:',
+      'GESAMT:',
       { f: `SUM(${kmCol}${firstDataRow}:${kmCol}${lastDataRow})` } as unknown as number,
       { f: `SUM(${amtCol}${firstDataRow}:${amtCol}${lastDataRow})` } as unknown as number,
     ]);
@@ -493,7 +501,7 @@ export function exportSamsaraKmToXlsx(
     data.push([]);
     const footerIdx = data.length;
     data.push([
-      'GESAMT / RAZEM:', '', '', '', '',
+      'GESAMT:', '', '', '', '',
       { f: `SUM(${dayCol}${firstDataRow}:${dayCol}${lastDataRow})` } as unknown as number,
       { f: `SUM(${nightCol}${firstDataRow}:${nightCol}${lastDataRow})` } as unknown as number,
       { f: `SUM(${totalCol}${firstDataRow}:${totalCol}${lastDataRow})` } as unknown as number,
