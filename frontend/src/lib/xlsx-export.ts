@@ -168,9 +168,56 @@ export function exportTollToXlsx(
   const grandTotalTrips = vehicles.reduce((s, v) => s + v.rows.length, 0);
 
   // ── Sheet 1: Übersicht (Summary) ──
-  const ovHeaders = ['Kennzeichen', 'Tour', 'Fahrten', 'Kilometer', 'Mautbetrag (EUR)'];
-  const ovRows: (string | number)[][] = vehicles.map(v => [v.plate, v.tour || '', v.rows.length, v.totalKm, v.totalAmount]);
-  const ovFooter = ['GESAMT / RAZEM', '', grandTotalTrips, grandTotalKm, grandTotalAmount];
+  // Sorted month periods for columns
+  const monthPeriods = monthsData && monthsData.length > 1
+    ? [...monthsData].sort((a, b) => a.period.localeCompare(b.period)).map(m => m.period)
+    : [];
+  const hasMultiMonths = monthPeriods.length > 1;
+
+  // Pre-compute per-vehicle per-month Maut amounts
+  const vehicleMonthAmounts = new Map<string, Map<string, number>>();
+  if (hasMultiMonths) {
+    for (const v of vehicles) {
+      const byMonth = new Map<string, number>();
+      for (const r of v.rows) {
+        const m = r.date.slice(0, 7);
+        byMonth.set(m, (byMonth.get(m) || 0) + r.amount);
+      }
+      vehicleMonthAmounts.set(v.plate, byMonth);
+    }
+  }
+
+  // Build headers: Kennzeichen | Tour | Fahrten | Kilometer | [Maut per month...] | Maut Gesamt
+  const ovHeaders: string[] = ['Kennzeichen', 'Tour', 'Fahrten', 'Kilometer'];
+  if (hasMultiMonths) {
+    for (const mp of monthPeriods) ovHeaders.push(`Maut ${mp}`);
+  }
+  ovHeaders.push('Mautbetrag (EUR)');
+  const colCount_ov = ovHeaders.length;
+
+  // Build rows
+  const ovRows: (string | number)[][] = vehicles.map(v => {
+    const row: (string | number)[] = [v.plate, v.tour || '', v.rows.length, v.totalKm];
+    if (hasMultiMonths) {
+      const byMonth = vehicleMonthAmounts.get(v.plate)!;
+      for (const mp of monthPeriods) row.push(byMonth.get(mp) || 0);
+    }
+    row.push(v.totalAmount);
+    return row;
+  });
+
+  // Footer
+  const ovFooter: (string | number)[] = ['GESAMT / RAZEM', '', grandTotalTrips, grandTotalKm];
+  if (hasMultiMonths) {
+    for (const mp of monthPeriods) {
+      const monthTotal = vehicles.reduce((s, v) => {
+        const byMonth = vehicleMonthAmounts.get(v.plate)!;
+        return s + (byMonth.get(mp) || 0);
+      }, 0);
+      ovFooter.push(monthTotal);
+    }
+  }
+  ovFooter.push(grandTotalAmount);
 
   const overviewData: (string | number)[][] = [
     [companyName],
@@ -184,22 +231,30 @@ export function exportTollToXlsx(
   ];
 
   const wsOverview = XLSX.utils.aoa_to_sheet(overviewData);
-  wsOverview['!cols'] = [{ wch: 20 }, { wch: 20 }, { wch: 12 }, { wch: 14 }, { wch: 18 }];
+  const ovColWidths: { wch: number }[] = [{ wch: 20 }, { wch: 20 }, { wch: 12 }, { wch: 14 }];
+  if (hasMultiMonths) {
+    for (const _mp of monthPeriods) ovColWidths.push({ wch: 18 });
+  }
+  ovColWidths.push({ wch: 18 });
+  wsOverview['!cols'] = ovColWidths;
   wsOverview['!merges'] = [
-    { s: { r: 0, c: 0 }, e: { r: 0, c: 4 } },
-    { s: { r: 1, c: 0 }, e: { r: 1, c: 4 } },
-    { s: { r: 2, c: 0 }, e: { r: 2, c: 4 } },
+    { s: { r: 0, c: 0 }, e: { r: 0, c: colCount_ov - 1 } },
+    { s: { r: 1, c: 0 }, e: { r: 1, c: colCount_ov - 1 } },
+    { s: { r: 2, c: 0 }, e: { r: 2, c: colCount_ov - 1 } },
   ];
-  // AutoFilter on header row (row 4)
-  wsOverview['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 4, c: 0 }, e: { r: 4 + vehicles.length, c: 4 } }) };
-  // Number formats
+  wsOverview['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 4, c: 0 }, e: { r: 4 + vehicles.length, c: colCount_ov - 1 } }) };
+  // Number formats: km col (3), per-month Maut cols, and Gesamt Maut col
   for (let r = 5; r < 5 + vehicles.length; r++) {
     applyNumberFormat(wsOverview, r, 3, '#,##0.0');
-    applyNumberFormat(wsOverview, r, 4, '#,##0.00 €');
+    for (let c = 4; c < colCount_ov; c++) {
+      applyNumberFormat(wsOverview, r, c, '#,##0.00 €');
+    }
   }
   const totalRow = 5 + vehicles.length + 1;
   applyNumberFormat(wsOverview, totalRow, 3, '#,##0.0');
-  applyNumberFormat(wsOverview, totalRow, 4, '#,##0.00 €');
+  for (let c = 4; c < colCount_ov; c++) {
+    applyNumberFormat(wsOverview, totalRow, c, '#,##0.00 €');
+  }
 
   XLSX.utils.book_append_sheet(wb, wsOverview, 'Übersicht');
 
@@ -283,20 +338,25 @@ export function exportTollToXlsx(
     XLSX.utils.book_append_sheet(wb, ws, sheetName);
   }
 
-  // ── Rohdaten sheets: one per month if monthsData provided, otherwise single sheet ──
+  // ── Rohdaten sheets: one per month, filtered to selected vehicles only ──
+  const selectedPlates = new Set(vehicles.map(v => v.plate));
   const monthSources = monthsData && monthsData.length > 0
     ? monthsData
     : [{ period: 'all', rows: vehicles.flatMap(v => v.rows) }];
 
   for (const md of monthSources) {
-    // Collect all unique raw column headers for this month
+    // Only include rows for selected vehicles
+    const filteredRows = md.rows.filter(r => selectedPlates.has(r.plate));
+    if (filteredRows.length === 0) continue;
+
+    // Collect all unique raw column headers
     const rawHeaderSet = new Set<string>();
-    for (const r of md.rows) {
+    for (const r of filteredRows) {
       for (const key of Object.keys(r.raw)) rawHeaderSet.add(key);
     }
     const rawHeaders = Array.from(rawHeaderSet);
     const rawRows: string[][] = [];
-    const sorted = [...md.rows].sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
+    const sorted = [...filteredRows].sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
     for (const r of sorted) {
       rawRows.push(rawHeaders.map(h => r.raw[h] || ''));
     }
