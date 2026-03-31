@@ -224,62 +224,73 @@ export function exportTollToXlsx(
     }
   }
 
-  // Build headers
-  // Format: Nr. | Kennzeichen | Tour | Fahrten | [km per month...] | km Gesamt | [Maut per month...] | Maut Gesamt
+  // Build 2-row headers
+  // Row 1: Nr. | Kennzeichen | Tour | Fahrten | Maut [months...] | Maut Gesamt
+  // Row 2: (merged)|(merged)  |(merged)|(merged)| km [months...]  | km Gesamt
   const monthNames = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
   const fmtMonth = (mp: string) => {
     const [y, m] = mp.split('-');
     return `${monthNames[parseInt(m, 10) - 1]} ${y}`;
   };
 
-  const ovHeaders: string[] = ['Nr.', 'Kennzeichen', 'Tour', 'Fahrten'];
-  if (hasMultiMonths) {
-    for (const mp of monthPeriods) ovHeaders.push(`km ${fmtMonth(mp)}`);
-  }
-  ovHeaders.push('km Gesamt');
-  if (hasMultiMonths) {
-    for (const mp of monthPeriods) ovHeaders.push(`Maut ${fmtMonth(mp)}`);
-  }
-  ovHeaders.push('Maut Gesamt (EUR)');
-  const colCount_ov = ovHeaders.length;
+  // Value columns = months + gesamt
+  const valCols = hasMultiMonths ? monthPeriods.length + 1 : 1;
+  const colCount_ov = 4 + valCols; // 4 fixed + value columns
+  const valStart = 4; // first value column index
 
-  // Index where km columns start and maut columns start
-  const kmColStart = 4;
-  const kmGesamtCol = kmColStart + (hasMultiMonths ? monthPeriods.length : 0);
-  const mautColStart = kmGesamtCol + 1;
+  // Header row 1: Maut labels
+  const hdrRow1: string[] = ['Nr.', 'Kennzeichen', 'Tour', 'Fahrten'];
+  if (hasMultiMonths) {
+    for (const mp of monthPeriods) hdrRow1.push(`Maut ${fmtMonth(mp)}`);
+  }
+  hdrRow1.push('Maut Gesamt (€)');
 
-  // Build rows
-  const ovRows: (string | number)[][] = vehicles.map((v, idx) => {
-    const row: (string | number)[] = [idx + 1, v.plate, v.tour || '', v.rows.length];
-    if (hasMultiMonths) {
-      const byMonthK = vehicleMonthKm.get(v.plate)!;
-      for (const mp of monthPeriods) row.push(byMonthK.get(mp) || 0);
-    }
-    row.push(v.totalKm);
+  // Header row 2: km labels
+  const hdrRow2: string[] = ['', '', '', ''];
+  if (hasMultiMonths) {
+    for (const mp of monthPeriods) hdrRow2.push(`km ${fmtMonth(mp)}`);
+  }
+  hdrRow2.push('km Gesamt');
+
+  // Build data: each vehicle = 2 rows (maut row + km row)
+  const dataRows: (string | number)[][] = [];
+  for (let i = 0; i < vehicles.length; i++) {
+    const v = vehicles[i];
+    // Row 1: maut values
+    const mautRow: (string | number)[] = [i + 1, v.plate, v.tour || '', v.rows.length];
     if (hasMultiMonths) {
       const byMonthA = vehicleMonthAmounts.get(v.plate)!;
-      for (const mp of monthPeriods) row.push(byMonthA.get(mp) || 0);
+      for (const mp of monthPeriods) mautRow.push(byMonthA.get(mp) || 0);
     }
-    row.push(v.totalAmount);
-    return row;
-  });
+    mautRow.push(v.totalAmount);
+    dataRows.push(mautRow);
 
-  // Footer
-  const ovFooter: (string | number)[] = ['', 'GESAMT', '', grandTotalTrips];
+    // Row 2: km values
+    const kmRow: (string | number)[] = ['', '', '', ''];
+    if (hasMultiMonths) {
+      const byMonthK = vehicleMonthKm.get(v.plate)!;
+      for (const mp of monthPeriods) kmRow.push(byMonthK.get(mp) || 0);
+    }
+    kmRow.push(v.totalKm);
+    dataRows.push(kmRow);
+  }
+
+  // Footer: 2 rows (maut + km)
+  const footerMaut: (string | number)[] = ['', 'GESAMT', '', grandTotalTrips];
   if (hasMultiMonths) {
     for (const mp of monthPeriods) {
-      const monthKm = vehicles.reduce((s, v) => s + (vehicleMonthKm.get(v.plate)!.get(mp) || 0), 0);
-      ovFooter.push(monthKm);
+      footerMaut.push(vehicles.reduce((s, v) => s + (vehicleMonthAmounts.get(v.plate)!.get(mp) || 0), 0));
     }
   }
-  ovFooter.push(grandTotalKm);
+  footerMaut.push(grandTotalAmount);
+
+  const footerKm: (string | number)[] = ['', '', '', ''];
   if (hasMultiMonths) {
     for (const mp of monthPeriods) {
-      const monthAmt = vehicles.reduce((s, v) => s + (vehicleMonthAmounts.get(v.plate)!.get(mp) || 0), 0);
-      ovFooter.push(monthAmt);
+      footerKm.push(vehicles.reduce((s, v) => s + (vehicleMonthKm.get(v.plate)!.get(mp) || 0), 0));
     }
   }
-  ovFooter.push(grandTotalAmount);
+  footerKm.push(grandTotalKm);
 
   const overviewData: (string | number)[][] = [
     [companyName],
@@ -287,109 +298,147 @@ export function exportTollToXlsx(
     [`Zeitraum: ${period}`],
     [`Anzahl Fahrzeuge: ${vehicles.length}  |  Anzahl Fahrten: ${grandTotalTrips}`],
     [],
-    ovHeaders,
-    ...ovRows,
+    hdrRow1,
+    hdrRow2,
+    ...dataRows,
     [],
-    ovFooter,
+    footerMaut,
+    footerKm,
   ];
 
   const wsOverview = XLSX.utils.aoa_to_sheet(overviewData);
   const ovColWidths: { wch: number }[] = [{ wch: 6 }, { wch: 18 }, { wch: 22 }, { wch: 10 }];
-  // km columns
-  if (hasMultiMonths) {
-    for (const _mp of monthPeriods) ovColWidths.push({ wch: 14 });
-  }
-  ovColWidths.push({ wch: 14 }); // km Gesamt
-  // maut columns
-  if (hasMultiMonths) {
-    for (const _mp of monthPeriods) ovColWidths.push({ wch: 18 });
-  }
-  ovColWidths.push({ wch: 20 }); // Maut Gesamt
+  for (let i = 0; i < valCols; i++) ovColWidths.push({ wch: 18 });
   wsOverview['!cols'] = ovColWidths;
-  wsOverview['!merges'] = [
+
+  // Merges: title rows + header fixed cols merged 2 rows + each vehicle fixed cols merged 2 rows
+  const merges: XLSX.Range[] = [
+    // Title merges
     { s: { r: 0, c: 0 }, e: { r: 0, c: colCount_ov - 1 } },
     { s: { r: 1, c: 0 }, e: { r: 1, c: colCount_ov - 1 } },
     { s: { r: 2, c: 0 }, e: { r: 2, c: colCount_ov - 1 } },
     { s: { r: 3, c: 0 }, e: { r: 3, c: colCount_ov - 1 } },
+    // Header: merge first 4 cols across 2 rows (rows 5-6)
+    { s: { r: 5, c: 0 }, e: { r: 6, c: 0 } }, // Nr.
+    { s: { r: 5, c: 1 }, e: { r: 6, c: 1 } }, // Kennzeichen
+    { s: { r: 5, c: 2 }, e: { r: 6, c: 2 } }, // Tour
+    { s: { r: 5, c: 3 }, e: { r: 6, c: 3 } }, // Fahrten
   ];
-  wsOverview['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 5, c: 0 }, e: { r: 5 + vehicles.length, c: colCount_ov - 1 } }) };
+  // Vehicle data: merge first 4 cols for each vehicle's 2 rows
+  const dataStart = 7; // first data row (after 2 header rows)
+  for (let i = 0; i < vehicles.length; i++) {
+    const r = dataStart + i * 2;
+    for (let c = 0; c < 4; c++) {
+      merges.push({ s: { r, c }, e: { r: r + 1, c } });
+    }
+  }
+  // Footer: merge first 4 cols across 2 rows
+  const footerStart = dataStart + vehicles.length * 2 + 1; // +1 for empty row
+  for (let c = 0; c < 4; c++) {
+    merges.push({ s: { r: footerStart, c }, e: { r: footerStart + 1, c } });
+  }
+  wsOverview['!merges'] = merges;
 
   // Row heights
-  wsOverview['!rows'] = [
-    { hpt: 26 }, // company
-    { hpt: 22 }, // title
-    { hpt: 18 }, // period
-    { hpt: 18 }, // stats
-    { hpt: 8 },  // spacer
-    { hpt: 22 }, // headers
+  const rowHeights: { hpt: number }[] = [
+    { hpt: 26 }, // 0: company
+    { hpt: 22 }, // 1: title
+    { hpt: 18 }, // 2: period
+    { hpt: 18 }, // 3: stats
+    { hpt: 8 },  // 4: spacer
+    { hpt: 20 }, // 5: header row 1
+    { hpt: 20 }, // 6: header row 2
   ];
+  wsOverview['!rows'] = rowHeights;
 
-  // ── Style: title rows ──
+  // ── Styles ──
+  // Title rows
   styleRange(wsOverview, 0, 0, 0, colCount_ov - 1, { font: FONT_TITLE });
   styleRange(wsOverview, 1, 0, 1, colCount_ov - 1, { font: FONT_SUBTITLE });
   styleRange(wsOverview, 2, 0, 2, colCount_ov - 1, { font: FONT_META });
   styleRange(wsOverview, 3, 0, 3, colCount_ov - 1, { font: FONT_META });
 
-  // ── Style: header row (row 5) — white text on dark blue ──
-  const headerRow = 5;
+  // Header rows (5 and 6) — white on dark blue
+  const FILL_HEADER_MAUT = { fgColor: { rgb: '2B4C7E' } }; // dark blue for Maut
+  const FILL_HEADER_KM = { fgColor: { rgb: '3A6B4F' } };   // dark green for km
   for (let c = 0; c < colCount_ov; c++) {
-    styleCell(wsOverview, headerRow, c, {
+    const isFixed = c < 4;
+    // Row 5: Maut header (+ fixed cols)
+    styleCell(wsOverview, 5, c, {
       font: { ...FONT_BOLD, color: { rgb: 'FFFFFF' } },
-      fill: FILL_HEADER,
+      fill: isFixed ? FILL_HEADER : FILL_HEADER_MAUT,
       border: BORDERS_ALL,
-      alignment: { horizontal: c >= 3 ? 'right' : 'left', vertical: 'center', wrapText: true },
+      alignment: { horizontal: c >= 4 ? 'right' : (c === 0 ? 'center' : 'left'), vertical: 'center', wrapText: true },
+    });
+    // Row 6: km header
+    styleCell(wsOverview, 6, c, {
+      font: { ...FONT_BOLD, color: { rgb: 'FFFFFF' } },
+      fill: isFixed ? FILL_HEADER : FILL_HEADER_KM,
+      border: BORDERS_ALL,
+      alignment: { horizontal: c >= 4 ? 'right' : (c === 0 ? 'center' : 'left'), vertical: 'center', wrapText: true },
     });
   }
 
-  // ── Style: data rows with zebra striping ──
-  const dataStart = 6;
-  for (let r = dataStart; r < dataStart + vehicles.length; r++) {
-    const isAlt = (r - dataStart) % 2 === 1;
+  // Data rows: style and number format
+  const FILL_MAUT_LIGHT = { fgColor: { rgb: 'EEF2F9' } }; // light blue for maut rows
+  const FILL_KM_LIGHT = { fgColor: { rgb: 'EDF5F0' } };   // light green for km rows
+  for (let i = 0; i < vehicles.length; i++) {
+    const mautR = dataStart + i * 2;
+    const kmR = mautR + 1;
+    const isAlt = i % 2 === 1;
+
     for (let c = 0; c < colCount_ov; c++) {
-      const s: Record<string, any> = {
+      // Maut row
+      styleCell(wsOverview, mautR, c, {
+        font: c === 1 ? FONT_BOLD : FONT_DEFAULT,
+        border: BORDERS_ALL,
+        fill: isAlt ? FILL_MAUT_LIGHT : undefined,
+        alignment: {
+          horizontal: c === 0 ? 'center' : c >= 4 ? 'right' : 'left',
+          vertical: 'center',
+        },
+      });
+      // km row
+      styleCell(wsOverview, kmR, c, {
         font: FONT_DEFAULT,
         border: BORDERS_ALL,
-        alignment: { horizontal: c >= 3 ? 'right' : 'left', vertical: 'center' },
-      };
-      if (isAlt) s.fill = FILL_ALT;
-      styleCell(wsOverview, r, c, s);
-    }
-    // Nr. centered
-    styleCell(wsOverview, r, 0, {
-      font: FONT_DEFAULT, border: BORDERS_ALL,
-      alignment: { horizontal: 'center', vertical: 'center' },
-      ...(isAlt ? { fill: FILL_ALT } : {}),
-    });
-    // Kennzeichen bold
-    styleCell(wsOverview, r, 1, {
-      font: FONT_BOLD, border: BORDERS_ALL,
-      alignment: { horizontal: 'left', vertical: 'center' },
-      ...(isAlt ? { fill: FILL_ALT } : {}),
-    });
-    // Number formats: km columns then maut columns
-    for (let c = kmColStart; c <= kmGesamtCol; c++) {
-      applyNumberFormat(wsOverview, r, c, '#,##0.0');
-    }
-    for (let c = mautColStart; c < colCount_ov; c++) {
-      applyNumberFormat(wsOverview, r, c, '#,##0.00 €');
+        fill: isAlt ? FILL_KM_LIGHT : { fgColor: { rgb: 'F8FAF8' } },
+        alignment: {
+          horizontal: c >= 4 ? 'right' : 'left',
+          vertical: 'center',
+        },
+      });
+
+      // Number formats
+      if (c >= valStart) {
+        applyNumberFormat(wsOverview, mautR, c, '#,##0.00 €');
+        applyNumberFormat(wsOverview, kmR, c, '#,##0.0');
+      }
     }
   }
 
-  // ── Style: total row ──
-  const totalRow = dataStart + vehicles.length + 1;
+  // Footer styling
   for (let c = 0; c < colCount_ov; c++) {
-    styleCell(wsOverview, totalRow, c, {
+    styleCell(wsOverview, footerStart, c, {
       font: { ...FONT_BOLD, sz: 11 },
       fill: FILL_TOTAL,
       border: BORDER_BOTTOM_THICK,
-      alignment: { horizontal: c >= 3 ? 'right' : 'left', vertical: 'center' },
+      alignment: { horizontal: c >= 4 ? 'right' : (c === 0 ? 'center' : 'left'), vertical: 'center' },
     });
-    if (c >= kmColStart && c <= kmGesamtCol) applyNumberFormat(wsOverview, totalRow, c, '#,##0.0');
-    if (c >= mautColStart) applyNumberFormat(wsOverview, totalRow, c, '#,##0.00 €');
+    styleCell(wsOverview, footerStart + 1, c, {
+      font: { ...FONT_BOLD, sz: 11 },
+      fill: FILL_TOTAL,
+      border: BORDER_BOTTOM_THICK,
+      alignment: { horizontal: c >= 4 ? 'right' : 'left', vertical: 'center' },
+    });
+    if (c >= valStart) {
+      applyNumberFormat(wsOverview, footerStart, c, '#,##0.00 €');
+      applyNumberFormat(wsOverview, footerStart + 1, c, '#,##0.0');
+    }
   }
 
-  // Freeze panes: freeze header row so it stays visible on scroll
-  wsOverview['!freeze'] = { xSplit: 0, ySplit: 6 };
+  // Freeze panes: freeze after header rows
+  wsOverview['!freeze'] = { xSplit: 0, ySplit: 7 };
 
   XLSX.utils.book_append_sheet(wb, wsOverview, 'Übersicht');
 
