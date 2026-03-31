@@ -440,6 +440,8 @@ export const de: Record<TranslationKey, string> = {
   tollTourPlaceholder: 'Tour eingeben...',
   tollMonths: 'Mon.',
   tollMultiUpload: 'CSV-Dateien ziehen oder klicken (mehrere Dateien gleichzeitig)',
+  tollExportRange: 'Exportzeitraum',
+  tollExportRangeHint: 'leer — alle Daten exportieren',
 
   // Samsara KM
   navSamsaraKm: 'km Tag/Nacht',

@@ -160,6 +160,9 @@ export function TollCollectPage() {
   // Tours per vehicle
   const [tours, setTours] = useState<Record<string, string>>({});
 
+  // Per-vehicle custom date ranges for export
+  const [vehicleDateRanges, setVehicleDateRanges] = useState<Record<string, { from: string; to: string }>>({});
+
   // Dropbox state
   const [dbxFiles, setDbxFiles] = useState<TollCollectFile[]>([]);
   const [dbxLoading, setDbxLoading] = useState(false);
@@ -375,29 +378,44 @@ export function TollCollectPage() {
   const handleExportExcel = () => {
     const selected = byVehicle
       .filter(([plate]) => selectedPlates.has(plate))
-      .map(([plate, data]): TollVehicleGroup => ({
-        plate,
-        tour: tours[plate] || '',
-        rows: data.rows.map(r => ({
-          plate: r.plate,
-          date: r.date,
-          time: r.time,
-          route: r.route,
-          bookingNr: r.bookingNr,
-          bookingType: r.bookingType,
-          type: r.type,
-          axleClass: r.axleClass,
-          weightClass: r.weightClass,
-          emissionClass: r.emissionClass,
-          co2Class: r.co2Class,
-          km: r.km,
-          amount: r.amount,
-          statementNr: r.statementNr,
-          raw: r.raw,
-        })),
-        totalKm: data.totalKm,
-        totalAmount: data.totalAmount,
-      }));
+      .map(([plate, data]): TollVehicleGroup => {
+        // Apply per-vehicle custom date range if set
+        const range = vehicleDateRanges[plate];
+        let filteredRows = data.rows;
+        if (range?.from || range?.to) {
+          filteredRows = data.rows.filter(r => {
+            if (range.from && r.date < range.from) return false;
+            if (range.to && r.date > range.to) return false;
+            return true;
+          });
+        }
+        const totalKm = filteredRows.reduce((s, r) => s + r.km, 0);
+        const totalAmount = filteredRows.reduce((s, r) => s + r.amount, 0);
+        return {
+          plate,
+          tour: tours[plate] || '',
+          dateRange: range?.from || range?.to ? `${range.from || '...'} – ${range.to || '...'}` : undefined,
+          rows: filteredRows.map(r => ({
+            plate: r.plate,
+            date: r.date,
+            time: r.time,
+            route: r.route,
+            bookingNr: r.bookingNr,
+            bookingType: r.bookingType,
+            type: r.type,
+            axleClass: r.axleClass,
+            weightClass: r.weightClass,
+            emissionClass: r.emissionClass,
+            co2Class: r.co2Class,
+            km: r.km,
+            amount: r.amount,
+            statementNr: r.statementNr,
+            raw: r.raw,
+          })),
+          totalKm,
+          totalAmount,
+        };
+      });
 
     if (selected.length === 0) return;
 
@@ -903,6 +921,59 @@ export function TollCollectPage() {
                             {fmtEur(data.totalAmount)}
                           </td>
                         </tr>
+
+                        {/* Per-vehicle date range row (shown when selected) */}
+                        {selectedPlates.has(plate) && (
+                          <tr
+                            key={`dr-${plate}`}
+                            className="border-b border-blue-100 dark:border-blue-900/30 bg-blue-50/50 dark:bg-blue-900/10"
+                          >
+                            <td className="px-3 py-2" />
+                            <td className="px-1 py-2" />
+                            <td colSpan={8} className="px-3 py-2">
+                              <div className="flex items-center gap-3 flex-wrap">
+                                <span className="text-xs font-medium text-blue-600 dark:text-blue-400 flex items-center gap-1">
+                                  <Calendar className="w-3 h-3" />
+                                  {t('tollExportRange')}:
+                                </span>
+                                <input
+                                  type="date"
+                                  value={vehicleDateRanges[plate]?.from || ''}
+                                  onChange={e => setVehicleDateRanges(prev => ({
+                                    ...prev,
+                                    [plate]: { ...prev[plate], from: e.target.value, to: prev[plate]?.to || '' },
+                                  }))}
+                                  className="rounded border border-blue-200 dark:border-blue-700 bg-white dark:bg-gray-700 px-2 py-1 text-xs text-gray-900 dark:text-white focus:border-blue-400 focus:outline-none"
+                                />
+                                <span className="text-xs text-muted">–</span>
+                                <input
+                                  type="date"
+                                  value={vehicleDateRanges[plate]?.to || ''}
+                                  onChange={e => setVehicleDateRanges(prev => ({
+                                    ...prev,
+                                    [plate]: { from: prev[plate]?.from || '', to: e.target.value },
+                                  }))}
+                                  className="rounded border border-blue-200 dark:border-blue-700 bg-white dark:bg-gray-700 px-2 py-1 text-xs text-gray-900 dark:text-white focus:border-blue-400 focus:outline-none"
+                                />
+                                {(vehicleDateRanges[plate]?.from || vehicleDateRanges[plate]?.to) && (
+                                  <button
+                                    onClick={() => setVehicleDateRanges(prev => {
+                                      const next = { ...prev };
+                                      delete next[plate];
+                                      return next;
+                                    })}
+                                    className="text-xs text-muted hover:text-red-500"
+                                  >
+                                    <X className="w-3 h-3" />
+                                  </button>
+                                )}
+                                {!vehicleDateRanges[plate]?.from && !vehicleDateRanges[plate]?.to && (
+                                  <span className="text-xs text-muted italic">{t('tollExportRangeHint')}</span>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
 
                         {/* Expanded trip rows */}
                         {isExpanded && data.rows.map((r, idx) => (

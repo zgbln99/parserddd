@@ -438,6 +438,8 @@ export const pl = {
   tollTourPlaceholder: 'Wpisz tour...',
   tollMonths: 'mies.',
   tollMultiUpload: 'Przeciągnij pliki CSV lub kliknij (wiele plików jednocześnie)',
+  tollExportRange: 'Zakres dat do eksportu',
+  tollExportRangeHint: 'brak — eksportuje wszystkie dane',
 
   // Samsara KM
   navSamsaraKm: 'km dzień/noc',

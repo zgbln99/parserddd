@@ -140,6 +140,7 @@ export interface TollExportRow {
 export interface TollVehicleGroup {
   plate: string;
   tour?: string;
+  dateRange?: string;
   rows: TollExportRow[];
   totalKm: number;
   totalAmount: number;
@@ -388,7 +389,7 @@ export function exportTollToXlsx(
     const data: (string | number)[][] = [
       [companyName],
       [`Fahrzeug: ${v.plate}${v.tour ? `  |  Tour: ${v.tour}` : ''}`],
-      [`Zeitraum: ${period}`],
+      [`Zeitraum: ${v.dateRange || period}`],
       [],
       vehHeaders,
     ];
