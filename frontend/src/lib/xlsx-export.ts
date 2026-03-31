@@ -1,4 +1,4 @@
-import * as XLSX from 'xlsx';
+import * as XLSX from 'xlsx-js-style';
 
 interface ShiftRow {
   shift_date: string;
@@ -155,6 +155,35 @@ function applyNumberFormat(ws: XLSX.WorkSheet, row: number, col: number, fmt: st
   if (ws[cell]) ws[cell].z = fmt;
 }
 
+// ── Style helpers ──
+const FONT_DEFAULT = { name: 'Calibri', sz: 10 };
+const FONT_BOLD = { name: 'Calibri', sz: 10, bold: true };
+const FONT_TITLE = { name: 'Calibri', sz: 14, bold: true };
+const FONT_SUBTITLE = { name: 'Calibri', sz: 11, bold: true, color: { rgb: '555555' } };
+const FONT_META = { name: 'Calibri', sz: 10, color: { rgb: '777777' } };
+
+const BORDER_THIN = { style: 'thin', color: { rgb: 'CCCCCC' } } as const;
+const BORDERS_ALL = { top: BORDER_THIN, bottom: BORDER_THIN, left: BORDER_THIN, right: BORDER_THIN };
+const BORDER_BOTTOM_THICK = { ...BORDERS_ALL, bottom: { style: 'medium', color: { rgb: '333333' } } as const };
+
+const FILL_HEADER = { fgColor: { rgb: '2B4C7E' } }; // dark blue
+const FILL_ALT = { fgColor: { rgb: 'F5F7FA' } };    // light gray zebra
+const FILL_TOTAL = { fgColor: { rgb: 'E8EDF3' } };   // light blue-gray
+
+function styleCell(ws: XLSX.WorkSheet, r: number, c: number, s: Record<string, any>) {
+  const addr = XLSX.utils.encode_cell({ r, c });
+  if (!ws[addr]) ws[addr] = { v: '', t: 's' };
+  ws[addr].s = { ...ws[addr].s, ...s };
+}
+
+function styleRange(ws: XLSX.WorkSheet, r1: number, c1: number, r2: number, c2: number, s: Record<string, any>) {
+  for (let r = r1; r <= r2; r++) {
+    for (let c = c1; c <= c2; c++) {
+      styleCell(ws, r, c, s);
+    }
+  }
+}
+
 export function exportTollToXlsx(
   vehicles: TollVehicleGroup[],
   period: string,
@@ -238,7 +267,7 @@ export function exportTollToXlsx(
   ];
 
   const wsOverview = XLSX.utils.aoa_to_sheet(overviewData);
-  const ovColWidths: { wch: number }[] = [{ wch: 6 }, { wch: 18 }, { wch: 20 }, { wch: 10 }, { wch: 14 }];
+  const ovColWidths: { wch: number }[] = [{ wch: 6 }, { wch: 18 }, { wch: 22 }, { wch: 10 }, { wch: 14 }];
   if (hasMultiMonths) {
     for (const _mp of monthPeriods) ovColWidths.push({ wch: 18 });
   }
@@ -251,18 +280,80 @@ export function exportTollToXlsx(
     { s: { r: 3, c: 0 }, e: { r: 3, c: colCount_ov - 1 } },
   ];
   wsOverview['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 5, c: 0 }, e: { r: 5 + vehicles.length, c: colCount_ov - 1 } }) };
-  // Number formats: km col (4), per-month Maut cols (5+), and Gesamt Maut col
-  for (let r = 6; r < 6 + vehicles.length; r++) {
+
+  // Row heights
+  wsOverview['!rows'] = [
+    { hpt: 26 }, // company
+    { hpt: 22 }, // title
+    { hpt: 18 }, // period
+    { hpt: 18 }, // stats
+    { hpt: 8 },  // spacer
+    { hpt: 22 }, // headers
+  ];
+
+  // ── Style: title rows ──
+  styleRange(wsOverview, 0, 0, 0, colCount_ov - 1, { font: FONT_TITLE });
+  styleRange(wsOverview, 1, 0, 1, colCount_ov - 1, { font: FONT_SUBTITLE });
+  styleRange(wsOverview, 2, 0, 2, colCount_ov - 1, { font: FONT_META });
+  styleRange(wsOverview, 3, 0, 3, colCount_ov - 1, { font: FONT_META });
+
+  // ── Style: header row (row 5) — white text on dark blue ──
+  const headerRow = 5;
+  for (let c = 0; c < colCount_ov; c++) {
+    styleCell(wsOverview, headerRow, c, {
+      font: { ...FONT_BOLD, color: { rgb: 'FFFFFF' } },
+      fill: FILL_HEADER,
+      border: BORDERS_ALL,
+      alignment: { horizontal: c >= 3 ? 'right' : 'left', vertical: 'center', wrapText: true },
+    });
+  }
+
+  // ── Style: data rows with zebra striping ──
+  const dataStart = 6;
+  for (let r = dataStart; r < dataStart + vehicles.length; r++) {
+    const isAlt = (r - dataStart) % 2 === 1;
+    for (let c = 0; c < colCount_ov; c++) {
+      const s: Record<string, any> = {
+        font: FONT_DEFAULT,
+        border: BORDERS_ALL,
+        alignment: { horizontal: c >= 3 ? 'right' : 'left', vertical: 'center' },
+      };
+      if (isAlt) s.fill = FILL_ALT;
+      styleCell(wsOverview, r, c, s);
+    }
+    // Nr. centered
+    styleCell(wsOverview, r, 0, {
+      font: FONT_DEFAULT, border: BORDERS_ALL,
+      alignment: { horizontal: 'center', vertical: 'center' },
+      ...(isAlt ? { fill: FILL_ALT } : {}),
+    });
+    // Kennzeichen bold
+    styleCell(wsOverview, r, 1, {
+      font: FONT_BOLD, border: BORDERS_ALL,
+      alignment: { horizontal: 'left', vertical: 'center' },
+      ...(isAlt ? { fill: FILL_ALT } : {}),
+    });
+    // Number formats
     applyNumberFormat(wsOverview, r, 4, '#,##0.0');
     for (let c = 5; c < colCount_ov; c++) {
       applyNumberFormat(wsOverview, r, c, '#,##0.00 €');
     }
   }
-  const totalRow = 6 + vehicles.length + 1;
-  applyNumberFormat(wsOverview, totalRow, 4, '#,##0.0');
-  for (let c = 5; c < colCount_ov; c++) {
-    applyNumberFormat(wsOverview, totalRow, c, '#,##0.00 €');
+
+  // ── Style: total row ──
+  const totalRow = dataStart + vehicles.length + 1;
+  for (let c = 0; c < colCount_ov; c++) {
+    styleCell(wsOverview, totalRow, c, {
+      font: { ...FONT_BOLD, sz: 11 },
+      fill: FILL_TOTAL,
+      border: BORDER_BOTTOM_THICK,
+      alignment: { horizontal: c >= 3 ? 'right' : 'left', vertical: 'center' },
+    });
+    if (c >= 4) applyNumberFormat(wsOverview, totalRow, c, c === 4 ? '#,##0.0' : '#,##0.00 €');
   }
+
+  // Freeze panes: freeze header row so it stays visible on scroll
+  wsOverview['!freeze'] = { xSplit: 0, ySplit: 6 };
 
   XLSX.utils.book_append_sheet(wb, wsOverview, 'Übersicht');
 
@@ -331,17 +422,54 @@ export function exportTollToXlsx(
       { s: { r: 1, c: 0 }, e: { r: 1, c: colCount - 1 } },
       { s: { r: 2, c: 0 }, e: { r: 2, c: colCount - 1 } },
     ];
-    // AutoFilter on data
     ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 4, c: 0 }, e: { r: 4 + sorted.length, c: colCount - 1 } }) };
 
-    // Number formats for data rows
+    // Style: title rows
+    styleRange(ws, 0, 0, 0, colCount - 1, { font: FONT_TITLE });
+    styleRange(ws, 1, 0, 1, colCount - 1, { font: FONT_SUBTITLE });
+    styleRange(ws, 2, 0, 2, colCount - 1, { font: FONT_META });
+
+    // Style: header row (row 4)
+    for (let c = 0; c < colCount; c++) {
+      styleCell(ws, 4, c, {
+        font: { ...FONT_BOLD, color: { rgb: 'FFFFFF' } },
+        fill: FILL_HEADER,
+        border: BORDERS_ALL,
+        alignment: { horizontal: c >= 12 ? 'right' : 'left', vertical: 'center', wrapText: true },
+      });
+    }
+
+    // Style: data rows with zebra
     for (let r = 5; r < 5 + sorted.length; r++) {
+      const isAlt = (r - 5) % 2 === 1;
+      for (let c = 0; c < colCount; c++) {
+        const s: Record<string, any> = {
+          font: FONT_DEFAULT,
+          border: BORDERS_ALL,
+          alignment: { horizontal: c >= 12 ? 'right' : 'left', vertical: 'center' },
+        };
+        if (isAlt) s.fill = FILL_ALT;
+        if (c === 0) s.alignment = { horizontal: 'center', vertical: 'center' };
+        styleCell(ws, r, c, s);
+      }
       applyNumberFormat(ws, r, 12, '#,##0.0');
       applyNumberFormat(ws, r, 13, '#,##0.00 €');
     }
-    // Format totals
+
+    // Style: totals row
+    for (let c = 0; c < colCount; c++) {
+      styleCell(ws, footerIdx, c, {
+        font: { ...FONT_BOLD, sz: 11 },
+        fill: FILL_TOTAL,
+        border: BORDER_BOTTOM_THICK,
+        alignment: { horizontal: c >= 12 ? 'right' : 'left', vertical: 'center' },
+      });
+    }
     applyNumberFormat(ws, footerIdx, 12, '#,##0.0');
     applyNumberFormat(ws, footerIdx, 13, '#,##0.00 €');
+
+    // Freeze header
+    ws['!freeze'] = { xSplit: 0, ySplit: 5 };
 
     XLSX.utils.book_append_sheet(wb, ws, sheetName);
   }

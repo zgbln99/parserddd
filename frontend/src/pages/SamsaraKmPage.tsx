@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, useRef } from 'react';
 import { Upload, AlertCircle, Truck, ChevronDown, ChevronRight, X, FileText, Download, Sun, Moon, Clock } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import * as XLSX from 'xlsx-js-style';
 import { useI18n } from '../i18n';
 import { Card } from '../components/Card';
 import { exportSamsaraKmToXlsx } from '../lib/xlsx-export';
