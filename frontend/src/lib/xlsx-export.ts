@@ -207,53 +207,76 @@ export function exportTollToXlsx(
   const monthPeriods = Array.from(allMonthSet).sort();
   const hasMultiMonths = monthPeriods.length > 1;
 
-  // Pre-compute per-vehicle per-month Maut amounts
+  // Pre-compute per-vehicle per-month Maut amounts and km
   const vehicleMonthAmounts = new Map<string, Map<string, number>>();
+  const vehicleMonthKm = new Map<string, Map<string, number>>();
   if (hasMultiMonths) {
     for (const v of vehicles) {
-      const byMonth = new Map<string, number>();
+      const byMonthAmt = new Map<string, number>();
+      const byMonthKm = new Map<string, number>();
       for (const r of v.rows) {
         const m = r.date.slice(0, 7);
-        byMonth.set(m, (byMonth.get(m) || 0) + r.amount);
+        byMonthAmt.set(m, (byMonthAmt.get(m) || 0) + r.amount);
+        byMonthKm.set(m, (byMonthKm.get(m) || 0) + r.km);
       }
-      vehicleMonthAmounts.set(v.plate, byMonth);
+      vehicleMonthAmounts.set(v.plate, byMonthAmt);
+      vehicleMonthKm.set(v.plate, byMonthKm);
     }
   }
 
-  // Build headers: Kennzeichen | Tour | Fahrten | Kilometer | [Maut per month...] | Maut Gesamt
-  const ovHeaders: string[] = ['Nr.', 'Kennzeichen', 'Tour', 'Fahrten', 'Kilometer'];
+  // Build headers
+  // Format: Nr. | Kennzeichen | Tour | Fahrten | [km per month...] | km Gesamt | [Maut per month...] | Maut Gesamt
+  const monthNames = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
+  const fmtMonth = (mp: string) => {
+    const [y, m] = mp.split('-');
+    return `${monthNames[parseInt(m, 10) - 1]} ${y}`;
+  };
+
+  const ovHeaders: string[] = ['Nr.', 'Kennzeichen', 'Tour', 'Fahrten'];
   if (hasMultiMonths) {
-    for (const mp of monthPeriods) {
-      // Format month nicely: 2026-01 -> "Jan 2026"
-      const [y, m] = mp.split('-');
-      const monthNames = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
-      const label = `Maut ${monthNames[parseInt(m, 10) - 1]} ${y}`;
-      ovHeaders.push(label);
-    }
+    for (const mp of monthPeriods) ovHeaders.push(`km ${fmtMonth(mp)}`);
+  }
+  ovHeaders.push('km Gesamt');
+  if (hasMultiMonths) {
+    for (const mp of monthPeriods) ovHeaders.push(`Maut ${fmtMonth(mp)}`);
   }
   ovHeaders.push('Maut Gesamt (EUR)');
   const colCount_ov = ovHeaders.length;
 
+  // Index where km columns start and maut columns start
+  const kmColStart = 4;
+  const kmGesamtCol = kmColStart + (hasMultiMonths ? monthPeriods.length : 0);
+  const mautColStart = kmGesamtCol + 1;
+
   // Build rows
   const ovRows: (string | number)[][] = vehicles.map((v, idx) => {
-    const row: (string | number)[] = [idx + 1, v.plate, v.tour || '', v.rows.length, v.totalKm];
+    const row: (string | number)[] = [idx + 1, v.plate, v.tour || '', v.rows.length];
     if (hasMultiMonths) {
-      const byMonth = vehicleMonthAmounts.get(v.plate)!;
-      for (const mp of monthPeriods) row.push(byMonth.get(mp) || 0);
+      const byMonthK = vehicleMonthKm.get(v.plate)!;
+      for (const mp of monthPeriods) row.push(byMonthK.get(mp) || 0);
+    }
+    row.push(v.totalKm);
+    if (hasMultiMonths) {
+      const byMonthA = vehicleMonthAmounts.get(v.plate)!;
+      for (const mp of monthPeriods) row.push(byMonthA.get(mp) || 0);
     }
     row.push(v.totalAmount);
     return row;
   });
 
   // Footer
-  const ovFooter: (string | number)[] = ['', 'GESAMT', '', grandTotalTrips, grandTotalKm];
+  const ovFooter: (string | number)[] = ['', 'GESAMT', '', grandTotalTrips];
   if (hasMultiMonths) {
     for (const mp of monthPeriods) {
-      const monthTotal = vehicles.reduce((s, v) => {
-        const byMonth = vehicleMonthAmounts.get(v.plate)!;
-        return s + (byMonth.get(mp) || 0);
-      }, 0);
-      ovFooter.push(monthTotal);
+      const monthKm = vehicles.reduce((s, v) => s + (vehicleMonthKm.get(v.plate)!.get(mp) || 0), 0);
+      ovFooter.push(monthKm);
+    }
+  }
+  ovFooter.push(grandTotalKm);
+  if (hasMultiMonths) {
+    for (const mp of monthPeriods) {
+      const monthAmt = vehicles.reduce((s, v) => s + (vehicleMonthAmounts.get(v.plate)!.get(mp) || 0), 0);
+      ovFooter.push(monthAmt);
     }
   }
   ovFooter.push(grandTotalAmount);
@@ -271,11 +294,17 @@ export function exportTollToXlsx(
   ];
 
   const wsOverview = XLSX.utils.aoa_to_sheet(overviewData);
-  const ovColWidths: { wch: number }[] = [{ wch: 6 }, { wch: 18 }, { wch: 22 }, { wch: 10 }, { wch: 14 }];
+  const ovColWidths: { wch: number }[] = [{ wch: 6 }, { wch: 18 }, { wch: 22 }, { wch: 10 }];
+  // km columns
+  if (hasMultiMonths) {
+    for (const _mp of monthPeriods) ovColWidths.push({ wch: 14 });
+  }
+  ovColWidths.push({ wch: 14 }); // km Gesamt
+  // maut columns
   if (hasMultiMonths) {
     for (const _mp of monthPeriods) ovColWidths.push({ wch: 18 });
   }
-  ovColWidths.push({ wch: 20 });
+  ovColWidths.push({ wch: 20 }); // Maut Gesamt
   wsOverview['!cols'] = ovColWidths;
   wsOverview['!merges'] = [
     { s: { r: 0, c: 0 }, e: { r: 0, c: colCount_ov - 1 } },
@@ -337,9 +366,11 @@ export function exportTollToXlsx(
       alignment: { horizontal: 'left', vertical: 'center' },
       ...(isAlt ? { fill: FILL_ALT } : {}),
     });
-    // Number formats
-    applyNumberFormat(wsOverview, r, 4, '#,##0.0');
-    for (let c = 5; c < colCount_ov; c++) {
+    // Number formats: km columns then maut columns
+    for (let c = kmColStart; c <= kmGesamtCol; c++) {
+      applyNumberFormat(wsOverview, r, c, '#,##0.0');
+    }
+    for (let c = mautColStart; c < colCount_ov; c++) {
       applyNumberFormat(wsOverview, r, c, '#,##0.00 €');
     }
   }
@@ -353,7 +384,8 @@ export function exportTollToXlsx(
       border: BORDER_BOTTOM_THICK,
       alignment: { horizontal: c >= 3 ? 'right' : 'left', vertical: 'center' },
     });
-    if (c >= 4) applyNumberFormat(wsOverview, totalRow, c, c === 4 ? '#,##0.0' : '#,##0.00 €');
+    if (c >= kmColStart && c <= kmGesamtCol) applyNumberFormat(wsOverview, totalRow, c, '#,##0.0');
+    if (c >= mautColStart) applyNumberFormat(wsOverview, totalRow, c, '#,##0.00 €');
   }
 
   // Freeze panes: freeze header row so it stays visible on scroll
