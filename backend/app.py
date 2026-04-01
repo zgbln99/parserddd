@@ -750,11 +750,11 @@ def build_timeline(records):
     """Build timeline using the 1440-minute-per-day model per DDD spec.
 
     Each tachograph day = 00:00-24:00 UTC, represented as 1440 minutes.
-    The first entry in activity_change_info defines the state at minute 0;
-    each subsequent change fills forward until the next change.  Remaining
-    minutes receive the last recorded state.
+    The tachograph specification expects a state at minute 0.  If the first
+    entry is not at minute 0, the period from 00:00 to the first recorded
+    change is treated as UNKNOWN.
 
-    Returns list of intervals ``(start_dt, end_dt, work_type, is_manual)``
+    Returns list of intervals ``(start_dt, end_dt, work_type, card_out)``
     where all datetimes are UTC-aware.
     """
     sorted_records = [
@@ -773,8 +773,8 @@ def build_timeline(records):
         if not changes:
             continue
 
-        # 1440-minute array; each slot = (work_type, is_manual)
-        minutes = [(REST, True)] * 1440
+        # 1440-minute array; default UNKNOWN until filled by real data
+        minutes = [(UNKNOWN, True)] * 1440
 
         sorted_changes = sorted(changes, key=lambda c: c.get('minutes', 0))
 
@@ -787,9 +787,9 @@ def build_timeline(records):
                 'State from 00:00 to minute %d is UNKNOWN.',
                 date_str[:10], first_minute, first_minute
             )
-            # Fill 00:00..first_change as UNKNOWN (not fake rest)
-            current_wt = REST  # safest assumption for unknown pre-data period
-            current_card_out = True  # card state unknown
+            # Fill 00:00..first_change as UNKNOWN (no data for this period)
+            current_wt = UNKNOWN
+            current_card_out = True
             current_minute = 0
         else:
             current_wt = sorted_changes[0].get('work_type', REST)
@@ -798,11 +798,28 @@ def build_timeline(records):
 
         current_manual = current_card_out
 
+        _seen_minutes = set()
         for change in sorted_changes:
             raw_minute = change.get('minutes', 0)
-            target_minute = max(0, min(raw_minute, 1439))
+            if not isinstance(raw_minute, int) or raw_minute < 0 or raw_minute > 1439:
+                import logging
+                logging.getLogger(__name__).warning(
+                    'Day %s: invalid minute value %r, clamping to 0..1439', date_str[:10], raw_minute)
+            target_minute = max(0, min(int(raw_minute) if isinstance(raw_minute, (int, float)) else 0, 1439))
+            if target_minute in _seen_minutes:
+                import logging
+                logging.getLogger(__name__).warning(
+                    'Day %s: duplicate entry at minute %d', date_str[:10], target_minute)
+            _seen_minutes.add(target_minute)
             raw_wt = change.get('work_type', REST)
-            wt = raw_wt if raw_wt in (REST, AVAILABILITY, WORK, DRIVING) else REST
+            if raw_wt not in (REST, AVAILABILITY, WORK, DRIVING):
+                import logging
+                logging.getLogger(__name__).warning(
+                    'Day %s: invalid work_type %r at minute %d, treating as UNKNOWN',
+                    date_str[:10], raw_wt, target_minute)
+                wt = UNKNOWN
+            else:
+                wt = raw_wt
             manual = not change.get('card_present', True)
 
             for m in range(current_minute, target_minute):
@@ -840,16 +857,21 @@ def build_timeline(records):
 
 
 def _validate_timeline(intervals):
-    """Validate that the merged timeline is monotonic and non-overlapping."""
-    for i in range(1, len(intervals)):
-        prev_end = intervals[i-1][1]
-        curr_start = intervals[i][0]
-        if curr_start < prev_end:
-            import logging
-            logging.getLogger(__name__).warning(
-                'Timeline overlap: interval %d ends at %s but interval %d starts at %s',
-                i-1, prev_end, i, curr_start
-            )
+    """Validate merged timeline: monotonic, non-overlapping, valid states."""
+    import logging
+    _log = logging.getLogger(__name__)
+    _VALID_STATES = (REST, AVAILABILITY, WORK, DRIVING, UNKNOWN)
+    for i, (s, e, wt, co) in enumerate(intervals):
+        if e <= s:
+            _log.warning('Timeline: interval %d has zero/negative length (%s to %s)', i, s, e)
+        if wt not in _VALID_STATES:
+            _log.warning('Timeline: interval %d has unknown work_type %r', i, wt)
+        if i > 0:
+            prev_end = intervals[i - 1][1]
+            if s < prev_end:
+                _log.warning('Timeline overlap: interval %d ends at %s but %d starts at %s', i - 1, prev_end, i, s)
+            elif s > prev_end:
+                _log.warning('Timeline gap after merge: interval %d ends at %s, %d starts at %s', i - 1, prev_end, i, s)
     return intervals
 
 
@@ -908,15 +930,17 @@ def fill_timeline_gaps(intervals):
 
 
 def detect_shifts(all_intervals, min_rest_hours=9):
-    """Split a continuous timeline into driver shifts.
+    """Split a continuous timeline into driver shifts (BUSINESS HEURISTIC).
 
-    A new shift begins after any REST (type 0) period >= *min_rest_hours*,
-    regardless of the manual flag.
+    This is NOT raw tachograph decoding — it is a business interpretation layer.
+    The raw timeline preserves UNKNOWN gaps as distinct from true REST.
 
-    Blip heuristic: a non-rest interval <= 3 minutes surrounded by rest is
-    absorbed into the rest block.  This is a practical heuristic (not from
-    the regulation) to avoid spurious shift splits caused by brief card
-    insertions or status changes.
+    Shift-splitting rules (heuristic, not regulation):
+    - A new shift begins after any REST or UNKNOWN period >= *min_rest_hours*.
+      UNKNOWN is treated as rest-like because card-out gaps typically mean
+      the driver was resting.  This does NOT mean UNKNOWN is true REST.
+    - A non-rest interval <= 3 minutes ("blip") surrounded by rest is absorbed
+      into the rest block (e.g. brief card insertion or CAN-bus flicker).
     """
     if not all_intervals:
         return []
@@ -1106,14 +1130,14 @@ def analyze_card(data, night_start_hour=None):
         manual_minutes = sum(
             int((e - s).total_seconds()) // 60
             for i, (s, e, wt, m) in enumerate(shift_intervals)
-            if m and wt != REST and i > first_card_present_idx
+            if m and wt in (AVAILABILITY, WORK, DRIVING) and i > first_card_present_idx
         )
         # Detect manual entry errors: manual non-rest entries during typical
         # rest periods (overnight, between card-present work blocks).
         # Flag shifts where manual work/avail replaces what should be rest.
         manual_errors = []
         for idx, (s, e, wt, m) in enumerate(shift_intervals):
-            if not m or wt == REST:
+            if not m or wt in (REST, UNKNOWN):
                 continue
             dur_min = int((e - s).total_seconds()) // 60
             if dur_min < 30:
@@ -1137,8 +1161,13 @@ def analyze_card(data, night_start_hour=None):
         work_minutes = work_only_minutes + driving_minutes + avail_minutes
         # Duration = work + breaks within the shift (excludes leading/trailing rest)
         # Find first and last non-rest interval to determine effective shift span
-        first_work_idx = next((i for i, (_, _, wt, _) in enumerate(shift_intervals) if wt != REST), 0)
-        last_work_idx = next((i for i in range(len(shift_intervals) - 1, -1, -1) if shift_intervals[i][2] != REST), len(shift_intervals) - 1)
+        _REAL_WORK = (AVAILABILITY, WORK, DRIVING)
+        first_work_idx = next(
+            (i for i, (_, _, wt, _) in enumerate(shift_intervals) if wt in _REAL_WORK), 0)
+        last_work_idx = next(
+            (i for i in range(len(shift_intervals) - 1, -1, -1)
+             if shift_intervals[i][2] in _REAL_WORK),
+            len(shift_intervals) - 1)
         effective_start = shift_intervals[first_work_idx][0]
         effective_end = shift_intervals[last_work_idx][1]
         duration_minutes = int((effective_end - effective_start).total_seconds()) // 60

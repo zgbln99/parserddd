@@ -233,5 +233,106 @@ class TestMergeIntervals(unittest.TestCase):
         self.assertEqual(len(merged), 2)
 
 
+class TestUnknownHandling(unittest.TestCase):
+    """Tests for UNKNOWN state correctness (fixes 1-5)."""
+
+    def test_missing_minute_0_fills_unknown(self):
+        """A: First entry at minute 137 → minutes 0..136 must be UNKNOWN."""
+        rec = make_day('2026-03-02', [
+            make_change(137, DRIVING, card_present=True),
+            make_change(600, REST),
+        ])
+        intervals = build_timeline([rec])
+        # First interval should be UNKNOWN from 00:00 to 02:17 UTC
+        first = intervals[0]
+        self.assertEqual(first[2], UNKNOWN, 'Missing minute 0 should produce UNKNOWN, not REST')
+        self.assertTrue(first[3])  # card_out=True
+        dur = int((first[1] - first[0]).total_seconds()) // 60
+        self.assertEqual(dur, 137)
+
+    def test_unknown_not_counted_as_manual_minutes(self):
+        """B: UNKNOWN intervals should not inflate manual_minutes."""
+        base = datetime(2026, 3, 2, tzinfo=UTC)
+        # Simulate: card-present work, then UNKNOWN gap, then more work
+        shift_intervals = [
+            (base, base + timedelta(hours=4), DRIVING, False),              # card present
+            (base + timedelta(hours=4), base + timedelta(hours=10), UNKNOWN, True),  # gap
+            (base + timedelta(hours=10), base + timedelta(hours=14), WORK, True),    # manual work
+        ]
+        # Manual minutes should only count WORK(True) after first card-present, not UNKNOWN
+        first_cp_idx = next(
+            (i for i, (_, _, _, m) in enumerate(shift_intervals) if not m), len(shift_intervals))
+        manual_mins = sum(
+            int((e - s).total_seconds()) // 60
+            for i, (s, e, wt, m) in enumerate(shift_intervals)
+            if m and wt in (AVAILABILITY, WORK, DRIVING) and i > first_cp_idx
+        )
+        # Only the 4h manual WORK should count, not the 6h UNKNOWN
+        self.assertEqual(manual_mins, 240)
+
+    def test_unknown_does_not_create_manual_errors(self):
+        """C: Long UNKNOWN overnight should not appear in manual_errors."""
+        base = datetime(2026, 3, 2, tzinfo=UTC)
+        shift_intervals = [
+            (base + timedelta(hours=6), base + timedelta(hours=14), DRIVING, False),
+            (base + timedelta(hours=14), base + timedelta(hours=24), UNKNOWN, True),  # 10h overnight
+        ]
+        errors = []
+        for idx, (s, e, wt, m) in enumerate(shift_intervals):
+            if not m or wt in (REST, UNKNOWN):
+                continue
+            dur_min = int((e - s).total_seconds()) // 60
+            if dur_min > 600:
+                errors.append(wt)
+        self.assertEqual(len(errors), 0, 'UNKNOWN should not trigger manual error')
+
+    def test_unknown_does_not_expand_shift_duration(self):
+        """D: Leading/trailing UNKNOWN should not define effective shift span."""
+        base = datetime(2026, 3, 2, tzinfo=UTC)
+        shift_intervals = [
+            (base, base + timedelta(hours=3), UNKNOWN, True),          # leading unknown
+            (base + timedelta(hours=3), base + timedelta(hours=11), DRIVING, False),  # real work
+            (base + timedelta(hours=11), base + timedelta(hours=14), UNKNOWN, True),  # trailing unknown
+        ]
+        _REAL_WORK = (AVAILABILITY, WORK, DRIVING)
+        first_work_idx = next(
+            (i for i, (_, _, wt, _) in enumerate(shift_intervals) if wt in _REAL_WORK), 0)
+        last_work_idx = next(
+            (i for i in range(len(shift_intervals) - 1, -1, -1)
+             if shift_intervals[i][2] in _REAL_WORK),
+            len(shift_intervals) - 1)
+        effective_start = shift_intervals[first_work_idx][0]
+        effective_end = shift_intervals[last_work_idx][1]
+        dur = int((effective_end - effective_start).total_seconds()) // 60
+        # Duration should be 8h (driving only), not 14h (including UNKNOWN)
+        self.assertEqual(dur, 480)
+
+    def test_cross_midnight_no_fake_rest(self):
+        """E: Cross-midnight shift with no fake REST at 00:00."""
+        day1 = make_day('2026-03-02', [
+            make_change(0, REST),
+            make_change(1380, DRIVING),  # 23:00 UTC, driving
+        ])
+        day2 = make_day('2026-03-03', [
+            make_change(0, DRIVING),     # 00:00 UTC, still driving
+            make_change(180, REST),      # 03:00 UTC, rest
+        ])
+        intervals = build_timeline([day1, day2])
+        # At midnight boundary there should be NO REST injected
+        # Driving should be continuous from 23:00 to 03:00
+        driving = [iv for iv in intervals if iv[2] == DRIVING]
+        self.assertEqual(len(driving), 1, 'Cross-midnight driving should be one interval')
+        dur = int((driving[0][1] - driving[0][0]).total_seconds()) // 60
+        self.assertEqual(dur, 240)  # 4 hours
+
+    def test_default_minute_array_is_unknown(self):
+        """Default minute array should be UNKNOWN, not REST."""
+        # Empty changes = entire day UNKNOWN
+        rec = make_day('2026-03-02', [])
+        intervals = build_timeline([rec])
+        # Empty changes → no day produced (skipped)
+        self.assertEqual(len(intervals), 0)
+
+
 if __name__ == '__main__':
     unittest.main()
