@@ -1,15 +1,34 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   Users, RefreshCw, CheckCircle, Circle, AlertCircle,
   FileText, Clock, CheckSquare, Square, Filter, BarChart3,
+  Upload, Palmtree, X,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useI18n } from '../i18n';
-import { fetchDrivers } from '../lib/api';
+import { fetchDrivers, parseVacationPdf, type VacationEntry } from '../lib/api';
 import { Card, StatCard } from '../components/Card';
 import { Badge } from '../components/Badge';
 import { Spinner } from '../components/Spinner';
 import type { Driver } from '../types';
+
+// Match vacation name to driver name (fuzzy: compare last names)
+function matchVacationToDriver(vacationName: string, driverName: string): boolean {
+  const normalize = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+  const vn = normalize(vacationName);
+  const dn = normalize(driverName);
+  // Exact match
+  if (vn === dn) return true;
+  // Compare last names
+  const vParts = vn.split(/\s+/);
+  const dParts = dn.split(/\s+/);
+  const vLast = vParts[vParts.length - 1];
+  const dLast = dParts[dParts.length - 1];
+  if (vLast === dLast && vLast.length >= 3) return true;
+  // Driver name might be "Lastname Firstname" (reversed)
+  if (dParts.length >= 2 && vLast === dParts[0] && dParts[0].length >= 3) return true;
+  return false;
+}
 
 // Persist checked state in localStorage per month
 function getCheckedKey(period: string) {
@@ -53,6 +72,26 @@ export function PayrollPage() {
   const [showOnlyNew, setShowOnlyNew] = useState(false);
   const [searchText, setSearchText] = useState('');
 
+  // Vacation PDF
+  const vacFileRef = useRef<HTMLInputElement>(null);
+  const [vacationEntries, setVacationEntries] = useState<VacationEntry[]>([]);
+  const [vacUploading, setVacUploading] = useState(false);
+
+  const handleVacationUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setVacUploading(true);
+    try {
+      const res = await parseVacationPdf(file);
+      setVacationEntries(res.entries);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setVacUploading(false);
+      if (vacFileRef.current) vacFileRef.current.value = '';
+    }
+  }, []);
+
   const loadDrivers = useCallback(async (refresh = false) => {
     setLoading(true);
     setError('');
@@ -95,12 +134,15 @@ export function PayrollPage() {
       const latestNewFile = newFiles.length > 0
         ? newFiles.reduce((a, b) => a.modified > b.modified ? a : b)
         : null;
+      // Match vacation
+      const vacation = vacationEntries.find(v => matchVacationToDriver(v.name, d.name));
       return {
         driver: d,
         newFilesCount: newFiles.length,
         hasNewFiles,
         latestNewFile,
         isChecked: checked.has(d.card_number || d.name),
+        vacation: vacation || null,
       };
     }).sort((a, b) => {
       // Unchecked with new files first, then unchecked without, then checked
@@ -108,7 +150,7 @@ export function PayrollPage() {
       if (a.hasNewFiles !== b.hasNewFiles) return a.hasNewFiles ? -1 : 1;
       return a.driver.name.localeCompare(b.driver.name);
     });
-  }, [drivers, sinceDate, checked]);
+  }, [drivers, sinceDate, checked, vacationEntries]);
 
   // Apply filters
   const filteredData = useMemo(() => {
@@ -176,6 +218,36 @@ export function PayrollPage() {
             {loading ? <Spinner size="sm" /> : <RefreshCw size={14} />}
             {t('refresh')}
           </button>
+          <button
+            onClick={() => vacFileRef.current?.click()}
+            disabled={vacUploading}
+            className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition ${
+              vacationEntries.length > 0
+                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+                : 'border border-border text-muted hover:text-ink'
+            } disabled:opacity-50`}
+          >
+            {vacUploading ? <Spinner size="sm" /> : <Palmtree size={14} />}
+            {vacationEntries.length > 0
+              ? `${t('payrollVacation')} (${vacationEntries.length})`
+              : t('payrollVacation')
+            }
+          </button>
+          <input
+            ref={vacFileRef}
+            type="file"
+            accept=".pdf"
+            className="hidden"
+            onChange={handleVacationUpload}
+          />
+          {vacationEntries.length > 0 && (
+            <button
+              onClick={() => setVacationEntries([])}
+              className="text-muted hover:text-red-500 transition-colors"
+            >
+              <X size={14} />
+            </button>
+          )}
         </div>
       </div>
 
@@ -287,12 +359,13 @@ export function PayrollPage() {
                 <th className="text-left px-3 py-3 font-semibold text-muted hidden sm:table-cell">{t('payrollCard')}</th>
                 <th className="text-center px-3 py-3 font-semibold text-muted">{t('payrollFilesNew')}</th>
                 <th className="text-left px-3 py-3 font-semibold text-muted hidden md:table-cell">{t('payrollLastDownload')}</th>
+                <th className="text-center px-3 py-3 font-semibold text-muted hidden sm:table-cell">{t('payrollVacation')}</th>
                 <th className="text-center px-3 py-3 font-semibold text-muted">{t('payrollStatus')}</th>
                 <th className="w-10 px-3 py-3" />
               </tr>
             </thead>
             <tbody>
-              {filteredData.map(({ driver: d, newFilesCount, hasNewFiles, latestNewFile, isChecked }) => {
+              {filteredData.map(({ driver: d, newFilesCount, hasNewFiles, latestNewFile, isChecked, vacation }) => {
                 const key = d.card_number || d.name;
                 return (
                   <tr
@@ -330,6 +403,16 @@ export function PayrollPage() {
                     <td className="px-3 py-3 text-xs text-muted hidden md:table-cell">
                       {latestNewFile ? fmtDate(latestNewFile.modified) : '—'}
                     </td>
+                    <td className="px-3 py-3 text-center hidden sm:table-cell">
+                      {vacation ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 dark:bg-emerald-900/30 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:text-emerald-300" title={vacation.ranges.map(r => `${r.von} – ${r.bis}`).join(', ')}>
+                          <Palmtree size={12} />
+                          {vacation.total_tage} {t('days')}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-muted">—</span>
+                      )}
+                    </td>
                     <td className="px-3 py-3 text-center">
                       {isChecked ? (
                         <Badge variant="green" dot>{t('payrollChecked')}</Badge>
@@ -358,7 +441,7 @@ export function PayrollPage() {
               })}
               {filteredData.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-3 py-8 text-center text-sm text-muted">
+                  <td colSpan={8} className="px-3 py-8 text-center text-sm text-muted">
                     {t('noData')}
                   </td>
                 </tr>

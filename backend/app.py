@@ -1434,6 +1434,82 @@ def api_analyze_dropbox():
             os.unlink(tmp_path)
 
 
+@app.route('/api/vacation/parse', methods=['POST'])
+@login_required
+def api_vacation_parse():
+    """Parse an Urlaubsbericht PDF and return vacation entries."""
+    if 'file' not in request.files:
+        return jsonify({'error': 'Brak pliku'}), 400
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'error': 'Nie wybrano pliku'}), 400
+    try:
+        import pdfplumber
+        with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as tmp:
+            file.save(tmp.name)
+            tmp_path = tmp.name
+
+        entries = []
+        with pdfplumber.open(tmp_path) as pdf:
+            for page in pdf.pages:
+                tables = page.extract_tables()
+                for table in tables:
+                    for row in table:
+                        if not row or len(row) < 4:
+                            continue
+                        # Skip header row
+                        name = (row[0] or '').strip()
+                        if not name or name.lower() in ('mitarbeiter', ''):
+                            continue
+                        von = (row[1] or '').strip()
+                        bis = (row[2] or '').strip()
+                        tage_raw = (row[3] or '').strip()
+                        # Parse Arbeitstage: "5" or "2 (4)" -> take first number
+                        tage_match = re.match(r'(\d+)', tage_raw)
+                        tage = int(tage_match.group(1)) if tage_match else 0
+                        if not von or not tage:
+                            continue
+                        # Parse dates DD.MM.YYYY -> YYYY-MM-DD
+                        def parse_de_date(s):
+                            m = re.match(r'(\d{1,2})\.(\d{1,2})\.(\d{4})', s)
+                            if m:
+                                return f'{m.group(3)}-{m.group(2).zfill(2)}-{m.group(1).zfill(2)}'
+                            return s
+                        entries.append({
+                            'name': name,
+                            'von': parse_de_date(von),
+                            'bis': parse_de_date(bis),
+                            'tage': tage,
+                            'raw_tage': tage_raw,
+                        })
+
+        # Group by person (merge multiple rows for same person)
+        from collections import defaultdict
+        by_name = defaultdict(lambda: {'ranges': [], 'total_tage': 0})
+        for e in entries:
+            by_name[e['name']]['ranges'].append({
+                'von': e['von'],
+                'bis': e['bis'],
+                'tage': e['tage'],
+            })
+            by_name[e['name']]['total_tage'] += e['tage']
+
+        result = []
+        for name, data in by_name.items():
+            result.append({
+                'name': name,
+                'ranges': data['ranges'],
+                'total_tage': data['total_tage'],
+            })
+
+        return jsonify({'entries': result, 'count': len(result)})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if 'tmp_path' in locals():
+            os.unlink(tmp_path)
+
+
 @app.route('/api/compare', methods=['POST'])
 @login_required
 def api_compare_drivers():

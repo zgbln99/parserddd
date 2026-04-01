@@ -149,6 +149,22 @@ export const analyzeUploadedFile = async (file: File) => {
   });
 };
 
+// Vacation PDF parsing
+export interface VacationEntry {
+  name: string;
+  ranges: { von: string; bis: string; tage: number }[];
+  total_tage: number;
+}
+
+export const parseVacationPdf = async (file: File) => {
+  const form = new FormData();
+  form.append('file', file);
+  return request<{ entries: VacationEntry[]; count: number }>('/api/vacation/parse', {
+    method: 'POST',
+    body: form,
+  });
+};
+
 // DDD file preview (hex dump + decoded structure)
 export const previewDddFile = async (file: File) => {
   const form = new FormData();

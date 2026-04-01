@@ -469,6 +469,7 @@ export const de: Record<TranslationKey, string> = {
   payrollChecked: 'Erledigt',
   payrollPending: 'Ausstehend',
   payrollAnalyze: 'Analyse',
+  payrollVacation: 'Urlaub (PDF)',
 
   samTitle: 'Kilometer Tag / Nacht',
   samSubtitle: 'Analyse der Samsara-CSV — Kilometer aufgeteilt nach Tag- und Nachtschicht',
