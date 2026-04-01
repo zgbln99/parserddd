@@ -63,6 +63,8 @@ export function PayrollPage() {
   const [analysisData, setAnalysisData] = useState<AnalysisResult | null>(null);
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [analysisError, setAnalysisError] = useState('');
+  const [analysisDateFrom, setAnalysisDateFrom] = useState('');
+  const [analysisDateTo, setAnalysisDateTo] = useState('');
 
   const openAnalysis = useCallback(async (driver: Driver) => {
     const latestFile = driver.files[0];
@@ -71,6 +73,8 @@ export function PayrollPage() {
     setAnalysisData(null);
     setAnalysisLoading(true);
     setAnalysisError('');
+    setAnalysisDateFrom(`${period}-01`);
+    setAnalysisDateTo(`${period}-31`);
     try {
       const result = await analyzeDropboxFile(latestFile.path);
       setAnalysisData(result);
@@ -79,7 +83,7 @@ export function PayrollPage() {
     } finally {
       setAnalysisLoading(false);
     }
-  }, []);
+  }, [period]);
 
   const closeAnalysis = () => {
     setAnalysisDriver(null);
@@ -407,8 +411,10 @@ export function PayrollPage() {
           <Suspense fallback={<Spinner />}>
             <AnalysisView
               data={analysisData}
-              dateFrom={`${period}-01`}
-              dateTo={`${period}-31`}
+              dateFrom={analysisDateFrom}
+              dateTo={analysisDateTo}
+              onDateFromChange={setAnalysisDateFrom}
+              onDateToChange={setAnalysisDateTo}
             />
           </Suspense>
         )}
