@@ -752,10 +752,13 @@ def build_timeline(records):
             else:
                 end_min = 1440
             if end_min > start_min:
-                start_dt = (base_date + timedelta(minutes=start_min)).astimezone(CET).replace(tzinfo=None)
-                end_dt = (base_date + timedelta(minutes=end_min)).astimezone(CET).replace(tzinfo=None)
+                # Keep timestamps in UTC (naive datetime, UTC-anchored)
+                # DDD daily records are anchored to 00:00 UTC.
+                # CET/local conversion happens only at presentation layer.
+                start_dt = base_date.replace(tzinfo=None) + timedelta(minutes=start_min)
+                end_dt = base_date.replace(tzinfo=None) + timedelta(minutes=end_min)
                 all_intervals.append((start_dt, end_dt, work_type, is_manual))
-    # Deduplicate overlapping intervals caused by UTC→CET day boundary overlap
+    # Deduplicate overlapping intervals from adjacent daily records
     return deduplicate_timeline(all_intervals)
 
 
@@ -873,7 +876,20 @@ def detect_shifts(all_intervals, min_rest_hours=9):
     return shifts
 
 
+def _cet_offset_hours(dt_utc):
+    """Get CET/CEST offset in hours for a given UTC datetime."""
+    aware = dt_utc.replace(tzinfo=UTC)
+    offset = aware.astimezone(CET).utcoffset()
+    return offset.total_seconds() / 3600 if offset else 1
+
+
 def calculate_shift_night_hours(intervals, shift_start, night_start_hour=22):
+    """Calculate night work hours.
+
+    All internal timestamps are UTC.  Night boundaries (e.g. 22:00-06:00)
+    are in CET/CEST, so we convert them to UTC using the CET offset for
+    the specific date to handle DST correctly.
+    """
     night_25_sec = 0
     night_40_sec = 0
     for interval in intervals:
@@ -882,29 +898,33 @@ def calculate_shift_night_hours(intervals, shift_start, night_start_hour=22):
             continue
         current = start_dt
         while current < end_dt:
-            day_base = current.replace(hour=0, minute=0, second=0, microsecond=0)
-            next_day = day_base + timedelta(days=1)
-            chunk_end = min(end_dt, next_day)
-            # night_start_hour:00-00:00 => always 25%
-            o_start = max(current, day_base + timedelta(hours=night_start_hour))
-            o_end = min(chunk_end, day_base + timedelta(hours=24))
+            # Get CET offset for this day
+            off = _cet_offset_hours(current)
+            # CET midnight in UTC
+            cet_midnight_utc = current.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(hours=off)
+            next_cet_midnight = cet_midnight_utc + timedelta(days=1)
+            chunk_end = min(end_dt, next_cet_midnight)
+            # night_start_hour:00 CET → 00:00 CET next day => always 25%
+            ns_utc = cet_midnight_utc + timedelta(hours=night_start_hour)
+            o_start = max(current, ns_utc)
+            o_end = min(chunk_end, next_cet_midnight)
             if o_end > o_start:
                 night_25_sec += (o_end - o_start).total_seconds()
-            # 00:00-04:00 => 40% if shift started before midnight, else 25%
-            o_start = max(current, day_base)
-            o_end = min(chunk_end, day_base + timedelta(hours=4))
+            # 00:00-04:00 CET => 40% if shift started before CET midnight, else 25%
+            o_start = max(current, cet_midnight_utc)
+            o_end = min(chunk_end, cet_midnight_utc + timedelta(hours=4))
             if o_end > o_start:
                 secs = (o_end - o_start).total_seconds()
-                if shift_start < day_base:
+                if shift_start < cet_midnight_utc:
                     night_40_sec += secs
                 else:
                     night_25_sec += secs
-            # 04:00-06:00 => always 25%
-            o_start = max(current, day_base + timedelta(hours=4))
-            o_end = min(chunk_end, day_base + timedelta(hours=6))
+            # 04:00-06:00 CET => always 25%
+            o_start = max(current, cet_midnight_utc + timedelta(hours=4))
+            o_end = min(chunk_end, cet_midnight_utc + timedelta(hours=6))
             if o_end > o_start:
                 night_25_sec += (o_end - o_start).total_seconds()
-            current = next_day
+            current = next_cet_midnight
     return int(night_25_sec // 60), int(night_40_sec // 60)
 
 
@@ -920,6 +940,10 @@ def analyze_card(data, night_start_hour=None):
     timeline = build_timeline(records)
     shifts = detect_shifts(timeline)
 
+    # Helper: UTC naive datetime → CET string for display only
+    def _to_cet_str(dt):
+        return dt.replace(tzinfo=UTC).astimezone(CET).strftime('%Y-%m-%d %H:%M')
+
     shift_details = []
     total_work = total_driving = total_break = total_avail = 0
     total_n25 = total_n40 = 0
@@ -932,10 +956,13 @@ def analyze_card(data, night_start_hour=None):
         raw_shift_start = shift_intervals[0][0]
         raw_shift_end = shift_intervals[-1][1]
 
-        break_sec = sum((e - s).total_seconds() for s, e, wt, _m in shift_intervals if wt == 0)
-        avail_sec = sum((e - s).total_seconds() for s, e, wt, _m in shift_intervals if wt == 1)
-        work_only_sec = sum((e - s).total_seconds() for s, e, wt, _m in shift_intervals if wt == 2)
-        driving_sec = sum((e - s).total_seconds() for s, e, wt, _m in shift_intervals if wt == 3)
+        # Use minute resolution per DDD spec (not seconds)
+        def _mins(intervals, activity_type):
+            return sum(int((e - s).total_seconds()) // 60 for s, e, wt, _m in intervals if wt == activity_type)
+        break_minutes = _mins(shift_intervals, 0)
+        avail_minutes = _mins(shift_intervals, 1)
+        work_only_minutes = _mins(shift_intervals, 2)
+        driving_minutes = _mins(shift_intervals, 3)
         # Manual entries: only count intervals marked manual that fall AFTER the
         # first card-present interval (i.e. card was already inserted).  Pre-shift
         # manual entries (driver entering activities upon card insertion) are normal.
@@ -943,8 +970,8 @@ def analyze_card(data, night_start_hour=None):
             (i for i, (_, _, _, m) in enumerate(shift_intervals) if not m),
             len(shift_intervals),
         )
-        manual_sec = sum(
-            (e - s).total_seconds()
+        manual_minutes = sum(
+            int((e - s).total_seconds()) // 60
             for i, (s, e, wt, m) in enumerate(shift_intervals)
             if m and wt != 0 and i > first_card_present_idx
         )
@@ -959,25 +986,22 @@ def analyze_card(data, night_start_hour=None):
             if dur_min < 30:
                 continue
             # Manual non-rest during night hours (22:00-06:00) = suspicious
-            h_start = s.hour
-            h_end = e.hour if e.date() == s.date() else 24
+            # Check hours in CET (display timezone) for night detection
+            s_cet = s.replace(tzinfo=UTC).astimezone(CET)
+            e_cet = e.replace(tzinfo=UTC).astimezone(CET)
+            h_start = s_cet.hour
+            h_end = e_cet.hour if e_cet.date() == s_cet.date() else 24
             is_overnight = h_start >= 20 or h_end <= 7 or (e - s).total_seconds() > 10 * 3600
             if is_overnight or dur_min > 600:  # >10h manual = suspicious
                 wt_names = {1: 'Bereitschaft', 2: 'Arbeit', 3: 'Lenken'}
                 manual_errors.append({
-                    'start': s.strftime('%Y-%m-%d %H:%M'),
-                    'end': e.strftime('%Y-%m-%d %H:%M'),
+                    'start': _to_cet_str(s),
+                    'end': _to_cet_str(e),
                     'duration_minutes': dur_min,
                     'declared_type': wt_names.get(wt, str(wt)),
                 })
 
-        work_sec = work_only_sec + driving_sec + avail_sec
-        work_minutes = int(work_sec // 60)
-        break_minutes = int(break_sec // 60)
-        avail_minutes = int(avail_sec // 60)
-        driving_minutes = int(driving_sec // 60)
-        work_only_minutes = int(work_only_sec // 60)
-        manual_minutes = int(manual_sec // 60)
+        work_minutes = work_only_minutes + driving_minutes + avail_minutes
         # Duration = work + breaks within the shift (excludes leading/trailing rest)
         # Find first and last non-rest interval to determine effective shift span
         first_work_idx = next((i for i, (_, _, wt, _) in enumerate(shift_intervals) if wt != 0), 0)
@@ -998,7 +1022,7 @@ def analyze_card(data, night_start_hour=None):
         total_n40 += night_40
         total_manual += manual_minutes
         # Diet only on weekdays (Mon=0..Fri=4), not on weekends
-        is_weekday = shift_start.weekday() < 5
+        is_weekday = cet_start.weekday() < 5
         has_diet = duration_minutes >= 8 * 60 and is_weekday
         if has_diet:
             diet_count += 1
@@ -1021,8 +1045,8 @@ def analyze_card(data, night_start_hour=None):
             if seg_min <= 0:
                 continue
             seg = {
-                'start': s_start.strftime('%Y-%m-%d %H:%M'),
-                'end': s_end.strftime('%Y-%m-%d %H:%M'),
+                'start': _to_cet_str(s_start),
+                'end': _to_cet_str(s_end),
                 'duration_minutes': seg_min,
             }
             if wt == 3:  # driving
@@ -1031,11 +1055,13 @@ def analyze_card(data, night_start_hour=None):
                 break_segments.append(seg)
 
         weekday_names = ['Pn', 'Wt', 'Śr', 'Cz', 'Pt', 'So', 'Nd']
+        # Convert to CET for display
+        cet_start = shift_start.replace(tzinfo=UTC).astimezone(CET)
         shift_details.append({
-            'shift_start': shift_start.strftime('%Y-%m-%d %H:%M'),
-            'shift_end': shift_end.strftime('%Y-%m-%d %H:%M'),
-            'shift_date': shift_start.strftime('%Y-%m-%d'),
-            'weekday': weekday_names[shift_start.weekday()],
+            'shift_start': _to_cet_str(shift_start),
+            'shift_end': _to_cet_str(shift_end),
+            'shift_date': cet_start.strftime('%Y-%m-%d'),
+            'weekday': weekday_names[cet_start.weekday()],
             'duration_minutes': duration_minutes,
             'duration_hm': minutes_to_hm(duration_minutes),
             'work_minutes': work_minutes,
