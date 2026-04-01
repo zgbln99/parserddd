@@ -49,6 +49,37 @@ REST = 0
 AVAILABILITY = 1
 WORK = 2
 DRIVING = 3
+UNKNOWN = -1  # Synthetic: no data available (gap between records, card absent with no entry)
+
+ACTIVITY_NAMES = {
+    REST: 'REST',
+    AVAILABILITY: 'AVAILABILITY',
+    WORK: 'WORK',
+    DRIVING: 'DRIVING',
+    UNKNOWN: 'UNKNOWN',
+}
+
+# ---------------------------------------------------------------------------
+# Tachoparser (traconiq/tachoparser dddparser) field semantics:
+#
+# activity_record_date: ISO date string for the tachograph day (UTC anchor)
+#   - Each record represents one UTC day (00:00-24:00)
+#
+# activity_change_info[]: list of activity state changes within the day
+#   .minutes:      minute-of-day (0-1439), time when this state begins
+#   .work_type:    activity type: 0=REST, 1=AVAILABILITY, 2=WORK, 3=DRIVING
+#   .card_present: boolean
+#     - True:  card was physically in the tachograph unit (VU-recorded activity)
+#     - False: card was NOT in the VU; this entry was entered manually by the
+#              driver upon card reinsertion, or reconstructed from card memory.
+#              In DDD specification terms: "manual entry of driver activities"
+#              per Annex IC / Commission Regulation (EU) 2016/799.
+#
+# Note: card_present=False does NOT always mean the driver typed it in.
+# It can also mean the tachograph reconstructed the state from card memory
+# after a card-out period.  For our purposes we treat all card_present=False
+# entries as "card_out" (not recorded by the VU in real time).
+# ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
 # App factory
@@ -747,14 +778,31 @@ def build_timeline(records):
 
         sorted_changes = sorted(changes, key=lambda c: c.get('minutes', 0))
 
-        # First entry defines state at minute 0 - use real data, no fake rest
-        current_wt = sorted_changes[0].get('work_type', REST)
-        current_manual = not sorted_changes[0].get('card_present', True)
-        current_minute = 0
+        # Validate: first entry should be at minute 0 (tachograph always records 00:00 state)
+        first_minute = sorted_changes[0].get('minutes', -1)
+        if first_minute != 0:
+            import logging
+            logging.getLogger(__name__).warning(
+                'Day %s: first activity_change_info entry at minute %d, not 0. '
+                'State from 00:00 to minute %d is UNKNOWN.',
+                date_str[:10], first_minute, first_minute
+            )
+            # Fill 00:00..first_change as UNKNOWN (not fake rest)
+            current_wt = REST  # safest assumption for unknown pre-data period
+            current_card_out = True  # card state unknown
+            current_minute = 0
+        else:
+            current_wt = sorted_changes[0].get('work_type', REST)
+            current_card_out = not sorted_changes[0].get('card_present', True)
+            current_minute = 0
+
+        current_manual = current_card_out
 
         for change in sorted_changes:
-            target_minute = min(change.get('minutes', 0), 1439)
-            wt = change.get('work_type', REST)
+            raw_minute = change.get('minutes', 0)
+            target_minute = max(0, min(raw_minute, 1439))
+            raw_wt = change.get('work_type', REST)
+            wt = raw_wt if raw_wt in (REST, AVAILABILITY, WORK, DRIVING) else REST
             manual = not change.get('card_present', True)
 
             for m in range(current_minute, target_minute):
@@ -767,6 +815,10 @@ def build_timeline(records):
         # Fill remaining minutes with last state
         for m in range(current_minute, 1440):
             minutes[m] = (current_wt, current_manual)
+
+        # Invariant checks
+        assert len(minutes) == 1440, f'Day {date_str[:10]}: minute array has {len(minutes)} entries, expected 1440'
+        assert all(m is not None for m in minutes), f'Day {date_str[:10]}: minute array has None entries'
 
         all_day_minutes.append((base_date, minutes))
 
@@ -784,7 +836,21 @@ def build_timeline(records):
             all_intervals.append((start_dt, end_dt, wt, manual))
             i = j
 
-    return _merge_cross_day_intervals(all_intervals)
+    return _validate_timeline(_merge_cross_day_intervals(all_intervals))
+
+
+def _validate_timeline(intervals):
+    """Validate that the merged timeline is monotonic and non-overlapping."""
+    for i in range(1, len(intervals)):
+        prev_end = intervals[i-1][1]
+        curr_start = intervals[i][0]
+        if curr_start < prev_end:
+            import logging
+            logging.getLogger(__name__).warning(
+                'Timeline overlap: interval %d ends at %s but interval %d starts at %s',
+                i-1, prev_end, i, curr_start
+            )
+    return intervals
 
 
 def _merge_cross_day_intervals(intervals):
@@ -819,11 +885,11 @@ def merge_intervals(intervals):
 
 
 def fill_timeline_gaps(intervals):
-    """Fill gaps between recorded days with REST intervals.
+    """Fill gaps between recorded days with UNKNOWN intervals.
 
     Business assumption: gaps between days where no tachograph record exists
     represent periods when the driver card was out of the unit.  These are
-    treated as rest (``manual=True``) so that shift-boundary detection can
+    marked as UNKNOWN (``manual=True``) so that shift-boundary detection can
     identify daily rest periods correctly.  GloboFleet labels these as
     "? Unbekannt".
     """
@@ -836,7 +902,7 @@ def fill_timeline_gaps(intervals):
         gap_sec = (curr_start - prev_end).total_seconds()
         if gap_sec > 0:
             # Mark as manual=True to indicate unknown/card-out period
-            result.append((prev_end, curr_start, REST, True))
+            result.append((prev_end, curr_start, UNKNOWN, True))
         result.append(intervals[i])
     return result
 
@@ -861,9 +927,9 @@ def detect_shifts(all_intervals, min_rest_hours=9):
     current = []
 
     def _is_rest(wt):
-        # Any REST (type 0) counts for shift splitting, regardless of
-        # card_present / manual flag.
-        return wt == REST
+        """REST or UNKNOWN counts as rest-like for shift splitting.
+        BUSINESS HEURISTIC: unknown gaps are assumed to be rest."""
+        return wt == REST or wt == UNKNOWN
 
     i = 0
     while i < len(merged):
@@ -974,7 +1040,7 @@ def calculate_shift_night_hours(intervals, shift_start, night_start_hour=22):
     night_40 = 0
     for interval in intervals:
         iv_start, iv_end, work_type = interval[0], interval[1], interval[2]
-        if work_type == REST:
+        if work_type in (REST, UNKNOWN):
             continue
         for w_start, w_end, category in windows:
             o_start = max(iv_start, w_start)
@@ -1025,10 +1091,11 @@ def analyze_card(data, night_start_hour=None):
         # Use minute resolution per DDD spec (not seconds)
         def _mins(intervals, activity_type):
             return sum(int((e - s).total_seconds()) // 60 for s, e, wt, _m in intervals if wt == activity_type)
-        break_minutes = _mins(shift_intervals, REST)
+        break_minutes = _mins(shift_intervals, REST)  # Only true REST, not UNKNOWN
         avail_minutes = _mins(shift_intervals, AVAILABILITY)
         work_only_minutes = _mins(shift_intervals, WORK)
         driving_minutes = _mins(shift_intervals, DRIVING)
+        unknown_minutes = _mins(shift_intervals, UNKNOWN)
         # Manual entries: only count intervals marked manual that fall AFTER the
         # first card-present interval (i.e. card was already inserted).  Pre-shift
         # manual entries (driver entering activities upon card insertion) are normal.
@@ -1140,6 +1207,8 @@ def analyze_card(data, night_start_hour=None):
             'avail_hm': minutes_to_hm(avail_minutes),
             'break_minutes': break_minutes,
             'break_hm': minutes_to_hm(break_minutes),
+            'unknown_minutes': unknown_minutes,
+            'unknown_hm': minutes_to_hm(unknown_minutes),
             'night_25_minutes': night_25,
             'night_25_hm': minutes_to_hm(night_25),
             'night_40_minutes': night_40,
