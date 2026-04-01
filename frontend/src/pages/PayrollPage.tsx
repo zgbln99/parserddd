@@ -33,9 +33,19 @@ function getCurrentPeriod() {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 }
 
+function getSavedPeriod() {
+  return localStorage.getItem('ddd-payroll-period') || getCurrentPeriod();
+}
+
 export function PayrollPage() {
   const { t } = useI18n();
-  const [period, setPeriod] = useState(getCurrentPeriod);
+  const [period, setPeriodState] = useState(getSavedPeriod);
+
+  const setPeriod = (p: string) => {
+    setPeriodState(p);
+    localStorage.setItem('ddd-payroll-period', p);
+  };
+
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
