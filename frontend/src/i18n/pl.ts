@@ -464,6 +464,7 @@ export const pl = {
   payrollStatus: 'Status',
   payrollChecked: 'Policzony',
   payrollPending: 'Do policzenia',
+  payrollAnalyze: 'Analiza',
 
   samTitle: 'Kilometry dzień / noc',
   samSubtitle: 'Analiza CSV z Samsary — kilometry z podziałem na zmianę dzienną i nocną',

@@ -1,14 +1,17 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react';
 import {
   Users, RefreshCw, CheckCircle, Circle, AlertCircle,
-  FileText, Clock, CheckSquare, Square, Filter,
+  FileText, Clock, CheckSquare, Square, Filter, BarChart3,
 } from 'lucide-react';
 import { useI18n } from '../i18n';
-import { fetchDrivers } from '../lib/api';
+import { fetchDrivers, analyzeDropboxFile } from '../lib/api';
 import { Card, StatCard } from '../components/Card';
 import { Badge } from '../components/Badge';
 import { Spinner } from '../components/Spinner';
-import type { Driver } from '../types';
+import { Modal } from '../components/Modal';
+import type { Driver, AnalysisResult } from '../types';
+
+const AnalysisView = lazy(() => import('../features/AnalysisView').then(m => ({ default: m.AnalysisView })));
 
 // Persist checked state in localStorage per month
 function getCheckedKey(period: string) {
@@ -54,6 +57,35 @@ export function PayrollPage() {
       setLoading(false);
     }
   }, []);
+
+  // Analysis modal state
+  const [analysisDriver, setAnalysisDriver] = useState<Driver | null>(null);
+  const [analysisData, setAnalysisData] = useState<AnalysisResult | null>(null);
+  const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [analysisError, setAnalysisError] = useState('');
+
+  const openAnalysis = useCallback(async (driver: Driver) => {
+    const latestFile = driver.files[0];
+    if (!latestFile?.path) return;
+    setAnalysisDriver(driver);
+    setAnalysisData(null);
+    setAnalysisLoading(true);
+    setAnalysisError('');
+    try {
+      const result = await analyzeDropboxFile(latestFile.path);
+      setAnalysisData(result);
+    } catch (err) {
+      setAnalysisError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setAnalysisLoading(false);
+    }
+  }, []);
+
+  const closeAnalysis = () => {
+    setAnalysisDriver(null);
+    setAnalysisData(null);
+    setAnalysisError('');
+  };
 
   useEffect(() => { loadDrivers(); }, [loadDrivers]);
 
@@ -271,6 +303,7 @@ export function PayrollPage() {
                 <th className="text-center px-3 py-3 font-semibold text-muted">{t('payrollFilesNew')}</th>
                 <th className="text-left px-3 py-3 font-semibold text-muted hidden md:table-cell">{t('payrollLastDownload')}</th>
                 <th className="text-center px-3 py-3 font-semibold text-muted">{t('payrollStatus')}</th>
+                <th className="w-10 px-3 py-3" />
               </tr>
             </thead>
             <tbody>
@@ -321,12 +354,23 @@ export function PayrollPage() {
                         <span className="text-xs text-muted">—</span>
                       )}
                     </td>
+                    <td className="px-3 py-3 text-center">
+                      {d.files.length > 0 && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); openAnalysis(d); }}
+                          className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors"
+                          title={t('payrollAnalyze')}
+                        >
+                          <BarChart3 size={14} />
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 );
               })}
               {filteredData.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-3 py-8 text-center text-sm text-muted">
+                  <td colSpan={7} className="px-3 py-8 text-center text-sm text-muted">
                     {t('noData')}
                   </td>
                 </tr>
@@ -335,6 +379,36 @@ export function PayrollPage() {
           </table>
         </Card>
       )}
+
+      {/* Analysis modal */}
+      <Modal
+        open={!!analysisDriver}
+        onClose={closeAnalysis}
+        title={analysisDriver ? `${t('payrollAnalyze')}: ${analysisDriver.name}` : ''}
+        wide
+      >
+        {analysisLoading && (
+          <div className="flex flex-col items-center gap-3 py-16">
+            <Spinner />
+            <p className="text-sm text-muted">{t('loading')}</p>
+          </div>
+        )}
+        {analysisError && (
+          <div className="flex items-center gap-2 rounded-lg bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 px-4 py-3 text-sm">
+            <AlertCircle size={16} />
+            {analysisError}
+          </div>
+        )}
+        {analysisData && !analysisLoading && (
+          <Suspense fallback={<Spinner />}>
+            <AnalysisView
+              data={analysisData}
+              dateFrom={`${period}-01`}
+              dateTo={`${period}-31`}
+            />
+          </Suspense>
+        )}
+      </Modal>
     </div>
   );
 }
