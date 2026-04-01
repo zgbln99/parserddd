@@ -1549,20 +1549,31 @@ def api_preview_ddd():
         # Extract card info
         card_info = get_driver_info(data)
 
-        # Extract activity records summary
+        # Use shared timeline logic for consistent totals
         activity_records = []
         for rec in get_activity_records(data):
             date_str = rec.get('activity_record_date', '')
             changes = rec.get('activity_change_info', [])
-            driving_mins = 0
-            for i, ch in enumerate(changes):
-                if ch.get('work_type') == DRIVING:  # driving (type 3)
-                    end_min = changes[i + 1]['minutes'] if i + 1 < len(changes) else 1440
-                    driving_mins += max(0, end_min - ch['minutes'])
+            # Build timeline for this single day using the same logic as analyze_card
+            day_timeline = build_timeline([rec])
+            driving_mins = sum(
+                int((e - s).total_seconds()) // 60
+                for s, e, wt, _co in day_timeline if wt == DRIVING
+            )
+            work_mins = sum(
+                int((e - s).total_seconds()) // 60
+                for s, e, wt, _co in day_timeline if wt == WORK
+            )
+            rest_mins = sum(
+                int((e - s).total_seconds()) // 60
+                for s, e, wt, _co in day_timeline if wt == REST
+            )
             activity_records.append({
                 'date': date_str[:10] if date_str else '',
                 'total_activities': len(changes),
                 'driving_minutes': driving_mins,
+                'work_minutes': work_mins,
+                'rest_minutes': rest_mins,
             })
 
         # Extract vehicles
