@@ -19,6 +19,7 @@ function SyncConfigSection() {
   const [samsaraToken, setSamsaraToken] = useState('');
   const [dropboxToken, setDropboxToken] = useState('');
   const [syncFolder, setSyncFolder] = useState('');
+  const [nightStartHour, setNightStartHour] = useState(22);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState('');
 
@@ -27,6 +28,7 @@ function SyncConfigSection() {
       .then((cfg) => {
         setConfig(cfg);
         setSyncFolder(cfg.sync_dest_folder || '/Samsara-DDD');
+        setNightStartHour(cfg.night_start_hour ?? 22);
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -36,10 +38,11 @@ function SyncConfigSection() {
     setSaving(true);
     setMsg('');
     try {
-      const data: Record<string, string> = {};
+      const data: Record<string, string | number> = {};
       if (samsaraToken) data.samsara_api_token = samsaraToken;
       if (dropboxToken) data.dropbox_refresh_token = dropboxToken;
       if (syncFolder) data.sync_dest_folder = syncFolder;
+      data.night_start_hour = nightStartHour;
       await updateConfig(data);
       setMsg('OK!');
       setSamsaraToken('');
@@ -99,6 +102,25 @@ function SyncConfigSection() {
             onChange={(e) => setSyncFolder(e.target.value)}
             className="input w-full rounded-xl px-3 py-1.5 text-sm outline-none"
           />
+        </div>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+          <label className="text-xs font-semibold text-muted sm:w-40 shrink-0">{t('adminNightStart')}</label>
+          <div className="flex items-center gap-2">
+            {([20, 21, 22] as const).map(h => (
+              <button
+                key={h}
+                onClick={() => setNightStartHour(h)}
+                className={`rounded-lg px-4 py-2 text-sm font-bold transition-colors ${
+                  nightStartHour === h
+                    ? 'bg-primary-600 text-white'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
+                }`}
+              >
+                {h}:00
+              </button>
+            ))}
+            <span className="text-xs text-muted ml-2">{t('adminNightStartHint')}</span>
+          </div>
         </div>
         <div className="flex items-center gap-3 pt-2">
           <button

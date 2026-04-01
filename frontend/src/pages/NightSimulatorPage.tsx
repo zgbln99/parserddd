@@ -1,6 +1,7 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Moon, Play, RotateCcw, Plus, Trash2, Coffee, Calculator } from 'lucide-react';
 import { useI18n } from '../i18n';
+import { fetchConfig } from '../lib/api';
 import { Card } from '../components/Card';
 import { minutesToHm } from '../lib/utils';
 
@@ -33,6 +34,7 @@ interface DayResult {
 function calcNightForIntervals(
   intervals: WorkInterval[],
   shiftStartMin: number,
+  nightStartHour = 22,
 ): { night25: number; night40: number } {
   let night25 = 0;
   let night40 = 0;
@@ -47,8 +49,8 @@ function calcNightForIntervals(
       const chunkEnd = Math.min(iv.end, dayBase + 24 * 60);
       if (chunkEnd <= chunkStart) continue;
 
-      // 22:00–00:00 → always 25%
-      const o1Start = Math.max(chunkStart, dayBase + 22 * 60);
+      // nightStartHour:00–00:00 → always 25%
+      const o1Start = Math.max(chunkStart, dayBase + nightStartHour * 60);
       const o1End = Math.min(chunkEnd, dayBase + 24 * 60);
       if (o1End > o1Start) night25 += o1End - o1Start;
 
@@ -180,6 +182,13 @@ export function NightSimulatorPage() {
   const [monthlyGross, setMonthlyGross] = useState('');
   const [stundenfaktor, setStundenfaktor] = useState('');
   const [results, setResults] = useState<DayResult[] | null>(null);
+  const [nightStartHour, setNightStartHour] = useState(22);
+
+  useEffect(() => {
+    fetchConfig()
+      .then(cfg => setNightStartHour(cfg.night_start_hour ?? 22))
+      .catch(() => {});
+  }, []);
 
   const wdNames = locale === 'de'
     ? ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa']
@@ -213,7 +222,7 @@ export function NightSimulatorPage() {
         continue;
       }
 
-      const { night25, night40 } = calcNightForIntervals(workIntervals, shiftStartMin);
+      const { night25, night40 } = calcNightForIntervals(workIntervals, shiftStartMin, nightStartHour);
       const workMin = totalShiftMin - totalBreakMin;
       days.push({ day: d, weekday: wd, isWeekend, night25, night40, totalNight: night25 + night40, breakMinutes: totalBreakMin, workMinutes: workMin });
     }

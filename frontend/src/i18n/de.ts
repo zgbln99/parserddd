@@ -159,6 +159,8 @@ export const de: Record<TranslationKey, string> = {
   adminConfigNotSet: 'Nicht eingestellt',
   adminNewToken: 'Neuer Token...',
   adminSyncFolder: 'Dropbox-Ordner',
+  adminNightStart: 'Nachtarbeit ab',
+  adminNightStartHint: 'Ab welcher Uhrzeit Nachtarbeit zählt',
 
   // Reader
   readerTitle: 'DDD-Kartenleser',

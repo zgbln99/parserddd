@@ -884,7 +884,7 @@ def detect_shifts(all_intervals, min_rest_hours=9):
     return shifts
 
 
-def calculate_shift_night_hours(intervals, shift_start):
+def calculate_shift_night_hours(intervals, shift_start, night_start_hour=22):
     night_25_sec = 0
     night_40_sec = 0
     for interval in intervals:
@@ -896,8 +896,8 @@ def calculate_shift_night_hours(intervals, shift_start):
             day_base = current.replace(hour=0, minute=0, second=0, microsecond=0)
             next_day = day_base + timedelta(days=1)
             chunk_end = min(end_dt, next_day)
-            # 22:00-00:00 => always 25%
-            o_start = max(current, day_base + timedelta(hours=22))
+            # night_start_hour:00-00:00 => always 25%
+            o_start = max(current, day_base + timedelta(hours=night_start_hour))
             o_end = min(chunk_end, day_base + timedelta(hours=24))
             if o_end > o_start:
                 night_25_sec += (o_end - o_start).total_seconds()
@@ -919,7 +919,10 @@ def calculate_shift_night_hours(intervals, shift_start):
     return int(night_25_sec // 60), int(night_40_sec // 60)
 
 
-def analyze_card(data):
+def analyze_card(data, night_start_hour=None):
+    if night_start_hour is None:
+        cfg = _load_config()
+        night_start_hour = int(cfg.get('night_start_hour', 22))
     driver_info = get_driver_info(data)
     records = get_activity_records(data)
     vehicles = get_vehicle_records(data)
@@ -966,7 +969,7 @@ def analyze_card(data):
         manual_minutes = int(manual_sec // 60)
         duration_minutes = int((shift_end - shift_start).total_seconds() // 60)
 
-        night_25, night_40 = calculate_shift_night_hours(shift_intervals, shift_start)
+        night_25, night_40 = calculate_shift_night_hours(shift_intervals, shift_start, night_start_hour)
         total_work += work_minutes
         total_driving += driving_minutes
         total_break += break_minutes
@@ -2757,6 +2760,7 @@ def api_get_config():
         'samsara_api_token_set': bool(SAMSARA_API_TOKEN or cfg.get('samsara_api_token')),
         'dropbox_refresh_token_set': bool(DROPBOX_REFRESH_TOKEN or cfg.get('dropbox_refresh_token')),
         'sync_dest_folder': cfg.get('sync_dest_folder', os.environ.get('SYNC_DEST_FOLDER', '/Samsara-DDD')),
+        'night_start_hour': int(cfg.get('night_start_hour', 22)),
     })
 
 
@@ -2768,6 +2772,10 @@ def api_update_config():
     for key in ('samsara_api_token', 'dropbox_refresh_token', 'sync_dest_folder'):
         if key in data and data[key]:
             cfg[key] = data[key]
+    if 'night_start_hour' in data:
+        val = int(data['night_start_hour'])
+        if val in (20, 21, 22):
+            cfg['night_start_hour'] = val
     _save_config(cfg)
     # Update in-memory
     global SAMSARA_API_TOKEN, DROPBOX_REFRESH_TOKEN

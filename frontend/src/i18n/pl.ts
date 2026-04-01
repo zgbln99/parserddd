@@ -157,6 +157,8 @@ export const pl = {
   adminConfigNotSet: 'Nie ustawiony',
   adminNewToken: 'Nowy token...',
   adminSyncFolder: 'Folder Dropbox',
+  adminNightStart: 'Godziny nocne od',
+  adminNightStartHint: 'Od której godziny liczyć nocne',
 
   // Reader
   readerTitle: 'Czytnik kart DDD',

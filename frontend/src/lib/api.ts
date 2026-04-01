@@ -231,12 +231,13 @@ export interface SyncConfig {
   samsara_api_token_set: boolean;
   dropbox_refresh_token_set: boolean;
   sync_dest_folder: string;
+  night_start_hour: number;
 }
 
 export const fetchConfig = () =>
   request<SyncConfig>('/api/admin/config');
 
-export const updateConfig = (data: Record<string, string>) =>
+export const updateConfig = (data: Record<string, string | number>) =>
   request<{ ok: boolean }>('/api/admin/config', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
