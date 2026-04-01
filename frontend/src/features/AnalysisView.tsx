@@ -792,7 +792,7 @@ function ExcelCopyBlock({ summary, monthlyDays }: { summary: ReturnType<typeof O
   const krVal = monthlyDays?.sick_days ? String(monthlyDays.sick_days) : '';
   const ueVal = monthlyDays?.overtime_hm || '';
 
-  const headers = ['25%', '40%', 'Ü', 'Ur', 'Kr', 'VMA', 'AZ'];
+  const excelHeaders = ['25%', '40%', 'Ü', 'Ur', 'Kr', 'VMA', 'AZ'];
   const values  = [n25,   n40,   ueVal, urVal, krVal, vma, az];
 
   const handleCopy = useCallback(() => {
@@ -803,7 +803,7 @@ function ExcelCopyBlock({ summary, monthlyDays }: { summary: ReturnType<typeof O
     });
   }, [n25, n40, vma, az]);
 
-  const cols = headers.map((h, i) => ({ header: h, value: values[i] }));
+  const cols = excelHeaders.map((h, i) => ({ header: h, value: values[i] }));
 
   return (
     <div className="flex items-center gap-2 overflow-x-auto">
@@ -941,8 +941,11 @@ function MonthlyGridCopy({
   const azMin = s.total_work_minutes as number;
   const az = `${Math.floor(azMin / 60)}:${String(azMin % 60).padStart(2, '0')}`;
 
-  const urVal = monthlyDays?.vacation_days ? String(monthlyDays.vacation_days) : '';
-  const krVal = monthlyDays?.sick_days ? String(monthlyDays.sick_days) : '';
+  // Count Ur/Kr from merged absenceDays (includes vacation from PDF)
+  const urCount = Object.values(absenceDays).filter(v => v === 'Ur').length;
+  const krCount = Object.values(absenceDays).filter(v => v === 'Kr').length;
+  const urVal = urCount > 0 ? String(urCount) : (monthlyDays?.vacation_days ? String(monthlyDays.vacation_days) : '');
+  const krVal = krCount > 0 ? String(krCount) : (monthlyDays?.sick_days ? String(monthlyDays.sick_days) : '');
   const ueVal = monthlyDays?.overtime_hm || '';
 
   const summaryHeaders = ['25%', '40%', 'Ü', 'Ur', 'Kr', 'VMA', 'AZ'];
