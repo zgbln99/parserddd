@@ -631,11 +631,12 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
           {shifts.map((sh, i) => {
             const isWeekend = sh.weekday === 'So' || sh.weekday === 'Nd';
             const wd = localizeWeekday(sh.weekday, locale);
+            const hasErr = (sh as any).manual_errors?.length > 0;
             return (
-              <div key={i} className={`rounded-xl border border-border p-3 ${isWeekend ? 'bg-rose-50/30 dark:bg-rose-900/10' : 'bg-white/50 dark:bg-white/5'}`}>
+              <div key={i} className={`rounded-xl border p-3 ${hasErr ? 'border-red-300 bg-red-50 dark:border-red-800 dark:bg-red-900/15' : isWeekend ? 'border-border bg-rose-50/30 dark:bg-rose-900/10' : 'border-border bg-white/50 dark:bg-white/5'}`}>
                 <div className="flex items-center justify-between mb-2">
                   <span className={`text-sm font-bold ${isWeekend ? 'text-danger' : ''}`}>{wd} {sh.shift_date?.slice(5)}</span>
-                  <span className="text-sm font-bold">{sh.duration_hm}</span>
+                  <span className={`text-sm font-bold ${hasErr ? 'text-danger' : ''}`}>{sh.duration_hm}</span>
                 </div>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
                   <span className="text-muted">{t('analysisStart')}</span>
@@ -682,12 +683,26 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
               {shifts.map((sh, i) => {
                 const isWeekend = sh.weekday === 'So' || sh.weekday === 'Nd';
                 const wd = localizeWeekday(sh.weekday, locale);
+                const hasManualError = (sh as any).manual_errors?.length > 0;
+                const manualErrorTitle = hasManualError
+                  ? (sh as any).manual_errors.map((e: any) => `${e.declared_type}: ${e.start} → ${e.end} (${e.duration_minutes}min)`).join('\n')
+                  : '';
                 return (
-                <tr key={i} className={`hover:bg-surface ${isWeekend ? 'bg-rose-50/40 dark:bg-rose-900/10' : ''}`}>
+                <tr
+                  key={i}
+                  className={`hover:bg-surface ${
+                    hasManualError
+                      ? 'bg-red-50 dark:bg-red-900/15'
+                      : isWeekend
+                      ? 'bg-rose-50/40 dark:bg-rose-900/10'
+                      : ''
+                  }`}
+                  title={manualErrorTitle}
+                >
                   <td className={`whitespace-nowrap px-3 py-2 font-bold ${isWeekend ? 'text-danger' : ''}`}>{wd}</td>
                   <td className="whitespace-nowrap px-3 py-2 font-medium">{sh.shift_start}</td>
                   <td className="whitespace-nowrap px-3 py-2 text-muted">{sh.shift_end}</td>
-                  <td className="whitespace-nowrap px-3 py-2 font-bold">{sh.duration_hm}</td>
+                  <td className={`whitespace-nowrap px-3 py-2 font-bold ${hasManualError ? 'text-danger' : ''}`}>{sh.duration_hm}</td>
                   <td className="whitespace-nowrap px-3 py-2 text-muted">{sh.vehicles.join(', ')}</td>
                   <td className="whitespace-nowrap px-3 py-2">{sh.driving_hm}</td>
                   <td className="whitespace-nowrap px-3 py-2">{sh.work_only_hm}</td>
@@ -700,7 +715,9 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
                       : <span className="text-muted">{t('no')}</span>}
                   </td>
                   <td className="whitespace-nowrap px-3 py-2">
-                    {sh.manual_minutes > 0
+                    {hasManualError
+                      ? <Badge variant="red">{sh.manual_hm || 'ERR'}</Badge>
+                      : sh.manual_minutes > 0
                       ? <Badge variant="yellow">{sh.manual_hm}</Badge>
                       : <span className="text-muted">-</span>}
                   </td>

@@ -952,6 +952,28 @@ def analyze_card(data, night_start_hour=None):
             for i, (s, e, wt, m) in enumerate(shift_intervals)
             if m and wt != 0 and i > first_card_present_idx
         )
+        # Detect manual entry errors: manual non-rest entries during typical
+        # rest periods (overnight, between card-present work blocks).
+        # Flag shifts where manual work/avail replaces what should be rest.
+        manual_errors = []
+        for idx, (s, e, wt, m) in enumerate(shift_intervals):
+            if not m or wt == 0:
+                continue
+            dur_min = int((e - s).total_seconds() // 60)
+            if dur_min < 30:
+                continue
+            # Manual non-rest during night hours (22:00-06:00) = suspicious
+            h_start = s.hour
+            h_end = e.hour if e.date() == s.date() else 24
+            is_overnight = h_start >= 20 or h_end <= 7 or (e - s).total_seconds() > 10 * 3600
+            if is_overnight or dur_min > 600:  # >10h manual = suspicious
+                wt_names = {1: 'Bereitschaft', 2: 'Arbeit', 3: 'Lenken'}
+                manual_errors.append({
+                    'start': s.strftime('%Y-%m-%d %H:%M'),
+                    'end': e.strftime('%Y-%m-%d %H:%M'),
+                    'duration_minutes': dur_min,
+                    'declared_type': wt_names.get(wt, str(wt)),
+                })
 
         work_sec = work_only_sec + driving_sec + avail_sec
         work_minutes = int(work_sec // 60)
@@ -1041,6 +1063,7 @@ def analyze_card(data, night_start_hour=None):
             'manual_hm': minutes_to_hm(manual_minutes),
             'driving_segments': driving_segments,
             'break_segments': break_segments,
+            'manual_errors': manual_errors,
         })
 
     total_night = total_n25 + total_n40
