@@ -841,12 +841,11 @@ def detect_shifts(all_intervals, min_rest_hours=9):
     shifts = []
     current = []
 
-    def _is_rest_like(wt, manual):
-        # Only card-present rest counts for shift splitting.
-        # Manual rest (card_present=false) and gap-filled rest should NOT
-        # split shifts — matches GloboFleet behaviour where card-out periods
-        # don't count as valid daily rest for shift detection.
-        return wt == 0 and not manual
+    def _is_rest_like(wt, _manual):
+        # Any rest (type 0) counts for shift splitting, regardless of
+        # card_present flag.  With the 1440-minute model, card-out rest
+        # periods are real rest (driver had card removed = resting).
+        return wt == 0
 
     i = 0
     while i < len(merged):
