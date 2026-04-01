@@ -820,7 +820,14 @@ def build_timeline(records):
                 wt = UNKNOWN
             else:
                 wt = raw_wt
-            manual = not change.get('card_present', True)
+            cp = change.get('card_present', True)
+            if not isinstance(cp, bool):
+                import logging
+                logging.getLogger(__name__).warning(
+                    'Day %s minute %d: card_present is %r (type %s), expected bool. Defaulting to True.',
+                    date_str[:10], target_minute, cp, type(cp).__name__)
+                cp = True
+            manual = not cp
 
             for m in range(current_minute, target_minute):
                 minutes[m] = (current_wt, current_manual)
@@ -1159,17 +1166,22 @@ def analyze_card(data, night_start_hour=None):
                 })
 
         work_minutes = work_only_minutes + driving_minutes + avail_minutes
-        # Duration = work + breaks within the shift (excludes leading/trailing rest)
-        # Find first and last non-rest interval to determine effective shift span
+        # Duration = effective span from first to last real work activity.
+        # REST-only or UNKNOWN-only pseudo-shifts are skipped entirely.
         _REAL_WORK = (AVAILABILITY, WORK, DRIVING)
-        first_work_idx = next(
-            (i for i, (_, _, wt, _) in enumerate(shift_intervals) if wt in _REAL_WORK), 0)
-        last_work_idx = next(
-            (i for i in range(len(shift_intervals) - 1, -1, -1)
-             if shift_intervals[i][2] in _REAL_WORK),
-            len(shift_intervals) - 1)
-        effective_start = shift_intervals[first_work_idx][0]
-        effective_end = shift_intervals[last_work_idx][1]
+        real_work_indices = [
+            i for i, (_, _, wt, _) in enumerate(shift_intervals)
+            if wt in _REAL_WORK
+        ]
+        if not real_work_indices:
+            # No real work in this shift — skip it (REST/UNKNOWN only block)
+            import logging
+            logging.getLogger(__name__).debug(
+                'Skipping shift with no real work activity (REST/UNKNOWN only)')
+            continue
+
+        effective_start = shift_intervals[real_work_indices[0]][0]
+        effective_end = shift_intervals[real_work_indices[-1]][1]
         duration_minutes = int((effective_end - effective_start).total_seconds()) // 60
 
         shift_start = effective_start

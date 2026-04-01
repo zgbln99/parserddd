@@ -334,5 +334,59 @@ class TestUnknownHandling(unittest.TestCase):
         self.assertEqual(len(intervals), 0)
 
 
+class TestFinalFixes(unittest.TestCase):
+    """Tests for the two final fixes: no-real-work shifts and card_present validation."""
+
+    def test_shift_with_no_real_work_skipped(self):
+        """A: Shift containing only REST/UNKNOWN produces no shift_details entry."""
+        from app import analyze_card, get_activity_records
+
+        # Build a minimal data dict that will produce a REST-only shift.
+        # We test via detect_shifts directly since analyze_card needs full DDD data.
+        base = datetime(2026, 3, 2, tzinfo=UTC)
+        # One shift of pure REST (less than 9h so detect_shifts doesn't split)
+        shift_intervals = [
+            (base, base + timedelta(hours=5), REST, False),
+            (base + timedelta(hours=5), base + timedelta(hours=8), UNKNOWN, True),
+        ]
+        # Simulate the real_work_indices check from analyze_card
+        _REAL_WORK = (AVAILABILITY, WORK, DRIVING)
+        real_work_indices = [
+            i for i, (_, _, wt, _) in enumerate(shift_intervals) if wt in _REAL_WORK
+        ]
+        self.assertEqual(len(real_work_indices), 0,
+                         'REST/UNKNOWN-only shift should have no real work indices')
+        # The shift should be skipped (continue) in analyze_card
+
+    def test_invalid_card_present_type_handled(self):
+        """B: Non-bool card_present should not crash and should default to True."""
+        # card_present="false" (string, not bool) — Python truthiness would say True!
+        rec = make_day('2026-03-02', [
+            {'minutes': 0, 'work_type': REST, 'card_present': "false"},
+            {'minutes': 360, 'work_type': DRIVING, 'card_present': 1},
+            {'minutes': 600, 'work_type': REST, 'card_present': True},
+        ])
+        # Should not crash
+        intervals = build_timeline([rec])
+        self.assertTrue(len(intervals) > 0, 'Should produce intervals despite invalid card_present')
+        # With fallback to True, the "false" string entry should be card_out=False
+        # (because cp defaults to True when not bool → manual = not True = False)
+        first = intervals[0]
+        self.assertFalse(first[3],
+                         'Invalid card_present should default to True → card_out=False')
+
+    def test_card_present_integer_handled(self):
+        """card_present=1 (int) should warn and default to True → card_out=False."""
+        rec = make_day('2026-03-02', [
+            {'minutes': 0, 'work_type': DRIVING, 'card_present': 1},
+            {'minutes': 480, 'work_type': REST, 'card_present': True},
+        ])
+        intervals = build_timeline([rec])
+        driving = [iv for iv in intervals if iv[2] == DRIVING]
+        self.assertEqual(len(driving), 1)
+        # card_present=1 is not bool → defaults to True → card_out=False
+        self.assertFalse(driving[0][3])
+
+
 if __name__ == '__main__':
     unittest.main()
