@@ -18,7 +18,7 @@ import subprocess
 import tempfile
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from functools import wraps
 
 import dropbox
@@ -43,6 +43,12 @@ except ImportError:
 
 UTC = ZoneInfo('UTC')
 CET = ZoneInfo('Europe/Berlin')
+
+# DDD Activity types per EU Regulation 3821/85
+REST = 0
+AVAILABILITY = 1
+WORK = 2
+DRIVING = 3
 
 # ---------------------------------------------------------------------------
 # App factory
