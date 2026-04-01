@@ -16,6 +16,8 @@ export function PayrollAnalysisPage() {
   const period = params.get('period') || '';
   const filePath = params.get('path') || '';
   const driverName = params.get('name') || '';
+  const fileDate = params.get('fileDate') || '';
+  const fileModified = params.get('fileModified') || '';
 
   // Parse vacation ranges from URL
   const vacationRanges: { von: string; bis: string; tage: number }[] = (() => {
@@ -61,11 +63,21 @@ export function PayrollAnalysisPage() {
           <h1 className="text-2xl font-bold text-ink">
             {t('payrollAnalyze')}: {driverName}
           </h1>
-          {period && (
-            <p className="text-sm text-muted mt-0.5">
-              {period}
-            </p>
-          )}
+          <div className="flex items-center gap-3 mt-0.5 text-sm text-muted">
+            {period && <span>{period}</span>}
+            {fileDate && (
+              <>
+                <span className="text-border">|</span>
+                <span>{t('payrollFileDate')}: <strong className="text-ink">{fileDate}</strong></span>
+              </>
+            )}
+            {fileModified && (
+              <>
+                <span className="text-border">|</span>
+                <span>{t('payrollLastDownload')}: <strong className="text-ink">{new Date(fileModified).toLocaleDateString('de-DE')} {new Date(fileModified).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}</strong></span>
+              </>
+            )}
+          </div>
         </div>
       </div>
 

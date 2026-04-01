@@ -72,10 +72,25 @@ export function PayrollPage() {
   const [showOnlyNew, setShowOnlyNew] = useState(false);
   const [searchText, setSearchText] = useState('');
 
-  // Vacation PDF
+  // Vacation PDF — persisted in localStorage
   const vacFileRef = useRef<HTMLInputElement>(null);
-  const [vacationEntries, setVacationEntries] = useState<VacationEntry[]>([]);
+  const [vacationEntries, setVacationEntriesState] = useState<VacationEntry[]>(() => {
+    try {
+      const raw = localStorage.getItem('ddd-payroll-vacation');
+      if (raw) return JSON.parse(raw);
+    } catch { /* ignore */ }
+    return [];
+  });
   const [vacUploading, setVacUploading] = useState(false);
+
+  const setVacationEntries = (entries: VacationEntry[]) => {
+    setVacationEntriesState(entries);
+    if (entries.length > 0) {
+      localStorage.setItem('ddd-payroll-vacation', JSON.stringify(entries));
+    } else {
+      localStorage.removeItem('ddd-payroll-vacation');
+    }
+  };
 
   const handleVacationUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -428,7 +443,8 @@ export function PayrollPage() {
                           onClick={(e) => {
                             e.stopPropagation();
                             const vacParam = vacation ? `&vacation=${encodeURIComponent(JSON.stringify(vacation.ranges))}` : '';
-                            navigate(`/payroll/${encodeURIComponent(d.card_number || d.name)}?period=${period}&path=${encodeURIComponent(d.files[0].path)}&name=${encodeURIComponent(d.name)}${vacParam}`);
+                            const fileInfo = `&fileDate=${d.files[0].file_date || ''}&fileModified=${d.files[0].modified || ''}`;
+                            navigate(`/payroll/${encodeURIComponent(d.card_number || d.name)}?period=${period}&path=${encodeURIComponent(d.files[0].path)}&name=${encodeURIComponent(d.name)}${vacParam}${fileInfo}`);
                           }}
                           className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors"
                           title={t('payrollAnalyze')}
