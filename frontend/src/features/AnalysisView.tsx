@@ -891,36 +891,38 @@ function MonthlyGridCopy({
     return map;
   }, [shifts]);
 
-  // Absence days from monthlyDays, with vacation auto-fill
-  const absenceDays = monthlyDays?.absence_days || {};
-
-  // Auto-apply vacation ranges from PDF (once, if no existing absence data)
-  const [vacationApplied, setVacationApplied] = useState(false);
-  useEffect(() => {
-    if (vacationApplied || !vacationRanges?.length || !onAbsenceChange) return;
-    // Check if there's already absence data — don't overwrite
-    if (Object.keys(absenceDays).length > 0) { setVacationApplied(true); return; }
-    const next: Record<string, 'Ur' | 'Kr'> = {};
+  // Build set of vacation days from PDF ranges
+  const vacationDaySet = useMemo(() => {
+    const set = new Set<number>();
+    if (!vacationRanges?.length) return set;
     for (const range of vacationRanges) {
-      // range.von and range.bis are YYYY-MM-DD
       const vonDate = new Date(range.von);
       const bisDate = new Date(range.bis);
       for (let d = new Date(vonDate); d <= bisDate; d.setDate(d.getDate() + 1)) {
-        // Only mark days in the current month
         if (d.getFullYear() === year && d.getMonth() + 1 === month) {
           const dayOfWeek = d.getDay();
-          // Skip weekends
           if (dayOfWeek !== 0 && dayOfWeek !== 6) {
-            next[String(d.getDate())] = 'Ur';
+            set.add(d.getDate());
           }
         }
       }
     }
-    if (Object.keys(next).length > 0) {
-      onAbsenceChange(next);
+    return set;
+  }, [vacationRanges, year, month]);
+
+  // Merge: saved absence days + vacation from PDF (PDF fills gaps, doesn't overwrite)
+  const absenceDays = useMemo(() => {
+    const saved = monthlyDays?.absence_days || {};
+    if (vacationDaySet.size === 0) return saved;
+    const merged = { ...saved };
+    for (const day of vacationDaySet) {
+      const key = String(day);
+      if (!merged[key]) {
+        merged[key] = 'Ur' as const;
+      }
     }
-    setVacationApplied(true);
-  }, [vacationRanges, onAbsenceChange, absenceDays, vacationApplied, year, month]);
+    return merged;
+  }, [monthlyDays?.absence_days, vacationDaySet]);
 
   // Generate weekday names for each day
   const wdNames = locale === 'de' ? weekdayDeShort : weekdayPlShort;
