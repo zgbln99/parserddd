@@ -99,8 +99,12 @@ export function PayrollPage() {
     saveChecked(period, checked);
   }, [period, checked]);
 
-  // Compute "since date" = first day of selected month
-  const sinceDate = `${period}-01`;
+  // "since date" = first day of the NEXT month (payroll for March → files downloaded since April 1st)
+  const sinceDate = useMemo(() => {
+    const [y, m] = period.split('-').map(Number);
+    const next = m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`;
+    return `${next}-01`;
+  }, [period]);
 
   // For each driver, count files downloaded since sinceDate
   const driverData = useMemo(() => {
