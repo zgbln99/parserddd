@@ -1149,14 +1149,18 @@ def analyze_card(data, night_start_hour=None):
             dur_min = int((e - s).total_seconds()) // 60
             if dur_min < 30:
                 continue
-            # Manual non-rest during night hours (22:00-06:00) = suspicious
-            # Check hours in CET (display timezone) for night detection
+            # Manual non-rest that spans deep night hours = suspicious.
+            # Only flag if the manual entry actually COVERS night time
+            # (not just starts or ends near it).
             s_cet = _to_cet(s)
             e_cet = _to_cet(e)
-            h_start = s_cet.hour
-            h_end = e_cet.hour if e_cet.date() == s_cet.date() else 24
-            is_overnight = h_start >= 20 or h_end <= 7 or (e - s).total_seconds() > 10 * 3600
-            if is_overnight or dur_min > 600:  # >10h manual = suspicious
+            # Check if interval overlaps with 22:00-05:00 CET (core night)
+            # A normal pre-shift manual entry (e.g. 05:30-06:30) should NOT be flagged.
+            covers_core_night = (s_cet.hour >= 22 or s_cet.hour < 5 or
+                                 e_cet.hour >= 22 or e_cet.hour < 5 or
+                                 dur_min >= 600)
+            # Only flag if it covers core night AND is long enough to be suspicious
+            if covers_core_night and dur_min >= 120:  # >= 2h covering night = suspicious
                 wt_names = {AVAILABILITY: 'Bereitschaft', WORK: 'Arbeit', DRIVING: 'Lenken'}
                 manual_errors.append({
                     'start': _to_cet_str(s),
