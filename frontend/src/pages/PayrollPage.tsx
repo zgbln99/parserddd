@@ -1,17 +1,15 @@
-import { useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Users, RefreshCw, CheckCircle, Circle, AlertCircle,
   FileText, Clock, CheckSquare, Square, Filter, BarChart3,
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useI18n } from '../i18n';
-import { fetchDrivers, analyzeDropboxFile } from '../lib/api';
+import { fetchDrivers } from '../lib/api';
 import { Card, StatCard } from '../components/Card';
 import { Badge } from '../components/Badge';
 import { Spinner } from '../components/Spinner';
-import { Modal } from '../components/Modal';
-import type { Driver, AnalysisResult } from '../types';
-
-const AnalysisView = lazy(() => import('../features/AnalysisView').then(m => ({ default: m.AnalysisView })));
+import type { Driver } from '../types';
 
 // Persist checked state in localStorage per month
 function getCheckedKey(period: string) {
@@ -58,38 +56,7 @@ export function PayrollPage() {
     }
   }, []);
 
-  // Analysis modal state
-  const [analysisDriver, setAnalysisDriver] = useState<Driver | null>(null);
-  const [analysisData, setAnalysisData] = useState<AnalysisResult | null>(null);
-  const [analysisLoading, setAnalysisLoading] = useState(false);
-  const [analysisError, setAnalysisError] = useState('');
-  const [analysisDateFrom, setAnalysisDateFrom] = useState('');
-  const [analysisDateTo, setAnalysisDateTo] = useState('');
-
-  const openAnalysis = useCallback(async (driver: Driver) => {
-    const latestFile = driver.files[0];
-    if (!latestFile?.path) return;
-    setAnalysisDriver(driver);
-    setAnalysisData(null);
-    setAnalysisLoading(true);
-    setAnalysisError('');
-    setAnalysisDateFrom(`${period}-01`);
-    setAnalysisDateTo(`${period}-31`);
-    try {
-      const result = await analyzeDropboxFile(latestFile.path);
-      setAnalysisData(result);
-    } catch (err) {
-      setAnalysisError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setAnalysisLoading(false);
-    }
-  }, [period]);
-
-  const closeAnalysis = () => {
-    setAnalysisDriver(null);
-    setAnalysisData(null);
-    setAnalysisError('');
-  };
+  const navigate = useNavigate();
 
   useEffect(() => { loadDrivers(); }, [loadDrivers]);
 
@@ -365,7 +332,10 @@ export function PayrollPage() {
                     <td className="px-3 py-3 text-center">
                       {d.files.length > 0 && (
                         <button
-                          onClick={(e) => { e.stopPropagation(); openAnalysis(d); }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/payroll/${encodeURIComponent(d.card_number || d.name)}?period=${period}&path=${encodeURIComponent(d.files[0].path)}&name=${encodeURIComponent(d.name)}`);
+                          }}
                           className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors"
                           title={t('payrollAnalyze')}
                         >
@@ -388,37 +358,6 @@ export function PayrollPage() {
         </Card>
       )}
 
-      {/* Analysis modal */}
-      <Modal
-        open={!!analysisDriver}
-        onClose={closeAnalysis}
-        title={analysisDriver ? `${t('payrollAnalyze')}: ${analysisDriver.name}` : ''}
-        fullscreen
-      >
-        {analysisLoading && (
-          <div className="flex flex-col items-center gap-3 py-16">
-            <Spinner />
-            <p className="text-sm text-muted">{t('loading')}</p>
-          </div>
-        )}
-        {analysisError && (
-          <div className="flex items-center gap-2 rounded-lg bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 px-4 py-3 text-sm">
-            <AlertCircle size={16} />
-            {analysisError}
-          </div>
-        )}
-        {analysisData && !analysisLoading && (
-          <Suspense fallback={<Spinner />}>
-            <AnalysisView
-              data={analysisData}
-              dateFrom={analysisDateFrom}
-              dateTo={analysisDateTo}
-              onDateFromChange={setAnalysisDateFrom}
-              onDateToChange={setAnalysisDateTo}
-            />
-          </Suspense>
-        )}
-      </Modal>
     </div>
   );
 }
