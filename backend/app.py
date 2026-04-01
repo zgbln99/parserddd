@@ -820,18 +820,11 @@ def detect_shifts(all_intervals, min_rest_hours=9):
     merged = merge_intervals(all_intervals)
     merged = fill_timeline_gaps(merged)
     min_rest_sec = min_rest_hours * 3600
+    max_shift_sec = 18 * 3600  # Max 18h per shift before forced split
     shifts = []
     current = []
 
     def _is_rest_like(wt, _manual):
-        """True for rest intervals (wt == 0).
-
-        Manual entries (card_present=false) are NOT automatically rest —
-        they carry the driver's declared activity (driving/work/etc.) and
-        should be counted as such.  Card-out *gaps* (no entries at all)
-        are handled by fill_timeline_gaps() which inserts explicit rest
-        intervals before shift detection.
-        """
         return wt == 0
 
     i = 0
@@ -839,23 +832,17 @@ def detect_shifts(all_intervals, min_rest_hours=9):
         start, end, wt, manual = merged[i]
 
         if _is_rest_like(wt, manual):
-            # Accumulate effective rest: consecutive rest / card-out intervals
-            # possibly interrupted by very brief non-rest blips (≤3 min)
-            # caused by UTC day-boundary artefacts in the DDD data.
             rest_begin = start
             rest_end = end
             j = i + 1
             while j < len(merged):
                 nxt_s, nxt_e, nxt_wt, nxt_manual = merged[j]
-                # Gap between accumulated rest end and next interval must be tiny
                 if (nxt_s - rest_end).total_seconds() > 60:
                     break
                 if _is_rest_like(nxt_wt, nxt_manual):
-                    # More rest / card-out – extend
                     rest_end = nxt_e
                     j += 1
                 elif (nxt_e - nxt_s).total_seconds() <= 180:
-                    # Brief non-rest blip (≤3 min) – look past it
                     blip_end = nxt_e
                     j += 1
                     if j < len(merged) and _is_rest_like(merged[j][2], merged[j][3]) \
@@ -869,7 +856,6 @@ def detect_shifts(all_intervals, min_rest_hours=9):
 
             effective_rest = (rest_end - rest_begin).total_seconds()
             if effective_rest >= min_rest_sec:
-                # Long enough rest → split shift here
                 if current:
                     shifts.append(current)
                     current = []
@@ -877,11 +863,92 @@ def detect_shifts(all_intervals, min_rest_hours=9):
                 continue
 
         current.append(merged[i])
+
+        # Check if current shift exceeds max duration — force split
+        if current:
+            shift_duration = (current[-1][1] - current[0][0]).total_seconds()
+            if shift_duration > max_shift_sec:
+                current = _force_split_shift(current, shifts, min_rest_sec)
+
         i += 1
 
     if current:
         shifts.append(current)
-    return shifts
+
+    # Final pass: split any remaining oversized shifts
+    final = []
+    for shift in shifts:
+        if not shift:
+            continue
+        dur = (shift[-1][1] - shift[0][0]).total_seconds()
+        if dur > max_shift_sec * 1.5:  # > 27h = definitely broken
+            final.extend(_split_oversized_shift(shift))
+        else:
+            final.append(shift)
+    return final
+
+
+def _force_split_shift(current, shifts, min_rest_sec):
+    """Split current shift at the longest rest-like period found."""
+    best_idx = -1
+    best_dur = 0
+    for idx, (s, e, wt, m) in enumerate(current):
+        if wt == 0:
+            dur = (e - s).total_seconds()
+            if dur > best_dur:
+                best_dur = dur
+                best_idx = idx
+    # Only split if we found a meaningful rest (>= 30 min)
+    if best_idx > 0 and best_dur >= 1800:
+        shifts.append(current[:best_idx])
+        return current[best_idx + 1:]
+    return current
+
+
+def _split_oversized_shift(shift):
+    """Emergency split for shifts > 27h: split at midnight boundaries or longest rests."""
+    # Strategy 1: Find all rest periods > 30 min and split at the longest ones
+    rest_points = []
+    for idx, (s, e, wt, m) in enumerate(shift):
+        if wt == 0 and (e - s).total_seconds() >= 1800:
+            rest_points.append((idx, (e - s).total_seconds()))
+    # Sort by duration descending — split at longest rests first
+    rest_points.sort(key=lambda x: x[1], reverse=True)
+
+    if rest_points:
+        # Split at the longest rest
+        split_idx = rest_points[0][0]
+        before = shift[:split_idx]
+        after = shift[split_idx + 1:]
+        result = []
+        if before:
+            dur = (before[-1][1] - before[0][0]).total_seconds()
+            if dur > 27 * 3600:
+                result.extend(_split_oversized_shift(before))
+            else:
+                result.append(before)
+        if after:
+            dur = (after[-1][1] - after[0][0]).total_seconds()
+            if dur > 27 * 3600:
+                result.extend(_split_oversized_shift(after))
+            else:
+                result.append(after)
+        return result if result else [shift]
+
+    # Strategy 2: No rest periods — split at midnight
+    result = []
+    current_day_shift = []
+    current_date = shift[0][0].date() if shift else None
+    for interval in shift:
+        s, e, wt, m = interval
+        if s.date() != current_date and current_day_shift:
+            result.append(current_day_shift)
+            current_day_shift = []
+            current_date = s.date()
+        current_day_shift.append(interval)
+    if current_day_shift:
+        result.append(current_day_shift)
+    return result if result else [shift]
 
 
 def calculate_shift_night_hours(intervals, shift_start, night_start_hour=22):
