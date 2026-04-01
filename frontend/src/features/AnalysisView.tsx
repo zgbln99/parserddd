@@ -159,9 +159,11 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
 
   const handleAbsenceChange = useCallback((absenceDays: Record<string, 'Ur' | 'Kr'>) => {
     setMonthlyDays((prev) => {
-      if (!prev) return prev;
       const vacCount = Object.values(absenceDays).filter((v) => v === 'Ur').length;
       const sickCount = Object.values(absenceDays).filter((v) => v === 'Kr').length;
+      if (!prev) {
+        return { card_number: '', period: '', vacation_days: vacCount, sick_days: sickCount, overtime_hm: '', notes: '', absence_days: absenceDays };
+      }
       return { ...prev, absence_days: absenceDays, vacation_days: vacCount, sick_days: sickCount };
     });
   }, []);
