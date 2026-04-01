@@ -389,7 +389,7 @@ export function PayrollPage() {
         open={!!analysisDriver}
         onClose={closeAnalysis}
         title={analysisDriver ? `${t('payrollAnalyze')}: ${analysisDriver.name}` : ''}
-        wide
+        fullscreen
       >
         {analysisLoading && (
           <div className="flex flex-col items-center gap-3 py-16">
