@@ -116,6 +116,7 @@ export interface AnalysisResult {
   card_events?: CardEvent[];
   source_file?: string;
   error?: string;
+  night_start_hour?: number;
 }
 
 export interface SyncHistoryEntry {

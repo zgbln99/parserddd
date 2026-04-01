@@ -1072,6 +1072,7 @@ def analyze_card(data, night_start_hour=None):
         'shift_details': shift_details,
         'card_places': places,
         'card_events': card_events,
+        'night_start_hour': night_start_hour,
     }
 
 

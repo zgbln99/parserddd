@@ -44,6 +44,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
   const { t, locale } = useI18n();
   const { isAdmin } = useAuth();
   const di = data.driver_info;
+  const nightH = data.night_start_hour ?? 22;
   const allShifts = data.shift_details;
   const [showConfig, setShowConfig] = useState(false);
   const [driverConfig, setDriverConfig] = useState<DriverConfig | null>(null);
@@ -393,12 +394,13 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
           <p className="mt-1 text-2xl font-extrabold text-primary-700 dark:text-primary-300">{s.total_work_hm}</p>
           <p className="mt-0.5 text-xs text-primary-500/70/70">{s.total_work_decimal}h</p>
         </div>
-        <div className="rounded-xl border border-violet-200 bg-violet-50 p-4 text-center dark:border-violet-800 dark:bg-violet-900/30" title={locale === 'de' ? 'Arbeit 22:00-06:00 unter 2h = 25% Zuschlag' : 'Praca w godz. 22:00-06:00 poniżej 2h = 25% dodatku'}>
+        <div className="rounded-xl border border-violet-200 bg-violet-50 p-4 text-center dark:border-violet-800 dark:bg-violet-900/30" title={locale === 'de' ? `Nachtarbeit ab ${nightH}:00 (25%)` : `Nocne od ${nightH}:00 (25%)`}>
           <p className="text-xs font-bold uppercase tracking-wider text-violet-500 dark:text-violet-400">{t('analysisNight25')}</p>
           <p className="mt-1 text-2xl font-extrabold text-violet-700 dark:text-violet-300">{(s.night_25_minutes / 60).toFixed(2)}</p>
           <p className="mt-0.5 text-xs text-violet-500/70 dark:text-violet-400/70">{s.night_25_hm}</p>
+          <p className="mt-0.5 text-xs text-violet-400/60 dark:text-violet-500/60">{locale === 'de' ? 'ab' : 'od'} {nightH}:00</p>
         </div>
-        <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-4 text-center dark:border-indigo-800 dark:bg-indigo-900/30" title={locale === 'de' ? 'Arbeit 22:00-06:00 über 2h = 40% Zuschlag' : 'Praca w godz. 22:00-06:00 powyżej 2h = 40% dodatku'}>
+        <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-4 text-center dark:border-indigo-800 dark:bg-indigo-900/30" title={locale === 'de' ? `Nachtarbeit ab ${nightH}:00 (40%)` : `Nocne od ${nightH}:00 (40%)`}>
           <p className="text-xs font-bold uppercase tracking-wider text-indigo-500 dark:text-indigo-400">{t('analysisNight40')}</p>
           <p className="mt-1 text-2xl font-extrabold text-indigo-700 dark:text-indigo-300">{(s.night_40_minutes / 60).toFixed(2)}</p>
           <p className="mt-0.5 text-xs text-indigo-500/70 dark:text-indigo-400/70">{s.night_40_hm}</p>
