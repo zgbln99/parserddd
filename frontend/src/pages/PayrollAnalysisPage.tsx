@@ -17,6 +17,15 @@ export function PayrollAnalysisPage() {
   const filePath = params.get('path') || '';
   const driverName = params.get('name') || '';
 
+  // Parse vacation ranges from URL
+  const vacationRanges: { von: string; bis: string; tage: number }[] = (() => {
+    try {
+      const raw = params.get('vacation');
+      if (raw) return JSON.parse(raw);
+    } catch { /* ignore */ }
+    return [];
+  })();
+
   const [data, setData] = useState<AnalysisResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -85,6 +94,7 @@ export function PayrollAnalysisPage() {
             dateTo={dateTo}
             onDateFromChange={setDateFrom}
             onDateToChange={setDateTo}
+            vacationRanges={vacationRanges}
           />
         </Suspense>
       )}

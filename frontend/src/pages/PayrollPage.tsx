@@ -427,7 +427,8 @@ export function PayrollPage() {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            navigate(`/payroll/${encodeURIComponent(d.card_number || d.name)}?period=${period}&path=${encodeURIComponent(d.files[0].path)}&name=${encodeURIComponent(d.name)}`);
+                            const vacParam = vacation ? `&vacation=${encodeURIComponent(JSON.stringify(vacation.ranges))}` : '';
+                            navigate(`/payroll/${encodeURIComponent(d.card_number || d.name)}?period=${period}&path=${encodeURIComponent(d.files[0].path)}&name=${encodeURIComponent(d.name)}${vacParam}`);
                           }}
                           className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors"
                           title={t('payrollAnalyze')}
