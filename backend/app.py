@@ -710,76 +710,91 @@ def minutes_to_decimal(minutes):
 
 
 def build_timeline(records):
-    all_intervals = []
+    """Build timeline using the 1440-minute-per-day model per DDD spec.
+
+    Each tachograph day = 00:00–24:00 UTC, represented as 1440 minutes.
+    Activity changes fill minutes from current state to next change.
+
+    Returns list of intervals (start_dt, end_dt, work_type, is_manual)
+    in UTC for compatibility with detect_shifts/analyze_card.
+    """
     sorted_records = [r for r in sorted(records, key=lambda r: r.get('activity_record_date', ''))
                       if r.get('activity_record_date')]
-    for rec_idx, record in enumerate(sorted_records):
+    if not sorted_records:
+        return []
+
+    # Build minute arrays per day, then merge into continuous intervals
+    # Each minute: (work_type, is_manual)
+    all_day_minutes = []  # list of (base_date_naive, minutes_array)
+
+    for record in sorted_records:
         date_str = record['activity_record_date']
-        is_last_record = rec_idx == len(sorted_records) - 1
-        base_date = datetime.strptime(date_str[:10], '%Y-%m-%d').replace(tzinfo=UTC)
+        base_date = datetime.strptime(date_str[:10], '%Y-%m-%d')  # naive, UTC
         changes = record.get('activity_change_info') or []
-        for i, change in enumerate(changes):
-            start_min = change['minutes']
-            work_type = change['work_type']
-            is_manual = not change.get('card_present', True)
-            # Detect phantom first entry: daily record starts at minute 0
-            # with card_present=true, but the NEXT entry has card_present=false.
-            # This means the card was NOT in the VU at midnight — the tachograph
-            # just initialised the record with a default status.  Treat as card-out
-            # rest so the interval doesn't create phantom work blocking shift splits.
-            if (i == 0 and start_min == 0 and not is_manual
-                    and len(changes) > 1
-                    and not changes[1].get('card_present', True)):
-                is_manual = True
-                work_type = 0
-            if i + 1 < len(changes):
-                end_min = changes[i + 1]['minutes']
-            elif is_last_record and work_type != 0:
-                # Last activity on the last daily record: do NOT extend non-rest
-                # activity to midnight (1440).  The card was likely removed or the
-                # download happened here – extending would add phantom work hours.
-                end_min = start_min
-            elif (not is_manual and i > 0
-                  and not changes[i - 1].get('card_present', True)):
-                # Card was just inserted after a card-out period (the driver
-                # entered manual activities upon reinsertion).  The last entry
-                # with card_present=true is the insertion event itself — do NOT
-                # extend it as real work to midnight.  Treat the extension as
-                # card-out rest so that shift splitting detects the daily rest.
-                end_min = 1440
-                work_type = 0
-                is_manual = True
-            else:
-                end_min = 1440
-            if end_min > start_min:
-                # Keep timestamps in UTC (naive datetime, UTC-anchored)
-                # DDD daily records are anchored to 00:00 UTC.
-                # CET/local conversion happens only at presentation layer.
-                start_dt = base_date.replace(tzinfo=None) + timedelta(minutes=start_min)
-                end_dt = base_date.replace(tzinfo=None) + timedelta(minutes=end_min)
-                all_intervals.append((start_dt, end_dt, work_type, is_manual))
-    # Deduplicate overlapping intervals from adjacent daily records
-    return deduplicate_timeline(all_intervals)
+        if not changes:
+            continue
+
+        # Initialize 1440-minute array
+        # Default: rest, card-not-present (manual=True)
+        minutes = [(0, True)] * 1440
+
+        # First entry defines state at 00:00
+        # Sort changes by minute
+        sorted_changes = sorted(changes, key=lambda c: c.get('minutes', 0))
+
+        current_wt = 0
+        current_manual = True
+        current_minute = 0
+
+        for change in sorted_changes:
+            target_minute = min(change.get('minutes', 0), 1439)
+            wt = change.get('work_type', 0)
+            manual = not change.get('card_present', True)
+
+            # Fill minutes[current_minute .. target_minute-1] with current state
+            for m in range(current_minute, target_minute):
+                minutes[m] = (current_wt, current_manual)
+
+            current_wt = wt
+            current_manual = manual
+            current_minute = target_minute
+
+        # Fill remaining minutes with last state
+        for m in range(current_minute, 1440):
+            minutes[m] = (current_wt, current_manual)
+
+        all_day_minutes.append((base_date, minutes))
+
+    # Convert minute arrays to intervals
+    all_intervals = []
+    for base_date, minutes in all_day_minutes:
+        i = 0
+        while i < 1440:
+            wt, manual = minutes[i]
+            j = i + 1
+            while j < 1440 and minutes[j] == (wt, manual):
+                j += 1
+            start_dt = base_date + timedelta(minutes=i)
+            end_dt = base_date + timedelta(minutes=j)
+            all_intervals.append((start_dt, end_dt, wt, manual))
+            i = j
+
+    # Merge adjacent intervals with same state across day boundaries
+    return _merge_cross_day_intervals(all_intervals)
 
 
-def deduplicate_timeline(intervals):
-    """Remove overlapping intervals from adjacent UTC daily records.
-    Each interval is (start, end, work_type, is_manual)."""
+def _merge_cross_day_intervals(intervals):
+    """Merge intervals across day boundaries when state is identical."""
     if not intervals:
         return []
-    sorted_ivs = sorted(intervals, key=lambda x: x[0])
-    result = [list(sorted_ivs[0])]
-    for start, end, wt, manual in sorted_ivs[1:]:
+    result = [list(intervals[0])]
+    for start, end, wt, manual in intervals[1:]:
         prev = result[-1]
-        if start < prev[1]:
-            if end <= prev[1]:
-                continue
-            start = prev[1]
-        if end > start:
-            if prev[2] == wt and prev[3] == manual and abs((start - prev[1]).total_seconds()) < 60:
-                prev[1] = end
-            else:
-                result.append([start, end, wt, manual])
+        # Merge if same state and continuous (or within 1 min gap)
+        if prev[2] == wt and prev[3] == manual and abs((start - prev[1]).total_seconds()) < 60:
+            prev[1] = end
+        else:
+            result.append([start, end, wt, manual])
     return [(s, e, w, m) for s, e, w, m in result]
 
 
