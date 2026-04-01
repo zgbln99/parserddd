@@ -890,56 +890,73 @@ def detect_shifts(all_intervals, min_rest_hours=9):
     return shifts
 
 
-def _cet_offset_hours(dt_utc):
-    """Get CET/CEST offset in hours for a given UTC datetime."""
-    aware = dt_utc.replace(tzinfo=UTC)
-    offset = aware.astimezone(CET).utcoffset()
-    return offset.total_seconds() / 3600 if offset else 1
+def _build_night_windows(start_utc, end_utc, night_start_hour=22):
+    """Build list of night windows (start_utc, end_utc, category) between two UTC times.
+
+    Night windows in CET:
+      night_start_hour:00 → 00:00  = 25%
+      00:00 → 04:00                = needs shift_start check (40% or 25%)
+      04:00 → 06:00                = 25%
+
+    Returns windows as UTC datetimes, iterating day by day.
+    """
+    windows = []
+    # Iterate through CET dates that might have night windows in range
+    # Start from 2 days before to 1 day after to cover all edge cases
+    d = (start_utc - timedelta(days=2)).date()
+    end_d = (end_utc + timedelta(days=1)).date()
+    while d <= end_d:
+        # CET midnight for this date in UTC
+        cet_midnight = datetime(d.year, d.month, d.day, tzinfo=CET)
+        cet_midnight_utc = cet_midnight.astimezone(UTC).replace(tzinfo=None)
+        # Night windows for this CET date:
+        # 1) night_start_hour:00 CET → 00:00 CET next day (25%)
+        w1_start = cet_midnight_utc + timedelta(hours=night_start_hour)
+        w1_end = cet_midnight_utc + timedelta(hours=24)
+        windows.append((w1_start, w1_end, '25'))
+        # 2) 00:00 → 04:00 CET (check shift_start for 40% vs 25%)
+        w2_start = cet_midnight_utc
+        w2_end = cet_midnight_utc + timedelta(hours=4)
+        windows.append((w2_start, w2_end, 'check'))
+        # 3) 04:00 → 06:00 CET (25%)
+        w3_start = cet_midnight_utc + timedelta(hours=4)
+        w3_end = cet_midnight_utc + timedelta(hours=6)
+        windows.append((w3_start, w3_end, '25'))
+        d += timedelta(days=1)
+    return windows
 
 
 def calculate_shift_night_hours(intervals, shift_start, night_start_hour=22):
-    """Calculate night work hours.
+    """Calculate night work minutes using CET night windows on UTC timeline."""
+    if not intervals:
+        return 0, 0
+    earliest = min(iv[0] for iv in intervals)
+    latest = max(iv[1] for iv in intervals)
+    windows = _build_night_windows(earliest, latest, night_start_hour)
 
-    All internal timestamps are UTC.  Night boundaries (e.g. 22:00-06:00)
-    are in CET/CEST, so we convert them to UTC using the CET offset for
-    the specific date to handle DST correctly.
-    """
-    night_25_sec = 0
-    night_40_sec = 0
+    night_25 = 0
+    night_40 = 0
     for interval in intervals:
-        start_dt, end_dt, work_type = interval[0], interval[1], interval[2]
+        iv_start, iv_end, work_type = interval[0], interval[1], interval[2]
         if work_type == 0:
             continue
-        current = start_dt
-        while current < end_dt:
-            # Get CET offset for this day
-            off = _cet_offset_hours(current)
-            # CET midnight in UTC
-            cet_midnight_utc = current.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(hours=off)
-            next_cet_midnight = cet_midnight_utc + timedelta(days=1)
-            chunk_end = min(end_dt, next_cet_midnight)
-            # night_start_hour:00 CET → 00:00 CET next day => always 25%
-            ns_utc = cet_midnight_utc + timedelta(hours=night_start_hour)
-            o_start = max(current, ns_utc)
-            o_end = min(chunk_end, next_cet_midnight)
-            if o_end > o_start:
-                night_25_sec += (o_end - o_start).total_seconds()
-            # 00:00-04:00 CET => 40% if shift started before CET midnight, else 25%
-            o_start = max(current, cet_midnight_utc)
-            o_end = min(chunk_end, cet_midnight_utc + timedelta(hours=4))
-            if o_end > o_start:
-                secs = (o_end - o_start).total_seconds()
+        for w_start, w_end, category in windows:
+            # Overlap between interval and window
+            o_start = max(iv_start, w_start)
+            o_end = min(iv_end, w_end)
+            if o_end <= o_start:
+                continue
+            mins = int((o_end - o_start).total_seconds()) // 60
+            if category == '25':
+                night_25 += mins
+            elif category == 'check':
+                # 00:00-04:00 CET: 40% if shift started before this CET midnight
+                cet_midnight_utc = w_start  # w_start IS CET midnight in UTC
                 if shift_start < cet_midnight_utc:
-                    night_40_sec += secs
+                    night_40 += mins
                 else:
-                    night_25_sec += secs
-            # 04:00-06:00 CET => always 25%
-            o_start = max(current, cet_midnight_utc + timedelta(hours=4))
-            o_end = min(chunk_end, cet_midnight_utc + timedelta(hours=6))
-            if o_end > o_start:
-                night_25_sec += (o_end - o_start).total_seconds()
-            current = next_cet_midnight
-    return int(night_25_sec // 60), int(night_40_sec // 60)
+                    night_25 += mins
+    return night_25, night_40
 
 
 def analyze_card(data, night_start_hour=None):
