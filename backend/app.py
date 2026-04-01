@@ -751,10 +751,6 @@ def build_timeline(records):
                 is_manual = True
             else:
                 end_min = 1440
-                # Mark extension-to-midnight as manual so it doesn't count
-                # for shift splitting (it's not real recorded activity)
-                if work_type == 0:
-                    is_manual = True
             if end_min > start_min:
                 start_dt = (base_date + timedelta(minutes=start_min)).astimezone(CET).replace(tzinfo=None)
                 end_dt = (base_date + timedelta(minutes=end_min)).astimezone(CET).replace(tzinfo=None)
