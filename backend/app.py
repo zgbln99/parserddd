@@ -1012,6 +1012,7 @@ def analyze_card(data, night_start_hour=None):
 
         shift_start = effective_start
         shift_end = effective_end
+        cet_start = shift_start.replace(tzinfo=UTC).astimezone(CET)
 
         night_25, night_40 = calculate_shift_night_hours(shift_intervals, raw_shift_start, night_start_hour)
         total_work += work_minutes
@@ -1055,8 +1056,6 @@ def analyze_card(data, night_start_hour=None):
                 break_segments.append(seg)
 
         weekday_names = ['Pn', 'Wt', 'Śr', 'Cz', 'Pt', 'So', 'Nd']
-        # Convert to CET for display
-        cet_start = shift_start.replace(tzinfo=UTC).astimezone(CET)
         shift_details.append({
             'shift_start': _to_cet_str(shift_start),
             'shift_end': _to_cet_str(shift_end),
