@@ -248,6 +248,7 @@ export interface SyncConfig {
   dropbox_refresh_token_set: boolean;
   sync_dest_folder: string;
   night_start_hour: number;
+  parser_engine: string;
 }
 
 export const fetchConfig = () =>

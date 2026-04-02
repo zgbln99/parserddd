@@ -129,6 +129,7 @@ else:
 # ---------------------------------------------------------------------------
 
 DDDPARSER_PATH = os.environ.get('DDDPARSER_PATH', 'dddparser')
+TACHOGRAPH_GO_PATH = os.environ.get('TACHOGRAPH_GO_PATH', os.path.join(os.path.dirname(__file__), 'tachograph'))
 PORTAL_PASSWORD = os.environ.get('PORTAL_PASSWORD', 'lts2025')
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'Marek2211.!')
 LOGIN_HISTORY_FILE = os.environ.get('LOGIN_HISTORY_FILE', '/opt/ddd-reader/login_history.json')
@@ -636,6 +637,154 @@ def parse_ddd_file(file_path):
     if result.returncode != 0:
         raise RuntimeError(f"Parser error: {result.stderr}")
     return json.loads(result.stdout)
+
+
+# ---------------------------------------------------------------------------
+# tachograph-go alternative parser
+# ---------------------------------------------------------------------------
+
+TACHOGRAPH_GO_ACTIVITY_MAP = {
+    'BREAK_REST': REST,
+    'AVAILABILITY': AVAILABILITY,
+    'WORK': WORK,
+    'DRIVING': DRIVING,
+}
+
+
+def parse_ddd_file_tachograph_go(file_path):
+    """Parse DDD file using tachograph-go and convert to our internal format."""
+    result = subprocess.run(
+        [TACHOGRAPH_GO_PATH, 'parse', file_path],
+        capture_output=True, text=True, timeout=30,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"tachograph-go error: {result.stderr}")
+    raw = json.loads(result.stdout)
+    return _convert_tachograph_go_output(raw)
+
+
+def _tg_convert_vehicles(dc):
+    """Convert tachograph-go vehicle records to tachoparser format."""
+    vehicles_section = dc.get('vehiclesUsed', {})
+    records = vehicles_section.get('records', [])
+    converted = []
+    for rec in records:
+        reg = rec.get('vehicleRegistration', {})
+        plate = reg.get('number', {}).get('value', '').strip()
+        if not plate:
+            continue
+        converted.append({
+            'vehicle_registration': {
+                'vehicle_registration_number': plate,
+            },
+            'vehicle_first_use': (rec.get('vehicleFirstUse', '') or '')[:10],
+            'vehicle_last_use': (rec.get('vehicleLastUse', '') or '')[:10],
+            'vehicle_odometer_begin': rec.get('vehicleOdometerBeginKm', 0),
+            'vehicle_odometer_end': rec.get('vehicleOdometerEndKm', 0),
+        })
+    return converted
+
+
+def _tg_convert_places(dc):
+    """Convert tachograph-go place records to tachoparser format."""
+    places_section = dc.get('places', {})
+    records = places_section.get('records', [])
+    converted = []
+    type_map = {'END': 'end', 'BEGIN': 'start'}
+    for rec in records:
+        entry_time = rec.get('entryTime', '')
+        country = rec.get('dailyWorkPeriodCountry', '')
+        region = rec.get('dailyWorkPeriodRegion', '')
+        raw_type = rec.get('entryTypeDailyWorkPeriod', '')
+        converted.append({
+            'entry_time': (entry_time or '')[:10],
+            'date': (entry_time or '')[:10],
+            'country': country,
+            'region': region,
+            'type': type_map.get(raw_type, raw_type.lower() if raw_type else ''),
+        })
+    return converted
+
+
+def _tg_convert_events(dc):
+    """Convert tachograph-go event records to tachoparser format."""
+    events_section = dc.get('eventsAndFaults', {})
+    records = events_section.get('records', [])
+    return records  # pass through; get_card_events will handle gracefully
+
+
+def _convert_tachograph_go_output(raw):
+    """Convert tachograph-go JSON to our internal format compatible with analyze_card."""
+    dc = raw.get('driverCard', {}).get('tachograph', {})
+
+    # Driver info
+    ident = dc.get('identification', {})
+
+    # Activity records
+    activity_data = dc.get('driverActivityData', {})
+    daily_records = activity_data.get('dailyRecords', [])
+    converted_records = []
+    for rec in daily_records:
+        if not rec.get('valid', True):
+            continue
+        changes = []
+        for ci in rec.get('activityChangeInfo', []):
+            # Only process DRIVER_SLOT entries (ignore CO_DRIVER_SLOT)
+            if ci.get('slot') != 'DRIVER_SLOT':
+                continue
+            changes.append({
+                'minutes': ci.get('timeOfChangeMinutes', 0),
+                'work_type': TACHOGRAPH_GO_ACTIVITY_MAP.get(ci.get('activity', 'BREAK_REST'), REST),
+                'card_present': ci.get('inserted', False),
+            })
+        converted_records.append({
+            'activity_record_date': rec.get('activityRecordDate', ''),
+            'activity_change_info': changes,
+        })
+
+    # Build the structure that our existing code expects
+    holder_birth = ident.get('cardHolderBirthDate', '')
+    if isinstance(holder_birth, dict):
+        holder_birth = holder_birth.get('date', '')
+
+    return {
+        'card_identification_and_driver_card_holder_identification_1': {
+            'card_identification': {
+                'card_number': ident.get('driverIdentification', {}).get('driverIdentificationNumber', {}).get('value', ''),
+                'card_issuing_authority_name': ident.get('cardIssuingAuthorityName', {}).get('value', ''),
+                'card_issue_date': (ident.get('cardIssueDate', '') or '')[:10],
+                'card_expiry_date': (ident.get('cardExpiryDate', '') or '')[:10],
+            },
+            'driver_card_holder_identification': {
+                'card_holder_name': {
+                    'holder_surname': ident.get('cardHolderSurname', {}).get('value', ''),
+                    'holder_first_names': ident.get('cardHolderFirstNames', {}).get('value', ''),
+                },
+                'card_holder_birth_date': holder_birth,
+            },
+        },
+        'card_driver_activity_1': {
+            'decoded_activity_daily_records': converted_records,
+        },
+        'card_vehicles_used_1': {
+            'card_vehicle_records': _tg_convert_vehicles(dc),
+        },
+        'card_places_1': {
+            'place_records': _tg_convert_places(dc),
+        },
+        'card_events_and_faults_1': {
+            'card_event_records': _tg_convert_events(dc),
+        },
+    }
+
+
+def parse_ddd_auto(file_path):
+    """Parse DDD file using the configured parser engine."""
+    cfg = _load_config()
+    engine = cfg.get('parser_engine', 'tachoparser')
+    if engine == 'tachograph-go':
+        return parse_ddd_file_tachograph_go(file_path)
+    return parse_ddd_file(file_path)
 
 
 def get_driver_info(data):
@@ -1911,7 +2060,7 @@ def api_analyze_upload():
         with tempfile.NamedTemporaryFile(suffix='.ddd', delete=False) as tmp:
             file.save(tmp.name)
             tmp_path = tmp.name
-        data = parse_ddd_file(tmp_path)
+        data = parse_ddd_auto(tmp_path)
         result = analyze_card(data)
         _log_activity('analyze_upload', result.get('driver_info', {}).get('driver_name', ''))
         di = result.get('driver_info', {})
@@ -1945,7 +2094,7 @@ def api_preview_ddd():
             tmp_path = tmp.name
 
         try:
-            data = parse_ddd_file(tmp_path)
+            data = parse_ddd_auto(tmp_path)
         finally:
             os.unlink(tmp_path)
 
@@ -2015,7 +2164,7 @@ def api_analyze_dropbox():
         with tempfile.NamedTemporaryFile(suffix='.ddd', delete=False) as tmp:
             tmp.write(response.content)
             tmp_path = tmp.name
-        data = parse_ddd_file(tmp_path)
+        data = parse_ddd_auto(tmp_path)
         result = analyze_card(data)
         result['source_file'] = metadata.name
         _log_activity('analyze_dropbox', f"{result.get('driver_info', {}).get('driver_name', '')} — {metadata.name}")
@@ -2132,7 +2281,7 @@ def api_compare_drivers():
             with tempfile.NamedTemporaryFile(suffix='.ddd', delete=False) as tmp:
                 tmp.write(response.content)
                 tmp_path = tmp.name
-            data = parse_ddd_file(tmp_path)
+            data = parse_ddd_auto(tmp_path)
             analysis = analyze_card(data)
             os.unlink(tmp_path)
 
@@ -2226,7 +2375,7 @@ def api_settlement():
                 with tempfile.NamedTemporaryFile(suffix='.ddd', delete=False) as tmp:
                     tmp.write(response.content)
                     tmp_path = tmp.name
-                data = parse_ddd_file(tmp_path)
+                data = parse_ddd_auto(tmp_path)
                 analysis = analyze_card(data)
                 os.unlink(tmp_path)
 
@@ -2352,7 +2501,7 @@ def api_driver_km():
                 with tempfile.NamedTemporaryFile(suffix='.ddd', delete=False) as tmp:
                     tmp.write(response.content)
                     tmp_path = tmp.name
-                data = parse_ddd_file(tmp_path)
+                data = parse_ddd_auto(tmp_path)
                 os.unlink(tmp_path)
 
                 vehicles = get_vehicle_records(data)
@@ -2844,7 +2993,7 @@ def api_scan_card_expiry():
             with tempfile.NamedTemporaryFile(suffix='.ddd', delete=False) as tmp:
                 tmp.write(response.content)
                 tmp_path = tmp.name
-            data = parse_ddd_file(tmp_path)
+            data = parse_ddd_auto(tmp_path)
             info = get_driver_info(data)
             os.unlink(tmp_path)
             if info.get('card_number') and info.get('card_expiry_date'):
@@ -3433,6 +3582,7 @@ def api_get_config():
         'dropbox_refresh_token_set': bool(DROPBOX_REFRESH_TOKEN or cfg.get('dropbox_refresh_token')),
         'sync_dest_folder': cfg.get('sync_dest_folder', os.environ.get('SYNC_DEST_FOLDER', '/Samsara-DDD')),
         'night_start_hour': int(cfg.get('night_start_hour', 22)),
+        'parser_engine': cfg.get('parser_engine', 'tachoparser'),
     })
 
 
@@ -3448,6 +3598,8 @@ def api_update_config():
         val = int(data['night_start_hour'])
         if val in (20, 21, 22):
             cfg['night_start_hour'] = val
+    if 'parser_engine' in data and data['parser_engine'] in ('tachoparser', 'tachograph-go'):
+        cfg['parser_engine'] = data['parser_engine']
     _save_config(cfg)
     # Update in-memory
     global SAMSARA_API_TOKEN, DROPBOX_REFRESH_TOKEN

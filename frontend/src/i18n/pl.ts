@@ -159,6 +159,8 @@ export const pl = {
   adminSyncFolder: 'Folder Dropbox',
   adminNightStart: 'Godziny nocne od',
   adminNightStartHint: 'Od której godziny liczyć nocne',
+  adminParserEngine: 'Silnik parsera DDD',
+  adminParserEngineHint: 'Który parser używać do odczytu plików DDD',
 
   // Reader
   readerTitle: 'Czytnik kart DDD',

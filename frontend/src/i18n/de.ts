@@ -161,6 +161,8 @@ export const de: Record<TranslationKey, string> = {
   adminSyncFolder: 'Dropbox-Ordner',
   adminNightStart: 'Nachtarbeit ab',
   adminNightStartHint: 'Ab welcher Uhrzeit Nachtarbeit zählt',
+  adminParserEngine: 'DDD-Parser-Engine',
+  adminParserEngineHint: 'Welcher Parser zum Lesen der DDD-Dateien verwendet wird',
 
   // Reader
   readerTitle: 'DDD-Kartenleser',
