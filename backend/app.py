@@ -721,23 +721,58 @@ def _convert_tachograph_go_output(raw):
     # Driver info
     ident = dc.get('identification', {})
 
-    # Activity records
+    # Activity records — convert and ensure cross-midnight continuity
     activity_data = dc.get('driverActivityData', {})
     daily_records = activity_data.get('dailyRecords', [])
     converted_records = []
+    prev_day_last_state = None  # (work_type, card_present) from end of previous day
+
     for rec in daily_records:
         if not rec.get('valid', True):
             continue
-        changes = []
+        driver_changes = []
         for ci in rec.get('activityChangeInfo', []):
             # Only process DRIVER_SLOT entries (ignore CO_DRIVER_SLOT)
             if ci.get('slot') != 'DRIVER_SLOT':
                 continue
-            changes.append({
-                'minutes': ci.get('timeOfChangeMinutes', 0),
-                'work_type': TACHOGRAPH_GO_ACTIVITY_MAP.get(ci.get('activity', 'BREAK_REST'), REST),
-                'card_present': ci.get('inserted', False),
-            })
+            driver_changes.append(ci)
+
+        changes = []
+        if driver_changes:
+            first_min = driver_changes[0].get('timeOfChangeMinutes', 0)
+
+            # If first entry is NOT at minute 0, the card was still inserted
+            # from the previous day — carry over the last known state.
+            # This is how GloboFleet handles cross-midnight continuity.
+            if first_min > 0 and prev_day_last_state is not None:
+                changes.append({
+                    'minutes': 0,
+                    'work_type': prev_day_last_state[0],
+                    'card_present': prev_day_last_state[1],
+                })
+
+            for ci in driver_changes:
+                changes.append({
+                    'minutes': ci.get('timeOfChangeMinutes', 0),
+                    'work_type': TACHOGRAPH_GO_ACTIVITY_MAP.get(ci.get('activity', 'BREAK_REST'), REST),
+                    'card_present': ci.get('inserted', False),
+                })
+
+            # Remember last state for next day's cross-midnight continuity
+            last_ci = driver_changes[-1]
+            prev_day_last_state = (
+                TACHOGRAPH_GO_ACTIVITY_MAP.get(last_ci.get('activity', 'BREAK_REST'), REST),
+                last_ci.get('inserted', False),
+            )
+        else:
+            # No driver changes — if we have previous state, carry it for full day
+            if prev_day_last_state is not None:
+                changes.append({
+                    'minutes': 0,
+                    'work_type': prev_day_last_state[0],
+                    'card_present': prev_day_last_state[1],
+                })
+
         converted_records.append({
             'activity_record_date': rec.get('activityRecordDate', ''),
             'activity_change_info': changes,
