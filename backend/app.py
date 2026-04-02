@@ -677,8 +677,8 @@ def _tg_convert_vehicles(dc):
             'vehicle_registration': {
                 'vehicle_registration_number': plate,
             },
-            'vehicle_first_use': (rec.get('vehicleFirstUse', '') or '')[:10],
-            'vehicle_last_use': (rec.get('vehicleLastUse', '') or '')[:10],
+            'vehicle_first_use': rec.get('vehicleFirstUse', '') or '',
+            'vehicle_last_use': rec.get('vehicleLastUse', '') or '',
             'vehicle_odometer_begin': rec.get('vehicleOdometerBeginKm', 0),
             'vehicle_odometer_end': rec.get('vehicleOdometerEndKm', 0),
         })
@@ -697,8 +697,8 @@ def _tg_convert_places(dc):
         region = rec.get('dailyWorkPeriodRegion', '')
         raw_type = rec.get('entryTypeDailyWorkPeriod', '')
         converted.append({
-            'entry_time': (entry_time or '')[:10],
-            'date': (entry_time or '')[:10],
+            'entry_time': entry_time or '',
+            'date': entry_time or '',
             'country': country,
             'region': region,
             'type': type_map.get(raw_type, raw_type.lower() if raw_type else ''),
@@ -708,8 +708,9 @@ def _tg_convert_places(dc):
 
 def _tg_convert_events(dc):
     """Convert tachograph-go event records to tachoparser format."""
-    events_section = dc.get('eventsAndFaults', {})
-    records = events_section.get('records', [])
+    # tachograph-go uses 'eventsData' (not 'eventsAndFaults')
+    events_section = dc.get('eventsData', dc.get('eventsAndFaults', {}))
+    records = events_section.get('events', events_section.get('records', []))
     return records  # pass through; get_card_events will handle gracefully
 
 
@@ -752,8 +753,8 @@ def _convert_tachograph_go_output(raw):
             'card_identification': {
                 'card_number': ident.get('driverIdentification', {}).get('driverIdentificationNumber', {}).get('value', ''),
                 'card_issuing_authority_name': ident.get('cardIssuingAuthorityName', {}).get('value', ''),
-                'card_issue_date': (ident.get('cardIssueDate', '') or '')[:10],
-                'card_expiry_date': (ident.get('cardExpiryDate', '') or '')[:10],
+                'card_issue_date': ident.get('cardIssueDate', '') or '',
+                'card_expiry_date': ident.get('cardExpiryDate', '') or '',
             },
             'driver_card_holder_identification': {
                 'card_holder_name': {
