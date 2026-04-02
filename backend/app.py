@@ -50,6 +50,7 @@ AVAILABILITY = 1
 WORK = 2
 DRIVING = 3
 UNKNOWN = -1  # Synthetic: no data available (gap between records, card absent with no entry)
+STRICT_GLOBOFLEET_MODE = True
 
 ACTIVITY_NAMES = {
     REST: 'REST',
@@ -58,6 +59,14 @@ ACTIVITY_NAMES = {
     DRIVING: 'DRIVING',
     UNKNOWN: 'UNKNOWN',
 }
+
+
+def _is_rest_like_for_shift_split(wt):
+    return wt in (REST, UNKNOWN)
+
+
+def _is_break_like_for_reporting(wt):
+    return wt == REST
 
 # ---------------------------------------------------------------------------
 # Tachoparser (traconiq/tachoparser dddparser) field semantics:
@@ -651,13 +660,134 @@ def get_driver_info(data):
 
 
 def get_activity_records(data):
-    records = []
+    """Extract and deduplicate daily activity records from tachoparser output."""
+    candidates = []
+
     for key in ['card_driver_activity_1', 'card_driver_activity_2']:
         activity = data.get(key)
-        if activity:
-            recs = activity.get('decoded_activity_daily_records') or []
-            records.extend(recs)
-    return records
+        if not activity:
+            continue
+        recs = activity.get('decoded_activity_daily_records') or []
+        candidates.extend(recs)
+
+    if not candidates:
+        return []
+
+    def _norm_changes(rec):
+        changes = rec.get('activity_change_info') or []
+        norm = []
+        for ch in changes:
+            norm.append({
+                'minutes': ch.get('minutes'),
+                'work_type': ch.get('work_type'),
+                'card_present': ch.get('card_present'),
+            })
+        return norm
+
+    def _is_full_rest_day(rec):
+        changes = rec.get('activity_change_info') or []
+        if not changes:
+            return False
+
+        work_like = 0
+        for ch in changes:
+            wt = ch.get('work_type')
+            if wt in (AVAILABILITY, WORK, DRIVING):
+                work_like += 1
+
+        return work_like == 0
+
+    def _count_work_like_minutes(rec):
+        changes = rec.get('activity_change_info') or []
+        if not changes:
+            return 0
+
+        sorted_changes = sorted(changes, key=lambda c: c.get('minutes', 0))
+        total = 0
+
+        for i, ch in enumerate(sorted_changes):
+            start_min = ch.get('minutes', 0)
+            wt = ch.get('work_type')
+
+            if i + 1 < len(sorted_changes):
+                end_min = sorted_changes[i + 1].get('minutes', 1440)
+            else:
+                end_min = 1440
+
+            if wt in (AVAILABILITY, WORK, DRIVING):
+                total += max(0, end_min - start_min)
+        return total
+
+    by_date = {}
+
+    for rec in candidates:
+        day = rec.get('activity_record_date', '')
+        if not day:
+            continue
+
+        changes = _norm_changes(rec)
+        sig = json.dumps(changes, sort_keys=True, ensure_ascii=False)
+
+        if day not in by_date:
+            by_date[day] = {
+                'record': rec,
+                'signature': sig,
+                'change_count': len(changes),
+                'card_present_true_count': sum(1 for ch in changes if ch.get('card_present') is True),
+            }
+            continue
+
+        prev = by_date[day]
+
+        if prev['signature'] == sig:
+            logger.warning("Duplicate identical daily activity record skipped for %s", day)
+            continue
+
+        new_change_count = len(changes)
+        new_card_present_true_count = sum(1 for ch in changes if ch.get('card_present') is True)
+        prev_is_full_rest = _is_full_rest_day(prev['record'])
+        new_is_full_rest = _is_full_rest_day(rec)
+        prev_work_like = _count_work_like_minutes(prev['record'])
+        new_work_like = _count_work_like_minutes(rec)
+
+        replace = False
+        decision_reason = "kept existing by default"
+
+        if prev_is_full_rest and not new_is_full_rest:
+            replace = False
+            decision_reason = "existing is full rest day"
+        elif new_is_full_rest and not prev_is_full_rest:
+            replace = True
+            decision_reason = "new is full rest day"
+        elif new_work_like < prev_work_like:
+            replace = True
+            decision_reason = "new has fewer work-like entries"
+        elif new_work_like > prev_work_like:
+            replace = False
+            decision_reason = "existing has fewer work-like entries"
+        elif new_change_count > prev['change_count']:
+            replace = True
+            decision_reason = "new has more activity changes"
+        elif new_change_count == prev['change_count'] and new_card_present_true_count > prev['card_present_true_count']:
+            replace = True
+            decision_reason = "new has more card_present=True changes"
+
+        logger.warning(
+            "Conflicting daily activity records for %s; keeping %s record (%s)",
+            day,
+            "newer/better" if replace else "existing",
+            decision_reason,
+        )
+
+        if replace:
+            by_date[day] = {
+                'record': rec,
+                'signature': sig,
+                'change_count': new_change_count,
+                'card_present_true_count': new_card_present_true_count,
+            }
+
+    return [v['record'] for _, v in sorted(by_date.items(), key=lambda kv: kv[0])]
 
 
 def get_card_places(data):
@@ -750,9 +880,9 @@ def build_timeline(records):
     """Build timeline using the 1440-minute-per-day model per DDD spec.
 
     Each tachograph day = 00:00-24:00 UTC, represented as 1440 minutes.
-    The tachograph specification expects a state at minute 0.  If the first
-    entry is not at minute 0, the period from 00:00 to the first recorded
-    change is treated as UNKNOWN.
+    The tachograph specification expects a state at minute 0. If the first
+    entry is not at minute 0, strict Globofleet mode treats this period
+    as REST/manual for compatibility.
 
     Returns list of intervals ``(start_dt, end_dt, work_type, card_out)``
     where all datetimes are UTC-aware.
@@ -782,18 +912,38 @@ def build_timeline(records):
         first_minute = sorted_changes[0].get('minutes', -1)
         if first_minute != 0:
             import logging
-            logging.getLogger(__name__).warning(
-                'Day %s: first activity_change_info entry at minute %d, not 0. '
-                'State from 00:00 to minute %d is UNKNOWN.',
-                date_str[:10], first_minute, first_minute
-            )
-            # Fill 00:00..first_change as UNKNOWN (no data for this period)
-            current_wt = UNKNOWN
-            current_card_out = True
+            if STRICT_GLOBOFLEET_MODE:
+                logging.getLogger(__name__).warning(
+                    'Day %s: first activity_change_info entry at minute %d, not 0. '
+                    'State from 00:00 to minute %d is treated as REST/manual for Globofleet compatibility.',
+                    date_str[:10], first_minute, first_minute
+                )
+                current_wt = REST
+                current_card_out = True
+            else:
+                logging.getLogger(__name__).warning(
+                    'Day %s: first activity_change_info entry at minute %d, not 0. '
+                    'State from 00:00 to minute %d is UNKNOWN.',
+                    date_str[:10], first_minute, first_minute
+                )
+                # Fill 00:00..first_change as UNKNOWN (no data for this period)
+                current_wt = UNKNOWN
+                current_card_out = True
             current_minute = 0
         else:
-            current_wt = sorted_changes[0].get('work_type', REST)
-            current_card_out = not sorted_changes[0].get('card_present', True)
+            first_wt = sorted_changes[0].get('work_type', REST)
+            first_cp = sorted_changes[0].get('card_present', True)
+            # Smart start-of-day logic (mirrors end-of-day):
+            # If minute 0 is WORK/DRIVING/AVAIL and the next change is far away
+            # (>2h), this is a retroactive filler — treat as UNKNOWN.
+            # If REST or small gap: keep as-is.
+            second_minute = sorted_changes[1].get('minutes', 0) if len(sorted_changes) > 1 else 0
+            if first_wt in (WORK, DRIVING, AVAILABILITY) and second_minute > 120:
+                current_wt = UNKNOWN
+                current_card_out = True
+            else:
+                current_wt = first_wt
+                current_card_out = not first_cp
             current_minute = 0
 
         current_manual = current_card_out
@@ -836,9 +986,19 @@ def build_timeline(records):
             current_manual = manual
             current_minute = target_minute
 
-        # Fill remaining minutes with last state
-        for m in range(current_minute, 1440):
-            minutes[m] = (current_wt, current_manual)
+        # Fill remaining minutes after last activity change.
+        # Smart logic:
+        # - REST/UNKNOWN at end of day: keep as-is (natural state)
+        # - WORK/DRIVING/AVAIL at end of day with large gap (>2h) to midnight:
+        #   likely driver forgot to switch → UNKNOWN
+        # - WORK/DRIVING/AVAIL with small gap (<=2h): keep (legitimate retroactive entry)
+        remaining_minutes = 1440 - current_minute
+        if current_wt in (WORK, DRIVING, AVAILABILITY) and remaining_minutes > 120:
+            for m in range(current_minute, 1440):
+                minutes[m] = (UNKNOWN, True)
+        else:
+            for m in range(current_minute, 1440):
+                minutes[m] = (current_wt, current_manual)
 
         # Invariant checks
         assert len(minutes) == 1440, f'Day {date_str[:10]}: minute array has {len(minutes)} entries, expected 1440'
@@ -860,7 +1020,19 @@ def build_timeline(records):
             all_intervals.append((start_dt, end_dt, wt, manual))
             i = j
 
-    return _validate_timeline(_merge_cross_day_intervals(all_intervals))
+    merged_intervals = _merge_cross_day_intervals(all_intervals)
+
+    # Post-process: WORK/AVAIL intervals > 2h immediately after UNKNOWN
+    # are retroactive fills across day boundaries — convert to UNKNOWN.
+    cleaned = list(merged_intervals)
+    for idx in range(1, len(cleaned)):
+        prev_s, prev_e, prev_wt, prev_m = cleaned[idx - 1]
+        cur_s, cur_e, cur_wt, cur_m = cleaned[idx]
+        dur_min = (cur_e - cur_s).total_seconds() / 60
+        if prev_wt == UNKNOWN and cur_wt in (WORK, AVAILABILITY) and dur_min > 120:
+            cleaned[idx] = (cur_s, cur_e, UNKNOWN, True)
+
+    return _validate_timeline(cleaned)
 
 
 def _validate_timeline(intervals):
@@ -936,18 +1108,15 @@ def fill_timeline_gaps(intervals):
     return result
 
 
-def detect_shifts(all_intervals, min_rest_hours=9):
+def detect_shifts(all_intervals, min_rest_hours=5):
     """Split a continuous timeline into driver shifts (BUSINESS HEURISTIC).
 
-    This is NOT raw tachograph decoding — it is a business interpretation layer.
-    The raw timeline preserves UNKNOWN gaps as distinct from true REST.
-
-    Shift-splitting rules (heuristic, not regulation):
-    - A new shift begins after any REST or UNKNOWN period >= *min_rest_hours*.
-      UNKNOWN is treated as rest-like because card-out gaps typically mean
-      the driver was resting.  This does NOT mean UNKNOWN is true REST.
-    - A non-rest interval <= 3 minutes ("blip") surrounded by rest is absorbed
-      into the rest block (e.g. brief card insertion or CAN-bus flicker).
+    Shift-splitting rules:
+    - A new shift begins after any REST or UNKNOWN period >= *min_rest_hours* (default 5h).
+      Even if the driver violated the 9h minimum rest rule, we still split —
+      the short rest is the driver's error, not inflated work time.
+    - A single WORK/AVAIL interval > 6 hours is treated as a separator
+      (driver forgot to switch to REST or left card in tachograph).
     """
     if not all_intervals:
         return []
@@ -957,16 +1126,17 @@ def detect_shifts(all_intervals, min_rest_hours=9):
     shifts = []
     current = []
 
-    def _is_rest(wt):
-        """REST or UNKNOWN counts as rest-like for shift splitting.
-        BUSINESS HEURISTIC: unknown gaps are assumed to be rest."""
-        return wt == REST or wt == UNKNOWN
-
     i = 0
     while i < len(merged):
         start, end, wt, manual = merged[i]
+        dur_sec = (end - start).total_seconds()
 
-        if _is_rest(wt):
+        # A single WORK or AVAIL interval longer than 6 hours is almost certainly
+        # not real continuous work — driver forgot to switch to REST or left card in.
+        # Treat as shift separator (same as rest).
+        is_suspiciously_long = wt in (WORK, AVAILABILITY) and dur_sec >= 6 * 3600
+
+        if _is_rest_like_for_shift_split(wt) or is_suspiciously_long:
             rest_begin = start
             rest_end = end
             j = i + 1
@@ -974,29 +1144,26 @@ def detect_shifts(all_intervals, min_rest_hours=9):
                 nxt_s, nxt_e, nxt_wt, nxt_manual = merged[j]
                 if nxt_s != rest_end:
                     break
-                if _is_rest(nxt_wt):
+                if _is_rest_like_for_shift_split(nxt_wt):
                     rest_end = nxt_e
                     j += 1
-                elif (nxt_e - nxt_s).total_seconds() <= 180:
-                    # Blip heuristic: <=3 min non-rest in rest block
-                    blip_end = nxt_e
-                    j += 1
-                    if j < len(merged) and _is_rest(merged[j][2]) \
-                       and merged[j][0] == blip_end:
-                        rest_end = merged[j][1]
-                        j += 1
-                    else:
-                        break
                 else:
                     break
 
             effective_rest = (rest_end - rest_begin).total_seconds()
             if effective_rest >= min_rest_sec:
-                if current:
-                    shifts.append(current)
-                    current = []
-                i = j
-                continue
+                # Only split if the rest block crosses midnight CET.
+                # Intra-day gaps (manual entry gaps) don't cross midnight
+                # and should NOT split shifts even if long.
+                rest_begin_cet = _to_cet(rest_begin).date()
+                rest_end_cet = _to_cet(rest_end).date()
+                crosses_midnight = rest_begin_cet != rest_end_cet
+                if crosses_midnight:
+                    if current:
+                        shifts.append(current)
+                        current = []
+                    i = j
+                    continue
 
         current.append(merged[i])
         i += 1
@@ -1053,22 +1220,42 @@ def _build_night_windows(earliest_utc, latest_utc, night_start_hour=22):
     return windows
 
 
-def calculate_shift_night_hours(intervals, shift_start, night_start_hour=22):
+def calculate_shift_night_hours(minute_buckets, shift_start, night_start_hour=22):
     """Calculate night work minutes using CET night windows on UTC timeline.
-
-    All datetimes are UTC-aware.  Night windows are built from CET business
-    hours and converted to UTC for overlap calculation.
 
     Returns (night_25_minutes, night_40_minutes).
     """
-    if not intervals:
+    if not minute_buckets:
         return 0, 0
+    night_25 = 0
+    night_40 = 0
+
+    if STRICT_GLOBOFLEET_MODE:
+        for dt, (work_type, _manual) in minute_buckets.items():
+            if work_type in (REST, UNKNOWN):
+                continue
+            dt_cet = _to_cet(dt)
+            hour = dt_cet.hour
+            if night_start_hour <= hour <= 23:
+                night_25 += 1
+            elif 0 <= hour < 4:
+                cet_midnight = datetime(
+                    dt_cet.year, dt_cet.month, dt_cet.day, tzinfo=CET
+                ).astimezone(UTC)
+                if shift_start < cet_midnight:
+                    night_40 += 1
+                else:
+                    night_25 += 1
+            elif 4 <= hour < 6:
+                night_25 += 1
+        return night_25, night_40
+
+    intervals = []
+    for dt, (wt, m) in sorted(minute_buckets.items(), key=lambda kv: kv[0]):
+        intervals.append((dt, dt + timedelta(minutes=1), wt, m))
     earliest = min(iv[0] for iv in intervals)
     latest = max(iv[1] for iv in intervals)
     windows = _build_night_windows(earliest, latest, night_start_hour)
-
-    night_25 = 0
-    night_40 = 0
     for interval in intervals:
         iv_start, iv_end, work_type = interval[0], interval[1], interval[2]
         if work_type in (REST, UNKNOWN):
@@ -1091,6 +1278,118 @@ def calculate_shift_night_hours(intervals, shift_start, night_start_hour=22):
     return night_25, night_40
 
 
+def iter_tachograph_minutes(intervals):
+    """
+    Expand intervals into tachograph minute buckets.
+
+    RULE (tachograph / Globofleet):
+    - If any part of a minute contains activity, the whole minute counts.
+    - start -> floor to minute
+    - end   -> ceil to minute
+    """
+    for start, end, wt, card_out in intervals:
+        if end <= start:
+            continue
+
+        # START: round DOWN (floor)
+        minute_start = start.replace(second=0, microsecond=0)
+
+        # END: round UP (ceil)
+        minute_end = end.replace(second=0, microsecond=0)
+        if minute_end < end:
+            minute_end += timedelta(minutes=1)
+
+        current = minute_start
+        while current < minute_end:
+            yield current, wt, card_out
+            current += timedelta(minutes=1)
+
+
+def count_bucket_minutes_between(start, end):
+    if end <= start:
+        return 0
+    minute_start = start.replace(second=0, microsecond=0)
+    minute_end = end.replace(second=0, microsecond=0)
+    if minute_end < end:
+        minute_end += timedelta(minutes=1)
+    count = 0
+    current = minute_start
+    while current < minute_end:
+        count += 1
+        current += timedelta(minutes=1)
+    return count
+
+
+def count_minutes_for_interval_from_buckets(start, end, target_wt, minute_buckets):
+    return sum(
+        1 for dt, (wt, _m) in minute_buckets.items()
+        if start <= dt < end and wt == target_wt
+    )
+
+
+def split_day_bucket_into_work_blocks(day_bucket, rest_gap_threshold_minutes=15):
+    """Split one CET local-day bucket into contiguous work shifts.
+
+    Separates blocks by (1) missing minutes on the timeline and (2) long runs of
+    REST/UNKNOWN (Globofleet-style rest separators). Long rest is not included
+    at the start of the next block; the next block begins at the next work-like
+    minute. Each returned dict is one shift segment for shift_details.
+    """
+    dts = sorted(day_bucket.keys())
+    if not dts:
+        return []
+
+    _REAL = (AVAILABILITY, WORK, DRIVING)
+    blocks = []
+    current_block = {}
+    rest_buffer = []
+    last_dt = None
+
+    for dt in dts:
+        wt, m = day_bucket[dt]
+
+        if last_dt is not None:
+            gap_minutes = int((dt - last_dt).total_seconds() // 60)
+            if gap_minutes > 1:
+                if rest_buffer:
+                    if len(rest_buffer) < rest_gap_threshold_minutes:
+                        for rdt, rval in rest_buffer:
+                            current_block[rdt] = rval
+                    rest_buffer = []
+                if current_block and any(v[0] in _REAL for v in current_block.values()):
+                    blocks.append(current_block)
+                current_block = {}
+
+        last_dt = dt
+
+        if wt in (REST, UNKNOWN):
+            rest_buffer.append((dt, (wt, m)))
+
+            if len(rest_buffer) >= rest_gap_threshold_minutes:
+                if current_block and any(v[0] in _REAL for v in current_block.values()):
+                    blocks.append(current_block)
+                current_block = {}
+            continue
+
+        if rest_buffer:
+            if len(rest_buffer) < rest_gap_threshold_minutes:
+                for rdt, rval in rest_buffer:
+                    current_block[rdt] = rval
+            rest_buffer = []
+
+        current_block[dt] = (wt, m)
+
+    if rest_buffer:
+        if len(rest_buffer) < rest_gap_threshold_minutes:
+            for rdt, rval in rest_buffer:
+                current_block[rdt] = rval
+
+    if current_block and any(v[0] in _REAL for v in current_block.values()):
+        blocks.append(current_block)
+
+    return blocks
+
+
 def analyze_card(data, night_start_hour=None):
     if night_start_hour is None:
         cfg = _load_config()
@@ -1103,96 +1402,157 @@ def analyze_card(data, night_start_hour=None):
     timeline = build_timeline(records)
     shifts = detect_shifts(timeline)
 
+    # === DEBUG DUMP ===
+    import json, os
+    _debug_dir = os.path.dirname(os.path.abspath(__file__))
+    _debug = {
+        'driver_info': driver_info,
+        'timeline': [
+            {
+                'start': s.isoformat(),
+                'end': e.isoformat(),
+                'wt': wt,
+                'manual': m,
+            }
+            for s, e, wt, m in timeline
+        ],
+        'shifts_count': len(shifts),
+        'shifts': [
+            [
+                {
+                    'start': s.isoformat(),
+                    'end': e.isoformat(),
+                    'wt': wt,
+                    'manual': m,
+                }
+                for s, e, wt, m in shift_intervals
+            ]
+            for shift_intervals in shifts
+        ],
+    }
+    _debug_path = os.path.join(_debug_dir, 'debug_analyze_card.json')
+    try:
+        with open(_debug_path, 'w') as f:
+            json.dump(_debug, f, indent=2, default=str)
+        logger.warning("DEBUG DUMP saved to %s", _debug_path)
+    except Exception as exc:
+        logger.warning("DEBUG DUMP failed: %s", exc)
+    # === END DEBUG DUMP ===
+
     # Helper: UTC-aware datetime -> CET string for display only
     def _to_cet_str(dt):
         return _to_cet(dt).strftime('%Y-%m-%d %H:%M')
 
+    def _build_segments(bucket, target_wt):
+        dts = sorted(dt for dt, (wt, _m) in bucket.items() if wt == target_wt)
+        if not dts:
+            return []
+        segments = []
+        seg_start = dts[0]
+        prev_dt = dts[0]
+        for dt in dts[1:]:
+            if dt != prev_dt + timedelta(minutes=1):
+                segments.append((seg_start, prev_dt + timedelta(minutes=1)))
+                seg_start = dt
+            prev_dt = dt
+        segments.append((seg_start, prev_dt + timedelta(minutes=1)))
+        return segments
+
+    _REAL_WORK = (AVAILABILITY, WORK, DRIVING)
+
+    # Detect manual entry errors from timeline
+    manual_errors = []
+    for s, e, wt, m in timeline:
+        if not m or wt in (REST, UNKNOWN):
+            continue
+        dur_min = int((e - s).total_seconds() / 60)
+        if dur_min < 30:
+            continue
+        s_cet = _to_cet(s)
+        e_cet = _to_cet(e)
+        h_start = s_cet.hour
+        h_end = e_cet.hour if e_cet.date() == s_cet.date() else 24
+        is_overnight = h_start >= 20 or h_end <= 7 or (e - s).total_seconds() > 10 * 3600
+        if is_overnight or dur_min > 600:
+            wt_names = {AVAILABILITY: 'Bereitschaft', WORK: 'Arbeit', DRIVING: 'Lenken'}
+            manual_errors.append({
+                'start': _to_cet_str(s),
+                'end': _to_cet_str(e),
+                'duration_minutes': dur_min,
+                'declared_type': wt_names.get(wt, str(wt)),
+            })
+
     shift_details = []
+    seen_shifts = set()
     total_work = total_driving = total_break = total_avail = 0
     total_n25 = total_n40 = 0
     total_manual = 0
     diet_count = 0
 
+    priority = {UNKNOWN: 0, REST: 1, AVAILABILITY: 2, WORK: 3, DRIVING: 4}
+
     for shift_intervals in shifts:
         if not shift_intervals:
             continue
-        raw_shift_start = shift_intervals[0][0]
-        raw_shift_end = shift_intervals[-1][1]
 
-        # Use minute resolution per DDD spec (not seconds)
-        def _mins(intervals, activity_type):
-            return sum(int((e - s).total_seconds()) // 60 for s, e, wt, _m in intervals if wt == activity_type)
-        break_minutes = _mins(shift_intervals, REST)  # Only true REST, not UNKNOWN
-        avail_minutes = _mins(shift_intervals, AVAILABILITY)
-        work_only_minutes = _mins(shift_intervals, WORK)
-        driving_minutes = _mins(shift_intervals, DRIVING)
-        unknown_minutes = _mins(shift_intervals, UNKNOWN)
-        # Manual entries: only count intervals marked manual that fall AFTER the
-        # first card-present interval (i.e. card was already inserted).  Pre-shift
-        # manual entries (driver entering activities upon card insertion) are normal.
-        first_card_present_idx = next(
-            (i for i, (_, _, _, m) in enumerate(shift_intervals) if not m),
-            len(shift_intervals),
-        )
-        manual_minutes = sum(
-            int((e - s).total_seconds()) // 60
-            for i, (s, e, wt, m) in enumerate(shift_intervals)
-            if m and wt in (AVAILABILITY, WORK, DRIVING) and i > first_card_present_idx
-        )
-        # Detect manual entry errors: manual non-rest entries during typical
-        # rest periods (overnight, between card-present work blocks).
-        # Flag shifts where manual work/avail replaces what should be rest.
-        manual_errors = []
-        for idx, (s, e, wt, m) in enumerate(shift_intervals):
-            if not m or wt in (REST, UNKNOWN):
-                continue
-            dur_min = int((e - s).total_seconds()) // 60
-            if dur_min < 30:
-                continue
-            # Manual non-rest that spans deep night hours = suspicious.
-            # Only flag if the manual entry actually COVERS night time
-            # (not just starts or ends near it).
-            s_cet = _to_cet(s)
-            e_cet = _to_cet(e)
-            # Check if interval overlaps with 22:00-05:00 CET (core night)
-            # A normal pre-shift manual entry (e.g. 05:30-06:30) should NOT be flagged.
-            covers_core_night = (s_cet.hour >= 22 or s_cet.hour < 5 or
-                                 e_cet.hour >= 22 or e_cet.hour < 5 or
-                                 dur_min >= 600)
-            # Only flag if it covers core night AND is long enough to be suspicious
-            if covers_core_night and dur_min >= 120:  # >= 2h covering night = suspicious
-                wt_names = {AVAILABILITY: 'Bereitschaft', WORK: 'Arbeit', DRIVING: 'Lenken'}
-                manual_errors.append({
-                    'start': _to_cet_str(s),
-                    'end': _to_cet_str(e),
-                    'duration_minutes': dur_min,
-                    'declared_type': wt_names.get(wt, str(wt)),
-                })
+        # Build minute buckets for this shift
+        minute_buckets = {}
+        for dt, wt, m in iter_tachograph_minutes(shift_intervals):
+            if dt not in minute_buckets or priority[wt] > priority[minute_buckets[dt][0]]:
+                minute_buckets[dt] = (wt, m)
 
-        work_minutes = work_only_minutes + driving_minutes + avail_minutes
-        # Duration = effective span from first to last real work activity.
-        # REST-only or UNKNOWN-only pseudo-shifts are skipped entirely.
-        _REAL_WORK = (AVAILABILITY, WORK, DRIVING)
-        real_work_indices = [
-            i for i, (_, _, wt, _) in enumerate(shift_intervals)
+        # Shift span from real work minutes (WORK/DRIVING/AVAIL).
+        # Overnight periods are REST/UNKNOWN after the fill fix, so they're
+        # naturally excluded without needing a manual flag filter.
+        work_dts = sorted(
+            dt for dt, (wt, _m) in minute_buckets.items()
             if wt in _REAL_WORK
-        ]
-        if not real_work_indices:
-            # No real work in this shift — skip it (REST/UNKNOWN only block)
-            import logging
-            logging.getLogger(__name__).debug(
-                'Skipping shift with no real work activity (REST/UNKNOWN only)')
+        )
+        if not work_dts:
             continue
+        shift_start = work_dts[0]
+        shift_end = work_dts[-1] + timedelta(minutes=1)
+        shift_date = _to_cet(shift_start).strftime('%Y-%m-%d')
+        # grid_date: midpoint-based date for monthly grid display.
+        # A shift 22:00→07:41 midpoint is ~02:50 next day → grid shows next day.
+        # A shift 17:30→01:30 midpoint is ~21:30 same day → grid shows same day.
+        shift_midpoint = shift_start + (shift_end - shift_start) / 2
+        grid_date = _to_cet(shift_midpoint).strftime('%Y-%m-%d')
 
-        effective_start = shift_intervals[real_work_indices[0]][0]
-        effective_end = shift_intervals[real_work_indices[-1]][1]
-        duration_minutes = int((effective_end - effective_start).total_seconds()) // 60
+        shift_key = (shift_start, shift_end)
+        if shift_key in seen_shifts:
+            continue
+        seen_shifts.add(shift_key)
 
-        shift_start = effective_start
-        shift_end = effective_end
+        # Totals from minutes within the shift span
+        span_buckets = {
+            dt: v for dt, v in minute_buckets.items()
+            if shift_start <= dt < shift_end
+        }
+
+        if STRICT_GLOBOFLEET_MODE:
+            break_minutes = sum(
+                1 for wt, _m in span_buckets.values()
+                if _is_break_like_for_reporting(wt)
+            )
+        else:
+            break_minutes = sum(
+                1 for wt, _m in span_buckets.values()
+                if wt in (REST, UNKNOWN)
+            )
+        avail_minutes = sum(1 for wt, _m in span_buckets.values() if wt == AVAILABILITY)
+        work_only_minutes = sum(1 for wt, _m in span_buckets.values() if wt == WORK)
+        driving_minutes = sum(1 for wt, _m in span_buckets.values() if wt == DRIVING)
+        unknown_minutes = sum(1 for wt, _m in span_buckets.values() if wt == UNKNOWN)
+        manual_minutes = sum(
+            1 for _dt, (wt, m) in span_buckets.items()
+            if m and wt in _REAL_WORK
+        )
+        work_minutes = work_only_minutes + driving_minutes + avail_minutes
+        duration_minutes = count_bucket_minutes_between(shift_start, shift_end)
         cet_start = _to_cet(shift_start)
+        night_25, night_40 = calculate_shift_night_hours(span_buckets, shift_start, night_start_hour)
 
-        night_25, night_40 = calculate_shift_night_hours(shift_intervals, raw_shift_start, night_start_hour)
         total_work += work_minutes
         total_driving += driving_minutes
         total_break += break_minutes
@@ -1200,7 +1560,6 @@ def analyze_card(data, night_start_hour=None):
         total_n25 += night_25
         total_n40 += night_40
         total_manual += manual_minutes
-        # Diet only on weekdays (Mon=0..Fri=4), not on weekends
         is_weekday = cet_start.weekday() < 5
         has_diet = duration_minutes >= 8 * 60 and is_weekday
         if has_diet:
@@ -1216,28 +1575,27 @@ def analyze_card(data, night_start_hour=None):
                 day_plates.append(v['plate'])
         unique_plates = list(dict.fromkeys(day_plates))
 
-        # Build driving and break segments for Art. 7 continuous driving checks
-        driving_segments = []
-        break_segments = []
-        for s_start, s_end, wt, _m in shift_intervals:
-            seg_min = int((s_end - s_start).total_seconds() // 60)
-            if seg_min <= 0:
-                continue
-            seg = {
-                'start': _to_cet_str(s_start),
-                'end': _to_cet_str(s_end),
-                'duration_minutes': seg_min,
-            }
-            if wt == DRIVING:
-                driving_segments.append(seg)
-            elif wt == REST:
-                break_segments.append(seg)
+        driving_segments = [{
+            'start': _to_cet_str(seg_start),
+            'end': _to_cet_str(seg_end),
+            'duration_minutes': count_minutes_for_interval_from_buckets(
+                seg_start, seg_end, DRIVING, span_buckets
+            ),
+        } for seg_start, seg_end in _build_segments(span_buckets, DRIVING)]
+        break_segments = [{
+            'start': _to_cet_str(seg_start),
+            'end': _to_cet_str(seg_end),
+            'duration_minutes': count_minutes_for_interval_from_buckets(
+                seg_start, seg_end, REST, span_buckets
+            ),
+        } for seg_start, seg_end in _build_segments(span_buckets, REST)]
 
         weekday_names = ['Pn', 'Wt', 'Śr', 'Cz', 'Pt', 'So', 'Nd']
         shift_details.append({
             'shift_start': _to_cet_str(shift_start),
             'shift_end': _to_cet_str(shift_end),
-            'shift_date': cet_start.strftime('%Y-%m-%d'),
+            'shift_date': shift_date,
+            'grid_date': grid_date,
             'weekday': weekday_names[cet_start.weekday()],
             'duration_minutes': duration_minutes,
             'duration_hm': minutes_to_hm(duration_minutes),
