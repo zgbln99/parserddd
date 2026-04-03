@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useMemo, Component, type ReactNode, type ErrorInfo } from 'react';
 import {
   Upload, FileText, AlertCircle, Clock, Moon, UtensilsCrossed,
-  CalendarDays, Thermometer, Palmtree, Star,
+  CalendarDays, Thermometer, Palmtree, Star, ClipboardCopy, Check,
 } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { parseStundenzettel, type StundenzettelDay } from '../lib/api';
@@ -232,6 +232,9 @@ export function StundenzettelPage() {
             <StatCard icon={<Moon size={20} />} label="Nacht 25% / 40%" value={`${hm(totals.n25)} / ${hm(totals.n40)}`} color="blue" />
           </div>
 
+          {/* Copy grid */}
+          <StzCopyGrid days={days} year={year} month={month} totals={totals} />
+
           {/* Editable table */}
           <Card className="overflow-x-auto p-0">
             <table className="w-full text-sm">
@@ -347,6 +350,109 @@ export function StundenzettelPage() {
           </Card>
         </ErrorBoundary>
       )}
+    </div>
+  );
+}
+
+// --- Copy Grid (like MonthlyGridCopy from AnalysisView) ---
+
+const WEEKDAYS_DE = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
+
+function StzCopyGrid({ days, year, month, totals }: {
+  days: EditableDay[];
+  year: number;
+  month: number;
+  totals: { workMin: number; n25: number; n40: number; diets: number; sick: number; vacation: number; holidays: number; workDays: number };
+}) {
+  const { t } = useI18n();
+  const [copied, setCopied] = useState(false);
+
+  const numDays = days.length || 31;
+
+  // Build per-day values
+  const dayValues = useMemo(() => {
+    return days.map(d => {
+      if (d.code === 'K') return 'Kr';
+      if (d.code === 'U') return 'Ur';
+      if (d.code === 'F') return 'F';
+      if (d.code) return d.code;
+      const c = calcDay(d);
+      if (c.work > 0) return hm(c.work);
+      return '';
+    });
+  }, [days]);
+
+  const weekdays = days.map(d => {
+    try { return WEEKDAYS_DE[new Date(year, month - 1, d.day).getDay()]; } catch { return ''; }
+  });
+
+  const n25 = (totals.n25 / 60).toFixed(2).replace('.', ',');
+  const n40 = (totals.n40 / 60).toFixed(2).replace('.', ',');
+  const az = hm(totals.workMin);
+  const vma = String(totals.diets);
+  const ur = totals.vacation > 0 ? String(totals.vacation) : '';
+  const kr = totals.sick > 0 ? String(totals.sick) : '';
+
+  const summaryHeaders = ['25%', '40%', 'Ü', 'Ur', 'Kr', 'VMA', 'AZ'];
+  const summaryValues = [n25, n40, '', ur, kr, vma, az];
+
+  const handleCopy = useCallback(() => {
+    const tsv = [...dayValues, ...summaryValues].join('\t');
+    navigator.clipboard.writeText(tsv).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }, [dayValues, summaryValues]);
+
+  const thCls = 'border border-gray-300 bg-gray-200/60 px-1 py-0.5 text-center text-[10px] font-bold text-muted dark:border-gray-600 dark:bg-gray-700';
+  const tdCls = 'border border-gray-300 bg-white px-1 py-0.5 text-center font-mono text-[10px] dark:border-gray-600 dark:bg-gray-900';
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-xs font-semibold uppercase tracking-wider text-muted">
+          {t('stzTotal')} — {String(month).padStart(2, '0')}/{year}
+        </span>
+        <button
+          onClick={handleCopy}
+          className="flex items-center gap-1 rounded-lg bg-primary-100 px-2.5 py-1 text-xs font-medium text-primary-700 transition hover:bg-primary-200 dark:bg-primary-900/30 dark:hover:bg-primary-900/50"
+        >
+          {copied ? <Check size={13} /> : <ClipboardCopy size={13} />}
+          {copied ? 'OK!' : t('stzCopy')}
+        </button>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full border-collapse" style={{ tableLayout: 'fixed' }}>
+          <thead>
+            <tr>
+              {days.map(d => <th key={d.day} className={thCls}>{d.day}</th>)}
+              {summaryHeaders.map(h => <th key={h} className={thCls}>{h}</th>)}
+            </tr>
+            <tr>
+              {weekdays.map((wd, i) => {
+                const isWe = wd === 'So' || wd === 'Sa';
+                return <th key={i} className={`${thCls} ${isWe ? '!text-red-400 !bg-red-50 dark:!bg-red-900/20' : ''}`}>{wd}</th>;
+              })}
+              {summaryHeaders.map(h => <th key={`e-${h}`} className="w-1" />)}
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              {dayValues.map((val, i) => {
+                let cls = tdCls;
+                if (val === 'Ur') cls = `${tdCls} !bg-blue-100 !text-blue-700 font-bold dark:!bg-blue-900/40 dark:!text-blue-300`;
+                else if (val === 'Kr') cls = `${tdCls} !bg-orange-100 !text-orange-700 font-bold dark:!bg-orange-900/40 dark:!text-orange-300`;
+                else if (val === 'F') cls = `${tdCls} !bg-blue-50 !text-blue-500 font-bold dark:!bg-blue-900/20`;
+                else if (val) cls = `${tdCls} font-semibold text-gray-800 dark:text-gray-200`;
+                return <td key={i} className={cls}>{val}</td>;
+              })}
+              {summaryValues.map((val, i) => (
+                <td key={i} className={`${tdCls} font-bold`}>{val}</td>
+              ))}
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

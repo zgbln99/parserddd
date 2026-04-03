@@ -2341,8 +2341,8 @@ def _calculate_stundenzettel(parsed):
         'work_days': 0,
     }
 
-    month = parsed.get('month', 1)
-    year = parsed.get('year', 2026)
+    month = parsed.get('month') or 1
+    year = parsed.get('year') or 2026
 
     for entry in days:
         day_num = entry.get('day')
@@ -2449,7 +2449,7 @@ def _calculate_stundenzettel(parsed):
         'personal_nr': parsed.get('personal_nr', ''),
         'month': month,
         'year': year,
-        'period': f"{year}-{month:02d}",
+        'period': f"{year}-{int(month):02d}",
         'days': results,
         'totals': totals,
     }

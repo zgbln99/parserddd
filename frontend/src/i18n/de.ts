@@ -498,6 +498,7 @@ export const de: Record<TranslationKey, string> = {
   stzDiet: 'Diät',
   stzCode: 'Status',
   stzTotal: 'Summe',
+  stzCopy: 'In Excel kopieren',
 
   samTitle: 'Kilometer Tag / Nacht',
   samSubtitle: 'Analyse der Samsara-CSV — Kilometer aufgeteilt nach Tag- und Nachtschicht',

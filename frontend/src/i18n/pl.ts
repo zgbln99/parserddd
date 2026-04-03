@@ -496,6 +496,7 @@ export const pl = {
   stzDiet: 'Dieta',
   stzCode: 'Status',
   stzTotal: 'Suma',
+  stzCopy: 'Kopiuj do Excela',
 
   samTitle: 'Kilometry dzień / noc',
   samSubtitle: 'Analiza CSV z Samsary — kilometry z podziałem na zmianę dzienną i nocną',
