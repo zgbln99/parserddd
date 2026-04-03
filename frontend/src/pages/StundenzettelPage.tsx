@@ -1,8 +1,23 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, Component, type ReactNode, type ErrorInfo } from 'react';
 import {
   Upload, FileText, AlertCircle, Clock, Moon, UtensilsCrossed,
   CalendarDays, Thermometer, Palmtree, Star, ChevronDown, ChevronUp,
 } from 'lucide-react';
+
+// Error boundary to catch render crashes and show error instead of white screen
+class ErrorBoundary extends Component<{ children: ReactNode }, { error: string | null }> {
+  state = { error: null as string | null };
+  static getDerivedStateFromError(error: Error) { return { error: error.message }; }
+  componentDidCatch(error: Error, info: ErrorInfo) { console.error('StundenzettelPage crash:', error, info); }
+  render() {
+    if (this.state.error) return (
+      <div className="rounded-lg bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 px-4 py-3 text-sm">
+        <strong>Render error:</strong> {this.state.error}
+      </div>
+    );
+    return this.props.children;
+  }
+}
 import { useI18n } from '../i18n';
 import { parseStundenzettel, type StundenzettelResult } from '../lib/api';
 import { Card, StatCard } from '../components/Card';
@@ -21,13 +36,19 @@ const CODE_LABELS: Record<string, { label: string; color: string }> = {
 const WEEKDAYS = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
 
 function getWeekday(year: number, month: number, day: number): string {
-  const d = new Date(year, month - 1, day);
-  return WEEKDAYS[d.getDay()];
+  try {
+    if (!year || !month || !day) return '';
+    const d = new Date(year, month - 1, day);
+    return WEEKDAYS[d.getDay()] || '';
+  } catch { return ''; }
 }
 
 function isWeekend(year: number, month: number, day: number): boolean {
-  const d = new Date(year, month - 1, day);
-  return d.getDay() === 0 || d.getDay() === 6;
+  try {
+    if (!year || !month || !day) return false;
+    const d = new Date(year, month - 1, day);
+    return d.getDay() === 0 || d.getDay() === 6;
+  } catch { return false; }
 }
 
 function hm(minutes: number): string {
@@ -57,7 +78,8 @@ export function StundenzettelPage() {
     setResults([]);
     try {
       const res = await parseStundenzettel(file);
-      setResults(res.results);
+      console.log('Stundenzettel API response:', JSON.stringify(res, null, 2));
+      setResults(res.results || []);
       if (res.results.length === 1) setExpandedIdx(0);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -111,13 +133,14 @@ export function StundenzettelPage() {
 
       {/* Results */}
       {results.map((result, idx) => (
-        <ResultCard
-          key={idx}
-          result={result}
-          expanded={expandedIdx === idx}
-          onToggle={() => setExpandedIdx(expandedIdx === idx ? null : idx)}
-          showToggle={results.length > 1}
-        />
+        <ErrorBoundary key={idx}>
+          <ResultCard
+            result={result}
+            expanded={expandedIdx === idx}
+            onToggle={() => setExpandedIdx(expandedIdx === idx ? null : idx)}
+            showToggle={results.length > 1}
+          />
+        </ErrorBoundary>
       ))}
     </div>
   );
