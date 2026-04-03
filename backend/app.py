@@ -2246,6 +2246,268 @@ def api_analyze_dropbox():
             os.unlink(tmp_path)
 
 
+# ---------------------------------------------------------------------------
+# Stundenzettel OCR parsing (handwritten / PDF timesheets)
+# ---------------------------------------------------------------------------
+
+STUNDENZETTEL_PROMPT = '''Analysiere dieses Stundenzettel-Bild. Extrahiere alle Daten als JSON.
+
+Das Dokument ist eine "Vorlage zur Dokumentation der täglichen Arbeitszeit" (DATEV-Format).
+
+Extrahiere:
+1. "name": Name des Mitarbeiters
+2. "personal_nr": Personalnummer (falls vorhanden)
+3. "month": Monat (1-12)
+4. "year": Jahr (4-stellig, z.B. 2026)
+5. "days": Array mit einem Eintrag pro Zeile/Tag:
+   - "day": Kalendertag (1-31)
+   - "start": Beginn als "HH:MM" (24h-Format), null wenn kein Eintrag
+   - "end": Ende als "HH:MM" (24h-Format), null wenn kein Eintrag
+   - "pause_minutes": Pause in Minuten (z.B. 45), 0 wenn keine Pause
+   - "code": Kürzel falls vorhanden: "K"=Krank, "U"=Urlaub, "UU"=unbezahlter Urlaub, "F"=Feiertag, "SA"=Stundenweise abwesend, "SU"=Stundenweise Urlaub, null wenn normaler Arbeitstag
+   - "remarks": Bemerkungen (Text), null wenn leer
+
+Regeln:
+- "5 Uhr" = "05:00", "19 Uhr" = "19:00", "14Uhr" = "14:00", "22Uhr" = "22:00"
+- "45min" oder "45 min" als Pause = 45
+- "/" oder "-" bei Pause = 0
+- Wenn nur ein Code (K, F, U etc.) steht und keine Zeiten → start=null, end=null
+- Leere Zeilen (kein Eintrag) → trotzdem als Tag mit allen null-Werten ausgeben
+- Monat/Jahr: "03.26" = Monat 3, Jahr 2026; "12.25" = Monat 12, Jahr 2025
+
+Antworte NUR mit validem JSON, kein anderer Text.'''
+
+
+def _parse_stundenzettel_with_claude(image_data, media_type):
+    """Send image to Claude Vision API for OCR extraction."""
+    import anthropic
+
+    api_key = os.environ.get('ANTHROPIC_API_KEY', '')
+    if not api_key:
+        raise RuntimeError('ANTHROPIC_API_KEY not configured')
+
+    client = anthropic.Anthropic(api_key=api_key)
+    import base64
+    b64 = base64.b64encode(image_data).decode('utf-8')
+
+    message = client.messages.create(
+        model='claude-sonnet-4-20250514',
+        max_tokens=4096,
+        messages=[{
+            'role': 'user',
+            'content': [
+                {
+                    'type': 'image',
+                    'source': {
+                        'type': 'base64',
+                        'media_type': media_type,
+                        'data': b64,
+                    },
+                },
+                {
+                    'type': 'text',
+                    'text': STUNDENZETTEL_PROMPT,
+                },
+            ],
+        }],
+    )
+    raw_text = message.content[0].text.strip()
+    # Strip markdown code fences if present
+    if raw_text.startswith('```'):
+        raw_text = raw_text.split('\n', 1)[1] if '\n' in raw_text else raw_text[3:]
+        if raw_text.endswith('```'):
+            raw_text = raw_text[:-3].strip()
+    return json.loads(raw_text)
+
+
+def _calculate_stundenzettel(parsed):
+    """Calculate work hours, night hours, diets from parsed Stundenzettel data."""
+    days = parsed.get('days', [])
+    results = []
+    totals = {
+        'work_minutes': 0,
+        'night_25_minutes': 0,
+        'night_40_minutes': 0,
+        'diet_count': 0,
+        'sick_days': 0,
+        'vacation_days': 0,
+        'holiday_days': 0,
+        'work_days': 0,
+    }
+
+    month = parsed.get('month', 1)
+    year = parsed.get('year', 2026)
+
+    for entry in days:
+        day_num = entry.get('day')
+        start_str = entry.get('start')
+        end_str = entry.get('end')
+        pause = entry.get('pause_minutes') or 0
+        code = entry.get('code')
+        remarks = entry.get('remarks')
+
+        day_result = {
+            'day': day_num,
+            'start': start_str,
+            'end': end_str,
+            'pause_minutes': pause,
+            'code': code,
+            'remarks': remarks,
+            'work_minutes': 0,
+            'night_25_minutes': 0,
+            'night_40_minutes': 0,
+            'has_diet': False,
+        }
+
+        if code == 'K':
+            totals['sick_days'] += 1
+            results.append(day_result)
+            continue
+        if code == 'U':
+            totals['vacation_days'] += 1
+            results.append(day_result)
+            continue
+        if code == 'F':
+            totals['holiday_days'] += 1
+            results.append(day_result)
+            continue
+        if code in ('UU', 'SA', 'SU'):
+            results.append(day_result)
+            continue
+
+        if not start_str or not end_str:
+            results.append(day_result)
+            continue
+
+        # Parse times
+        try:
+            sh, sm = map(int, start_str.split(':'))
+            eh, em = map(int, end_str.split(':'))
+        except (ValueError, AttributeError):
+            results.append(day_result)
+            continue
+
+        start_min = sh * 60 + sm
+        end_min = eh * 60 + em
+        if end_min <= start_min:
+            end_min += 1440  # crosses midnight
+
+        gross_minutes = end_min - start_min
+        work_minutes = max(0, gross_minutes - pause)
+        day_result['work_minutes'] = work_minutes
+        totals['work_minutes'] += work_minutes
+        totals['work_days'] += 1
+
+        # Diet: work (including pause) >= 8 hours
+        if gross_minutes >= 480:
+            day_result['has_diet'] = True
+            totals['diet_count'] += 1
+
+        # Night hours calculation (22:00-06:00)
+        # We check each minute of the work period (excluding pause at end)
+        # Night 25%: 22:00-24:00 and 04:00-06:00
+        # Night 40%: 00:00-04:00 if shift started before midnight
+        night_25 = 0
+        night_40 = 0
+        for m in range(start_min, min(start_min + gross_minutes - pause, end_min)):
+            hour_of_day = (m % 1440) // 60
+            if 22 <= hour_of_day <= 23:
+                night_25 += 1
+            elif 4 <= hour_of_day < 6:
+                night_25 += 1
+            elif 0 <= hour_of_day < 4:
+                # 40% if shift started before midnight
+                if start_min < 1440:
+                    night_40 += 1
+                else:
+                    night_25 += 1
+
+        day_result['night_25_minutes'] = night_25
+        day_result['night_40_minutes'] = night_40
+        totals['night_25_minutes'] += night_25
+        totals['night_40_minutes'] += night_40
+
+        results.append(day_result)
+
+    # Format totals
+    def hm(m):
+        return f"{m // 60}:{m % 60:02d}"
+
+    totals['work_hm'] = hm(totals['work_minutes'])
+    totals['work_decimal'] = round(totals['work_minutes'] / 60, 2)
+    totals['night_25_hm'] = hm(totals['night_25_minutes'])
+    totals['night_40_hm'] = hm(totals['night_40_minutes'])
+    total_night = totals['night_25_minutes'] + totals['night_40_minutes']
+    totals['total_night_minutes'] = total_night
+    totals['total_night_hm'] = hm(total_night)
+
+    return {
+        'name': parsed.get('name', ''),
+        'personal_nr': parsed.get('personal_nr', ''),
+        'month': month,
+        'year': year,
+        'period': f"{year}-{month:02d}",
+        'days': results,
+        'totals': totals,
+    }
+
+
+@app.route('/api/stundenzettel/parse', methods=['POST'])
+@login_required
+def api_parse_stundenzettel():
+    """Parse a Stundenzettel image or PDF using Claude Vision OCR."""
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file uploaded'}), 400
+
+    file = request.files['file']
+    filename = (file.filename or '').lower()
+    file_data = file.read()
+
+    if not file_data:
+        return jsonify({'error': 'Empty file'}), 400
+
+    # Determine media type
+    if filename.endswith('.pdf'):
+        # Convert PDF pages to images for Claude Vision
+        try:
+            import fitz  # PyMuPDF
+        except ImportError:
+            return jsonify({'error': 'PyMuPDF not installed (pip install pymupdf)'}), 500
+
+        doc = fitz.open(stream=file_data, filetype='pdf')
+        all_results = []
+        for page_num in range(min(len(doc), 5)):  # max 5 pages
+            page = doc[page_num]
+            pix = page.get_pixmap(dpi=200)
+            img_data = pix.tobytes('png')
+            try:
+                parsed = _parse_stundenzettel_with_claude(img_data, 'image/png')
+                result = _calculate_stundenzettel(parsed)
+                all_results.append(result)
+            except Exception as exc:
+                logger.warning('Stundenzettel page %d parse error: %s', page_num, exc)
+                all_results.append({'error': str(exc), 'page': page_num + 1})
+        doc.close()
+        return jsonify({'results': all_results, 'pages': len(all_results)})
+
+    elif filename.endswith(('.jpg', '.jpeg')):
+        media_type = 'image/jpeg'
+    elif filename.endswith('.png'):
+        media_type = 'image/png'
+    elif filename.endswith('.webp'):
+        media_type = 'image/webp'
+    else:
+        return jsonify({'error': 'Unsupported file type. Use JPG, PNG, WebP or PDF.'}), 400
+
+    try:
+        parsed = _parse_stundenzettel_with_claude(file_data, media_type)
+        result = _calculate_stundenzettel(parsed)
+        return jsonify({'results': [result], 'pages': 1})
+    except Exception as exc:
+        logger.error('Stundenzettel parse error: %s', exc)
+        return jsonify({'error': str(exc)}), 500
+
+
 @app.route('/api/vacation/parse', methods=['POST'])
 @login_required
 def api_vacation_parse():

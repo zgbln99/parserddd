@@ -47,6 +47,7 @@ export function Layout({ children }: { children: ReactNode }) {
           { to: '/compare', icon: GitCompareArrows, labelKey: 'navCompare' as const, permission: 'compare' },
           { to: '/settlement', icon: Receipt, labelKey: 'navSettlement' as const, permission: 'settlement' },
           { to: '/payroll', icon: ClipboardCheck, labelKey: 'navPayroll' as const, permission: 'settlement' },
+          { to: '/stundenzettel', icon: FileText, labelKey: 'navStundenzettel' as const, permission: 'settlement' },
           { to: '/vehicles', icon: Truck, labelKey: 'navVehicles' as const, permission: 'vehicles' },
           { to: '/driver-km', icon: Gauge, labelKey: 'navDriverKm' as const, permission: 'driver_km' },
           { to: '/toll', icon: Coins, labelKey: 'navTollCollect' as const, permission: 'toll' },

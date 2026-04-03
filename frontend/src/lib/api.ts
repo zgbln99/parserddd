@@ -164,6 +164,58 @@ export const analyzeUploadedFile = async (file: File) => {
   });
 };
 
+// Stundenzettel OCR parsing
+export interface StundenzettelDay {
+  day: number;
+  start: string | null;
+  end: string | null;
+  pause_minutes: number;
+  code: string | null;
+  remarks: string | null;
+  work_minutes: number;
+  night_25_minutes: number;
+  night_40_minutes: number;
+  has_diet: boolean;
+}
+
+export interface StundenzettelTotals {
+  work_minutes: number;
+  work_hm: string;
+  work_decimal: number;
+  night_25_minutes: number;
+  night_25_hm: string;
+  night_40_minutes: number;
+  night_40_hm: string;
+  total_night_minutes: number;
+  total_night_hm: string;
+  diet_count: number;
+  sick_days: number;
+  vacation_days: number;
+  holiday_days: number;
+  work_days: number;
+}
+
+export interface StundenzettelResult {
+  name: string;
+  personal_nr: string;
+  month: number;
+  year: number;
+  period: string;
+  days: StundenzettelDay[];
+  totals: StundenzettelTotals;
+  error?: string;
+  page?: number;
+}
+
+export const parseStundenzettel = async (file: File) => {
+  const form = new FormData();
+  form.append('file', file);
+  return request<{ results: StundenzettelResult[]; pages: number }>('/api/stundenzettel/parse', {
+    method: 'POST',
+    body: form,
+  });
+};
+
 // Vacation PDF parsing
 export interface VacationEntry {
   name: string;

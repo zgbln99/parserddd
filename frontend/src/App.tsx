@@ -25,6 +25,7 @@ const SamsaraKmPage = lazy(() => import('./pages/SamsaraKmPage').then(m => ({ de
 const NightSimulatorPage = lazy(() => import('./pages/NightSimulatorPage').then(m => ({ default: m.NightSimulatorPage })));
 const PayrollPage = lazy(() => import('./pages/PayrollPage').then(m => ({ default: m.PayrollPage })));
 const PayrollAnalysisPage = lazy(() => import('./pages/PayrollAnalysisPage').then(m => ({ default: m.PayrollAnalysisPage })));
+const StundenzettelPage = lazy(() => import('./pages/StundenzettelPage').then(m => ({ default: m.StundenzettelPage })));
 
 
 function PageFallback() {
@@ -115,6 +116,7 @@ export function App() {
           <Route path="/settlement" element={<DispatcherRoute><SettlementPage /></DispatcherRoute>} />
           <Route path="/payroll" element={<DispatcherRoute><PayrollPage /></DispatcherRoute>} />
           <Route path="/payroll/:card" element={<DispatcherRoute><PayrollAnalysisPage /></DispatcherRoute>} />
+          <Route path="/stundenzettel" element={<DispatcherRoute><StundenzettelPage /></DispatcherRoute>} />
           <Route path="/vehicles" element={<DispatcherRoute><VehiclesPage /></DispatcherRoute>} />
           <Route path="/driver-km" element={<DispatcherRoute><DriverKmPage /></DispatcherRoute>} />
           <Route path="/toll" element={<DispatcherRoute><TollCollectPage /></DispatcherRoute>} />
