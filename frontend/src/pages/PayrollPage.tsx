@@ -39,8 +39,8 @@ function getSavedPeriod() {
   return localStorage.getItem('ddd-payroll-period') || getCurrentPeriod();
 }
 
-// Status cycle: '' → 'policzony' → 'stundenzettel' → ''
-const STATUS_CYCLE: PayrollStatusValue[] = ['', 'policzony', 'stundenzettel'];
+// Status cycle: '' → 'stundenzettel' (do zrobienia) → 'policzony' (gotowy) → ''
+const STATUS_CYCLE: PayrollStatusValue[] = ['', 'stundenzettel', 'policzony'];
 function nextStatus(current: PayrollStatusValue): PayrollStatusValue {
   const idx = STATUS_CYCLE.indexOf(current);
   return STATUS_CYCLE[(idx + 1) % STATUS_CYCLE.length];
@@ -154,8 +154,8 @@ export function PayrollPage() {
         vacation: vacation || null,
       };
     }).sort((a, b) => {
-      // Sort: no status first, then policzony, then stundenzettel
-      const statusOrder = (s: PayrollStatusValue) => s === '' ? 0 : s === 'policzony' ? 1 : 2;
+      // Sort: stundenzettel (do zrobienia) first, then no status, then policzony (done)
+      const statusOrder = (s: PayrollStatusValue) => s === 'stundenzettel' ? 0 : s === '' ? 1 : 2;
       const sa = statusOrder(a.status);
       const sb = statusOrder(b.status);
       if (sa !== sb) return sa - sb;
@@ -342,14 +342,14 @@ export function PayrollPage() {
             <tbody>
               {filteredData.map(({ driver: d, newFilesCount, hasNewFiles, latestNewFile, status, vacation }) => {
                 const key = d.card_number || d.name;
-                const isDone = status === 'policzony' || status === 'stundenzettel';
+                const isDone = status === 'policzony';
                 return (
                   <tr
                     key={key}
                     onClick={() => toggleStatus(key)}
                     className={`border-b border-border cursor-pointer transition-colors min-h-[44px] ${
                       status === 'stundenzettel'
-                        ? 'bg-blue-50/50 dark:bg-blue-900/10 hover:bg-blue-50 dark:hover:bg-blue-900/20'
+                        ? 'bg-blue-50/50 dark:bg-blue-900/10 hover:bg-blue-100/50 dark:hover:bg-blue-900/20'
                         : status === 'policzony'
                         ? 'bg-success/5 hover:bg-success/10'
                         : hasNewFiles
@@ -359,7 +359,7 @@ export function PayrollPage() {
                   >
                     <td className="px-3 py-3 text-center">
                       {status === 'stundenzettel'
-                        ? <CheckCircle size={18} className="text-blue-500 mx-auto" />
+                        ? <FileText size={18} className="text-blue-500 mx-auto" />
                         : status === 'policzony'
                         ? <CheckSquare size={18} className="text-success mx-auto" />
                         : <Square size={18} className="text-muted mx-auto" />
