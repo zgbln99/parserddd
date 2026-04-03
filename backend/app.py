@@ -21,6 +21,12 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, date
 from functools import wraps
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 import dropbox
 import requests as http_requests
 from dropbox.exceptions import AuthError
