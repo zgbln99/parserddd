@@ -61,6 +61,8 @@ export function PayrollPage() {
   const [statuses, setStatuses] = useState<Record<string, PayrollStatusValue>>({});
   const [showOnlyNew, setShowOnlyNew] = useState(false);
   const [searchText, setSearchText] = useState('');
+  // Keys that were recently changed - delay their sort for 2.5s
+  const [recentlyChanged, setRecentlyChanged] = useState<Set<string>>(new Set());
 
   // Vacation PDF — persisted in localStorage
   const vacFileRef = useRef<HTMLInputElement>(null);
@@ -154,15 +156,22 @@ export function PayrollPage() {
         vacation: vacation || null,
       };
     }).sort((a, b) => {
-      // Sort: stundenzettel (do zrobienia) first, then no status, then policzony (done)
-      const statusOrder = (s: PayrollStatusValue) => s === 'stundenzettel' ? 0 : s === '' ? 1 : 2;
-      const sa = statusOrder(a.status);
-      const sb = statusOrder(b.status);
+      // Drivers with any status sink to bottom; recently changed stay in place
+      const keyA = a.driver.card_number || a.driver.name;
+      const keyB = b.driver.card_number || b.driver.name;
+      const aRecent = recentlyChanged.has(keyA);
+      const bRecent = recentlyChanged.has(keyB);
+      // Recently changed items sort as if they have no status (stay in place)
+      const effectiveA = aRecent ? '' : a.status;
+      const effectiveB = bRecent ? '' : b.status;
+      const statusOrder = (s: PayrollStatusValue) => s === '' ? 0 : 1;
+      const sa = statusOrder(effectiveA);
+      const sb = statusOrder(effectiveB);
       if (sa !== sb) return sa - sb;
       if (a.hasNewFiles !== b.hasNewFiles) return a.hasNewFiles ? -1 : 1;
       return a.driver.name.localeCompare(b.driver.name);
     });
-  }, [drivers, sinceDate, statuses, vacationEntries]);
+  }, [drivers, sinceDate, statuses, vacationEntries, recentlyChanged]);
 
   // Apply filters
   const filteredData = useMemo(() => {
@@ -183,11 +192,27 @@ export function PayrollPage() {
     const next = nextStatus(current);
     // Optimistic update
     setStatuses(prev => ({ ...prev, [key]: next }));
+    // Keep item in place for 2.5s before it sinks to bottom
+    if (next !== '') {
+      setRecentlyChanged(prev => new Set(prev).add(key));
+      setTimeout(() => {
+        setRecentlyChanged(prev => {
+          const s = new Set(prev);
+          s.delete(key);
+          return s;
+        });
+      }, 2500);
+    }
     try {
       await setPayrollStatus(period, key, next);
     } catch {
       // Revert on error
       setStatuses(prev => ({ ...prev, [key]: current }));
+      setRecentlyChanged(prev => {
+        const s = new Set(prev);
+        s.delete(key);
+        return s;
+      });
     }
   };
 
