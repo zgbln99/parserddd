@@ -3,3 +3,5 @@ __pycache__/
 *.ddd
 .env
 venv/
+backend/debug_analyze_card.json
+backend/tachoparser.json
