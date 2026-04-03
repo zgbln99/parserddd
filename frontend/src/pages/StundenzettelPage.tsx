@@ -157,6 +157,8 @@ function ResultCard({
   onToggle: () => void;
   showToggle: boolean;
 }) {
+  const { t } = useI18n();
+
   if (result.error || !result.totals) {
     return (
       <Card className="p-4">
