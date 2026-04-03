@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useI18n } from '../i18n';
-import { fetchDrivers, parseVacationPdf, type VacationEntry } from '../lib/api';
+import { fetchDrivers, parseVacationPdf, fetchPayrollStatus, setPayrollStatus, type VacationEntry, type PayrollStatusValue } from '../lib/api';
 import { Card, StatCard } from '../components/Card';
 import { Badge } from '../components/Badge';
 import { Spinner } from '../components/Spinner';
@@ -30,23 +30,6 @@ function matchVacationToDriver(vacationName: string, driverName: string): boolea
   return false;
 }
 
-// Persist checked state in localStorage per month
-function getCheckedKey(period: string) {
-  return `ddd-payroll-${period}`;
-}
-
-function loadChecked(period: string): Set<string> {
-  try {
-    const raw = localStorage.getItem(getCheckedKey(period));
-    if (raw) return new Set(JSON.parse(raw));
-  } catch { /* ignore */ }
-  return new Set();
-}
-
-function saveChecked(period: string, checked: Set<string>) {
-  localStorage.setItem(getCheckedKey(period), JSON.stringify(Array.from(checked)));
-}
-
 function getCurrentPeriod() {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -54,6 +37,13 @@ function getCurrentPeriod() {
 
 function getSavedPeriod() {
   return localStorage.getItem('ddd-payroll-period') || getCurrentPeriod();
+}
+
+// Status cycle: '' → 'policzony' → 'stundenzettel' → ''
+const STATUS_CYCLE: PayrollStatusValue[] = ['', 'policzony', 'stundenzettel'];
+function nextStatus(current: PayrollStatusValue): PayrollStatusValue {
+  const idx = STATUS_CYCLE.indexOf(current);
+  return STATUS_CYCLE[(idx + 1) % STATUS_CYCLE.length];
 }
 
 export function PayrollPage() {
@@ -68,7 +58,7 @@ export function PayrollPage() {
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [checked, setChecked] = useState<Set<string>>(() => loadChecked(getCurrentPeriod()));
+  const [statuses, setStatuses] = useState<Record<string, PayrollStatusValue>>({});
   const [showOnlyNew, setShowOnlyNew] = useState(false);
   const [searchText, setSearchText] = useState('');
 
@@ -120,19 +110,21 @@ export function PayrollPage() {
     }
   }, []);
 
+  const loadStatuses = useCallback(async (p: string) => {
+    try {
+      const res = await fetchPayrollStatus(p);
+      setStatuses(res.statuses);
+    } catch { /* ignore – statuses will be empty */ }
+  }, []);
+
   const navigate = useNavigate();
 
   useEffect(() => { loadDrivers(); }, [loadDrivers]);
 
-  // When period changes, load checked state for that period
+  // Load statuses when period changes
   useEffect(() => {
-    setChecked(loadChecked(period));
-  }, [period]);
-
-  // Save checked state whenever it changes
-  useEffect(() => {
-    saveChecked(period, checked);
-  }, [period, checked]);
+    loadStatuses(period);
+  }, [period, loadStatuses]);
 
   // "since date" = first day of the NEXT month (payroll for March → files downloaded since April 1st)
   const sinceDate = useMemo(() => {
@@ -151,21 +143,26 @@ export function PayrollPage() {
         : null;
       // Match vacation
       const vacation = vacationEntries.find(v => matchVacationToDriver(v.name, d.name));
+      const key = d.card_number || d.name;
+      const status = statuses[key] || '';
       return {
         driver: d,
         newFilesCount: newFiles.length,
         hasNewFiles,
         latestNewFile,
-        isChecked: checked.has(d.card_number || d.name),
+        status,
         vacation: vacation || null,
       };
     }).sort((a, b) => {
-      // Unchecked with new files first, then unchecked without, then checked
-      if (a.isChecked !== b.isChecked) return a.isChecked ? 1 : -1;
+      // Sort: no status first, then policzony, then stundenzettel
+      const statusOrder = (s: PayrollStatusValue) => s === '' ? 0 : s === 'policzony' ? 1 : 2;
+      const sa = statusOrder(a.status);
+      const sb = statusOrder(b.status);
+      if (sa !== sb) return sa - sb;
       if (a.hasNewFiles !== b.hasNewFiles) return a.hasNewFiles ? -1 : 1;
       return a.driver.name.localeCompare(b.driver.name);
     });
-  }, [drivers, sinceDate, checked, vacationEntries]);
+  }, [drivers, sinceDate, statuses, vacationEntries]);
 
   // Apply filters
   const filteredData = useMemo(() => {
@@ -181,28 +178,42 @@ export function PayrollPage() {
     return data;
   }, [driverData, showOnlyNew, searchText]);
 
-  const toggleCheck = (key: string) => {
-    setChecked(prev => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
+  const toggleStatus = async (key: string) => {
+    const current = statuses[key] || '';
+    const next = nextStatus(current);
+    // Optimistic update
+    setStatuses(prev => ({ ...prev, [key]: next }));
+    try {
+      await setPayrollStatus(period, key, next);
+    } catch {
+      // Revert on error
+      setStatuses(prev => ({ ...prev, [key]: current }));
+    }
   };
 
-  const checkAll = () => {
-    setChecked(new Set(filteredData.map(d => d.driver.card_number || d.driver.name)));
-  };
-
-  const uncheckAll = () => {
-    setChecked(new Set());
+  const setAllStatus = async (status: PayrollStatusValue) => {
+    const updates: Record<string, PayrollStatusValue> = {};
+    for (const d of filteredData) {
+      const key = d.driver.card_number || d.driver.name;
+      updates[key] = status;
+    }
+    // Optimistic update
+    setStatuses(prev => ({ ...prev, ...updates }));
+    // Fire requests (don't await all individually)
+    for (const [key, st] of Object.entries(updates)) {
+      setPayrollStatus(period, key, st).catch(() => {
+        // Revert single on error
+        loadStatuses(period);
+      });
+    }
   };
 
   // Stats
   const totalDrivers = driverData.length;
   const driversWithNew = driverData.filter(d => d.hasNewFiles).length;
-  const driversChecked = driverData.filter(d => d.isChecked).length;
-  const driversRemaining = driversWithNew - driverData.filter(d => d.hasNewFiles && d.isChecked).length;
+  const driversPoliczony = driverData.filter(d => d.status === 'policzony' || d.status === 'stundenzettel').length;
+  const driversStz = driverData.filter(d => d.status === 'stundenzettel').length;
+  const driversRemaining = driversWithNew - driverData.filter(d => d.hasNewFiles && d.status !== '').length;
 
   const fmtDate = (iso: string) => {
     if (!iso) return '—';
@@ -227,105 +238,54 @@ export function PayrollPage() {
           />
           <button
             onClick={() => loadDrivers(true)}
-            disabled={loading}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm font-medium text-muted transition hover:text-ink disabled:opacity-50"
+            className="btn-secondary inline-flex items-center gap-2 px-3 py-2 text-sm"
           >
-            {loading ? <Spinner size="sm" /> : <RefreshCw size={14} />}
-            {t('refresh')}
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
           </button>
-          <button
-            onClick={() => vacFileRef.current?.click()}
-            disabled={vacUploading}
-            className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition ${
-              vacationEntries.length > 0
-                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
-                : 'border border-border text-muted hover:text-ink'
-            } disabled:opacity-50`}
-          >
-            {vacUploading ? <Spinner size="sm" /> : <Palmtree size={14} />}
-            {vacationEntries.length > 0
-              ? `${t('payrollVacation')} (${vacationEntries.length})`
-              : t('payrollVacation')
-            }
-          </button>
-          <input
-            ref={vacFileRef}
-            type="file"
-            accept=".pdf"
-            className="hidden"
-            onChange={handleVacationUpload}
-          />
-          {vacationEntries.length > 0 && (
-            <button
-              onClick={() => setVacationEntries([])}
-              className="text-muted hover:text-red-500 transition-colors"
-            >
-              <X size={14} />
-            </button>
-          )}
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          label={t('payrollTotal')}
-          value={totalDrivers}
-          icon={<Users size={20} />}
-          color="primary"
-        />
-        <StatCard
-          label={t('payrollNewFiles')}
-          value={driversWithNew}
-          icon={<FileText size={20} />}
-          color="orange"
-        />
-        <StatCard
-          label={t('payrollDone')}
-          value={driversChecked}
-          icon={<CheckCircle size={20} />}
-          color="green"
-        />
-        <StatCard
-          label={t('payrollRemaining')}
-          value={driversRemaining}
-          icon={<Clock size={20} />}
-          color={driversRemaining > 0 ? 'red' : 'green'}
-        />
+      {/* Stats row */}
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+        <StatCard icon={<Users size={20} />} label={t('payrollTotal')} value={totalDrivers} />
+        <StatCard icon={<FileText size={20} />} label={t('payrollNewFiles')} value={driversWithNew} color={driversWithNew > 0 ? 'orange' : 'primary'} />
+        <StatCard icon={<CheckCircle size={20} />} label={t('payrollDone')} value={driversPoliczony} color="green" />
+        <StatCard icon={<FileText size={20} />} label="Stundenzettel" value={driversStz} color="blue" />
+        <StatCard icon={<Clock size={20} />} label={t('payrollRemaining')} value={driversRemaining} color={driversRemaining > 0 ? 'orange' : 'primary'} />
       </div>
 
-      {/* Progress bar */}
-      {driversWithNew > 0 && (
-        <Card className="p-4">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium text-ink">{t('payrollProgress')}</span>
-            <span className="text-sm font-bold text-ink">
-              {driversWithNew - driversRemaining} / {driversWithNew}
-            </span>
-          </div>
-          <div className="h-3 w-full rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden">
-            <div
-              className="h-full rounded-full bg-success transition-all duration-500"
-              style={{ width: `${driversWithNew > 0 ? ((driversWithNew - driversRemaining) / driversWithNew) * 100 : 0}%` }}
-            />
-          </div>
-        </Card>
-      )}
-
-      {/* Filters bar */}
+      {/* Vacation upload */}
       <div className="flex items-center gap-3 flex-wrap">
-        <button
-          onClick={() => setShowOnlyNew(!showOnlyNew)}
-          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-            showOnlyNew
-              ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300'
-              : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-          }`}
-        >
-          <Filter size={12} />
+        <label className="btn-secondary inline-flex items-center gap-2 px-3 py-2 text-sm cursor-pointer">
+          <Upload size={14} />
+          {t('payrollVacation')}
+          <input ref={vacFileRef} type="file" accept="application/pdf" className="hidden" onChange={handleVacationUpload} />
+        </label>
+        {vacUploading && <Spinner />}
+        {vacationEntries.length > 0 && (
+          <span className="inline-flex items-center gap-2 text-xs text-muted">
+            <Palmtree size={14} className="text-emerald-500" />
+            {vacationEntries.length} {t('payrollDriver')}
+            <button onClick={() => setVacationEntries([])} className="text-muted hover:text-ink">
+              <X size={14} />
+            </button>
+          </span>
+        )}
+      </div>
+
+      {/* Filters */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <label className="inline-flex items-center gap-2 text-sm cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={showOnlyNew}
+            onChange={e => setShowOnlyNew(e.target.checked)}
+            className="accent-primary-500"
+          />
+          <Filter size={14} className="text-muted" />
           {t('payrollShowOnlyNew')}
-        </button>
-        <div className="flex-1 max-w-xs">
+        </label>
+        <div className="flex-1 min-w-[200px] max-w-xs">
           <input
             type="text"
             value={searchText}
@@ -336,14 +296,14 @@ export function PayrollPage() {
         </div>
         <div className="flex items-center gap-2 ml-auto">
           <button
-            onClick={checkAll}
+            onClick={() => setAllStatus('policzony')}
             className="text-xs text-primary-600 hover:text-primary-700 font-medium"
           >
             {t('payrollCheckAll')}
           </button>
           <span className="text-xs text-muted">|</span>
           <button
-            onClick={uncheckAll}
+            onClick={() => setAllStatus('')}
             className="text-xs text-muted hover:text-ink font-medium"
           >
             {t('payrollUncheckAll')}
@@ -380,14 +340,17 @@ export function PayrollPage() {
               </tr>
             </thead>
             <tbody>
-              {filteredData.map(({ driver: d, newFilesCount, hasNewFiles, latestNewFile, isChecked, vacation }) => {
+              {filteredData.map(({ driver: d, newFilesCount, hasNewFiles, latestNewFile, status, vacation }) => {
                 const key = d.card_number || d.name;
+                const isDone = status === 'policzony' || status === 'stundenzettel';
                 return (
                   <tr
                     key={key}
-                    onClick={() => toggleCheck(key)}
+                    onClick={() => toggleStatus(key)}
                     className={`border-b border-border cursor-pointer transition-colors min-h-[44px] ${
-                      isChecked
+                      status === 'stundenzettel'
+                        ? 'bg-blue-50/50 dark:bg-blue-900/10 hover:bg-blue-50 dark:hover:bg-blue-900/20'
+                        : status === 'policzony'
                         ? 'bg-success/5 hover:bg-success/10'
                         : hasNewFiles
                         ? 'bg-orange-50/50 dark:bg-orange-900/5 hover:bg-orange-50 dark:hover:bg-orange-900/10'
@@ -395,13 +358,15 @@ export function PayrollPage() {
                     }`}
                   >
                     <td className="px-3 py-3 text-center">
-                      {isChecked
+                      {status === 'stundenzettel'
+                        ? <CheckCircle size={18} className="text-blue-500 mx-auto" />
+                        : status === 'policzony'
                         ? <CheckSquare size={18} className="text-success mx-auto" />
                         : <Square size={18} className="text-muted mx-auto" />
                       }
                     </td>
                     <td className="px-3 py-3">
-                      <span className={`font-medium ${isChecked ? 'text-muted line-through' : 'text-ink'}`}>
+                      <span className={`font-medium ${isDone ? 'text-muted line-through' : 'text-ink'}`}>
                         {d.name}
                       </span>
                     </td>
@@ -429,7 +394,9 @@ export function PayrollPage() {
                       )}
                     </td>
                     <td className="px-3 py-3 text-center">
-                      {isChecked ? (
+                      {status === 'stundenzettel' ? (
+                        <Badge variant="blue" dot>Stundenzettel</Badge>
+                      ) : status === 'policzony' ? (
                         <Badge variant="green" dot>{t('payrollChecked')}</Badge>
                       ) : hasNewFiles ? (
                         <Badge variant="orange" dot>{t('payrollPending')}</Badge>

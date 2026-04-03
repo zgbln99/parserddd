@@ -33,13 +33,16 @@ export function StatCard({
   label: string;
   value: string | number;
   icon?: React.ReactNode;
-  color?: 'primary' | 'green' | 'orange' | 'red';
+  color?: 'primary' | 'green' | 'orange' | 'red' | 'blue';
+  variant?: 'green' | 'orange' | 'red' | 'blue';
 }) {
+  const effectiveColor = color !== 'primary' ? color : (variant || 'primary');
   const iconStyles: Record<string, string> = {
     primary: 'bg-primary-50 text-primary-600 dark:bg-primary-900/30',
     green: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400',
     orange: 'bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400',
     red: 'bg-rose-50 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400',
+    blue: 'bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400',
   };
 
   const accentColors: Record<string, string> = {
@@ -47,17 +50,18 @@ export function StatCard({
     green: 'bg-emerald-500',
     orange: 'bg-amber-500',
     red: 'bg-rose-500',
+    blue: 'bg-blue-500',
   };
 
   return (
     <Card className="relative overflow-hidden p-5">
       {/* Left accent bar */}
-      <div className={clsx('absolute left-0 top-3 bottom-3 w-[3px] rounded-r-full', accentColors[color])} />
+      <div className={clsx('absolute left-0 top-3 bottom-3 w-[3px] rounded-r-full', accentColors[effectiveColor])} />
       <div className="flex items-center gap-4 pl-2">
         {icon && (
           <div className={clsx(
             'flex h-11 w-11 items-center justify-center rounded-xl',
-            iconStyles[color],
+            iconStyles[effectiveColor],
           )}>
             {icon}
           </div>

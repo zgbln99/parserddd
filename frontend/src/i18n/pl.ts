@@ -467,6 +467,7 @@ export const pl = {
   payrollLastDownload: 'Ostatnie pobranie',
   payrollStatus: 'Status',
   payrollChecked: 'Policzony',
+  payrollStundenzettel: 'Stundenzettel',
   payrollPending: 'Do policzenia',
   payrollAnalyze: 'Analiza',
   payrollVacation: 'Urlopy (PDF)',

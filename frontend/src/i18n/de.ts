@@ -469,6 +469,7 @@ export const de: Record<TranslationKey, string> = {
   payrollLastDownload: 'Letzter Download',
   payrollStatus: 'Status',
   payrollChecked: 'Erledigt',
+  payrollStundenzettel: 'Stundenzettel',
   payrollPending: 'Ausstehend',
   payrollAnalyze: 'Analyse',
   payrollVacation: 'Urlaub (PDF)',

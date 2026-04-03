@@ -108,6 +108,21 @@ export const saveMonthlyDays = (cardNumber: string, period: string, data: Partia
     body: JSON.stringify(data),
   });
 
+// Payroll status
+export type PayrollStatusValue = '' | 'policzony' | 'stundenzettel';
+
+export const fetchPayrollStatus = (period: string) =>
+  request<{ period: string; statuses: Record<string, PayrollStatusValue> }>(
+    `/api/payroll-status/${encodeURIComponent(period)}`,
+  );
+
+export const setPayrollStatus = (period: string, cardNumber: string, status: PayrollStatusValue) =>
+  request<{ ok: boolean }>(`/api/payroll-status/${encodeURIComponent(period)}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ card_number: cardNumber, status }),
+  });
+
 // Drivers
 export const fetchDrivers = (refresh = false) =>
   request<{ drivers: import('../types').Driver[]; cached?: boolean }>(
