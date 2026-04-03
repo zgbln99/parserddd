@@ -845,15 +845,29 @@ def get_driver_info(data):
 
 
 def get_activity_records(data):
-    """Extract and deduplicate daily activity records from tachoparser output."""
+    """Extract daily activity records from tachoparser output.
+
+    Uses ONLY card_driver_activity_1 (slot 1 = driver position).
+    card_driver_activity_2 is the co-driver slot and contains activity
+    recorded when this card was in the passenger/co-driver position.
+    Co-driver activity must NOT be mixed into the driver's work hours.
+    Falls back to _2 only if _1 is completely empty (rare edge case).
+    """
     candidates = []
 
-    for key in ['card_driver_activity_1', 'card_driver_activity_2']:
-        activity = data.get(key)
-        if not activity:
-            continue
-        recs = activity.get('decoded_activity_daily_records') or []
+    # Primary: driver slot only
+    activity_1 = data.get('card_driver_activity_1')
+    if activity_1:
+        recs = activity_1.get('decoded_activity_daily_records') or []
         candidates.extend(recs)
+
+    # Fallback: if slot 1 is empty, try slot 2 (card may have been
+    # used exclusively as co-driver in the requested period)
+    if not candidates:
+        activity_2 = data.get('card_driver_activity_2')
+        if activity_2:
+            recs = activity_2.get('decoded_activity_daily_records') or []
+            candidates.extend(recs)
 
     if not candidates:
         return []

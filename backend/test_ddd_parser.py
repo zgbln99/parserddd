@@ -391,16 +391,17 @@ class TestFinalFixes(unittest.TestCase):
 class TestCoDriverAndManualFixes(unittest.TestCase):
     """Tests for co-driver deduplication and manual entry handling."""
 
-    def test_dedup_prefers_record_with_real_activity(self):
-        """Dedup should prefer the record with more work-like minutes over a rest-only record."""
+    def test_only_slot1_used_ignoring_codriver_slot2(self):
+        """Only card_driver_activity_1 (driver slot) should be used; _2 (co-driver) ignored."""
         from app import get_activity_records
-        # Simulate two blocks: _1 has rest-only, _2 has real activity (co-driver AVAILABILITY)
         data = {
             'card_driver_activity_1': {
                 'decoded_activity_daily_records': [{
                     'activity_record_date': '2026-03-02',
                     'activity_change_info': [
-                        {'minutes': 0, 'work_type': REST, 'card_present': False},
+                        {'minutes': 0, 'work_type': REST, 'card_present': True},
+                        {'minutes': 360, 'work_type': WORK, 'card_present': True},
+                        {'minutes': 600, 'work_type': REST, 'card_present': True},
                     ],
                 }],
             },
@@ -408,8 +409,7 @@ class TestCoDriverAndManualFixes(unittest.TestCase):
                 'decoded_activity_daily_records': [{
                     'activity_record_date': '2026-03-02',
                     'activity_change_info': [
-                        {'minutes': 0, 'work_type': REST, 'card_present': False},
-                        {'minutes': 360, 'work_type': AVAILABILITY, 'card_present': True},
+                        {'minutes': 0, 'work_type': AVAILABILITY, 'card_present': True},
                         {'minutes': 900, 'work_type': REST, 'card_present': True},
                     ],
                 }],
@@ -417,11 +417,30 @@ class TestCoDriverAndManualFixes(unittest.TestCase):
         }
         records = get_activity_records(data)
         self.assertEqual(len(records), 1)
-        # Should keep the record with AVAILABILITY (from _2), not the rest-only one
+        # Should use slot 1 (WORK), NOT slot 2 (AVAILABILITY/co-driver)
         changes = records[0].get('activity_change_info', [])
         work_types = [c['work_type'] for c in changes]
-        self.assertIn(AVAILABILITY, work_types,
-                      'Dedup should keep record with real activity, not rest-only')
+        self.assertIn(WORK, work_types,
+                      'Should use driver slot 1 data')
+        self.assertNotIn(AVAILABILITY, work_types,
+                         'Co-driver slot 2 AVAILABILITY should not be included')
+
+    def test_fallback_to_slot2_if_slot1_empty(self):
+        """If slot 1 is empty, fall back to slot 2 data."""
+        from app import get_activity_records
+        data = {
+            'card_driver_activity_2': {
+                'decoded_activity_daily_records': [{
+                    'activity_record_date': '2026-03-02',
+                    'activity_change_info': [
+                        {'minutes': 0, 'work_type': AVAILABILITY, 'card_present': True},
+                        {'minutes': 600, 'work_type': REST, 'card_present': True},
+                    ],
+                }],
+            },
+        }
+        records = get_activity_records(data)
+        self.assertEqual(len(records), 1, 'Should fall back to slot 2 if slot 1 missing')
 
     def test_long_availability_not_converted_to_unknown_start_of_day(self):
         """Co-driver AVAILABILITY at minute 0 with next change far away should NOT become UNKNOWN."""
