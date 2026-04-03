@@ -2273,7 +2273,7 @@ REGELN:
 - Zeilen mit nur Strichen (—) oder leer = weglassen
 - Zeitformat: "12.00"="12:00", "23.00"="23:00", "04.45"="04:45", "5 Uhr"="05:00", "22.30"="22:30"
 - PUNKT ist Zeittrennzeichen: "15.45" bedeutet 15 Uhr 45 Minuten = "15:45"
-- Pause: "0,75"=45min (0.75h), "0,5"=30min, "45min"=45, "/"=0, "—"=0
+- Pause IMMER in Minuten umrechnen: "0,75"=45, "0,5"=30, "1"=60, "0.75"=45, "45min"=45, "45"=45, "0:45"=45, "/"=0, "—"=0, leer=0
 - Codes: "K"=Krank, "U"=Urlaub, "F"=Feiertag → start/end=null
 - name: aus "Name des Mitarbeiters" Feld oben
 
