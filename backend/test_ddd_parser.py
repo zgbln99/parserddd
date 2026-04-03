@@ -388,5 +388,81 @@ class TestFinalFixes(unittest.TestCase):
         self.assertFalse(driving[0][3])
 
 
+class TestCoDriverAndManualFixes(unittest.TestCase):
+    """Tests for co-driver deduplication and manual entry handling."""
+
+    def test_dedup_prefers_record_with_real_activity(self):
+        """Dedup should prefer the record with more work-like minutes over a rest-only record."""
+        from app import get_activity_records
+        # Simulate two blocks: _1 has rest-only, _2 has real activity (co-driver AVAILABILITY)
+        data = {
+            'card_driver_activity_1': {
+                'decoded_activity_daily_records': [{
+                    'activity_record_date': '2026-03-02',
+                    'activity_change_info': [
+                        {'minutes': 0, 'work_type': REST, 'card_present': False},
+                    ],
+                }],
+            },
+            'card_driver_activity_2': {
+                'decoded_activity_daily_records': [{
+                    'activity_record_date': '2026-03-02',
+                    'activity_change_info': [
+                        {'minutes': 0, 'work_type': REST, 'card_present': False},
+                        {'minutes': 360, 'work_type': AVAILABILITY, 'card_present': True},
+                        {'minutes': 900, 'work_type': REST, 'card_present': True},
+                    ],
+                }],
+            },
+        }
+        records = get_activity_records(data)
+        self.assertEqual(len(records), 1)
+        # Should keep the record with AVAILABILITY (from _2), not the rest-only one
+        changes = records[0].get('activity_change_info', [])
+        work_types = [c['work_type'] for c in changes]
+        self.assertIn(AVAILABILITY, work_types,
+                      'Dedup should keep record with real activity, not rest-only')
+
+    def test_long_availability_not_converted_to_unknown_start_of_day(self):
+        """Co-driver AVAILABILITY at minute 0 with next change far away should NOT become UNKNOWN."""
+        rec = make_day('2026-03-02', [
+            make_change(0, AVAILABILITY, card_present=True),
+            make_change(600, REST, card_present=True),  # 10:00 - next change 10h away
+        ])
+        intervals = build_timeline([rec])
+        avail = [iv for iv in intervals if iv[2] == AVAILABILITY]
+        self.assertTrue(len(avail) > 0,
+                        'Long AVAILABILITY at start of day should NOT be converted to UNKNOWN')
+        # Should be 600 minutes of AVAILABILITY
+        avail_dur = sum(int((e - s).total_seconds()) // 60 for s, e, wt, m in avail)
+        self.assertEqual(avail_dur, 600)
+
+    def test_long_availability_not_converted_to_unknown_end_of_day(self):
+        """Co-driver AVAILABILITY at end of day with >2h to midnight should NOT become UNKNOWN."""
+        rec = make_day('2026-03-02', [
+            make_change(0, REST, card_present=True),
+            make_change(360, AVAILABILITY, card_present=True),  # 06:00, runs to midnight = 18h
+        ])
+        intervals = build_timeline([rec])
+        avail = [iv for iv in intervals if iv[2] == AVAILABILITY]
+        self.assertTrue(len(avail) > 0,
+                        'Long AVAILABILITY at end of day should NOT be converted to UNKNOWN')
+        avail_dur = sum(int((e - s).total_seconds()) // 60 for s, e, wt, m in avail)
+        self.assertEqual(avail_dur, 1080)  # 06:00 to 24:00 = 18h = 1080min
+
+    def test_long_work_still_converted_to_unknown_end_of_day(self):
+        """WORK at end of day with >2h to midnight should still become UNKNOWN (driver forgot to switch)."""
+        rec = make_day('2026-03-02', [
+            make_change(0, REST, card_present=True),
+            make_change(360, WORK, card_present=True),  # 06:00, runs to midnight = 18h
+        ])
+        intervals = build_timeline([rec])
+        work = [iv for iv in intervals if iv[2] == WORK]
+        unknown = [iv for iv in intervals if iv[2] == UNKNOWN]
+        # WORK should be capped at 2h, rest should be UNKNOWN
+        self.assertTrue(len(unknown) > 0,
+                        'Long WORK at end of day should still be converted to UNKNOWN')
+
+
 if __name__ == '__main__':
     unittest.main()

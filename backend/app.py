@@ -939,17 +939,17 @@ def get_activity_records(data):
         decision_reason = "kept existing by default"
 
         if prev_is_full_rest and not new_is_full_rest:
-            replace = False
-            decision_reason = "existing is full rest day"
+            replace = True
+            decision_reason = "existing is full rest day, new has real activity"
         elif new_is_full_rest and not prev_is_full_rest:
-            replace = True
-            decision_reason = "new is full rest day"
-        elif new_work_like < prev_work_like:
-            replace = True
-            decision_reason = "new has fewer work-like entries"
-        elif new_work_like > prev_work_like:
             replace = False
-            decision_reason = "existing has fewer work-like entries"
+            decision_reason = "new is full rest day, existing has real activity"
+        elif new_work_like > prev_work_like:
+            replace = True
+            decision_reason = "new has more work-like minutes"
+        elif new_work_like < prev_work_like:
+            replace = False
+            decision_reason = "existing has more work-like minutes"
         elif new_change_count > prev['change_count']:
             replace = True
             decision_reason = "new has more activity changes"
@@ -1119,11 +1119,13 @@ def build_timeline(records):
             first_wt = sorted_changes[0].get('work_type', REST)
             first_cp = sorted_changes[0].get('card_present', True)
             # Smart start-of-day logic (mirrors end-of-day):
-            # If minute 0 is WORK/DRIVING/AVAIL and the next change is far away
+            # If minute 0 is WORK/DRIVING and the next change is far away
             # (>2h), this is a retroactive filler — treat as UNKNOWN.
+            # AVAILABILITY is excluded: co-drivers legitimately have long
+            # AVAILABILITY stretches (entire day as passenger).
             # If REST or small gap: keep as-is.
             second_minute = sorted_changes[1].get('minutes', 0) if len(sorted_changes) > 1 else 0
-            if first_wt in (WORK, DRIVING, AVAILABILITY) and second_minute > 120:
+            if first_wt in (WORK, DRIVING) and second_minute > 120:
                 current_wt = UNKNOWN
                 current_card_out = True
             else:
@@ -1174,11 +1176,13 @@ def build_timeline(records):
         # Fill remaining minutes after last activity change.
         # Smart logic:
         # - REST/UNKNOWN at end of day: keep as-is (natural state)
-        # - WORK/DRIVING/AVAIL at end of day with large gap (>2h) to midnight:
+        # - WORK/DRIVING at end of day with large gap (>2h) to midnight:
         #   likely driver forgot to switch → UNKNOWN
-        # - WORK/DRIVING/AVAIL with small gap (<=2h): keep (legitimate retroactive entry)
+        # - AVAILABILITY excluded: co-drivers legitimately have long
+        #   AVAILABILITY stretches that can run to end of day.
+        # - WORK/DRIVING with small gap (<=2h): keep (legitimate retroactive entry)
         remaining_minutes = 1440 - current_minute
-        if current_wt in (WORK, DRIVING, AVAILABILITY) and remaining_minutes > 120:
+        if current_wt in (WORK, DRIVING) and remaining_minutes > 120:
             for m in range(current_minute, 1440):
                 minutes[m] = (UNKNOWN, True)
         else:
@@ -1207,14 +1211,16 @@ def build_timeline(records):
 
     merged_intervals = _merge_cross_day_intervals(all_intervals)
 
-    # Post-process: WORK/AVAIL intervals > 2h immediately after UNKNOWN
+    # Post-process: WORK intervals > 2h immediately after UNKNOWN
     # are retroactive fills across day boundaries — convert to UNKNOWN.
+    # AVAILABILITY is excluded: co-drivers legitimately have long
+    # AVAILABILITY stretches after card-out / UNKNOWN gaps.
     cleaned = list(merged_intervals)
     for idx in range(1, len(cleaned)):
         prev_s, prev_e, prev_wt, prev_m = cleaned[idx - 1]
         cur_s, cur_e, cur_wt, cur_m = cleaned[idx]
         dur_min = (cur_e - cur_s).total_seconds() / 60
-        if prev_wt == UNKNOWN and cur_wt in (WORK, AVAILABILITY) and dur_min > 120:
+        if prev_wt == UNKNOWN and cur_wt == WORK and dur_min > 120:
             cleaned[idx] = (cur_s, cur_e, UNKNOWN, True)
 
     return _validate_timeline(cleaned)
