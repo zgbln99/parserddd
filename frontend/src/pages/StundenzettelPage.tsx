@@ -2,6 +2,7 @@ import { useState, useCallback, useRef, useMemo, Component, type ReactNode, type
 import {
   Upload, FileText, AlertCircle, Clock, Moon, UtensilsCrossed,
   CalendarDays, Thermometer, Palmtree, Star, ClipboardCopy, Check,
+  Plus, Trash2,
 } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { parseStundenzettel, type StundenzettelDay } from '../lib/api';
@@ -23,29 +24,22 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: string |
   }
 }
 
-// Editable day row type (local state)
 interface EditableDay {
   day: number;
-  start: string; // "HH:MM" or ""
+  start: string;
   end: string;
-  pause: number; // minutes
-  code: string;  // "K","U","F","UU","SA","SU" or ""
+  pause: number;
+  code: string;
 }
 
-const WEEKDAYS = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
-const MONTH_NAMES = ['', 'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
-  'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
+const WEEKDAYS_SHORT = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
 const CODE_OPTIONS = ['', 'K', 'U', 'F', 'UU', 'SA', 'SU'];
-const CODE_LABELS: Record<string, string> = {
-  K: 'Krank', U: 'Urlaub', F: 'Feiertag', UU: 'Unbez.Url.', SA: 'Std.abw.', SU: 'Std.Url.',
+const CODE_COLORS: Record<string, string> = {
+  K: 'bg-red-50/50 dark:bg-red-900/10',
+  U: 'bg-emerald-50/50 dark:bg-emerald-900/10',
+  F: 'bg-blue-50/50 dark:bg-blue-900/10',
 };
 
-function getWeekday(year: number, month: number, day: number): string {
-  try { return WEEKDAYS[new Date(year, month - 1, day).getDay()] || ''; } catch { return ''; }
-}
-function isWeekend(year: number, month: number, day: number): boolean {
-  try { const d = new Date(year, month - 1, day).getDay(); return d === 0 || d === 6; } catch { return false; }
-}
 function hm(minutes: number): string {
   if (!minutes || minutes <= 0) return '0:00';
   return `${Math.floor(minutes / 60)}:${String(minutes % 60).padStart(2, '0')}`;
@@ -58,19 +52,17 @@ function parseTimeToMin(t: string): number | null {
   return parseInt(m[1]) * 60 + parseInt(m[2]);
 }
 
-// Calculate work/night/diet for a single day
 function calcDay(d: EditableDay) {
   const startMin = parseTimeToMin(d.start);
   const endMin = parseTimeToMin(d.end);
   if (startMin === null || endMin === null) return { work: 0, night25: 0, night40: 0, diet: false };
 
   let end = endMin;
-  if (end <= startMin) end += 1440; // crosses midnight
+  if (end <= startMin) end += 1440;
 
   const gross = end - startMin;
   const work = Math.max(0, gross - d.pause);
 
-  // Night: 22-24 and 04-06 = 25%, 00-04 = 40% if started before midnight
   let night25 = 0, night40 = 0;
   for (let m = startMin; m < startMin + work && m < end; m++) {
     const h = (m % 1440) / 60 | 0;
@@ -83,26 +75,23 @@ function calcDay(d: EditableDay) {
   return { work, night25, night40, diet: gross >= 480 };
 }
 
-function apiDaysToEditable(days: StundenzettelDay[], maxDay: number): EditableDay[] {
-  const map = new Map<number, StundenzettelDay>();
-  for (const d of days) map.set(d.day, d);
-  const result: EditableDay[] = [];
-  for (let i = 1; i <= maxDay; i++) {
-    const d = map.get(i);
-    result.push({
-      day: i,
-      start: d?.start || '',
-      end: d?.end || '',
-      pause: d?.pause_minutes || 0,
-      code: d?.code || '',
-    });
-  }
-  return result;
+function daysInMonth(year: number, month: number): number {
+  return new Date(year, month, 0).getDate();
 }
 
-function daysInMonth(year: number, month: number): number {
-  if (!year || !month) return 31;
-  return new Date(year, month, 0).getDate();
+function makeEmptyDays(year: number, month: number): EditableDay[] {
+  const count = daysInMonth(year, month);
+  return Array.from({ length: count }, (_, i) => ({
+    day: i + 1, start: '', end: '', pause: 0, code: '',
+  }));
+}
+
+function getWeekday(year: number, month: number, day: number): string {
+  try { return WEEKDAYS_SHORT[new Date(year, month - 1, day).getDay()] || ''; } catch { return ''; }
+}
+
+function isWeekend(year: number, month: number, day: number): boolean {
+  try { const d = new Date(year, month - 1, day).getDay(); return d === 0 || d === 6; } catch { return false; }
 }
 
 function getCurrentPeriod() {
@@ -116,18 +105,32 @@ export function StundenzettelPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Period selector (fixed, not from OCR)
   const [period, setPeriod] = useState(getCurrentPeriod);
   const year = parseInt(period.slice(0, 4)) || new Date().getFullYear();
   const month = parseInt(period.slice(5, 7)) || (new Date().getMonth() + 1);
 
-  // Parsed header info
   const [name, setName] = useState('');
+  const [days, setDays] = useState<EditableDay[]>(() => makeEmptyDays(
+    parseInt(getCurrentPeriod().slice(0, 4)),
+    parseInt(getCurrentPeriod().slice(5, 7)),
+  ));
 
-  // Editable day rows
-  const [days, setDays] = useState<EditableDay[]>([]);
+  const handlePeriodChange = (newPeriod: string) => {
+    setPeriod(newPeriod);
+    const y = parseInt(newPeriod.slice(0, 4)) || year;
+    const m = parseInt(newPeriod.slice(5, 7)) || month;
+    // Keep existing data for days that exist in new month, add/remove as needed
+    setDays(prev => {
+      const newCount = daysInMonth(y, m);
+      const result: EditableDay[] = [];
+      for (let i = 1; i <= newCount; i++) {
+        result.push(prev.find(d => d.day === i) || { day: i, start: '', end: '', pause: 0, code: '' });
+      }
+      return result;
+    });
+  };
 
-  const handleUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleOcrUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setLoading(true);
@@ -135,11 +138,26 @@ export function StundenzettelPage() {
     try {
       const res = await parseStundenzettel(file);
       const r = res.results?.[0];
-      if (!r) { setError('Brak danych w odpowiedzi'); return; }
+      if (!r) { setError('Brak danych'); return; }
       if (r.error) { setError(r.error); return; }
-      setName(r.name || '');
-      const maxDay = daysInMonth(year, month);
-      setDays(apiDaysToEditable(r.days || [], maxDay));
+      if (r.name) setName(r.name);
+
+      // Merge OCR results into existing days
+      setDays(prev => {
+        const ocrMap = new Map<number, StundenzettelDay>();
+        for (const d of (r.days || [])) ocrMap.set(d.day, d);
+        return prev.map(existing => {
+          const ocr = ocrMap.get(existing.day);
+          if (!ocr) return existing;
+          return {
+            day: existing.day,
+            start: ocr.start || '',
+            end: ocr.end || '',
+            pause: ocr.pause_minutes || 0,
+            code: ocr.code || '',
+          };
+        });
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -152,7 +170,12 @@ export function StundenzettelPage() {
     setDays(prev => prev.map((d, i) => i === idx ? { ...d, [field]: value } : d));
   };
 
-  // Calculate totals from editable data
+  const clearAll = () => {
+    setDays(makeEmptyDays(year, month));
+    setName('');
+  };
+
+  // Calculate totals
   const totals = useMemo(() => {
     let workMin = 0, n25 = 0, n40 = 0, diets = 0, workDays = 0;
     let sick = 0, vacation = 0, holidays = 0;
@@ -163,237 +186,170 @@ export function StundenzettelPage() {
       if (d.code) continue;
       const c = calcDay(d);
       if (c.work > 0) {
-        workMin += c.work;
-        n25 += c.night25;
-        n40 += c.night40;
-        workDays++;
+        workMin += c.work; n25 += c.night25; n40 += c.night40; workDays++;
         if (c.diet) diets++;
       }
     }
     return { workMin, n25, n40, diets, workDays, sick, vacation, holidays };
   }, [days]);
 
-  const hasDays = days.length > 0;
+  const hasAnyData = days.some(d => d.start || d.end || d.code);
 
   return (
-    <div className="space-y-6 animate-slide-up">
+    <div className="space-y-5 animate-slide-up">
+      {/* Header with period picker */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-ink">{t('stzTitle')}</h1>
           <p className="text-sm text-muted mt-1">{t('stzSubtitle')}</p>
         </div>
-        <input
-          type="month"
-          value={period}
-          onChange={e => {
-            setPeriod(e.target.value);
-            // Reset days to match new month length
-            if (days.length > 0) {
-              const y = parseInt(e.target.value.slice(0, 4)) || year;
-              const m = parseInt(e.target.value.slice(5, 7)) || month;
-              const newMax = daysInMonth(y, m);
-              setDays(prev => {
-                const updated: EditableDay[] = [];
-                for (let i = 1; i <= newMax; i++) {
-                  updated.push(prev.find(d => d.day === i) || { day: i, start: '', end: '', pause: 0, code: '' });
-                }
-                return updated;
-              });
-            }
-          }}
-          className="input rounded-lg px-3 py-2 text-sm"
-        />
+        <div className="flex items-center gap-2">
+          <input
+            type="month"
+            value={period}
+            onChange={e => handlePeriodChange(e.target.value)}
+            className="input rounded-lg px-3 py-2 text-sm"
+          />
+        </div>
       </div>
 
-      {/* Upload */}
-      <Card className="p-6">
-        <div className="flex flex-col items-center gap-4">
-          <label className="btn-primary inline-flex items-center gap-2 px-6 py-3 text-sm cursor-pointer rounded-xl font-medium">
-            <Upload size={18} />
-            {t('stzUpload')}
-            <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp,application/pdf" className="hidden" onChange={handleUpload} />
-          </label>
-          <p className="text-xs text-muted">{t('stzFormats')}</p>
-          {loading && (
-            <div className="flex items-center gap-3 text-sm text-muted">
-              <Spinner />
-              {t('stzParsing')}
-            </div>
-          )}
-        </div>
-      </Card>
+      {/* Name + actions */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <input
+          type="text"
+          value={name}
+          onChange={e => setName(e.target.value)}
+          placeholder={t('stzNamePlaceholder')}
+          className="input rounded-lg px-3 py-2 text-sm flex-1 min-w-[200px] max-w-sm"
+        />
+        <label className="btn-secondary inline-flex items-center gap-2 px-3 py-2 text-sm cursor-pointer rounded-lg">
+          <Upload size={14} />
+          {t('stzOcrFill')}
+          <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp,application/pdf" className="hidden" onChange={handleOcrUpload} />
+        </label>
+        {loading && <Spinner />}
+        {hasAnyData && (
+          <button onClick={clearAll} className="text-xs text-muted hover:text-red-500 flex items-center gap-1">
+            <Trash2 size={13} /> {t('stzClear')}
+          </button>
+        )}
+      </div>
 
       {error && (
         <div className="flex items-center gap-2 rounded-lg bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 px-4 py-3 text-sm">
-          <AlertCircle size={16} />
-          {error}
+          <AlertCircle size={16} /> {error}
         </div>
       )}
 
-      {hasDays && (
-        <ErrorBoundary>
-          {/* Header */}
-          {name && (
-            <Card className="p-4">
-              <div className="flex items-center gap-3">
-                <FileText size={20} className="text-primary-500" />
-                <h2 className="text-lg font-bold text-ink">{name}</h2>
-              </div>
-            </Card>
-          )}
+      <ErrorBoundary>
+        {/* Stats - only show when there's data */}
+        {hasAnyData && (
+          <>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <StatCard icon={<Clock size={20} />} label={t('stzWorkHours')} value={hm(totals.workMin)} color="primary" />
+              <StatCard icon={<Moon size={20} />} label={t('stzNightHours')} value={hm(totals.n25 + totals.n40)} color="blue" />
+              <StatCard icon={<UtensilsCrossed size={20} />} label={t('stzDiets')} value={totals.diets} color="green" />
+              <StatCard icon={<CalendarDays size={20} />} label={t('stzWorkDays')} value={totals.workDays} color="primary" />
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <StatCard icon={<Thermometer size={20} />} label={t('stzSickDays')} value={totals.sick} color="red" />
+              <StatCard icon={<Palmtree size={20} />} label={t('stzVacationDays')} value={totals.vacation} color="green" />
+              <StatCard icon={<Star size={20} />} label={t('stzHolidays')} value={totals.holidays} color="blue" />
+              <StatCard icon={<Moon size={20} />} label="Nacht 25% / 40%" value={`${hm(totals.n25)} / ${hm(totals.n40)}`} color="blue" />
+            </div>
 
-          {/* Stats */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <StatCard icon={<Clock size={20} />} label={t('stzWorkHours')} value={hm(totals.workMin)} color="primary" />
-            <StatCard icon={<Moon size={20} />} label={t('stzNightHours')} value={hm(totals.n25 + totals.n40)} color="blue" />
-            <StatCard icon={<UtensilsCrossed size={20} />} label={t('stzDiets')} value={totals.diets} color="green" />
-            <StatCard icon={<CalendarDays size={20} />} label={t('stzWorkDays')} value={totals.workDays} color="primary" />
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <StatCard icon={<Thermometer size={20} />} label={t('stzSickDays')} value={totals.sick} color="red" />
-            <StatCard icon={<Palmtree size={20} />} label={t('stzVacationDays')} value={totals.vacation} color="green" />
-            <StatCard icon={<Star size={20} />} label={t('stzHolidays')} value={totals.holidays} color="blue" />
-            <StatCard icon={<Moon size={20} />} label="Nacht 25% / 40%" value={`${hm(totals.n25)} / ${hm(totals.n40)}`} color="blue" />
-          </div>
+            {/* Copy grid */}
+            <StzCopyGrid days={days} year={year} month={month} totals={totals} />
+          </>
+        )}
 
-          {/* Copy grid */}
-          <StzCopyGrid days={days} year={year} month={month} totals={totals} />
+        {/* Editable table - always visible */}
+        <Card className="overflow-x-auto p-0">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border bg-surface">
+                <th className="px-2 py-2 text-left font-semibold text-muted w-10">{t('stzDay')}</th>
+                <th className="px-2 py-2 text-left font-semibold text-muted w-8"></th>
+                <th className="px-1 py-2 text-center font-semibold text-muted w-24">{t('stzStart')}</th>
+                <th className="px-1 py-2 text-center font-semibold text-muted w-24">{t('stzEnd')}</th>
+                <th className="px-1 py-2 text-center font-semibold text-muted w-16">{t('stzPause')}</th>
+                <th className="px-1 py-2 text-center font-semibold text-muted w-16">{t('stzCode')}</th>
+                <th className="px-2 py-2 text-center font-semibold text-muted w-16">{t('stzWork')}</th>
+                <th className="px-2 py-2 text-center font-semibold text-muted hidden sm:table-cell">{t('stzNight')}</th>
+                <th className="px-2 py-2 text-center font-semibold text-muted hidden sm:table-cell">{t('stzDiet')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {days.map((day, idx) => {
+                const wd = getWeekday(year, month, day.day);
+                const weekend = isWeekend(year, month, day.day);
+                const c = calcDay(day);
+                const hasCode = !!day.code;
+                const rowColor = day.code ? (CODE_COLORS[day.code] || '') : weekend ? 'bg-gray-50/50 dark:bg-gray-800/20' : '';
 
-          {/* Editable table */}
-          <Card className="overflow-x-auto p-0">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border bg-surface">
-                  <th className="px-2 py-2 text-left font-semibold text-muted w-10">{t('stzDay')}</th>
-                  <th className="px-2 py-2 text-left font-semibold text-muted w-8"></th>
-                  <th className="px-1 py-2 text-center font-semibold text-muted w-20">{t('stzStart')}</th>
-                  <th className="px-1 py-2 text-center font-semibold text-muted w-20">{t('stzEnd')}</th>
-                  <th className="px-1 py-2 text-center font-semibold text-muted w-16">{t('stzPause')}</th>
-                  <th className="px-1 py-2 text-center font-semibold text-muted w-16">{t('stzCode')}</th>
-                  <th className="px-2 py-2 text-center font-semibold text-muted">{t('stzWork')}</th>
-                  <th className="px-2 py-2 text-center font-semibold text-muted hidden sm:table-cell">{t('stzNight')}</th>
-                  <th className="px-2 py-2 text-center font-semibold text-muted hidden sm:table-cell">{t('stzDiet')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {days.map((day, idx) => {
-                  const wd = getWeekday(year, month, day.day);
-                  const weekend = isWeekend(year, month, day.day);
-                  const c = calcDay(day);
-                  const hasCode = !!day.code;
-
-                  return (
-                    <tr
-                      key={day.day}
-                      className={`border-b border-border ${
-                        weekend ? 'bg-gray-50/50 dark:bg-gray-800/20' :
-                        day.code === 'F' ? 'bg-blue-50/30 dark:bg-blue-900/10' :
-                        day.code === 'K' ? 'bg-red-50/30 dark:bg-red-900/10' :
-                        day.code === 'U' ? 'bg-emerald-50/30 dark:bg-emerald-900/10' :
-                        ''
-                      }`}
-                    >
-                      <td className="px-2 py-1 font-medium text-ink">{day.day}</td>
-                      <td className={`px-2 py-1 text-xs ${weekend ? 'font-semibold text-red-500' : 'text-muted'}`}>{wd}</td>
-                      <td className="px-1 py-1">
-                        <input
-                          type="time"
-                          value={day.start}
-                          onChange={e => updateDay(idx, 'start', e.target.value)}
-                          disabled={hasCode}
-                          className="input w-full text-xs text-center px-1 py-0.5 rounded font-mono disabled:opacity-40"
-                        />
-                      </td>
-                      <td className="px-1 py-1">
-                        <input
-                          type="time"
-                          value={day.end}
-                          onChange={e => updateDay(idx, 'end', e.target.value)}
-                          disabled={hasCode}
-                          className="input w-full text-xs text-center px-1 py-0.5 rounded font-mono disabled:opacity-40"
-                        />
-                      </td>
-                      <td className="px-1 py-1">
-                        <input
-                          type="number"
-                          min={0}
-                          max={120}
-                          value={day.pause || ''}
-                          onChange={e => updateDay(idx, 'pause', parseInt(e.target.value) || 0)}
-                          disabled={hasCode}
-                          placeholder="0"
-                          className="input w-full text-xs text-center px-1 py-0.5 rounded font-mono disabled:opacity-40"
-                        />
-                      </td>
-                      <td className="px-1 py-1">
-                        <select
-                          value={day.code}
-                          onChange={e => {
-                            const code = e.target.value;
-                            updateDay(idx, 'code', code);
-                            if (code) {
-                              updateDay(idx, 'start', '');
-                              updateDay(idx, 'end', '');
-                              updateDay(idx, 'pause', 0);
-                            }
-                          }}
-                          className="input w-full text-xs px-1 py-0.5 rounded"
-                        >
-                          {CODE_OPTIONS.map(c => (
-                            <option key={c} value={c}>{c ? `${c}` : '—'}</option>
-                          ))}
-                        </select>
-                      </td>
-                      <td className="px-2 py-1 text-center font-mono text-xs font-medium">
-                        {c.work > 0 ? hm(c.work) : ''}
-                      </td>
-                      <td className="px-2 py-1 text-center text-xs hidden sm:table-cell">
-                        {(c.night25 + c.night40) > 0 ? (
-                          <span className="text-blue-600 dark:text-blue-400 font-medium">{hm(c.night25 + c.night40)}</span>
-                        ) : ''}
-                      </td>
-                      <td className="px-2 py-1 text-center hidden sm:table-cell">
-                        {c.diet ? <Badge variant="green">D</Badge> : ''}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-              <tfoot>
-                <tr className="bg-surface font-semibold">
-                  <td className="px-2 py-3" colSpan={2}>{t('stzTotal')}</td>
-                  <td className="px-1 py-3" colSpan={4}></td>
-                  <td className="px-2 py-3 text-center font-mono">{hm(totals.workMin)}</td>
-                  <td className="px-2 py-3 text-center font-mono text-blue-600 hidden sm:table-cell">{hm(totals.n25 + totals.n40)}</td>
-                  <td className="px-2 py-3 text-center hidden sm:table-cell">
-                    <Badge variant="green">{totals.diets}</Badge>
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
-          </Card>
-        </ErrorBoundary>
-      )}
+                return (
+                  <tr key={day.day} className={`border-b border-border ${rowColor}`}>
+                    <td className="px-2 py-1 font-medium text-ink">{day.day}</td>
+                    <td className={`px-2 py-1 text-xs ${weekend ? 'font-bold text-red-500' : 'text-muted'}`}>{wd}</td>
+                    <td className="px-1 py-1">
+                      <input type="time" value={day.start} onChange={e => updateDay(idx, 'start', e.target.value)}
+                        disabled={hasCode} className="input w-full text-xs text-center px-1 py-0.5 rounded font-mono disabled:opacity-30" />
+                    </td>
+                    <td className="px-1 py-1">
+                      <input type="time" value={day.end} onChange={e => updateDay(idx, 'end', e.target.value)}
+                        disabled={hasCode} className="input w-full text-xs text-center px-1 py-0.5 rounded font-mono disabled:opacity-30" />
+                    </td>
+                    <td className="px-1 py-1">
+                      <input type="number" min={0} max={120} value={day.pause || ''} placeholder="0"
+                        onChange={e => updateDay(idx, 'pause', parseInt(e.target.value) || 0)}
+                        disabled={hasCode} className="input w-full text-xs text-center px-1 py-0.5 rounded font-mono disabled:opacity-30" />
+                    </td>
+                    <td className="px-1 py-1">
+                      <select value={day.code} onChange={e => {
+                        updateDay(idx, 'code', e.target.value);
+                        if (e.target.value) { updateDay(idx, 'start', ''); updateDay(idx, 'end', ''); updateDay(idx, 'pause', 0); }
+                      }} className="input w-full text-xs px-1 py-0.5 rounded">
+                        {CODE_OPTIONS.map(c => <option key={c} value={c}>{c || '—'}</option>)}
+                      </select>
+                    </td>
+                    <td className="px-2 py-1 text-center font-mono text-xs font-medium">
+                      {c.work > 0 ? hm(c.work) : ''}
+                    </td>
+                    <td className="px-2 py-1 text-center text-xs hidden sm:table-cell">
+                      {(c.night25 + c.night40) > 0 && <span className="text-blue-600 dark:text-blue-400 font-medium">{hm(c.night25 + c.night40)}</span>}
+                    </td>
+                    <td className="px-2 py-1 text-center hidden sm:table-cell">
+                      {c.diet && <Badge variant="green">D</Badge>}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+            <tfoot>
+              <tr className="bg-surface font-semibold">
+                <td className="px-2 py-3" colSpan={2}>{t('stzTotal')}</td>
+                <td className="px-1 py-3" colSpan={4}></td>
+                <td className="px-2 py-3 text-center font-mono">{hm(totals.workMin)}</td>
+                <td className="px-2 py-3 text-center font-mono text-blue-600 hidden sm:table-cell">{hm(totals.n25 + totals.n40)}</td>
+                <td className="px-2 py-3 text-center hidden sm:table-cell"><Badge variant="green">{totals.diets}</Badge></td>
+              </tr>
+            </tfoot>
+          </table>
+        </Card>
+      </ErrorBoundary>
     </div>
   );
 }
 
-// --- Copy Grid (like MonthlyGridCopy from AnalysisView) ---
-
-const WEEKDAYS_DE = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
+// --- Copy Grid ---
 
 function StzCopyGrid({ days, year, month, totals }: {
-  days: EditableDay[];
-  year: number;
-  month: number;
+  days: EditableDay[]; year: number; month: number;
   totals: { workMin: number; n25: number; n40: number; diets: number; sick: number; vacation: number; holidays: number; workDays: number };
 }) {
   const { t } = useI18n();
   const [copied, setCopied] = useState(false);
 
-  const numDays = days.length || 31;
-
-  // Build per-day values
   const dayValues = useMemo(() => {
     return days.map(d => {
       if (d.code === 'K') return 'Kr';
@@ -401,13 +357,12 @@ function StzCopyGrid({ days, year, month, totals }: {
       if (d.code === 'F') return 'F';
       if (d.code) return d.code;
       const c = calcDay(d);
-      if (c.work > 0) return hm(c.work);
-      return '';
+      return c.work > 0 ? hm(c.work) : '';
     });
   }, [days]);
 
   const weekdays = days.map(d => {
-    try { return WEEKDAYS_DE[new Date(year, month - 1, d.day).getDay()]; } catch { return ''; }
+    try { return WEEKDAYS_SHORT[new Date(year, month - 1, d.day).getDay()]; } catch { return ''; }
   });
 
   const n25 = (totals.n25 / 60).toFixed(2).replace('.', ',');
@@ -433,14 +388,12 @@ function StzCopyGrid({ days, year, month, totals }: {
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center gap-2 flex-wrap">
+      <div className="flex items-center gap-2">
         <span className="text-xs font-semibold uppercase tracking-wider text-muted">
-          {t('stzTotal')} — {String(month).padStart(2, '0')}/{year}
+          {String(month).padStart(2, '0')}/{year}
         </span>
-        <button
-          onClick={handleCopy}
-          className="flex items-center gap-1 rounded-lg bg-primary-100 px-2.5 py-1 text-xs font-medium text-primary-700 transition hover:bg-primary-200 dark:bg-primary-900/30 dark:hover:bg-primary-900/50"
-        >
+        <button onClick={handleCopy}
+          className="flex items-center gap-1 rounded-lg bg-primary-100 px-2.5 py-1 text-xs font-medium text-primary-700 transition hover:bg-primary-200 dark:bg-primary-900/30 dark:hover:bg-primary-900/50">
           {copied ? <Check size={13} /> : <ClipboardCopy size={13} />}
           {copied ? 'OK!' : t('stzCopy')}
         </button>
@@ -453,10 +406,9 @@ function StzCopyGrid({ days, year, month, totals }: {
               {summaryHeaders.map(h => <th key={h} className={thCls}>{h}</th>)}
             </tr>
             <tr>
-              {weekdays.map((wd, i) => {
-                const isWe = wd === 'So' || wd === 'Sa';
-                return <th key={i} className={`${thCls} ${isWe ? '!text-red-400 !bg-red-50 dark:!bg-red-900/20' : ''}`}>{wd}</th>;
-              })}
+              {weekdays.map((wd, i) => (
+                <th key={i} className={`${thCls} ${wd === 'So' || wd === 'Sa' ? '!text-red-400 !bg-red-50 dark:!bg-red-900/20' : ''}`}>{wd}</th>
+              ))}
               {summaryHeaders.map(h => <th key={`e-${h}`} className="w-1" />)}
             </tr>
           </thead>
@@ -464,15 +416,13 @@ function StzCopyGrid({ days, year, month, totals }: {
             <tr>
               {dayValues.map((val, i) => {
                 let cls = tdCls;
-                if (val === 'Ur') cls = `${tdCls} !bg-blue-100 !text-blue-700 font-bold dark:!bg-blue-900/40 dark:!text-blue-300`;
-                else if (val === 'Kr') cls = `${tdCls} !bg-orange-100 !text-orange-700 font-bold dark:!bg-orange-900/40 dark:!text-orange-300`;
-                else if (val === 'F') cls = `${tdCls} !bg-blue-50 !text-blue-500 font-bold dark:!bg-blue-900/20`;
-                else if (val) cls = `${tdCls} font-semibold text-gray-800 dark:text-gray-200`;
+                if (val === 'Ur') cls += ' !bg-blue-100 !text-blue-700 font-bold dark:!bg-blue-900/40';
+                else if (val === 'Kr') cls += ' !bg-orange-100 !text-orange-700 font-bold dark:!bg-orange-900/40';
+                else if (val === 'F') cls += ' !bg-blue-50 !text-blue-500 font-bold';
+                else if (val) cls += ' font-semibold text-gray-800 dark:text-gray-200';
                 return <td key={i} className={cls}>{val}</td>;
               })}
-              {summaryValues.map((val, i) => (
-                <td key={i} className={`${tdCls} font-bold`}>{val}</td>
-              ))}
+              {summaryValues.map((val, i) => <td key={i} className={`${tdCls} font-bold`}>{val}</td>)}
             </tr>
           </tbody>
         </table>

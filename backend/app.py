@@ -2296,7 +2296,7 @@ def _parse_stundenzettel_with_openai(image_data, media_type):
     b64 = base64.b64encode(image_data).decode('utf-8')
 
     response = client.chat.completions.create(
-        model='gpt-4o',
+        model='gpt-4o-mini',
         max_tokens=4096,
         messages=[{
             'role': 'user',
