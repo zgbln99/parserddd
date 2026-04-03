@@ -2257,30 +2257,45 @@ def api_analyze_dropbox():
 # Uses OpenAI GPT-4o Vision for OCR — works great on handwriting.
 # ---------------------------------------------------------------------------
 
-_STZ_PROMPT = '''Dies ist ein Stundenzettel (DATEV-Formular) mit 31 Zeilen.
+_STZ_PROMPT = '''You are an expert system for extracting structured data from handwritten German timesheets (DATEV format).
 
-Spalten von links nach rechts:
-1. "Kalendertag" = Tagesnummer 1-31 (GEDRUCKT, nicht handgeschrieben)
-2. "Beginn (Uhrzeit)" = handgeschriebene Startzeit
-3. "Ende (Uhrzeit)" = handgeschriebene Endzeit
-4-5. "Dauer", "aufgezeichnet am" (ignorieren)
-6. "*" Kürzel-Spalte (K/U/F etc.)
-7. "Bemerkungen"
-8. "Pause" (ganz rechts) = Pausendauer
+Your task is to read the provided image and extract work entries into structured JSON.
 
-REGELN:
-- "day" = die GEDRUCKTE Nummer in Spalte 1 (1-31). Nicht raten, direkt ablesen!
-- Zeilen mit nur Strichen (—) oder leer = weglassen
-- Zeitformat: "12.00"="12:00", "23.00"="23:00", "04.45"="04:45", "5 Uhr"="05:00", "22.30"="22:30"
-- PUNKT ist Zeittrennzeichen: "15.45" bedeutet 15 Uhr 45 Minuten = "15:45"
-- Pause IMMER in Minuten umrechnen: "0,75"=45, "0,5"=30, "1"=60, "0.75"=45, "45min"=45, "45"=45, "0:45"=45, "/"=0, "—"=0, leer=0
-- Codes: "K"=Krank, "U"=Urlaub, "F"=Feiertag → start/end=null
-- name: aus "Name des Mitarbeiters" Feld oben
+STRICT RULES:
+* Do NOT guess missing or unclear values
+* If a value is unreadable, return null
+* Preserve original meaning, do not invent data
+* Be precise: accuracy is more important than completeness
+* Process the table row by row
+* The day number is PRINTED in the leftmost column (Kalendertag 1-31). Read it directly.
 
-JSON-Format:
-{"name":"...","days":[{"day":2,"start":"12:00","end":"23:00","pause_minutes":30,"code":null},{"day":7,"start":null,"end":null,"pause_minutes":0,"code":"F"},...]}
+NORMALIZATION RULES:
+* "5 Uhr" -> "05:00", "19Uhr" -> "19:00", "5uhr" -> "05:00"
+* "15.45" -> "15:45" (dot is time separator in German handwriting)
+* "14.30" -> "14:30"
+* If only hour is given, assume ":00"
+* Breaks: "45 min" -> 45, "0,75" -> 45, "0,5" -> 30, "0.75" -> 45, "/" -> 0, "—" -> 0
+* German codes: "F" = "Feiertag", "K" = "Krank", "U" = "Urlaub"
+* Extract "Name des Mitarbeiters" from the header field at the top
 
-NUR valides JSON, kein anderer Text.'''
+OUTPUT FORMAT (JSON only, no explanation):
+{"name":"...","days":[
+{"day":1,"start_time":null,"end_time":null,"break_minutes":null,"notes":"","confidence":0.0},
+{"day":2,"start_time":"05:00","end_time":"19:00","break_minutes":45,"notes":"Tour gefahren","confidence":1.0}
+]}
+
+CONFIDENCE per row:
+* 1.0 = clearly readable
+* 0.7 = minor uncertainty
+* 0.4 = hard to read
+* 0.0 = unreadable
+
+IMPORTANT:
+* Do not merge rows
+* Do not skip rows - return ALL rows (28, 30, or 31 depending on month)
+* If a row is empty or has only dashes, return it with null values
+* Keep output strictly valid JSON
+* "day" must match the PRINTED number in column 1'''
 
 
 def _parse_stundenzettel_with_openai(image_data, media_type):
@@ -2296,7 +2311,7 @@ def _parse_stundenzettel_with_openai(image_data, media_type):
     b64 = base64.b64encode(image_data).decode('utf-8')
 
     response = client.chat.completions.create(
-        model='gpt-4o-mini',
+        model='gpt-4o',
         max_tokens=4096,
         messages=[{
             'role': 'user',
@@ -2344,11 +2359,26 @@ def _calculate_stundenzettel(parsed):
 
     for entry in days:
         day_num = entry.get('day')
-        start_str = entry.get('start')
-        end_str = entry.get('end')
-        pause = entry.get('pause_minutes') or 0
-        code = entry.get('code')
-        remarks = entry.get('remarks')
+        start_str = entry.get('start_time') or entry.get('start')
+        end_str = entry.get('end_time') or entry.get('end')
+        pause = entry.get('break_minutes') or entry.get('pause_minutes') or 0
+        if isinstance(pause, str):
+            try:
+                pause = int(float(pause))
+            except (ValueError, TypeError):
+                pause = 0
+        notes = entry.get('notes') or entry.get('remarks') or ''
+        code = entry.get('code') or ''
+        # Detect code from notes if not set
+        if not code and notes:
+            notes_upper = notes.strip().upper()
+            if notes_upper in ('FEIERTAG', 'F'):
+                code = 'F'
+            elif notes_upper in ('KRANK', 'K'):
+                code = 'K'
+            elif notes_upper in ('URLAUB', 'U'):
+                code = 'U'
+        remarks = notes if code == '' else None
 
         day_result = {
             'day': day_num,

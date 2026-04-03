@@ -143,18 +143,31 @@ export function StundenzettelPage() {
       if (r.name) setName(r.name);
 
       // Merge OCR results into existing days
+      // Handle both old format (start/end/code) and new format (start_time/end_time/notes)
       setDays(prev => {
-        const ocrMap = new Map<number, StundenzettelDay>();
+        const ocrMap = new Map<number, any>();
         for (const d of (r.days || [])) ocrMap.set(d.day, d);
         return prev.map(existing => {
           const ocr = ocrMap.get(existing.day);
           if (!ocr) return existing;
+          const startTime = ocr.start_time || ocr.start || '';
+          const endTime = ocr.end_time || ocr.end || '';
+          const breakMin = ocr.break_minutes ?? ocr.pause_minutes ?? 0;
+          const notes = (ocr.notes || '').trim();
+          // Detect code from notes or code field
+          let code = ocr.code || '';
+          if (!code && notes) {
+            const upper = notes.toUpperCase();
+            if (upper === 'FEIERTAG' || upper === 'F') code = 'F';
+            else if (upper === 'KRANK' || upper === 'K') code = 'K';
+            else if (upper === 'URLAUB' || upper === 'U') code = 'U';
+          }
           return {
             day: existing.day,
-            start: ocr.start || '',
-            end: ocr.end || '',
-            pause: ocr.pause_minutes || 0,
-            code: ocr.code || '',
+            start: code ? '' : (startTime || ''),
+            end: code ? '' : (endTime || ''),
+            pause: code ? 0 : (typeof breakMin === 'number' ? breakMin : parseInt(breakMin) || 0),
+            code,
           };
         });
       });
