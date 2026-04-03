@@ -481,7 +481,7 @@ export const de: Record<TranslationKey, string> = {
   stzSubtitle: 'Bild oder PDF hochladen — automatische Erkennung und Berechnung',
   stzUpload: 'Stundenzettel hochladen',
   stzFormats: 'JPG, PNG, WebP oder PDF',
-  stzParsing: 'Handschrift wird erkannt... (kann bis zu 30s dauern)',
+  stzParsing: 'Handschrift wird erkannt (GPT-4o)... kann bis zu 30s dauern',
   stzWorkHours: 'Arbeitsstunden',
   stzNightHours: 'Nachtstunden',
   stzDiets: 'Diäten',

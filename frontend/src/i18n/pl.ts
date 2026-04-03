@@ -479,7 +479,7 @@ export const pl = {
   stzSubtitle: 'Wgraj zdjęcie lub PDF stundenzettla — automatyczne rozpoznawanie i obliczenia',
   stzUpload: 'Wgraj Stundenzettel',
   stzFormats: 'JPG, PNG, WebP lub PDF',
-  stzParsing: 'Rozpoznawanie pisma... (może potrwać do 30s)',
+  stzParsing: 'Rozpoznawanie pisma (GPT-4o)... może potrwać do 30s',
   stzWorkHours: 'Godziny pracy',
   stzNightHours: 'Godziny nocne',
   stzDiets: 'Diety',
