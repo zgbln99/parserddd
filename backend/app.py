@@ -2257,24 +2257,24 @@ def api_analyze_dropbox():
 # Uses OpenAI GPT-4o Vision for OCR — works great on handwriting.
 # ---------------------------------------------------------------------------
 
-_STZ_PROMPT = '''Analysiere dieses Stundenzettel-Bild. Extrahiere alle Daten als JSON.
+_STZ_PROMPT = '''Dies ist ein Stundenzettel (DATEV-Formular). Die Tabelle hat diese Spalten:
+- Spalte 1 (ganz links): "Kalendertag" = Tagesnummer 1-31. LIES DIESE NUMMER GENAU AB.
+- Spalte 2: "Beginn (Uhrzeit)" = Arbeitsbeginn
+- Spalte 3: "Ende (Uhrzeit)" = Arbeitsende
+- Letzte Spalte (ganz rechts): "Pause" = Pausendauer
 
-Extrahiere:
-1. "name": Name des Mitarbeiters (falls lesbar), sonst ""
-2. "days": Array mit einem Eintrag pro Zeile/Tag:
-   - "day": Kalendertag (1-31)
-   - "start": Beginn als "HH:MM" (24h), null wenn kein Eintrag
-   - "end": Ende als "HH:MM" (24h), null wenn kein Eintrag
-   - "pause_minutes": Pause in Minuten (z.B. 45), 0 wenn keine
-   - "code": "K"=Krank, "U"=Urlaub, "F"=Feiertag, "UU"=unbez.Urlaub, null wenn normaler Tag
+WICHTIG: Die Tagesnummer in Spalte 1 bestimmt den "day"-Wert. Lies sie direkt aus dem Bild.
 
-Regeln:
-- "5 Uhr"="05:00", "19Uhr"="19:00", "14 Uhr"="14:00"
-- "45min"=45, "/"=0
-- Nur Code ohne Zeiten: start=null, end=null
-- Leere Zeilen weglassen
+Extrahiere als JSON:
+{"name":"...","days":[{"day":TAG,"start":"HH:MM","end":"HH:MM","pause_minutes":45,"code":null},...]}
 
-Antworte NUR mit validem JSON.'''
+- "5 Uhr"="05:00", "19Uhr"="19:00", "5Uhr"="05:00", "22Uhr"="22:00"
+- "45min"=45, "45 min"=45, "/"=0, "-"=0
+- Zeile mit nur "K"=Krank, "U"=Urlaub, "F"=Feiertag: code setzen, start/end=null
+- Leere Zeilen (kein Eintrag): weglassen
+- name: "Name des Mitarbeiters" Feld oben im Formular
+
+NUR valides JSON ausgeben, kein anderer Text.'''
 
 
 def _parse_stundenzettel_with_openai(image_data, media_type):
