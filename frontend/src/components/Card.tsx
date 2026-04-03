@@ -29,6 +29,7 @@ export function StatCard({
   value,
   icon,
   color = 'primary',
+  variant,
 }: {
   label: string;
   value: string | number;
