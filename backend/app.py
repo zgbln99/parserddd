@@ -2259,30 +2259,22 @@ def api_analyze_dropbox():
 
 _STZ_PROMPT = '''Analysiere dieses Stundenzettel-Bild. Extrahiere alle Daten als JSON.
 
-Das Dokument ist eine "Vorlage zur Dokumentation der täglichen Arbeitszeit" (DATEV-Format).
-
 Extrahiere:
-1. "name": Name des Mitarbeiters
-2. "personal_nr": Personalnummer (falls vorhanden), sonst ""
-3. "month": Monat (1-12)
-4. "year": Jahr (4-stellig, z.B. 2026)
-5. "days": Array mit einem Eintrag pro Zeile/Tag (1-31):
+1. "name": Name des Mitarbeiters (falls lesbar), sonst ""
+2. "days": Array mit einem Eintrag pro Zeile/Tag:
    - "day": Kalendertag (1-31)
-   - "start": Beginn als "HH:MM" (24h-Format), null wenn kein Eintrag
-   - "end": Ende als "HH:MM" (24h-Format), null wenn kein Eintrag
-   - "pause_minutes": Pause in Minuten (z.B. 45), 0 wenn keine Pause
-   - "code": Kürzel falls vorhanden: "K"=Krank, "U"=Urlaub, "UU"=unbezahlter Urlaub, "F"=Feiertag, "SA"=Stundenweise abwesend, "SU"=Stundenweise Urlaub, null wenn normaler Arbeitstag
-   - "remarks": Bemerkungen (Text), null wenn leer
+   - "start": Beginn als "HH:MM" (24h), null wenn kein Eintrag
+   - "end": Ende als "HH:MM" (24h), null wenn kein Eintrag
+   - "pause_minutes": Pause in Minuten (z.B. 45), 0 wenn keine
+   - "code": "K"=Krank, "U"=Urlaub, "F"=Feiertag, "UU"=unbez.Urlaub, null wenn normaler Tag
 
 Regeln:
-- "5 Uhr" = "05:00", "19 Uhr" = "19:00", "14Uhr" = "14:00", "22Uhr" = "22:00"
-- "45min" oder "45 min" als Pause = 45
-- "/" oder "-" bei Pause = 0
-- Wenn nur ein Code (K, F, U etc.) steht und keine Zeiten: start=null, end=null
-- Leere Zeilen (kein Eintrag): trotzdem als Tag mit allen null-Werten ausgeben
-- Monat/Jahr: "03.26" = Monat 3, Jahr 2026; "12.25" = Monat 12, Jahr 2025
+- "5 Uhr"="05:00", "19Uhr"="19:00", "14 Uhr"="14:00"
+- "45min"=45, "/"=0
+- Nur Code ohne Zeiten: start=null, end=null
+- Leere Zeilen weglassen
 
-Antworte NUR mit validem JSON, kein anderer Text.'''
+Antworte NUR mit validem JSON.'''
 
 
 def _parse_stundenzettel_with_openai(image_data, media_type):

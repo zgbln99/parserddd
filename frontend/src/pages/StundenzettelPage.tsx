@@ -105,16 +105,24 @@ function daysInMonth(year: number, month: number): number {
   return new Date(year, month, 0).getDate();
 }
 
+function getCurrentPeriod() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+}
+
 export function StundenzettelPage() {
   const { t } = useI18n();
   const fileRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // Period selector (fixed, not from OCR)
+  const [period, setPeriod] = useState(getCurrentPeriod);
+  const year = parseInt(period.slice(0, 4)) || new Date().getFullYear();
+  const month = parseInt(period.slice(5, 7)) || (new Date().getMonth() + 1);
+
   // Parsed header info
   const [name, setName] = useState('');
-  const [month, setMonth] = useState(0);
-  const [year, setYear] = useState(0);
 
   // Editable day rows
   const [days, setDays] = useState<EditableDay[]>([]);
@@ -130,9 +138,7 @@ export function StundenzettelPage() {
       if (!r) { setError('Brak danych w odpowiedzi'); return; }
       if (r.error) { setError(r.error); return; }
       setName(r.name || '');
-      setMonth(r.month || 0);
-      setYear(r.year || 0);
-      const maxDay = daysInMonth(r.year, r.month);
+      const maxDay = daysInMonth(year, month);
       setDays(apiDaysToEditable(r.days || [], maxDay));
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -176,6 +182,27 @@ export function StundenzettelPage() {
           <h1 className="text-2xl font-bold text-ink">{t('stzTitle')}</h1>
           <p className="text-sm text-muted mt-1">{t('stzSubtitle')}</p>
         </div>
+        <input
+          type="month"
+          value={period}
+          onChange={e => {
+            setPeriod(e.target.value);
+            // Reset days to match new month length
+            if (days.length > 0) {
+              const y = parseInt(e.target.value.slice(0, 4)) || year;
+              const m = parseInt(e.target.value.slice(5, 7)) || month;
+              const newMax = daysInMonth(y, m);
+              setDays(prev => {
+                const updated: EditableDay[] = [];
+                for (let i = 1; i <= newMax; i++) {
+                  updated.push(prev.find(d => d.day === i) || { day: i, start: '', end: '', pause: 0, code: '' });
+                }
+                return updated;
+              });
+            }
+          }}
+          className="input rounded-lg px-3 py-2 text-sm"
+        />
       </div>
 
       {/* Upload */}
@@ -206,17 +233,14 @@ export function StundenzettelPage() {
       {hasDays && (
         <ErrorBoundary>
           {/* Header */}
-          <Card className="p-4">
-            <div className="flex items-center gap-3">
-              <FileText size={20} className="text-primary-500" />
-              <div>
-                <h2 className="text-lg font-bold text-ink">{name || 'Unbekannt'}</h2>
-                <p className="text-sm text-muted">
-                  {month > 0 ? MONTH_NAMES[month] : ''} {year || ''}
-                </p>
+          {name && (
+            <Card className="p-4">
+              <div className="flex items-center gap-3">
+                <FileText size={20} className="text-primary-500" />
+                <h2 className="text-lg font-bold text-ink">{name}</h2>
               </div>
-            </div>
-          </Card>
+            </Card>
+          )}
 
           {/* Stats */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
