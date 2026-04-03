@@ -2257,24 +2257,30 @@ def api_analyze_dropbox():
 # Uses OpenAI GPT-4o Vision for OCR — works great on handwriting.
 # ---------------------------------------------------------------------------
 
-_STZ_PROMPT = '''Dies ist ein Stundenzettel (DATEV-Formular). Die Tabelle hat diese Spalten:
-- Spalte 1 (ganz links): "Kalendertag" = Tagesnummer 1-31. LIES DIESE NUMMER GENAU AB.
-- Spalte 2: "Beginn (Uhrzeit)" = Arbeitsbeginn
-- Spalte 3: "Ende (Uhrzeit)" = Arbeitsende
-- Letzte Spalte (ganz rechts): "Pause" = Pausendauer
+_STZ_PROMPT = '''Dies ist ein Stundenzettel (DATEV-Formular) mit 31 Zeilen.
 
-WICHTIG: Die Tagesnummer in Spalte 1 bestimmt den "day"-Wert. Lies sie direkt aus dem Bild.
+Spalten von links nach rechts:
+1. "Kalendertag" = Tagesnummer 1-31 (GEDRUCKT, nicht handgeschrieben)
+2. "Beginn (Uhrzeit)" = handgeschriebene Startzeit
+3. "Ende (Uhrzeit)" = handgeschriebene Endzeit
+4-5. "Dauer", "aufgezeichnet am" (ignorieren)
+6. "*" Kürzel-Spalte (K/U/F etc.)
+7. "Bemerkungen"
+8. "Pause" (ganz rechts) = Pausendauer
 
-Extrahiere als JSON:
-{"name":"...","days":[{"day":TAG,"start":"HH:MM","end":"HH:MM","pause_minutes":45,"code":null},...]}
+REGELN:
+- "day" = die GEDRUCKTE Nummer in Spalte 1 (1-31). Nicht raten, direkt ablesen!
+- Zeilen mit nur Strichen (—) oder leer = weglassen
+- Zeitformat: "12.00"="12:00", "23.00"="23:00", "04.45"="04:45", "5 Uhr"="05:00", "22.30"="22:30"
+- PUNKT ist Zeittrennzeichen: "15.45" bedeutet 15 Uhr 45 Minuten = "15:45"
+- Pause: "0,75"=45min (0.75h), "0,5"=30min, "45min"=45, "/"=0, "—"=0
+- Codes: "K"=Krank, "U"=Urlaub, "F"=Feiertag → start/end=null
+- name: aus "Name des Mitarbeiters" Feld oben
 
-- "5 Uhr"="05:00", "19Uhr"="19:00", "5Uhr"="05:00", "22Uhr"="22:00"
-- "45min"=45, "45 min"=45, "/"=0, "-"=0
-- Zeile mit nur "K"=Krank, "U"=Urlaub, "F"=Feiertag: code setzen, start/end=null
-- Leere Zeilen (kein Eintrag): weglassen
-- name: "Name des Mitarbeiters" Feld oben im Formular
+JSON-Format:
+{"name":"...","days":[{"day":2,"start":"12:00","end":"23:00","pause_minutes":30,"code":null},{"day":7,"start":null,"end":null,"pause_minutes":0,"code":"F"},...]}
 
-NUR valides JSON ausgeben, kein anderer Text.'''
+NUR valides JSON, kein anderer Text.'''
 
 
 def _parse_stundenzettel_with_openai(image_data, media_type):
