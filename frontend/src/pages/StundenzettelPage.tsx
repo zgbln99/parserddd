@@ -134,19 +134,20 @@ function ResultCard({
   onToggle: () => void;
   showToggle: boolean;
 }) {
-  if (result.error) {
+  if (result.error || !result.totals) {
     return (
       <Card className="p-4">
         <div className="flex items-center gap-2 text-red-600">
           <AlertCircle size={16} />
-          Seite {result.page}: {result.error}
+          {result.error || 'Brak danych'}
         </div>
       </Card>
     );
   }
 
-  const { totals } = result;
-  const totalNight = totals.total_night_minutes;
+  const totals = result.totals;
+  const days = result.days || [];
+  const totalNight = totals.total_night_minutes || 0;
 
   return (
     <div className="space-y-4">
@@ -174,20 +175,20 @@ function ResultCard({
       {(!showToggle || expanded) && (
         <>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <StatCard icon={<Clock size={20} />} label={t('stzWorkHours')} value={totals.work_hm} color="primary" />
+            <StatCard icon={<Clock size={20} />} label={t('stzWorkHours')} value={totals.work_hm || '0:00'} color="primary" />
             <StatCard icon={<Moon size={20} />} label={t('stzNightHours')} value={hm(totalNight)} color="blue" />
-            <StatCard icon={<UtensilsCrossed size={20} />} label={t('stzDiets')} value={totals.diet_count} color="green" />
-            <StatCard icon={<CalendarDays size={20} />} label={t('stzWorkDays')} value={totals.work_days} color="primary" />
+            <StatCard icon={<UtensilsCrossed size={20} />} label={t('stzDiets')} value={totals.diet_count || 0} color="green" />
+            <StatCard icon={<CalendarDays size={20} />} label={t('stzWorkDays')} value={totals.work_days || 0} color="primary" />
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <StatCard icon={<Thermometer size={20} />} label={t('stzSickDays')} value={totals.sick_days} color="red" />
-            <StatCard icon={<Palmtree size={20} />} label={t('stzVacationDays')} value={totals.vacation_days} color="green" />
-            <StatCard icon={<Star size={20} />} label={t('stzHolidays')} value={totals.holiday_days} color="blue" />
+            <StatCard icon={<Thermometer size={20} />} label={t('stzSickDays')} value={totals.sick_days || 0} color="red" />
+            <StatCard icon={<Palmtree size={20} />} label={t('stzVacationDays')} value={totals.vacation_days || 0} color="green" />
+            <StatCard icon={<Star size={20} />} label={t('stzHolidays')} value={totals.holiday_days || 0} color="blue" />
             <StatCard
               icon={<Moon size={20} />}
               label="Nacht 25% / 40%"
-              value={`${totals.night_25_hm} / ${totals.night_40_hm}`}
+              value={`${totals.night_25_hm || '0:00'} / ${totals.night_40_hm || '0:00'}`}
               color="blue"
             />
           </div>
@@ -209,11 +210,11 @@ function ResultCard({
                 </tr>
               </thead>
               <tbody>
-                {result.days.map((day) => {
+                {days.map((day) => {
                   const wd = getWeekday(result.year, result.month, day.day);
                   const weekend = isWeekend(result.year, result.month, day.day);
                   const codeInfo = day.code ? CODE_LABELS[day.code] : null;
-                  const nightTotal = day.night_25_minutes + day.night_40_minutes;
+                  const nightTotal = (day.night_25_minutes || 0) + (day.night_40_minutes || 0);
                   const isEmpty = !day.start && !day.end && !day.code;
 
                   return (
@@ -269,7 +270,7 @@ function ResultCard({
                   <td className="px-3 py-3" colSpan={2}>{t('stzTotal')}</td>
                   <td className="px-3 py-3" colSpan={2}></td>
                   <td className="px-3 py-3"></td>
-                  <td className="px-3 py-3 text-center font-mono">{totals.work_hm}</td>
+                  <td className="px-3 py-3 text-center font-mono">{totals.work_hm || '0:00'}</td>
                   <td className="px-3 py-3 text-center font-mono text-blue-600 hidden sm:table-cell">{hm(totalNight)}</td>
                   <td className="px-3 py-3 text-center hidden sm:table-cell">
                     <Badge variant="green">{totals.diet_count}</Badge>
