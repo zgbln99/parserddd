@@ -1375,18 +1375,11 @@ def detect_shifts(all_intervals, min_rest_hours=5):
 
             effective_rest = (rest_end - rest_begin).total_seconds()
             if effective_rest >= min_rest_sec:
-                # Only split if the rest block crosses midnight CET.
-                # Intra-day gaps (manual entry gaps) don't cross midnight
-                # and should NOT split shifts even if long.
-                rest_begin_cet = _to_cet(rest_begin).date()
-                rest_end_cet = _to_cet(rest_end).date()
-                crosses_midnight = rest_begin_cet != rest_end_cet
-                if crosses_midnight:
-                    if current:
-                        shifts.append(current)
-                        current = []
-                    i = j
-                    continue
+                if current:
+                    shifts.append(current)
+                    current = []
+                i = j
+                continue
 
         current.append(merged[i])
         i += 1
