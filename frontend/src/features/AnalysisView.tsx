@@ -76,21 +76,30 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
     });
   }, [allShifts, dateFrom, dateTo]);
 
-  // Recalculate summary based on filtered shifts
+  // Recalculate summary based on calendar_days (per CET day) filtered by date range
   const s = useMemo(() => {
-    if (!dateFrom && !dateTo) return data.summary;
+    const cd = data.calendar_days;
+    if (!cd) return data.summary;
+
+    // Filter calendar_days by date range
+    const entries = Object.values(cd).filter((d: any) => {
+      if (dateFrom && d.date < dateFrom) return false;
+      if (dateTo && d.date > dateTo) return false;
+      return true;
+    });
 
     let totalWork = 0, totalDriving = 0, totalBreak = 0, totalAvail = 0;
-    let night25 = 0, night40 = 0, dietCount = 0;
+    let night25 = 0, night40 = 0, dietCount = 0, totalManual = 0;
 
-    for (const sh of shifts) {
-      totalWork += sh.work_minutes;
-      totalDriving += sh.driving_minutes;
-      totalBreak += sh.break_minutes;
-      totalAvail += sh.avail_minutes;
-      night25 += sh.night_25_minutes;
-      night40 += sh.night_40_minutes;
-      if (sh.has_diet) dietCount++;
+    for (const d of entries as any[]) {
+      totalWork += d.work_minutes || 0;
+      totalDriving += d.driving_minutes || 0;
+      totalBreak += d.break_minutes || 0;
+      totalAvail += d.avail_minutes || 0;
+      night25 += d.night_25_minutes || 0;
+      night40 += d.night_40_minutes || 0;
+      totalManual += d.manual_minutes || 0;
+      if (d.has_diet) dietCount++;
     }
 
     const totalNight = night25 + night40;
@@ -116,8 +125,10 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
       total_night_minutes: totalNight,
       diet_count: dietCount,
       total_shifts: shifts.length,
+      total_manual_hm: minutesToHm(totalManual),
+      total_manual_minutes: totalManual,
     };
-  }, [data.summary, shifts, dateFrom, dateTo]);
+  }, [data.summary, data.calendar_days, shifts, dateFrom, dateTo]);
 
   // VMA calculation
   const vma = useMemo(() => {
