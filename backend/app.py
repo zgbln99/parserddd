@@ -1354,18 +1354,7 @@ def detect_shifts(all_intervals, min_rest_hours=5):
         start, end, wt, manual = merged[i]
         dur_sec = (end - start).total_seconds()
 
-        # A single WORK or AVAIL interval longer than 6 hours recorded by the VU
-        # (card_present=True, manual=False) is almost certainly not real continuous
-        # work — driver forgot to switch to REST or left card in tachograph.
-        # Manual entries (card_present=False) are explicitly declared by the driver
-        # upon card reinsertion and should be trusted.
-        is_suspiciously_long = (
-            wt in (WORK, AVAILABILITY)
-            and dur_sec >= 6 * 3600
-            and not manual  # trust manual entries
-        )
-
-        if _is_rest_like_for_shift_split(wt) or is_suspiciously_long:
+        if _is_rest_like_for_shift_split(wt):
             rest_begin = start
             rest_end = end
             j = i + 1
