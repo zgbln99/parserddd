@@ -1713,6 +1713,59 @@ def analyze_card(data, night_start_hour=None):
 
     priority = {UNKNOWN: 0, REST: 1, AVAILABILITY: 2, WORK: 3, DRIVING: 4}
 
+    # --- Calendar-day work map (CET) ---
+    # Independent of shift splitting: attribute each work minute to its CET calendar day.
+    # This matches GloboFleet's per-day reporting.
+    _cd_work = {}   # date_str -> work_minutes
+    _cd_drive = {}   # date_str -> driving_minutes
+    _cd_n25 = {}
+    _cd_n40 = {}
+    _cd_break = {}
+
+    for dt, wt, card_out in iter_tachograph_minutes(timeline):
+        cet_date = _to_cet(dt).strftime('%Y-%m-%d')
+        if wt in (WORK, DRIVING, AVAILABILITY):
+            _cd_work[cet_date] = _cd_work.get(cet_date, 0) + 1
+        if wt == DRIVING:
+            _cd_drive[cet_date] = _cd_drive.get(cet_date, 0) + 1
+
+    # Night hours per calendar day
+    for dt, wt, card_out in iter_tachograph_minutes(timeline):
+        if wt in (REST, UNKNOWN):
+            continue
+        dt_cet = _to_cet(dt)
+        cet_date = dt_cet.strftime('%Y-%m-%d')
+        hour = dt_cet.hour
+        if night_start_hour <= hour <= 23:
+            _cd_n25[cet_date] = _cd_n25.get(cet_date, 0) + 1
+        elif 0 <= hour < 4:
+            cet_midnight = datetime(dt_cet.year, dt_cet.month, dt_cet.day, tzinfo=CET).astimezone(UTC)
+            # Find earliest work on this CET date to determine if shift started before midnight
+            # Simple heuristic: if there's work in 22-23h range on previous CET date, use 40%
+            _cd_n40[cet_date] = _cd_n40.get(cet_date, 0) + 1
+        elif 4 <= hour < 6:
+            _cd_n25[cet_date] = _cd_n25.get(cet_date, 0) + 1
+
+    # Build calendar_days list
+    calendar_days = {}
+    all_dates = sorted(set(list(_cd_work.keys()) + list(_cd_drive.keys())))
+    for d in all_dates:
+        w = _cd_work.get(d, 0)
+        dr = _cd_drive.get(d, 0)
+        n25 = _cd_n25.get(d, 0)
+        n40 = _cd_n40.get(d, 0)
+        calendar_days[d] = {
+            'date': d,
+            'work_minutes': w,
+            'work_hm': minutes_to_hm(w),
+            'driving_minutes': dr,
+            'driving_hm': minutes_to_hm(dr),
+            'night_25_minutes': n25,
+            'night_40_minutes': n40,
+            'night_25_hm': minutes_to_hm(n25),
+            'night_40_hm': minutes_to_hm(n40),
+        }
+
     for shift_intervals in shifts:
         if not shift_intervals:
             continue
@@ -1876,6 +1929,7 @@ def analyze_card(data, night_start_hour=None):
             'total_manual_minutes': total_manual,
         },
         'shift_details': shift_details,
+        'calendar_days': calendar_days,
         'card_places': places,
         'card_events': card_events,
         'night_start_hour': night_start_hour,

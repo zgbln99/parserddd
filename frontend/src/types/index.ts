@@ -107,11 +107,24 @@ export interface CardEvent {
   [key: string]: unknown;
 }
 
+export interface CalendarDayWork {
+  date: string;
+  work_minutes: number;
+  work_hm: string;
+  driving_minutes: number;
+  driving_hm: string;
+  night_25_minutes: number;
+  night_40_minutes: number;
+  night_25_hm: string;
+  night_40_hm: string;
+}
+
 export interface AnalysisResult {
   driver_info: DriverInfo;
   vehicles: { plate: string; first_use: string; last_use: string }[];
   summary: AnalysisSummary;
   shift_details: ShiftDetail[];
+  calendar_days?: Record<string, CalendarDayWork>;
   card_places?: CardPlace[];
   card_events?: CardEvent[];
   source_file?: string;

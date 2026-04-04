@@ -453,6 +453,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
             onSave={handleMonthlySave}
             savingMonthly={savingMonthly}
             vacationRanges={vacationRanges}
+            calendarDays={data.calendar_days}
           />
         </div>
       )}
@@ -886,6 +887,7 @@ function MonthlyGridCopy({
   onSave?: () => void;
   savingMonthly?: boolean;
   vacationRanges?: { von: string; bis: string; tage: number }[];
+  calendarDays?: Record<string, { work_minutes: number }>;
 }) {
   const { t } = useI18n();
   const [copied, setCopied] = useState(false);
@@ -896,17 +898,32 @@ function MonthlyGridCopy({
   const month = parseInt(refDate.slice(5, 7), 10) || (new Date().getMonth() + 1); // 1-indexed
   const daysInMonth = new Date(year, month, 0).getDate();
 
-  // Build a map: day number -> total duration minutes (including breaks) for that day
+  // Build a map: day number -> total work minutes for that CET calendar day.
+  // Prefer calendar_days (per-day attribution from timeline) over shift-based mapping.
   const dayWorkMap = useMemo(() => {
     const map: Record<number, number> = {};
-    for (const sh of shifts) {
-      const d = parseInt(sh.shift_date.slice(8, 10), 10);
-      if (!isNaN(d)) {
-        map[d] = (map[d] || 0) + sh.duration_minutes;
+    if (calendarDays) {
+      // Use accurate per-CET-day data from backend
+      const prefix = `${year}-${String(month).padStart(2, '0')}-`;
+      for (const [dateStr, info] of Object.entries(calendarDays)) {
+        if (dateStr.startsWith(prefix)) {
+          const d = parseInt(dateStr.slice(8, 10), 10);
+          if (!isNaN(d) && info.work_minutes > 0) {
+            map[d] = info.work_minutes;
+          }
+        }
+      }
+    } else {
+      // Fallback: shift-based attribution
+      for (const sh of shifts) {
+        const d = parseInt(sh.shift_date.slice(8, 10), 10);
+        if (!isNaN(d)) {
+          map[d] = (map[d] || 0) + sh.duration_minutes;
+        }
       }
     }
     return map;
-  }, [shifts]);
+  }, [shifts, calendarDays, year, month]);
 
   // Build set of vacation days from PDF ranges
   const vacationDaySet = useMemo(() => {
