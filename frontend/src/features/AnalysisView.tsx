@@ -877,6 +877,7 @@ function MonthlyGridCopy({
   onSave,
   savingMonthly,
   vacationRanges,
+  calendarDays,
 }: {
   shifts: ShiftDetail[];
   summary: Record<string, unknown>;
