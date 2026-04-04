@@ -1252,7 +1252,7 @@ def build_timeline(records):
         prev_s, prev_e, prev_wt, prev_m = cleaned[idx - 1]
         cur_s, cur_e, cur_wt, cur_m = cleaned[idx]
         dur_min = (cur_e - cur_s).total_seconds() / 60
-        if prev_wt == UNKNOWN and cur_wt == WORK and dur_min > 120:
+        if prev_wt == UNKNOWN and cur_wt == WORK and dur_min > 120 and not cur_m:
             cleaned[idx] = (cur_s, cur_e, UNKNOWN, True)
 
     return _validate_timeline(cleaned)
@@ -1354,10 +1354,16 @@ def detect_shifts(all_intervals, min_rest_hours=5):
         start, end, wt, manual = merged[i]
         dur_sec = (end - start).total_seconds()
 
-        # A single WORK or AVAIL interval longer than 6 hours is almost certainly
-        # not real continuous work — driver forgot to switch to REST or left card in.
-        # Treat as shift separator (same as rest).
-        is_suspiciously_long = wt in (WORK, AVAILABILITY) and dur_sec >= 6 * 3600
+        # A single WORK or AVAIL interval longer than 6 hours recorded by the VU
+        # (card_present=True, manual=False) is almost certainly not real continuous
+        # work — driver forgot to switch to REST or left card in tachograph.
+        # Manual entries (card_present=False) are explicitly declared by the driver
+        # upon card reinsertion and should be trusted.
+        is_suspiciously_long = (
+            wt in (WORK, AVAILABILITY)
+            and dur_sec >= 6 * 3600
+            and not manual  # trust manual entries
+        )
 
         if _is_rest_like_for_shift_split(wt) or is_suspiciously_long:
             rest_begin = start
