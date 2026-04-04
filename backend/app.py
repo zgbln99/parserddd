@@ -1713,57 +1713,92 @@ def analyze_card(data, night_start_hour=None):
 
     priority = {UNKNOWN: 0, REST: 1, AVAILABILITY: 2, WORK: 3, DRIVING: 4}
 
-    # --- Calendar-day work map (CET) ---
-    # Independent of shift splitting: attribute each work minute to its CET calendar day.
+    # --- Calendar-day metrics (CET) ---
+    # Independent of shift splitting: attribute each minute to its CET calendar day.
     # This matches GloboFleet's per-day reporting.
-    _cd_work = {}   # date_str -> work_minutes
-    _cd_drive = {}   # date_str -> driving_minutes
-    _cd_n25 = {}
-    _cd_n40 = {}
-    _cd_break = {}
+    from collections import defaultdict
+    _cd = defaultdict(lambda: {
+        'work': 0, 'driving': 0, 'work_only': 0, 'avail': 0,
+        'break': 0, 'manual': 0, 'n25': 0, 'n40': 0,
+        'first_work': None, 'last_work': None,
+    })
 
     for dt, wt, card_out in iter_tachograph_minutes(timeline):
-        cet_date = _to_cet(dt).strftime('%Y-%m-%d')
-        if wt in (WORK, DRIVING, AVAILABILITY):
-            _cd_work[cet_date] = _cd_work.get(cet_date, 0) + 1
-        if wt == DRIVING:
-            _cd_drive[cet_date] = _cd_drive.get(cet_date, 0) + 1
-
-    # Night hours per calendar day
-    for dt, wt, card_out in iter_tachograph_minutes(timeline):
-        if wt in (REST, UNKNOWN):
-            continue
         dt_cet = _to_cet(dt)
         cet_date = dt_cet.strftime('%Y-%m-%d')
-        hour = dt_cet.hour
-        if night_start_hour <= hour <= 23:
-            _cd_n25[cet_date] = _cd_n25.get(cet_date, 0) + 1
-        elif 0 <= hour < 4:
-            cet_midnight = datetime(dt_cet.year, dt_cet.month, dt_cet.day, tzinfo=CET).astimezone(UTC)
-            # Find earliest work on this CET date to determine if shift started before midnight
-            # Simple heuristic: if there's work in 22-23h range on previous CET date, use 40%
-            _cd_n40[cet_date] = _cd_n40.get(cet_date, 0) + 1
-        elif 4 <= hour < 6:
-            _cd_n25[cet_date] = _cd_n25.get(cet_date, 0) + 1
+        cd = _cd[cet_date]
 
-    # Build calendar_days list
+        if wt in (WORK, DRIVING, AVAILABILITY):
+            cd['work'] += 1
+            if cd['first_work'] is None:
+                cd['first_work'] = dt_cet
+            cd['last_work'] = dt_cet
+        if wt == DRIVING:
+            cd['driving'] += 1
+        if wt == WORK:
+            cd['work_only'] += 1
+        if wt == AVAILABILITY:
+            cd['avail'] += 1
+        if wt == REST and cd['first_work'] is not None:
+            cd['break'] += 1  # REST within work span
+        if card_out and wt in (WORK, DRIVING, AVAILABILITY):
+            cd['manual'] += 1
+
+        # Night hours
+        if wt not in (REST, UNKNOWN):
+            hour = dt_cet.hour
+            if night_start_hour <= hour <= 23:
+                cd['n25'] += 1
+            elif 0 <= hour < 4:
+                cd['n40'] += 1
+            elif 4 <= hour < 6:
+                cd['n25'] += 1
+
+    # Build calendar_days dict
+    weekday_names = ['Pn', 'Wt', 'Śr', 'Cz', 'Pt', 'So', 'Nd']
     calendar_days = {}
-    all_dates = sorted(set(list(_cd_work.keys()) + list(_cd_drive.keys())))
-    for d in all_dates:
-        w = _cd_work.get(d, 0)
-        dr = _cd_drive.get(d, 0)
-        n25 = _cd_n25.get(d, 0)
-        n40 = _cd_n40.get(d, 0)
+    for d in sorted(_cd.keys()):
+        cd = _cd[d]
+        if cd['work'] == 0 and cd['driving'] == 0:
+            continue
+        w = cd['work']
+        first = cd['first_work']
+        last = cd['last_work']
+        duration = 0
+        if first and last:
+            duration = int((last - first).total_seconds() / 60) + 1
+        # Break = REST minutes between first and last work
+        brk = cd['break']
+        parsed_date = parse_date_safe(d)
+        wd_idx = parsed_date.weekday() if parsed_date else 0
+        is_weekday = wd_idx < 5
+        has_diet = duration >= 480 and is_weekday
+
         calendar_days[d] = {
             'date': d,
+            'weekday': weekday_names[wd_idx] if parsed_date else '',
+            'shift_start': first.strftime('%Y-%m-%d %H:%M') if first else '',
+            'shift_end': (last + timedelta(minutes=1)).strftime('%Y-%m-%d %H:%M') if last else '',
+            'duration_minutes': duration,
+            'duration_hm': minutes_to_hm(duration),
             'work_minutes': w,
             'work_hm': minutes_to_hm(w),
-            'driving_minutes': dr,
-            'driving_hm': minutes_to_hm(dr),
-            'night_25_minutes': n25,
-            'night_40_minutes': n40,
-            'night_25_hm': minutes_to_hm(n25),
-            'night_40_hm': minutes_to_hm(n40),
+            'work_decimal': round(w / 60, 2),
+            'driving_minutes': cd['driving'],
+            'driving_hm': minutes_to_hm(cd['driving']),
+            'work_only_minutes': cd['work_only'],
+            'work_only_hm': minutes_to_hm(cd['work_only']),
+            'avail_minutes': cd['avail'],
+            'avail_hm': minutes_to_hm(cd['avail']),
+            'break_minutes': brk,
+            'break_hm': minutes_to_hm(brk),
+            'night_25_minutes': cd['n25'],
+            'night_25_hm': minutes_to_hm(cd['n25']),
+            'night_40_minutes': cd['n40'],
+            'night_40_hm': minutes_to_hm(cd['n40']),
+            'manual_minutes': cd['manual'],
+            'manual_hm': minutes_to_hm(cd['manual']),
+            'has_diet': has_diet,
         }
 
     for shift_intervals in shifts:
