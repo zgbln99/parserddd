@@ -635,101 +635,111 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
         </div>
       )}
 
-      {/* Calendar-day table (per CET day, like GloboFleet) */}
-      {data.calendar_days && Object.keys(data.calendar_days).length > 0 && (
+      {/* Shifts table */}
+      {shifts.length > 0 && (
         <>
-        {(() => {
-          const cd = data.calendar_days!;
-          const rows = Object.values(cd)
-            .filter((d: any) => {
-              if (dateFrom && d.date < dateFrom) return false;
-              if (dateTo && d.date > dateTo) return false;
-              return true;
-            })
-            .sort((a: any, b: any) => a.date.localeCompare(b.date));
-          return (
-          <>
-          {/* Mobile cards */}
-          <div className="block sm:hidden space-y-2">
-            {rows.map((d: any, i: number) => {
-              const isWeekend = d.weekday === 'So' || d.weekday === 'Nd';
-              const wd = localizeWeekday(d.weekday, locale);
-              return (
-                <div key={i} className={`rounded-xl border p-3 ${isWeekend ? 'border-border bg-rose-50/30 dark:bg-rose-900/10' : 'border-border bg-white/50 dark:bg-white/5'}`}>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className={`text-sm font-bold ${isWeekend ? 'text-danger' : ''}`}>{wd} {d.date?.slice(5)}</span>
-                    <span className="text-sm font-bold">{d.duration_hm}</span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-                    <span className="text-muted">{t('analysisStart')}</span>
-                    <span className="font-medium">{d.shift_start?.split(' ')[1] || d.shift_start}</span>
-                    <span className="text-muted">{t('analysisEnd')}</span>
-                    <span className="font-medium">{d.shift_end?.split(' ')[1] || d.shift_end}</span>
-                    <span className="text-muted">{t('analysisWork')}</span>
-                    <span>{d.work_hm}</span>
-                    <span className="text-muted">{t('analysisBreaks')}</span>
-                    <span>{d.break_hm}</span>
-                    {d.has_diet && <>
-                      <span className="text-muted">{t('analysisDiet')}</span>
-                      <Badge variant="green">{t('yes')}</Badge>
-                    </>}
-                  </div>
+        {/* Mobile shifts cards */}
+        <div className="block sm:hidden space-y-2">
+          {shifts.map((sh, i) => {
+            const isWeekend = sh.weekday === 'So' || sh.weekday === 'Nd';
+            const wd = localizeWeekday(sh.weekday, locale);
+            const hasErr = (sh as any).manual_errors?.length > 0;
+            return (
+              <div key={i} className={`rounded-xl border p-3 ${hasErr ? 'border-red-300 bg-red-50 dark:border-red-800 dark:bg-red-900/15' : isWeekend ? 'border-border bg-rose-50/30 dark:bg-rose-900/10' : 'border-border bg-white/50 dark:bg-white/5'}`}>
+                <div className="flex items-center justify-between mb-2">
+                  <span className={`text-sm font-bold ${isWeekend ? 'text-danger' : ''}`}>{wd} {sh.shift_date?.slice(5)}</span>
+                  <span className={`text-sm font-bold ${hasErr ? 'text-danger' : ''}`}>{sh.duration_hm}</span>
                 </div>
-              );
-            })}
-          </div>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                  <span className="text-muted">{t('analysisStart')}</span>
+                  <span className="font-medium text-emerald-600 dark:text-emerald-400">{sh.shift_start?.split(' ')[1] || sh.shift_start}</span>
+                  <span className="text-muted">{t('analysisEnd')}</span>
+                  <span className="font-medium text-danger dark:text-rose-400">{sh.shift_end?.split(' ')[1] || sh.shift_end}</span>
+                  <span className="text-muted">{t('analysisDriving')}</span>
+                  <span className="font-medium">{sh.driving_hm}</span>
+                  <span className="text-muted">{t('analysisWork')}</span>
+                  <span>{sh.work_only_hm}</span>
+                  <span className="text-muted">{t('analysisBreaks')}</span>
+                  <span>{sh.break_hm}</span>
+                  {sh.has_diet && <>
+                    <span className="text-muted">{t('analysisDiet')}</span>
+                    <Badge variant="green">{t('yes')}</Badge>
+                  </>}
+                  {sh.manual_minutes > 0 && <>
+                    <span className="text-muted">Manual</span>
+                    <Badge variant="yellow">{sh.manual_hm}</Badge>
+                  </>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
 
-          {/* Desktop table */}
-          <div className="hidden sm:block -mx-6 overflow-x-auto px-6">
-            <div className="rounded-xl border border-border">
-            <table className="w-full min-w-[900px] text-sm">
-              <thead>
-                <tr className="border-b border-border">
-                  {[t('analysisWeekday'), t('analysisStart'), t('analysisEnd'), t('analysisTime'),
-                    t('analysisDriving'), t('analysisWork'), t('analysisBreaks'),
-                    t('analysisNight25'), t('analysisNight40'), t('analysisDiet'), 'Manual',
-                  ].map((h) => (
-                    <th key={h} className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold text-muted">
-                      {h}
-                    </th>
-                  ))}
+        {/* Desktop shifts table */}
+        <div className="hidden sm:block -mx-6 overflow-x-auto px-6">
+          <div className="rounded-xl border border-border">
+          <table className="w-full min-w-[900px] text-sm">
+            <thead>
+              <tr className="border-b border-border">
+                {[t('analysisWeekday'), t('analysisStart'), t('analysisEnd'), t('analysisTime'), t('analysisVehicle'),
+                  t('analysisDriving'), t('analysisWork'), t('analysisBreaks'),
+                  t('analysisNight25'), t('analysisNight40'), t('analysisDiet'), 'Manual',
+                ].map((h) => (
+                  <th key={h} className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold text-muted">
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {shifts.map((sh, i) => {
+                const isWeekend = sh.weekday === 'So' || sh.weekday === 'Nd';
+                const wd = localizeWeekday(sh.weekday, locale);
+                const hasManualError = (sh as any).manual_errors?.length > 0;
+                const manualErrorTitle = hasManualError
+                  ? (sh as any).manual_errors.map((e: any) => `${e.declared_type}: ${e.start} → ${e.end} (${e.duration_minutes}min)`).join('\n')
+                  : '';
+                return (
+                <tr
+                  key={i}
+                  className={`hover:bg-surface ${
+                    hasManualError
+                      ? 'bg-red-50 dark:bg-red-900/15'
+                      : isWeekend
+                      ? 'bg-rose-50/40 dark:bg-rose-900/10'
+                      : ''
+                  }`}
+                  title={manualErrorTitle}
+                >
+                  <td className={`whitespace-nowrap px-3 py-2 font-bold ${isWeekend ? 'text-danger' : ''}`}>{wd}</td>
+                  <td className="whitespace-nowrap px-3 py-2 font-medium">{sh.shift_start}</td>
+                  <td className="whitespace-nowrap px-3 py-2 text-muted">{sh.shift_end}</td>
+                  <td className={`whitespace-nowrap px-3 py-2 font-bold ${hasManualError ? 'text-danger' : ''}`}>{sh.duration_hm}</td>
+                  <td className="whitespace-nowrap px-3 py-2 text-muted">{sh.vehicles.join(', ')}</td>
+                  <td className="whitespace-nowrap px-3 py-2">{sh.driving_hm}</td>
+                  <td className="whitespace-nowrap px-3 py-2">{sh.work_only_hm}</td>
+                  <td className="whitespace-nowrap px-3 py-2">{sh.break_hm}</td>
+                  <td className="whitespace-nowrap px-3 py-2">{fmtNight(sh.night_25_minutes, sh.night_25_hm)}</td>
+                  <td className="whitespace-nowrap px-3 py-2">{fmtNight(sh.night_40_minutes, sh.night_40_hm)}</td>
+                  <td className="whitespace-nowrap px-3 py-2">
+                    {sh.has_diet
+                      ? <Badge variant="green">{t('yes')}</Badge>
+                      : <span className="text-muted">{t('no')}</span>}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2">
+                    {hasManualError
+                      ? <Badge variant="red">{sh.manual_hm || 'ERR'}</Badge>
+                      : sh.manual_minutes > 0
+                      ? <Badge variant="yellow">{sh.manual_hm}</Badge>
+                      : <span className="text-muted">-</span>}
+                  </td>
                 </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {rows.map((d: any, i: number) => {
-                  const isWeekend = d.weekday === 'So' || d.weekday === 'Nd';
-                  const wd = localizeWeekday(d.weekday, locale);
-                  return (
-                  <tr key={i} className={`hover:bg-surface ${isWeekend ? 'bg-rose-50/40 dark:bg-rose-900/10' : ''}`}>
-                    <td className={`whitespace-nowrap px-3 py-2 font-bold ${isWeekend ? 'text-danger' : ''}`}>{wd}</td>
-                    <td className="whitespace-nowrap px-3 py-2 font-medium">{d.shift_start}</td>
-                    <td className="whitespace-nowrap px-3 py-2 text-muted">{d.shift_end}</td>
-                    <td className="whitespace-nowrap px-3 py-2 font-bold">{d.duration_hm}</td>
-                    <td className="whitespace-nowrap px-3 py-2">{d.driving_hm}</td>
-                    <td className="whitespace-nowrap px-3 py-2">{d.work_hm}</td>
-                    <td className="whitespace-nowrap px-3 py-2">{d.break_hm}</td>
-                    <td className="whitespace-nowrap px-3 py-2">{fmtNight(d.night_25_minutes, d.night_25_hm)}</td>
-                    <td className="whitespace-nowrap px-3 py-2">{fmtNight(d.night_40_minutes, d.night_40_hm)}</td>
-                    <td className="whitespace-nowrap px-3 py-2">
-                      {d.has_diet
-                        ? <Badge variant="green">{t('yes')}</Badge>
-                        : <span className="text-muted">{t('no')}</span>}
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-2">
-                      {d.manual_minutes > 0
-                        ? <Badge variant="yellow">{d.manual_hm}</Badge>
-                        : <span className="text-muted">-</span>}
-                    </td>
-                  </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-            </div>
+                );
+              })}
+            </tbody>
+          </table>
           </div>
-          </>
-          );
-        })()}
+        </div>
         </>
       )}
 
