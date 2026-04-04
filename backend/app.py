@@ -1334,12 +1334,12 @@ def fill_timeline_gaps(intervals):
 def detect_shifts(all_intervals, min_rest_hours=5):
     """Split a continuous timeline into driver shifts (BUSINESS HEURISTIC).
 
-    Shift-splitting rules:
-    - A new shift begins after any REST or UNKNOWN period >= *min_rest_hours* (default 5h).
-      Even if the driver violated the 9h minimum rest rule, we still split —
-      the short rest is the driver's error, not inflated work time.
-    - A single WORK/AVAIL interval > 6 hours is treated as a separator
-      (driver forgot to switch to REST or left card in tachograph).
+    Shift-splitting rules (matching GloboFleet behavior):
+    - A new shift begins after any REST or UNKNOWN period >= *min_rest_hours* (default 5h)
+      BUT ONLY IF the rest starts on a different CET calendar day than the current shift's
+      first work activity. Intra-day rests (even >5h) do NOT split the shift.
+    - This matches GloboFleet which treats long intra-day breaks as part of the shift
+      (e.g. driver works 05:24-07:19, rests 10h, works 18:10-19:45 = one 14:21 shift).
     """
     if not all_intervals:
         return []
@@ -1348,11 +1348,15 @@ def detect_shifts(all_intervals, min_rest_hours=5):
     min_rest_sec = min_rest_hours * 3600
     shifts = []
     current = []
+    current_shift_start_cet_date = None  # CET date of first work in current shift
 
     i = 0
     while i < len(merged):
         start, end, wt, manual = merged[i]
-        dur_sec = (end - start).total_seconds()
+
+        # Track the CET date of the first work activity in current shift
+        if wt not in (REST, UNKNOWN) and current_shift_start_cet_date is None:
+            current_shift_start_cet_date = _to_cet(start).date()
 
         if _is_rest_like_for_shift_split(wt):
             rest_begin = start
@@ -1370,11 +1374,22 @@ def detect_shifts(all_intervals, min_rest_hours=5):
 
             effective_rest = (rest_end - rest_begin).total_seconds()
             if effective_rest >= min_rest_sec:
-                if current:
-                    shifts.append(current)
-                    current = []
-                i = j
-                continue
+                # Only split if the rest crosses into a different CET day than the shift start.
+                # Intra-day rests (start and end on same CET day as shift) stay part of shift.
+                rest_begin_cet_date = _to_cet(rest_begin).date()
+                rest_end_cet_date = _to_cet(rest_end).date()
+                should_split = (
+                    current_shift_start_cet_date is None  # no work yet → split (leading rest)
+                    or rest_begin_cet_date != current_shift_start_cet_date  # rest starts on different day
+                    or rest_end_cet_date != current_shift_start_cet_date    # rest ends on different day
+                )
+                if should_split:
+                    if current:
+                        shifts.append(current)
+                        current = []
+                    current_shift_start_cet_date = None
+                    i = j
+                    continue
 
         current.append(merged[i])
         i += 1
