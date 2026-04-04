@@ -979,12 +979,35 @@ function MonthlyGridCopy({
     return wdNames[dt.getDay()];
   });
 
-  // Summary values
-  const s = summary;
-  const n25 = ((s.night_25_minutes as number) / 60).toFixed(2).replace('.', ',');
-  const n40 = ((s.night_40_minutes as number) / 60).toFixed(2).replace('.', ',');
-  const vma = String(s.diet_count ?? 0);
-  const azMin = s.total_work_minutes as number;
+  // Summary values — calculated from calendarDays for this month (most accurate)
+  const gridSummary = useMemo(() => {
+    let work = 0, n25m = 0, n40m = 0, diets = 0;
+    if (calendarDays) {
+      const prefix = `${year}-${String(month).padStart(2, '0')}-`;
+      for (const [dateStr, info] of Object.entries(calendarDays)) {
+        if (!dateStr.startsWith(prefix)) continue;
+        const d = parseInt(dateStr.slice(8, 10), 10);
+        const absence = absenceDays[String(d)];
+        if (absence) continue; // don't count Ur/Kr days
+        work += (info as any).work_minutes || 0;
+        n25m += (info as any).night_25_minutes || 0;
+        n40m += (info as any).night_40_minutes || 0;
+        if ((info as any).has_diet) diets++;
+      }
+    } else {
+      // Fallback to shift-based
+      work = (summary.total_work_minutes as number) || 0;
+      n25m = (summary.night_25_minutes as number) || 0;
+      n40m = (summary.night_40_minutes as number) || 0;
+      diets = (summary.diet_count as number) || 0;
+    }
+    return { work, n25m, n40m, diets };
+  }, [calendarDays, summary, absenceDays, year, month]);
+
+  const n25 = (gridSummary.n25m / 60).toFixed(2).replace('.', ',');
+  const n40 = (gridSummary.n40m / 60).toFixed(2).replace('.', ',');
+  const vma = String(gridSummary.diets);
+  const azMin = gridSummary.work;
   const az = `${Math.floor(azMin / 60)}:${String(azMin % 60).padStart(2, '0')}`;
 
   // Count Ur/Kr from merged absenceDays (includes vacation from PDF)
