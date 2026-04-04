@@ -76,30 +76,22 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
     });
   }, [allShifts, dateFrom, dateTo]);
 
-  // Recalculate summary based on calendar_days (per CET day) filtered by date range
+  // Recalculate summary based on filtered shifts
   const s = useMemo(() => {
-    const cd = data.calendar_days;
-    if (!cd) return data.summary;
-
-    // Filter calendar_days by date range
-    const entries = Object.values(cd).filter((d: any) => {
-      if (dateFrom && d.date < dateFrom) return false;
-      if (dateTo && d.date > dateTo) return false;
-      return true;
-    });
+    if (!dateFrom && !dateTo) return data.summary;
 
     let totalWork = 0, totalDriving = 0, totalBreak = 0, totalAvail = 0;
     let night25 = 0, night40 = 0, dietCount = 0, totalManual = 0;
 
-    for (const d of entries as any[]) {
-      totalWork += d.work_minutes || 0;
-      totalDriving += d.driving_minutes || 0;
-      totalBreak += d.break_minutes || 0;
-      totalAvail += d.avail_minutes || 0;
-      night25 += d.night_25_minutes || 0;
-      night40 += d.night_40_minutes || 0;
-      totalManual += d.manual_minutes || 0;
-      if (d.has_diet) dietCount++;
+    for (const sh of shifts) {
+      totalWork += sh.work_minutes;
+      totalDriving += sh.driving_minutes;
+      totalBreak += sh.break_minutes;
+      totalAvail += sh.avail_minutes;
+      night25 += sh.night_25_minutes;
+      night40 += sh.night_40_minutes;
+      totalManual += sh.manual_minutes || 0;
+      if (sh.has_diet) dietCount++;
     }
 
     const totalNight = night25 + night40;
@@ -128,7 +120,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
       total_manual_hm: minutesToHm(totalManual),
       total_manual_minutes: totalManual,
     };
-  }, [data.summary, data.calendar_days, shifts, dateFrom, dateTo]);
+  }, [data.summary, shifts, dateFrom, dateTo]);
 
   // VMA calculation
   const vma = useMemo(() => {
@@ -910,32 +902,17 @@ function MonthlyGridCopy({
   const month = parseInt(refDate.slice(5, 7), 10) || (new Date().getMonth() + 1); // 1-indexed
   const daysInMonth = new Date(year, month, 0).getDate();
 
-  // Build a map: day number -> total work minutes for that CET calendar day.
-  // Prefer calendar_days (per-day attribution from timeline) over shift-based mapping.
+  // Build a map: day number -> total duration minutes for that day (from shifts)
   const dayWorkMap = useMemo(() => {
     const map: Record<number, number> = {};
-    if (calendarDays) {
-      // Use accurate per-CET-day data from backend
-      const prefix = `${year}-${String(month).padStart(2, '0')}-`;
-      for (const [dateStr, info] of Object.entries(calendarDays)) {
-        if (dateStr.startsWith(prefix)) {
-          const d = parseInt(dateStr.slice(8, 10), 10);
-          if (!isNaN(d) && info.work_minutes > 0) {
-            map[d] = info.work_minutes;
-          }
-        }
-      }
-    } else {
-      // Fallback: shift-based attribution
-      for (const sh of shifts) {
-        const d = parseInt(sh.shift_date.slice(8, 10), 10);
-        if (!isNaN(d)) {
-          map[d] = (map[d] || 0) + sh.duration_minutes;
-        }
+    for (const sh of shifts) {
+      const d = parseInt(sh.shift_date.slice(8, 10), 10);
+      if (!isNaN(d)) {
+        map[d] = (map[d] || 0) + sh.duration_minutes;
       }
     }
     return map;
-  }, [shifts, calendarDays, year, month]);
+  }, [shifts]);
 
   // Build set of vacation days from PDF ranges
   const vacationDaySet = useMemo(() => {
@@ -979,35 +956,12 @@ function MonthlyGridCopy({
     return wdNames[dt.getDay()];
   });
 
-  // Summary values — calculated from calendarDays for this month (most accurate)
-  const gridSummary = useMemo(() => {
-    let work = 0, n25m = 0, n40m = 0, diets = 0;
-    if (calendarDays) {
-      const prefix = `${year}-${String(month).padStart(2, '0')}-`;
-      for (const [dateStr, info] of Object.entries(calendarDays)) {
-        if (!dateStr.startsWith(prefix)) continue;
-        const d = parseInt(dateStr.slice(8, 10), 10);
-        const absence = absenceDays[String(d)];
-        if (absence) continue; // don't count Ur/Kr days
-        work += (info as any).work_minutes || 0;
-        n25m += (info as any).night_25_minutes || 0;
-        n40m += (info as any).night_40_minutes || 0;
-        if ((info as any).has_diet) diets++;
-      }
-    } else {
-      // Fallback to shift-based
-      work = (summary.total_work_minutes as number) || 0;
-      n25m = (summary.night_25_minutes as number) || 0;
-      n40m = (summary.night_40_minutes as number) || 0;
-      diets = (summary.diet_count as number) || 0;
-    }
-    return { work, n25m, n40m, diets };
-  }, [calendarDays, summary, absenceDays, year, month]);
-
-  const n25 = (gridSummary.n25m / 60).toFixed(2).replace('.', ',');
-  const n40 = (gridSummary.n40m / 60).toFixed(2).replace('.', ',');
-  const vma = String(gridSummary.diets);
-  const azMin = gridSummary.work;
+  // Summary values from summary prop (recalculated in parent from shifts)
+  const s = summary;
+  const n25 = ((s.night_25_minutes as number) / 60).toFixed(2).replace('.', ',');
+  const n40 = ((s.night_40_minutes as number) / 60).toFixed(2).replace('.', ',');
+  const vma = String(s.diet_count ?? 0);
+  const azMin = s.total_work_minutes as number;
   const az = `${Math.floor(azMin / 60)}:${String(azMin % 60).padStart(2, '0')}`;
 
   // Count Ur/Kr from merged absenceDays (includes vacation from PDF)
