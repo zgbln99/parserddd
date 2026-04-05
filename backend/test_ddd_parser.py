@@ -25,6 +25,7 @@ sys.modules['requests'] = unittest.mock.MagicMock()
 from app import (
     build_timeline, detect_shifts, calculate_shift_night_hours,
     fill_timeline_gaps, _merge_cross_day_intervals,
+    iter_tachograph_minutes,
     REST, AVAILABILITY, WORK, DRIVING, UNKNOWN,
 )
 
@@ -118,12 +119,19 @@ class TestBuildTimeline(unittest.TestCase):
 class TestDetectShifts(unittest.TestCase):
 
     def test_long_rest_splits_shift(self):
-        """9h+ rest splits into two shifts."""
-        base = datetime(2026, 3, 2, tzinfo=UTC)
+        """9h+ rest crossing CET day boundary splits into two shifts.
+
+        Intra-day rests do NOT split (GloboFleet behavior).
+        The rest must cross into a different CET calendar day to trigger a split.
+        """
+        # Day 1: driving 16:00-23:00 UTC (17:00-00:00 CET)
+        # Rest: 23:00 UTC Mar 2 -> 09:00 UTC Mar 3 (10h, crosses to CET Mar 3)
+        # Day 2: driving 09:00-15:00 UTC (10:00-16:00 CET)
+        base = datetime(2026, 3, 2, 16, 0, tzinfo=UTC)
         intervals = [
-            (base, base + timedelta(hours=8), DRIVING, False),
-            (base + timedelta(hours=8), base + timedelta(hours=18), REST, False),  # 10h rest
-            (base + timedelta(hours=18), base + timedelta(hours=24), DRIVING, False),
+            (base, base + timedelta(hours=7), DRIVING, False),
+            (base + timedelta(hours=7), base + timedelta(hours=17), REST, False),  # 10h rest
+            (base + timedelta(hours=17), base + timedelta(hours=23), DRIVING, False),
         ]
         shifts = detect_shifts(intervals, min_rest_hours=9)
         self.assertEqual(len(shifts), 2)
@@ -139,27 +147,36 @@ class TestDetectShifts(unittest.TestCase):
         shifts = detect_shifts(intervals, min_rest_hours=9)
         self.assertEqual(len(shifts), 1)
 
-    def test_blip_during_rest(self):
-        """A 2-minute blip during rest should not break the rest period."""
-        base = datetime(2026, 3, 2, tzinfo=UTC)
+    def test_blip_during_rest_breaks_chain(self):
+        """A 2-minute WORK blip during rest breaks the contiguous rest chain.
+
+        detect_shifts only merges adjacent REST/UNKNOWN intervals.
+        A WORK blip is treated as real activity, splitting the rest into
+        two separate blocks — neither of which reaches the 9h threshold alone.
+        This matches GloboFleet behavior.
+        """
+        base = datetime(2026, 3, 2, 18, 0, tzinfo=UTC)
         intervals = [
-            (base, base + timedelta(hours=6), DRIVING, False),
-            (base + timedelta(hours=6), base + timedelta(hours=11), REST, False),
-            (base + timedelta(hours=11), base + timedelta(hours=11, minutes=2), WORK, False),  # blip
-            (base + timedelta(hours=11, minutes=2), base + timedelta(hours=16), REST, False),
-            (base + timedelta(hours=16), base + timedelta(hours=22), DRIVING, False),
+            (base, base + timedelta(hours=4), DRIVING, False),
+            (base + timedelta(hours=4), base + timedelta(hours=9), REST, False),        # 5h rest
+            (base + timedelta(hours=9), base + timedelta(hours=9, minutes=2), WORK, False),  # blip
+            (base + timedelta(hours=9, minutes=2), base + timedelta(hours=14), REST, False),  # ~5h rest
+            (base + timedelta(hours=14), base + timedelta(hours=20), DRIVING, False),
         ]
         shifts = detect_shifts(intervals, min_rest_hours=9)
-        # 5h + blip + 5h = ~10h total rest, should split
-        self.assertEqual(len(shifts), 2)
+        # Blip breaks the rest chain: 5h and ~5h, neither >= 9h → no split
+        self.assertEqual(len(shifts), 1)
 
     def test_unknown_gap_counts_as_rest(self):
-        """UNKNOWN gaps should count as rest for shift splitting."""
-        base = datetime(2026, 3, 2, tzinfo=UTC)
+        """UNKNOWN gaps crossing CET day boundary should count as rest for shift splitting."""
+        # Day 1: driving 16:00-22:00 UTC (17:00-23:00 CET Mar 2)
+        # UNKNOWN: 22:00 UTC Mar 2 -> 10:00 UTC Mar 3 (12h, crosses to CET Mar 3)
+        # Day 2: driving 10:00-14:00 UTC Mar 3
+        base = datetime(2026, 3, 2, 16, 0, tzinfo=UTC)
         intervals = [
-            (base, base + timedelta(hours=8), DRIVING, False),
-            (base + timedelta(hours=8), base + timedelta(hours=20), UNKNOWN, True),  # 12h unknown
-            (base + timedelta(hours=20), base + timedelta(hours=24), DRIVING, False),
+            (base, base + timedelta(hours=6), DRIVING, False),
+            (base + timedelta(hours=6), base + timedelta(hours=18), UNKNOWN, True),  # 12h unknown
+            (base + timedelta(hours=18), base + timedelta(hours=22), DRIVING, False),
         ]
         shifts = detect_shifts(intervals, min_rest_hours=9)
         self.assertEqual(len(shifts), 2)
@@ -167,11 +184,20 @@ class TestDetectShifts(unittest.TestCase):
 
 class TestNightHours(unittest.TestCase):
 
+    @staticmethod
+    def _intervals_to_buckets(intervals):
+        """Convert interval list to minute_buckets dict for calculate_shift_night_hours."""
+        buckets = {}
+        for dt, wt, card_out in iter_tachograph_minutes(intervals):
+            buckets[dt] = (wt, card_out)
+        return buckets
+
     def test_daytime_no_night(self):
         """Work entirely in daytime = 0 night hours."""
         base = datetime(2026, 3, 2, 7, 0, tzinfo=UTC)  # 08:00 CET
         intervals = [(base, base + timedelta(hours=8), DRIVING, False)]
-        n25, n40 = calculate_shift_night_hours(intervals, base, night_start_hour=22)
+        buckets = self._intervals_to_buckets(intervals)
+        n25, n40 = calculate_shift_night_hours(buckets, base, night_start_hour=22)
         self.assertEqual(n25, 0)
         self.assertEqual(n40, 0)
 
@@ -181,7 +207,8 @@ class TestNightHours(unittest.TestCase):
         base = datetime(2026, 3, 2, 21, 0, tzinfo=UTC)
         end = datetime(2026, 3, 2, 23, 0, tzinfo=UTC)  # 00:00 CET
         intervals = [(base, end, DRIVING, False)]
-        n25, n40 = calculate_shift_night_hours(intervals, base, night_start_hour=22)
+        buckets = self._intervals_to_buckets(intervals)
+        n25, n40 = calculate_shift_night_hours(buckets, base, night_start_hour=22)
         self.assertEqual(n25, 120)  # 2 hours
         self.assertEqual(n40, 0)
 
@@ -189,7 +216,8 @@ class TestNightHours(unittest.TestCase):
         """UNKNOWN intervals should not count toward night hours."""
         base = datetime(2026, 3, 2, 21, 0, tzinfo=UTC)
         intervals = [(base, base + timedelta(hours=6), UNKNOWN, True)]
-        n25, n40 = calculate_shift_night_hours(intervals, base, night_start_hour=22)
+        buckets = self._intervals_to_buckets(intervals)
+        n25, n40 = calculate_shift_night_hours(buckets, base, night_start_hour=22)
         self.assertEqual(n25, 0)
         self.assertEqual(n40, 0)
 
@@ -236,17 +264,22 @@ class TestMergeIntervals(unittest.TestCase):
 class TestUnknownHandling(unittest.TestCase):
     """Tests for UNKNOWN state correctness (fixes 1-5)."""
 
-    def test_missing_minute_0_fills_unknown(self):
-        """A: First entry at minute 137 → minutes 0..136 must be UNKNOWN."""
+    def test_missing_minute_0_fills_rest_in_globofleet_mode(self):
+        """A: First entry at minute 137 → minutes 0..136 are REST/manual in Globofleet strict mode.
+
+        STRICT_GLOBOFLEET_MODE=True treats missing minute-0 as REST (card_out=True)
+        for compatibility with GloboFleet software.
+        """
         rec = make_day('2026-03-02', [
             make_change(137, DRIVING, card_present=True),
             make_change(600, REST),
         ])
         intervals = build_timeline([rec])
-        # First interval should be UNKNOWN from 00:00 to 02:17 UTC
+        # First interval should be REST (Globofleet compat) from 00:00 to 02:17 UTC
         first = intervals[0]
-        self.assertEqual(first[2], UNKNOWN, 'Missing minute 0 should produce UNKNOWN, not REST')
-        self.assertTrue(first[3])  # card_out=True
+        self.assertEqual(first[2], REST,
+                         'Missing minute 0 should produce REST in STRICT_GLOBOFLEET_MODE')
+        self.assertTrue(first[3])  # card_out=True (manual entry)
         dur = int((first[1] - first[0]).total_seconds()) // 60
         self.assertEqual(dur, 137)
 

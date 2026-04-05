@@ -12,12 +12,5 @@ def register_blueprints(app):
     Blueprints are imported inside the function to avoid circular imports
     (they may import from extensions, config, core — but not from app).
     """
-    # Placeholder — blueprints will be added as we migrate routes.
-    # Example (uncomment as each module is created):
-    #
-    # from .drivers import bp as drivers_bp
-    # app.register_blueprint(drivers_bp)
-    #
-    # from .auth import bp as auth_bp
-    # app.register_blueprint(auth_bp)
-    pass
+    from .drivers import bp as drivers_bp
+    app.register_blueprint(drivers_bp)
