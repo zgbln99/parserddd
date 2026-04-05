@@ -194,6 +194,7 @@ from core.parsers import parse_ddd_file, parse_ddd_file_tachograph_go, parse_ddd
 # Extractors
 from core.extractors import get_driver_info, get_activity_records  # noqa: E402, F401
 from core.extractors import get_card_places, get_card_events, get_vehicle_records  # noqa: E402, F401
+from core.extractors import merge_daily_activity_records  # noqa: E402, F401
 
 # Timeline
 from core.timeline import build_timeline, merge_intervals, fill_timeline_gaps  # noqa: E402, F401

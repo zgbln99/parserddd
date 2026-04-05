@@ -8,9 +8,150 @@ and vehicle records from the tachoparser/tachograph-go output format.
 import json
 import logging
 
-from .constants import REST, AVAILABILITY, WORK, DRIVING
+from .constants import REST, AVAILABILITY, WORK, DRIVING, UNKNOWN
 
 logger = logging.getLogger('ddd-reader')
+
+# ---------------------------------------------------------------------------
+# Priority ranking for minute-level merge of same-day activity records.
+# Higher tuple = wins when two records cover the same minute.
+# ---------------------------------------------------------------------------
+
+_WORK_TYPE_PRIORITY = {
+    DRIVING: 4,
+    WORK: 3,
+    AVAILABILITY: 2,
+    REST: 1,
+    UNKNOWN: 0,
+}
+
+
+def _minute_priority(work_type, card_present):
+    """Return a comparison tuple for a single minute's state.
+
+    Ranking (highest wins):
+      1. card_present=True  >  card_present=False
+      2. real activity       >  UNKNOWN
+      3. DRIVING > WORK > AVAILABILITY > REST > UNKNOWN
+    """
+    return (
+        1 if card_present else 0,
+        1 if work_type != UNKNOWN else 0,
+        _WORK_TYPE_PRIORITY.get(work_type, 0),
+    )
+
+
+def _expand_changes_to_minutes(changes):
+    """Expand a sparse activity_change_info list into a 1440-element array.
+
+    Each element is ``(work_type, card_present)``.
+    Minutes before the first change entry are filled as ``(UNKNOWN, False)``.
+    """
+    minutes = [(UNKNOWN, False)] * 1440
+    if not changes:
+        return minutes
+
+    sorted_changes = sorted(changes, key=lambda c: c.get('minutes', 0))
+    for idx, ch in enumerate(sorted_changes):
+        start = max(0, min(int(ch.get('minutes', 0)), 1439))
+        end = (
+            max(0, min(int(sorted_changes[idx + 1].get('minutes', 0)), 1440))
+            if idx + 1 < len(sorted_changes)
+            else 1440
+        )
+        wt = ch.get('work_type', UNKNOWN)
+        cp = ch.get('card_present', False)
+        if not isinstance(cp, bool):
+            cp = False
+        for m in range(start, end):
+            minutes[m] = (wt, cp)
+    return minutes
+
+
+def _minutes_to_changes(minutes):
+    """Compress a 1440-element minute array back to activity_change_info.
+
+    Only emits an entry when the state actually changes (or at minute 0).
+    """
+    changes = []
+    prev = None
+    for m, state in enumerate(minutes):
+        if state != prev:
+            wt, cp = state
+            changes.append({
+                'minutes': m,
+                'work_type': wt,
+                'card_present': cp,
+            })
+            prev = state
+    return changes
+
+
+def merge_daily_activity_records(records_for_same_day):
+    """Merge multiple activity records for the same day into one.
+
+    For each minute 0..1439, picks the state with the highest priority
+    across all input records.  Priority: card_present=True > False,
+    real activity > UNKNOWN, DRIVING > WORK > AVAILABILITY > REST > UNKNOWN.
+
+    Returns a single record dict with merged ``activity_change_info``.
+    """
+    if not records_for_same_day:
+        return None
+    if len(records_for_same_day) == 1:
+        return records_for_same_day[0]
+
+    date_str = records_for_same_day[0].get('activity_record_date', '')
+
+    # Expand each record to 1440-minute arrays
+    all_minute_arrays = []
+    for rec in records_for_same_day:
+        changes = rec.get('activity_change_info') or []
+        all_minute_arrays.append(_expand_changes_to_minutes(changes))
+
+    total_changes_before = sum(
+        len(rec.get('activity_change_info') or []) for rec in records_for_same_day
+    )
+
+    # Merge: for each minute pick best state across all records
+    merged_minutes = [(UNKNOWN, False)] * 1440
+    conflict_count = 0
+
+    for m in range(1440):
+        best_state = (UNKNOWN, False)
+        best_prio = _minute_priority(UNKNOWN, False)
+        states_at_m = set()
+
+        for arr in all_minute_arrays:
+            wt, cp = arr[m]
+            states_at_m.add((wt, cp))
+            prio = _minute_priority(wt, cp)
+            if prio > best_prio:
+                best_prio = prio
+                best_state = (wt, cp)
+
+        merged_minutes[m] = best_state
+
+        # Count conflicts where manual was overridden by card_present=True
+        if len(states_at_m) > 1:
+            has_card_true = any(cp for _, cp in states_at_m)
+            has_card_false = any(not cp for _, cp in states_at_m)
+            if has_card_true and has_card_false:
+                conflict_count += 1
+
+    merged_changes = _minutes_to_changes(merged_minutes)
+
+    logger.info(
+        "Merged %d daily activity records for %s: "
+        "%d total change entries before → %d after merge, %d manual-vs-card conflicts",
+        len(records_for_same_day), date_str,
+        total_changes_before, len(merged_changes), conflict_count,
+    )
+
+    # Build merged record, preserving any extra fields from the first record
+    merged_record = dict(records_for_same_day[0])
+    merged_record['activity_change_info'] = merged_changes
+    return merged_record
 
 
 def get_driver_info(data):
@@ -74,41 +215,8 @@ def get_activity_records(data):
             })
         return norm
 
-    def _is_full_rest_day(rec):
-        changes = rec.get('activity_change_info') or []
-        if not changes:
-            return False
-
-        work_like = 0
-        for ch in changes:
-            wt = ch.get('work_type')
-            if wt in (AVAILABILITY, WORK, DRIVING):
-                work_like += 1
-
-        return work_like == 0
-
-    def _count_work_like_minutes(rec):
-        changes = rec.get('activity_change_info') or []
-        if not changes:
-            return 0
-
-        sorted_changes = sorted(changes, key=lambda c: c.get('minutes', 0))
-        total = 0
-
-        for i, ch in enumerate(sorted_changes):
-            start_min = ch.get('minutes', 0)
-            wt = ch.get('work_type')
-
-            if i + 1 < len(sorted_changes):
-                end_min = sorted_changes[i + 1].get('minutes', 1440)
-            else:
-                end_min = 1440
-
-            if wt in (AVAILABILITY, WORK, DRIVING):
-                total += max(0, end_min - start_min)
-        return total
-
-    by_date = {}
+    # Group candidates by date, dedup identical records, then merge
+    by_date = {}  # date -> list of (signature, normalized_record)
 
     for rec in candidates:
         day = rec.get('activity_record_date', '')
@@ -119,65 +227,35 @@ def get_activity_records(data):
         sig = json.dumps(changes, sort_keys=True, ensure_ascii=False)
 
         if day not in by_date:
-            by_date[day] = {
-                'record': rec,
-                'signature': sig,
-                'change_count': len(changes),
-                'card_present_true_count': sum(1 for ch in changes if ch.get('card_present') is True),
-            }
-            continue
+            by_date[day] = []
 
-        prev = by_date[day]
-
-        if prev['signature'] == sig:
+        # Skip exact duplicates (identical activity_change_info)
+        existing_sigs = {s for s, _ in by_date[day]}
+        if sig in existing_sigs:
             logger.warning("Duplicate identical daily activity record skipped for %s", day)
             continue
 
-        new_change_count = len(changes)
-        new_card_present_true_count = sum(1 for ch in changes if ch.get('card_present') is True)
-        prev_is_full_rest = _is_full_rest_day(prev['record'])
-        new_is_full_rest = _is_full_rest_day(rec)
-        prev_work_like = _count_work_like_minutes(prev['record'])
-        new_work_like = _count_work_like_minutes(rec)
+        # Store normalized changes back into a copy of the record
+        rec_copy = dict(rec)
+        rec_copy['activity_change_info'] = changes
+        by_date[day].append((sig, rec_copy))
 
-        replace = False
-        decision_reason = "kept existing by default"
+    # Merge records per day
+    result = []
+    for day in sorted(by_date.keys()):
+        day_records = [rec for _, rec in by_date[day]]
+        if len(day_records) > 1:
+            logger.info(
+                "Merging %d daily activity records for %s",
+                len(day_records), day,
+            )
+            merged = merge_daily_activity_records(day_records)
+        else:
+            merged = day_records[0]
+        if merged:
+            result.append(merged)
 
-        if prev_is_full_rest and not new_is_full_rest:
-            replace = True
-            decision_reason = "existing is full rest day, new has real activity"
-        elif new_is_full_rest and not prev_is_full_rest:
-            replace = False
-            decision_reason = "new is full rest day, existing has real activity"
-        elif new_work_like > prev_work_like:
-            replace = True
-            decision_reason = "new has more work-like minutes"
-        elif new_work_like < prev_work_like:
-            replace = False
-            decision_reason = "existing has more work-like minutes"
-        elif new_change_count > prev['change_count']:
-            replace = True
-            decision_reason = "new has more activity changes"
-        elif new_change_count == prev['change_count'] and new_card_present_true_count > prev['card_present_true_count']:
-            replace = True
-            decision_reason = "new has more card_present=True changes"
-
-        logger.warning(
-            "Conflicting daily activity records for %s; keeping %s record (%s)",
-            day,
-            "newer/better" if replace else "existing",
-            decision_reason,
-        )
-
-        if replace:
-            by_date[day] = {
-                'record': rec,
-                'signature': sig,
-                'change_count': new_change_count,
-                'card_present_true_count': new_card_present_true_count,
-            }
-
-    return [v['record'] for _, v in sorted(by_date.items(), key=lambda kv: kv[0])]
+    return result
 
 
 def get_card_places(data):

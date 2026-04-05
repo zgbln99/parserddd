@@ -26,6 +26,7 @@ from app import (
     build_timeline, detect_shifts, calculate_shift_night_hours,
     fill_timeline_gaps, _merge_cross_day_intervals,
     iter_tachograph_minutes,
+    merge_daily_activity_records, get_activity_records,
     REST, AVAILABILITY, WORK, DRIVING, UNKNOWN,
 )
 
@@ -514,6 +515,156 @@ class TestCoDriverAndManualFixes(unittest.TestCase):
         # WORK should be capped at 2h, rest should be UNKNOWN
         self.assertTrue(len(unknown) > 0,
                         'Long WORK at end of day should still be converted to UNKNOWN')
+
+
+class TestMergeDailyActivityRecords(unittest.TestCase):
+    """Tests for minute-level merging of same-day activity records (manual + card)."""
+
+    def test_two_fragments_merge_into_one_day(self):
+        """Two complementary fragments of a day merge without duplication.
+
+        Record A: 01:00-05:24 REST manual, 05:24-07:19 WORK card_present=True
+        Record B: 07:34-18:09 REST manual, 18:10-19:45 DRIVING card_present=True
+        Result: one merged day covering all fragments.
+        """
+        rec_a = make_day('2026-03-02', [
+            make_change(60, REST, card_present=False),       # 01:00 REST manual
+            make_change(324, WORK, card_present=True),       # 05:24 WORK card
+            make_change(439, REST, card_present=True),       # 07:19 REST card
+        ])
+        rec_b = make_day('2026-03-02', [
+            make_change(454, REST, card_present=False),      # 07:34 REST manual
+            make_change(1090, DRIVING, card_present=True),   # 18:10 DRIVING card
+            make_change(1185, REST, card_present=True),      # 19:45 REST card
+        ])
+        merged = merge_daily_activity_records([rec_a, rec_b])
+        self.assertIsNotNone(merged)
+        self.assertEqual(merged['activity_record_date'], '2026-03-02')
+
+        # Build timeline from merged record — should produce exactly 1 day
+        intervals = build_timeline([merged])
+        total_min = sum(int((e - s).total_seconds()) // 60 for s, e, wt, m in intervals)
+        self.assertEqual(total_min, 1440, 'Merged day should cover 1440 minutes')
+
+        # Should contain WORK and DRIVING intervals
+        work_types = {wt for _, _, wt, _ in intervals}
+        self.assertIn(WORK, work_types, 'Should contain WORK from record A')
+        self.assertIn(DRIVING, work_types, 'Should contain DRIVING from record B')
+
+    def test_two_fragments_no_duplicate_days_in_get_activity_records(self):
+        """get_activity_records with two fragments for same day returns 1 record."""
+        data = {
+            'card_driver_activity_1': {
+                'decoded_activity_daily_records': [
+                    {
+                        'activity_record_date': '2026-03-02',
+                        'activity_change_info': [
+                            {'minutes': 60, 'work_type': REST, 'card_present': False},
+                            {'minutes': 324, 'work_type': WORK, 'card_present': True},
+                            {'minutes': 439, 'work_type': REST, 'card_present': True},
+                        ],
+                    },
+                    {
+                        'activity_record_date': '2026-03-02',
+                        'activity_change_info': [
+                            {'minutes': 454, 'work_type': REST, 'card_present': False},
+                            {'minutes': 1090, 'work_type': DRIVING, 'card_present': True},
+                            {'minutes': 1185, 'work_type': REST, 'card_present': True},
+                        ],
+                    },
+                ],
+            },
+        }
+        records = get_activity_records(data)
+        self.assertEqual(len(records), 1, 'Two fragments of same day should merge into 1 record')
+
+    def test_priority_card_present_true_wins(self):
+        """card_present=True WORK should win over card_present=False REST for same minute."""
+        rec_manual = make_day('2026-03-02', [
+            make_change(0, REST, card_present=False),   # full day REST manual
+        ])
+        rec_card = make_day('2026-03-02', [
+            make_change(0, REST, card_present=True),
+            make_change(360, WORK, card_present=True),  # 06:00-24:00 WORK card
+        ])
+        merged = merge_daily_activity_records([rec_manual, rec_card])
+        changes = merged['activity_change_info']
+
+        # At minute 360+, the state should be WORK with card_present=True
+        # Find the change that covers minute 400 (within WORK range)
+        state_at_400 = None
+        for i, ch in enumerate(changes):
+            m = ch['minutes']
+            next_m = changes[i + 1]['minutes'] if i + 1 < len(changes) else 1440
+            if m <= 400 < next_m:
+                state_at_400 = ch
+                break
+        self.assertIsNotNone(state_at_400)
+        self.assertEqual(state_at_400['work_type'], WORK)
+        self.assertTrue(state_at_400['card_present'])
+
+        # At minute 0-359, card_present=True REST should win over False REST
+        state_at_100 = None
+        for i, ch in enumerate(changes):
+            m = ch['minutes']
+            next_m = changes[i + 1]['minutes'] if i + 1 < len(changes) else 1440
+            if m <= 100 < next_m:
+                state_at_100 = ch
+                break
+        self.assertIsNotNone(state_at_100)
+        self.assertEqual(state_at_100['work_type'], REST)
+        self.assertTrue(state_at_100['card_present'],
+                        'card_present=True should win for same work_type')
+
+    def test_identical_records_dedup(self):
+        """Two identical records produce one record without changes."""
+        rec = make_day('2026-03-02', [
+            make_change(0, REST, card_present=True),
+            make_change(360, DRIVING, card_present=True),
+            make_change(600, REST, card_present=True),
+        ])
+        # Simulate via get_activity_records (which deduplicates before merging)
+        data = {
+            'card_driver_activity_1': {
+                'decoded_activity_daily_records': [rec, dict(rec)],
+            },
+        }
+        records = get_activity_records(data)
+        self.assertEqual(len(records), 1)
+        changes = records[0].get('activity_change_info', [])
+        # Should have same 3 change points
+        self.assertEqual(len(changes), 3)
+
+    def test_rebuild_changes_no_spurious_transitions(self):
+        """After merge, activity_change_info should only have real transition points."""
+        # Record A: minute 0-720 REST manual
+        # Record B: minute 0-720 REST manual, 720-1440 WORK card
+        rec_a = make_day('2026-03-02', [
+            make_change(0, REST, card_present=False),
+        ])
+        rec_b = make_day('2026-03-02', [
+            make_change(0, REST, card_present=False),
+            make_change(720, WORK, card_present=True),
+        ])
+        merged = merge_daily_activity_records([rec_a, rec_b])
+        changes = merged['activity_change_info']
+
+        # Should have exactly 2 transitions: REST at 0, WORK at 720
+        self.assertEqual(len(changes), 2,
+                         f'Expected 2 transitions, got {len(changes)}: {changes}')
+        self.assertEqual(changes[0]['minutes'], 0)
+        self.assertEqual(changes[0]['work_type'], REST)
+        self.assertEqual(changes[1]['minutes'], 720)
+        self.assertEqual(changes[1]['work_type'], WORK)
+
+    def test_single_record_passthrough(self):
+        """A single record is returned as-is without modification."""
+        rec = make_day('2026-03-02', [
+            make_change(0, REST),
+            make_change(360, DRIVING),
+        ])
+        merged = merge_daily_activity_records([rec])
+        self.assertIs(merged, rec, 'Single record should be returned as-is')
 
 
 if __name__ == '__main__':
