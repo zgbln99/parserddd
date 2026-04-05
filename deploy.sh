@@ -39,8 +39,15 @@ echo "Frontend zbudowany."
 echo "=== [2/7] Przesylanie plikow na serwer ==="
 $SSH_CMD "mkdir -p $APP_DIR/static"
 
-# Backend files
-$SCP_CMD backend/app.py backend/samsara_sync.py backend/requirements.txt "$REMOTE:$APP_DIR/"
+# Backend files (modular structure)
+$SCP_CMD backend/app.py backend/config.py backend/extensions.py backend/samsara_sync.py backend/requirements.txt "$REMOTE:$APP_DIR/"
+
+# Backend packages
+$SSH_CMD "mkdir -p $APP_DIR/core $APP_DIR/auth $APP_DIR/services $APP_DIR/routes"
+$SCP_CMD backend/core/*.py "$REMOTE:$APP_DIR/core/"
+$SCP_CMD backend/auth/*.py "$REMOTE:$APP_DIR/auth/"
+$SCP_CMD backend/services/*.py "$REMOTE:$APP_DIR/services/"
+$SCP_CMD backend/routes/*.py "$REMOTE:$APP_DIR/routes/"
 
 # Frontend build
 $SCP_CMD -r frontend/dist/* "$REMOTE:$APP_DIR/static/"
