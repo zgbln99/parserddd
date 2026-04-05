@@ -1,11 +1,23 @@
-# Route modules for DDD Reader backend
-#
-# The backend has been structured into logical modules:
-# - auth.py: Authentication (login, logout, status, rate limiting)
-# - admin.py: Admin panel (users, config, passwords, logs)
-# - drivers.py: Driver management and file analysis
-# - export.py: CSV, PDF, DATEV exports
-# - vehicles.py: Samsara vehicle controlling
-#
-# Currently imported from the main app.py monolith.
-# To fully modularize, convert each section to a Flask Blueprint.
+"""
+Blueprint registration.
+
+Each route module exposes a ``bp`` Flask Blueprint.
+This function registers them all on the app.
+"""
+
+
+def register_blueprints(app):
+    """Import and register all route Blueprints.
+
+    Blueprints are imported inside the function to avoid circular imports
+    (they may import from extensions, config, core — but not from app).
+    """
+    # Placeholder — blueprints will be added as we migrate routes.
+    # Example (uncomment as each module is created):
+    #
+    # from .drivers import bp as drivers_bp
+    # app.register_blueprint(drivers_bp)
+    #
+    # from .auth import bp as auth_bp
+    # app.register_blueprint(auth_bp)
+    pass
