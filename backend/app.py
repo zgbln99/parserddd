@@ -175,5 +175,50 @@ def _init_db():
 
 app = create_app()
 
+# ---------------------------------------------------------------------------
+# Re-exports for backward compatibility (tests, scripts importing from app)
+# ---------------------------------------------------------------------------
+
+# Core constants
+from core.constants import REST, AVAILABILITY, WORK, DRIVING, UNKNOWN  # noqa: E402, F401
+from core.constants import STRICT_GLOBOFLEET_MODE, ACTIVITY_NAMES  # noqa: E402, F401
+from core.constants import _is_rest_like_for_shift_split, _is_break_like_for_reporting  # noqa: E402, F401
+
+# Core utilities
+from core.utils import parse_date_safe, minutes_to_hm, minutes_to_decimal  # noqa: E402, F401
+from core.utils import _haversine_km, _to_cet, _sanitize_text  # noqa: E402, F401
+
+# Parsers
+from core.parsers import parse_ddd_file, parse_ddd_file_tachograph_go, parse_ddd_auto  # noqa: E402, F401
+
+# Extractors
+from core.extractors import get_driver_info, get_activity_records  # noqa: E402, F401
+from core.extractors import get_card_places, get_card_events, get_vehicle_records  # noqa: E402, F401
+
+# Timeline
+from core.timeline import build_timeline, merge_intervals, fill_timeline_gaps  # noqa: E402, F401
+from core.timeline import _validate_timeline, _merge_cross_day_intervals  # noqa: E402, F401
+
+# Shifts
+from core.shifts import detect_shifts, calculate_shift_night_hours  # noqa: E402, F401
+from core.shifts import iter_tachograph_minutes, count_bucket_minutes_between  # noqa: E402, F401
+from core.shifts import count_minutes_for_interval_from_buckets  # noqa: E402, F401
+from core.shifts import split_day_bucket_into_work_blocks  # noqa: E402, F401
+
+# Analysis
+from core.analysis import analyze_card  # noqa: E402, F401
+
+# Auth decorators
+from auth.decorators import login_required, admin_required, dispatcher_required  # noqa: E402, F401
+from auth.decorators import has_permission, permission_required  # noqa: E402, F401
+
+# Auth helpers
+from auth.helpers import (  # noqa: E402, F401
+    _hash_password, _verify_password, _load_users, _save_users,
+    _check_rate_limit, _record_failed_login, _clear_rate_limit,
+    _record_login, _log_activity, _log_config_change,
+    _load_config, _save_config, apply_persisted_config,
+)
+
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=8000)
