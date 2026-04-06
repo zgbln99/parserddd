@@ -146,7 +146,7 @@ export function PayrollPage() {
       // Match vacation
       const vacation = vacationEntries.find(v => matchVacationToDriver(v.name, d.name));
       const key = d.card_number || d.name;
-      const status = statuses[key] || '';
+      const status: PayrollStatusValue = statuses[key] || '';
       return {
         driver: d,
         newFilesCount: newFiles.length,
@@ -162,8 +162,8 @@ export function PayrollPage() {
       const aRecent = recentlyChanged.has(keyA);
       const bRecent = recentlyChanged.has(keyB);
       // Recently changed items sort as if they have no status (stay in place)
-      const effectiveA: PayrollStatusValue = aRecent ? '' as PayrollStatusValue : a.status;
-      const effectiveB: PayrollStatusValue = bRecent ? '' as PayrollStatusValue : b.status;
+      const effectiveA = aRecent ? '' as PayrollStatusValue : a.status;
+      const effectiveB = bRecent ? '' as PayrollStatusValue : b.status;
       const statusOrder = (s: PayrollStatusValue) => s === '' ? 0 : 1;
       const sa = statusOrder(effectiveA);
       const sb = statusOrder(effectiveB);
