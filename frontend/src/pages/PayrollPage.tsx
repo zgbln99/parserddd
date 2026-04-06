@@ -162,8 +162,8 @@ export function PayrollPage() {
       const aRecent = recentlyChanged.has(keyA);
       const bRecent = recentlyChanged.has(keyB);
       // Recently changed items sort as if they have no status (stay in place)
-      const effectiveA = aRecent ? '' : a.status;
-      const effectiveB = bRecent ? '' : b.status;
+      const effectiveA: PayrollStatusValue = aRecent ? '' as PayrollStatusValue : a.status;
+      const effectiveB: PayrollStatusValue = bRecent ? '' as PayrollStatusValue : b.status;
       const statusOrder = (s: PayrollStatusValue) => s === '' ? 0 : 1;
       const sa = statusOrder(effectiveA);
       const sb = statusOrder(effectiveB);
