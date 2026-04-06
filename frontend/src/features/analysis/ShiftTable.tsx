@@ -40,10 +40,14 @@ export function ShiftTable({ shifts }: ShiftTableProps) {
                 <span className="font-medium text-emerald-600 dark:text-emerald-400">{sh.shift_start?.split(' ')[1] || sh.shift_start}</span>
                 <span className="text-muted">{t('analysisEnd')}</span>
                 <span className="font-medium text-danger dark:text-rose-400">{sh.shift_end?.split(' ')[1] || sh.shift_end}</span>
+                <span className="text-muted">{t('analysisWorkTime')}</span>
+                <span className="font-bold">{sh.work_hm}</span>
                 <span className="text-muted">{t('analysisDriving')}</span>
                 <span className="font-medium">{sh.driving_hm}</span>
                 <span className="text-muted">{t('analysisWork')}</span>
                 <span>{sh.work_only_hm}</span>
+                <span className="text-muted">{t('analysisAvailability')}</span>
+                <span>{sh.avail_hm}</span>
                 <span className="text-muted">{t('analysisBreaks')}</span>
                 <span>{sh.break_hm}</span>
                 {sh.has_diet && <>
@@ -63,11 +67,11 @@ export function ShiftTable({ shifts }: ShiftTableProps) {
       {/* Desktop shifts table */}
       <div className="hidden sm:block -mx-6 overflow-x-auto px-6">
         <div className="rounded-xl border border-border">
-        <table className="w-full min-w-[900px] text-sm">
+        <table className="w-full min-w-[1100px] text-sm">
           <thead>
             <tr className="border-b border-border">
               {[t('analysisWeekday'), t('analysisStart'), t('analysisEnd'), t('analysisTime'), t('analysisVehicle'),
-                t('analysisDriving'), t('analysisWork'), t('analysisBreaks'),
+                t('analysisWorkTime'), t('analysisDriving'), t('analysisWork'), t('analysisAvailability'), t('analysisBreaks'),
                 t('analysisNight25'), t('analysisNight40'), t('analysisDiet'), 'Manual',
               ].map((h) => (
                 <th key={h} className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold text-muted">
@@ -87,8 +91,10 @@ export function ShiftTable({ shifts }: ShiftTableProps) {
                 <td className="whitespace-nowrap px-3 py-2 text-muted">{sh.shift_end}</td>
                 <td className="whitespace-nowrap px-3 py-2 font-bold">{sh.duration_hm}</td>
                 <td className="whitespace-nowrap px-3 py-2 text-muted">{sh.vehicles.join(', ')}</td>
+                <td className="whitespace-nowrap px-3 py-2 font-bold">{sh.work_hm}</td>
                 <td className="whitespace-nowrap px-3 py-2">{sh.driving_hm}</td>
                 <td className="whitespace-nowrap px-3 py-2">{sh.work_only_hm}</td>
+                <td className="whitespace-nowrap px-3 py-2">{sh.avail_hm}</td>
                 <td className="whitespace-nowrap px-3 py-2">{sh.break_hm}</td>
                 <td className="whitespace-nowrap px-3 py-2">{fmtNight(sh.night_25_minutes, sh.night_25_hm)}</td>
                 <td className="whitespace-nowrap px-3 py-2">{fmtNight(sh.night_40_minutes, sh.night_40_hm)}</td>
