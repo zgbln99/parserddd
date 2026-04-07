@@ -24,12 +24,16 @@ export function VehiclesPage() {
 
   // Vehicle list from Samsara (for names)
   const [vehicleList, setVehicleList] = useState<SamsaraVehicle[]>([]);
+  const [vehicleListLoading, setVehicleListLoading] = useState(true);
+  const [vehicleListError, setVehicleListError] = useState('');
 
   useEffect(() => {
     let cancelled = false;
+    setVehicleListLoading(true);
     fetchSamsaraVehicles()
       .then((res) => { if (!cancelled) setVehicleList(res.vehicles); })
-      .catch(() => {});
+      .catch((e) => { if (!cancelled) setVehicleListError(e.message); })
+      .finally(() => { if (!cancelled) setVehicleListLoading(false); });
     return () => { cancelled = true; };
   }, []);
 
@@ -266,13 +270,18 @@ export function VehiclesPage() {
             <div className="self-end">
               <button
                 onClick={handleAddMonth}
-                disabled={anyLoading || months.some(m => m.period === addPeriod)}
+                disabled={anyLoading || vehicleListLoading || vehicleList.length === 0 || months.some(m => m.period === addPeriod)}
                 className="flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2 min-h-[40px] text-sm font-semibold text-white transition hover:bg-primary-700 disabled:opacity-50"
               >
-                {anyLoading ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
-                {t('tollAddMonth')}
+                {(anyLoading || vehicleListLoading) ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+                {vehicleListLoading ? t('loading') : t('tollAddMonth')}
               </button>
             </div>
+            {!vehicleListLoading && vehicleList.length > 0 && (
+              <span className="self-end text-xs text-muted">
+                {vehicleList.length} {t('vehiclesCount')}
+              </span>
+            )}
           </div>
 
           {/* Loaded months badges */}
@@ -327,6 +336,13 @@ export function VehiclesPage() {
           )}
         </div>
       </Card>
+
+      {/* Vehicle list error */}
+      {vehicleListError && (
+        <div className="flex items-center gap-2 rounded-lg bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 px-4 py-3 text-sm">
+          <AlertCircle size={16} /> Samsara: {vehicleListError}
+        </div>
+      )}
 
       {/* Error */}
       {error && (
