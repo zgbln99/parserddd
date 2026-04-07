@@ -63,26 +63,54 @@ export function VehiclesPage() {
   // Per-vehicle date ranges for export
   const [vehicleDateRanges, setVehicleDateRanges] = useState<Record<string, { from: string; to: string }>>({});
 
+  // Vehicle picker
+  const [pickedVehicleIds, setPickedVehicleIds] = useState<Set<string>>(new Set());
+  const [vehicleSearch, setVehicleSearch] = useState('');
+
+  const filteredVehicleList = useMemo(() => {
+    if (!vehicleSearch.trim()) return vehicleList;
+    const q = vehicleSearch.toLowerCase();
+    return vehicleList.filter(v =>
+      v.name.toLowerCase().includes(q) ||
+      v.license_plate?.toLowerCase().includes(q) ||
+      v.vin?.toLowerCase().includes(q),
+    );
+  }, [vehicleList, vehicleSearch]);
+
+  const togglePickVehicle = (id: string) => {
+    setPickedVehicleIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const togglePickAll = () => {
+    if (pickedVehicleIds.size === vehicleList.length) {
+      setPickedVehicleIds(new Set());
+    } else {
+      setPickedVehicleIds(new Set(vehicleList.map(v => v.id)));
+    }
+  };
+
   const anyLoading = months.some(m => m.loading);
 
-  // All vehicle IDs for API calls
-  const allVehicleIds = useMemo(() => vehicleList.map(v => v.id), [vehicleList]);
-
-  // Add a month by fetching from Samsara
+  // Add a month by fetching from Samsara for picked vehicles
   const handleAddMonth = useCallback(async () => {
     if (!addPeriod) return;
-    if (months.some(m => m.period === addPeriod)) return; // already loaded
-    if (allVehicleIds.length === 0) {
-      setError(locale === 'de' ? 'Keine Fahrzeuge geladen' : 'Brak pojazdów — poczekaj na załadowanie listy');
+    if (months.some(m => m.period === addPeriod)) return;
+    if (pickedVehicleIds.size === 0) {
+      setError(locale === 'de' ? 'Bitte Fahrzeuge auswählen' : 'Wybierz pojazdy');
       return;
     }
 
+    const ids = Array.from(pickedVehicleIds);
     const placeholder: LoadedMonth = { period: addPeriod, vehicles: [], loading: true };
     setMonths(prev => [...prev, placeholder].sort((a, b) => a.period.localeCompare(b.period)));
     setError('');
 
     try {
-      const result = await fetchVehicleActivity(addPeriod, allVehicleIds);
+      const result = await fetchVehicleActivity(addPeriod, ids);
       setMonths(prev =>
         prev.map(m => m.period === addPeriod ? { period: addPeriod, vehicles: result.vehicles } : m),
       );
@@ -90,15 +118,16 @@ export function VehiclesPage() {
       setError(e.message);
       setMonths(prev => prev.filter(m => m.period !== addPeriod));
     }
-  }, [addPeriod, months, allVehicleIds, locale]);
+  }, [addPeriod, months, pickedVehicleIds, locale]);
 
   // Reload a single month
   const handleReloadMonth = useCallback(async (period: string) => {
-    if (allVehicleIds.length === 0) return;
+    if (pickedVehicleIds.size === 0) return;
+    const ids = Array.from(pickedVehicleIds);
     setMonths(prev => prev.map(m => m.period === period ? { ...m, loading: true } : m));
     setError('');
     try {
-      const result = await fetchVehicleActivity(period, allVehicleIds);
+      const result = await fetchVehicleActivity(period, ids);
       setMonths(prev =>
         prev.map(m => m.period === period ? { period, vehicles: result.vehicles } : m),
       );
@@ -106,7 +135,7 @@ export function VehiclesPage() {
       setError(e.message);
       setMonths(prev => prev.map(m => m.period === period ? { ...m, loading: false } : m));
     }
-  }, [allVehicleIds]);
+  }, [pickedVehicleIds]);
 
   // Merge all vehicles from all months into a flat list of day activities per vehicle
   const allDays = useMemo(() => {
@@ -254,10 +283,11 @@ export function VehiclesPage() {
         <p className="text-sm text-muted mt-1">{t('vehiclesSubtitle')}</p>
       </div>
 
-      {/* Add month */}
+      {/* Vehicle picker + Add month */}
       <Card>
         <div className="p-4">
-          <div className="flex items-center gap-3 flex-wrap">
+          {/* Period + button row */}
+          <div className="flex items-center gap-3 flex-wrap mb-4">
             <div>
               <label className="block text-xs text-muted mb-1">{t('vehiclesPeriod')}</label>
               <input
@@ -270,19 +300,74 @@ export function VehiclesPage() {
             <div className="self-end">
               <button
                 onClick={handleAddMonth}
-                disabled={anyLoading || vehicleListLoading || vehicleList.length === 0 || months.some(m => m.period === addPeriod)}
+                disabled={anyLoading || vehicleListLoading || pickedVehicleIds.size === 0 || months.some(m => m.period === addPeriod)}
                 className="flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2 min-h-[40px] text-sm font-semibold text-white transition hover:bg-primary-700 disabled:opacity-50"
               >
                 {(anyLoading || vehicleListLoading) ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
                 {vehicleListLoading ? t('loading') : t('tollAddMonth')}
               </button>
             </div>
-            {!vehicleListLoading && vehicleList.length > 0 && (
+            {pickedVehicleIds.size > 0 && (
               <span className="self-end text-xs text-muted">
-                {vehicleList.length} {t('vehiclesCount')}
+                {pickedVehicleIds.size} / {vehicleList.length} {t('tollSelected')}
               </span>
             )}
           </div>
+
+          {/* Vehicle selector */}
+          {!vehicleListLoading && vehicleList.length > 0 && (
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <div className="relative flex-1 max-w-xs">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted" />
+                  <input
+                    type="text"
+                    value={vehicleSearch}
+                    onChange={e => setVehicleSearch(e.target.value)}
+                    placeholder={locale === 'de' ? 'Fahrzeug suchen...' : 'Szukaj pojazdu...'}
+                    className="w-full input rounded-lg pl-8 pr-2 py-1.5 text-xs"
+                  />
+                </div>
+                <button
+                  onClick={togglePickAll}
+                  className="text-xs text-primary-600 hover:text-primary-800 font-medium"
+                >
+                  {pickedVehicleIds.size === vehicleList.length
+                    ? (locale === 'de' ? 'Alle abwählen' : 'Odznacz wszystkie')
+                    : (locale === 'de' ? 'Alle auswählen' : 'Zaznacz wszystkie')}
+                </button>
+              </div>
+              <div className="max-h-[200px] overflow-y-auto rounded-lg border border-border">
+                <table className="w-full text-xs">
+                  <tbody className="divide-y divide-border">
+                    {filteredVehicleList.map(v => {
+                      const picked = pickedVehicleIds.has(v.id);
+                      return (
+                        <tr
+                          key={v.id}
+                          onClick={() => togglePickVehicle(v.id)}
+                          className={`cursor-pointer transition ${picked ? 'bg-primary-50 dark:bg-primary-900/20' : 'hover:bg-surface'}`}
+                        >
+                          <td className="w-8 px-2 py-1.5">
+                            {picked
+                              ? <CheckSquare size={14} className="text-primary-600" />
+                              : <Square size={14} className="text-muted" />}
+                          </td>
+                          <td className="px-2 py-1.5 font-medium">{v.name}</td>
+                          <td className="px-2 py-1.5 text-muted hidden sm:table-cell">{v.license_plate || '-'}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+          {vehicleListLoading && (
+            <div className="flex items-center gap-2 py-4 text-sm text-muted">
+              <Loader2 size={14} className="animate-spin" /> {t('loading')}
+            </div>
+          )}
 
           {/* Loaded months badges */}
           {months.length > 0 && (
