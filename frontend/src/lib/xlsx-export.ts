@@ -807,76 +807,265 @@ export function exportVehicleActivityToXlsx(
 ) {
   const wb = XLSX.utils.book_new();
 
-  const grandTotalKm = vehicles.reduce((s, v) => s + v.totalKm, 0);
-  const grandTotalMinutes = vehicles.reduce((s, v) => s + v.totalMinutes, 0);
-  const grandTotalDays = vehicles.reduce((s, v) => s + v.days.length, 0);
   const fmtDur = (m: number) => `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}`;
-
   const wd = (d: string) => {
     try { return ['So','Mo','Di','Mi','Do','Fr','Sa'][new Date(d + 'T00:00:00').getDay()]; }
     catch { return ''; }
   };
+  const monthNames = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
+  const fmtMonth = (mp: string) => {
+    const [y, m] = mp.split('-');
+    return `${monthNames[parseInt(m, 10) - 1]} ${y}`;
+  };
 
-  const headerStyle = { font: { bold: true, sz: 10 }, fill: { fgColor: { rgb: 'E8EEF4' } }, border: { bottom: { style: 'thin', color: { rgb: 'CCCCCC' } } } };
+  // ── Detect months from data ──
+  const allMonthSet = new Set<string>();
+  for (const v of vehicles) {
+    if (v.period) allMonthSet.add(v.period);
+    for (const d of v.days) {
+      if (d.date.length >= 7) allMonthSet.add(d.date.slice(0, 7));
+    }
+  }
+  const monthPeriods = Array.from(allMonthSet).sort();
+  const hasMultiMonths = monthPeriods.length > 1;
+
+  // ── Pre-compute per-vehicle per-month km and minutes ──
+  // Group by unique vehicle name (may have multiple entries for same vehicle = different months)
+  const uniqueVehicles: { name: string; plate: string; tour: string }[] = [];
+  const seen = new Set<string>();
+  for (const v of vehicles) {
+    if (!seen.has(v.name)) {
+      seen.add(v.name);
+      uniqueVehicles.push({ name: v.name, plate: v.plate, tour: v.tour || '' });
+    }
+  }
+
+  const vehicleMonthKm = new Map<string, Map<string, number>>();
+  const vehicleMonthMin = new Map<string, Map<string, number>>();
+  const vehicleTotalKm = new Map<string, number>();
+  const vehicleTotalMin = new Map<string, number>();
+  const vehicleTotalDays = new Map<string, number>();
+
+  for (const uv of uniqueVehicles) {
+    const byMonthKm = new Map<string, number>();
+    const byMonthMin = new Map<string, number>();
+    let tk = 0, tm = 0, td = 0;
+    for (const v of vehicles) {
+      if (v.name !== uv.name) continue;
+      for (const d of v.days) {
+        const m = d.date.slice(0, 7);
+        byMonthKm.set(m, (byMonthKm.get(m) || 0) + d.distance_km);
+        byMonthMin.set(m, (byMonthMin.get(m) || 0) + d.duration_minutes);
+        tk += d.distance_km;
+        tm += d.duration_minutes;
+        td++;
+      }
+    }
+    vehicleMonthKm.set(uv.name, byMonthKm);
+    vehicleMonthMin.set(uv.name, byMonthMin);
+    vehicleTotalKm.set(uv.name, tk);
+    vehicleTotalMin.set(uv.name, tm);
+    vehicleTotalDays.set(uv.name, td);
+  }
+
+  const grandTotalKm = uniqueVehicles.reduce((s, v) => s + (vehicleTotalKm.get(v.name) || 0), 0);
+  const grandTotalMin = uniqueVehicles.reduce((s, v) => s + (vehicleTotalMin.get(v.name) || 0), 0);
+  const grandTotalDays = uniqueVehicles.reduce((s, v) => s + (vehicleTotalDays.get(v.name) || 0), 0);
 
   // ── Sheet 1: Übersicht ──
+  // 2-row headers like Maut: km row + Fahrzeit row per vehicle
+  const valCols = hasMultiMonths ? monthPeriods.length + 1 : 1;
+  const fixedCols = 4; // Nr, Fahrzeug, Kennzeichen, Tour
+  const colCount = fixedCols + valCols;
+  const valStart = fixedCols;
+
+  // Header row 1: km labels
+  const hdrRow1: string[] = ['Nr.', 'Fahrzeug', 'Kennzeichen', 'Tour'];
+  if (hasMultiMonths) {
+    for (const mp of monthPeriods) hdrRow1.push(`km ${fmtMonth(mp)}`);
+  }
+  hdrRow1.push('km Gesamt');
+
+  // Header row 2: Fahrzeit labels
+  const hdrRow2: string[] = ['', '', '', ''];
+  if (hasMultiMonths) {
+    for (const mp of monthPeriods) hdrRow2.push(`Fahrzeit ${fmtMonth(mp)}`);
+  }
+  hdrRow2.push('Fahrzeit Gesamt');
+
+  // Data: 2 rows per vehicle (km + Fahrzeit)
+  const dataRows: (string | number)[][] = [];
+  for (let i = 0; i < uniqueVehicles.length; i++) {
+    const uv = uniqueVehicles[i];
+    const byKm = vehicleMonthKm.get(uv.name)!;
+    const byMin = vehicleMonthMin.get(uv.name)!;
+
+    // Row 1: km
+    const kmRow: (string | number)[] = [i + 1, uv.name, uv.plate, uv.tour];
+    if (hasMultiMonths) {
+      for (const mp of monthPeriods) kmRow.push(Math.round((byKm.get(mp) || 0) * 10) / 10);
+    }
+    kmRow.push(Math.round((vehicleTotalKm.get(uv.name) || 0) * 10) / 10);
+    dataRows.push(kmRow);
+
+    // Row 2: Fahrzeit
+    const fzRow: (string | number)[] = ['', '', '', ''];
+    if (hasMultiMonths) {
+      for (const mp of monthPeriods) fzRow.push(fmtDur(byMin.get(mp) || 0));
+    }
+    fzRow.push(fmtDur(vehicleTotalMin.get(uv.name) || 0));
+    dataRows.push(fzRow);
+  }
+
+  // Footer: 2 rows
+  const footerKm: (string | number)[] = ['', 'GESAMT', '', grandTotalDays];
+  if (hasMultiMonths) {
+    for (const mp of monthPeriods) {
+      footerKm.push(Math.round(uniqueVehicles.reduce((s, v) => s + (vehicleMonthKm.get(v.name)!.get(mp) || 0), 0) * 10) / 10);
+    }
+  }
+  footerKm.push(Math.round(grandTotalKm * 10) / 10);
+
+  const footerFz: (string | number)[] = ['', '', '', ''];
+  if (hasMultiMonths) {
+    for (const mp of monthPeriods) {
+      footerFz.push(fmtDur(uniqueVehicles.reduce((s, v) => s + (vehicleMonthMin.get(v.name)!.get(mp) || 0), 0)));
+    }
+  }
+  footerFz.push(fmtDur(grandTotalMin));
+
   const ovData: (string | number)[][] = [
     [companyName],
-    [`Fahrzeug-Controlling — ${period}`],
+    ['Fahrzeug-Controlling'],
+    [`Zeitraum: ${period}`],
+    [`Anzahl Fahrzeuge: ${uniqueVehicles.length}  |  Tage: ${grandTotalDays}`],
     [],
-    ['Fahrzeug', 'Kennzeichen', 'Tour', 'Zeitraum', 'Aktive Tage', 'km gesamt', 'Fahrzeit'],
+    hdrRow1,
+    hdrRow2,
+    ...dataRows,
+    [],
+    footerKm,
+    footerFz,
   ];
 
-  for (const v of vehicles) {
-    ovData.push([v.name, v.plate, v.tour || '', v.period || period, v.days.length, Math.round(v.totalKm * 10) / 10, fmtDur(v.totalMinutes)]);
-  }
-
-  ovData.push([]);
-  ovData.push(['GESAMT', '', '', '', grandTotalDays, Math.round(grandTotalKm * 10) / 10, fmtDur(grandTotalMinutes)]);
-  ovData.push([]);
-  ovData.push([`Fahrzeuge: ${vehicles.length}  |  Tage: ${grandTotalDays}`]);
-
   const wsOv = XLSX.utils.aoa_to_sheet(ovData);
-  wsOv['!cols'] = [{ wch: 25 }, { wch: 15 }, { wch: 18 }, { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 12 }];
 
-  const titleStyle = { font: { bold: true, sz: 14 }, fill: { fgColor: { rgb: '1E3A5F' } }, color: { rgb: 'FFFFFF' } };
-  if (wsOv['A1']) wsOv['A1'].s = titleStyle;
-  if (wsOv['A2']) wsOv['A2'].s = { font: { bold: true, sz: 11, color: { rgb: '666666' } } };
-  for (let c = 0; c < 7; c++) {
-    const cell = wsOv[XLSX.utils.encode_cell({ r: 3, c })];
-    if (cell) cell.s = headerStyle;
+  // Column widths
+  const ovColWidths: { wch: number }[] = [{ wch: 6 }, { wch: 22 }, { wch: 15 }, { wch: 12 }];
+  for (let i = 0; i < valCols; i++) ovColWidths.push({ wch: 18 });
+  wsOv['!cols'] = ovColWidths;
+
+  // Merges: title rows + header fixed cols + vehicle fixed cols + footer
+  const merges: XLSX.Range[] = [
+    { s: { r: 0, c: 0 }, e: { r: 0, c: colCount - 1 } },
+    { s: { r: 1, c: 0 }, e: { r: 1, c: colCount - 1 } },
+    { s: { r: 2, c: 0 }, e: { r: 2, c: colCount - 1 } },
+    { s: { r: 3, c: 0 }, e: { r: 3, c: colCount - 1 } },
+    // Header fixed cols merge 2 rows (rows 5-6)
+    { s: { r: 5, c: 0 }, e: { r: 6, c: 0 } },
+    { s: { r: 5, c: 1 }, e: { r: 6, c: 1 } },
+    { s: { r: 5, c: 2 }, e: { r: 6, c: 2 } },
+    { s: { r: 5, c: 3 }, e: { r: 6, c: 3 } },
+  ];
+  const dataStart = 7;
+  for (let i = 0; i < uniqueVehicles.length; i++) {
+    const r = dataStart + i * 2;
+    for (let c = 0; c < fixedCols; c++) {
+      merges.push({ s: { r, c }, e: { r: r + 1, c } });
+    }
   }
-  const totalRow = 4 + vehicles.length + 1;
-  for (let c = 0; c < 7; c++) {
-    const cell = wsOv[XLSX.utils.encode_cell({ r: totalRow, c })];
-    if (cell) cell.s = { font: { bold: true }, fill: { fgColor: { rgb: 'F0F4F8' } } };
+  const footerStart = dataStart + uniqueVehicles.length * 2 + 1;
+  for (let c = 0; c < fixedCols; c++) {
+    merges.push({ s: { r: footerStart, c }, e: { r: footerStart + 1, c } });
+  }
+  wsOv['!merges'] = merges;
+
+  // Styles
+  styleRange(wsOv, 0, 0, 0, colCount - 1, { font: FONT_TITLE });
+  styleRange(wsOv, 1, 0, 1, colCount - 1, { font: FONT_SUBTITLE });
+  styleRange(wsOv, 2, 0, 2, colCount - 1, { font: FONT_META });
+  styleRange(wsOv, 3, 0, 3, colCount - 1, { font: FONT_META });
+
+  const FILL_HDR_KM = { fgColor: { rgb: '2B4C7E' } };
+  const FILL_HDR_FZ = { fgColor: { rgb: '3A6B4F' } };
+  for (let c = 0; c < colCount; c++) {
+    const isFixed = c < fixedCols;
+    styleCell(wsOv, 5, c, {
+      font: { ...FONT_BOLD, color: { rgb: 'FFFFFF' } },
+      fill: isFixed ? FILL_HEADER : FILL_HDR_KM,
+      border: BORDERS_ALL,
+      alignment: { horizontal: c >= fixedCols ? 'right' : (c === 0 ? 'center' : 'left'), vertical: 'center', wrapText: true },
+    });
+    styleCell(wsOv, 6, c, {
+      font: { ...FONT_BOLD, color: { rgb: 'FFFFFF' } },
+      fill: isFixed ? FILL_HEADER : FILL_HDR_FZ,
+      border: BORDERS_ALL,
+      alignment: { horizontal: c >= fixedCols ? 'right' : (c === 0 ? 'center' : 'left'), vertical: 'center', wrapText: true },
+    });
+  }
+
+  const FILL_KM_LIGHT = { fgColor: { rgb: 'EEF2F9' } };
+  const FILL_FZ_LIGHT = { fgColor: { rgb: 'EDF5F0' } };
+  for (let i = 0; i < uniqueVehicles.length; i++) {
+    const kmR = dataStart + i * 2;
+    const fzR = kmR + 1;
+    const isAlt = i % 2 === 1;
+    for (let c = 0; c < colCount; c++) {
+      styleCell(wsOv, kmR, c, {
+        font: c === 1 ? FONT_BOLD : FONT_DEFAULT,
+        border: BORDERS_ALL,
+        fill: isAlt ? FILL_KM_LIGHT : undefined,
+        alignment: { horizontal: c === 0 ? 'center' : c >= fixedCols ? 'right' : 'left', vertical: 'center' },
+      });
+      styleCell(wsOv, fzR, c, {
+        font: FONT_DEFAULT,
+        border: BORDERS_ALL,
+        fill: isAlt ? FILL_FZ_LIGHT : { fgColor: { rgb: 'F8FAF8' } },
+        alignment: { horizontal: c >= fixedCols ? 'right' : 'left', vertical: 'center' },
+      });
+      if (c >= valStart) {
+        applyNumberFormat(wsOv, kmR, c, '#,##0.0');
+      }
+    }
+  }
+
+  // Footer
+  for (let c = 0; c < colCount; c++) {
+    styleCell(wsOv, footerStart, c, {
+      font: { ...FONT_BOLD, sz: 11 },
+      fill: FILL_TOTAL,
+      border: BORDER_BOTTOM_THICK,
+      alignment: { horizontal: c >= fixedCols ? 'right' : (c === 0 ? 'center' : 'left'), vertical: 'center' },
+    });
+    styleCell(wsOv, footerStart + 1, c, {
+      font: { ...FONT_BOLD, sz: 11 },
+      fill: FILL_TOTAL,
+      border: BORDER_BOTTOM_THICK,
+      alignment: { horizontal: c >= fixedCols ? 'right' : 'left', vertical: 'center' },
+    });
+    if (c >= valStart) {
+      applyNumberFormat(wsOv, footerStart, c, '#,##0.0');
+    }
   }
 
   XLSX.utils.book_append_sheet(wb, wsOv, 'Übersicht');
 
   // ── Sheet per vehicle ──
-  // Group by vehicle name (multiple periods for same vehicle → one sheet with month separators)
-  const byName = new Map<string, VehicleActivityGroup[]>();
-  for (const v of vehicles) {
-    if (!byName.has(v.name)) byName.set(v.name, []);
-    byName.get(v.name)!.push(v);
-  }
+  const headerStyle = { font: { bold: true, sz: 10 }, fill: { fgColor: { rgb: 'E8EEF4' } }, border: { bottom: { style: 'thin', color: { rgb: 'CCCCCC' } } } };
 
-  for (const [name, groups] of byName) {
-    const first = groups[0];
-    const sheetName = name.replace(/[\\/*?[\]:]/g, '').slice(0, 28);
+  for (const uv of uniqueVehicles) {
+    const sheetName = uv.name.replace(/[\\/*?[\]:]/g, '').slice(0, 28);
+    const groups = vehicles.filter(v => v.name === uv.name);
     const data: (string | number)[][] = [
-      [`${name}${first.plate ? ` (${first.plate})` : ''}${first.tour ? ` — Tour: ${first.tour}` : ''}`],
+      [`${uv.name}${uv.plate ? ` (${uv.plate})` : ''}${uv.tour ? ` — Tour: ${uv.tour}` : ''}`],
       [],
     ];
 
     let totalKmAll = 0, totalMinAll = 0;
 
     for (const g of groups) {
-      // Month separator
       data.push([`── ${g.period || period} ──`]);
       data.push(['Datum', 'Tag', 'Beginn', 'Ende', 'Fahrzeit', 'km', 'Letzte Position']);
-      const monthHeaderRow = data.length - 1;
 
       for (const d of g.days) {
         data.push([
@@ -905,7 +1094,6 @@ export function exportVehicleActivityToXlsx(
 
     if (ws['A1']) ws['A1'].s = { font: { bold: true, sz: 12 } };
 
-    // Style month separators and header rows
     for (let r = 0; r < data.length; r++) {
       const val = data[r][0];
       if (typeof val === 'string' && val.startsWith('──')) {
@@ -930,5 +1118,5 @@ export function exportVehicleActivityToXlsx(
   }
 
   const safePeriod = period.replace(/[^a-zA-Z0-9_-]/g, '') || 'Fahrzeuge';
-  XLSX.writeFile(wb, `Fahrzeuge_${safePeriod}_${vehicles.length}Fzg.xlsx`);
+  XLSX.writeFile(wb, `Fahrzeuge_${safePeriod}_${uniqueVehicles.length}Fzg.xlsx`);
 }
