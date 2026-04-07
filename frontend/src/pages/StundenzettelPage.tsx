@@ -52,7 +52,7 @@ function parseTimeToMin(t: string): number | null {
   return parseInt(m[1]) * 60 + parseInt(m[2]);
 }
 
-function calcDay(d: EditableDay) {
+function calcDay(d: EditableDay, weekend = false) {
   const startMin = parseTimeToMin(d.start);
   const endMin = parseTimeToMin(d.end);
   if (startMin === null || endMin === null) return { work: 0, night25: 0, night40: 0, diet: false };
@@ -72,7 +72,7 @@ function calcDay(d: EditableDay) {
     }
   }
 
-  return { work, night25, night40, diet: gross >= 480 };
+  return { work, night25, night40, diet: !weekend && gross >= 480 };
 }
 
 function daysInMonth(year: number, month: number): number {
@@ -197,7 +197,7 @@ export function StundenzettelPage() {
       if (d.code === 'U') { vacation++; continue; }
       if (d.code === 'F') { holidays++; continue; }
       if (d.code) continue;
-      const c = calcDay(d);
+      const c = calcDay(d, isWeekend(year, month, d.day));
       if (c.work > 0) {
         workMin += c.work; n25 += c.night25; n40 += c.night40; workDays++;
         if (c.diet) diets++;
@@ -426,7 +426,7 @@ export function StundenzettelPage() {
               {days.map((day, idx) => {
                 const wd = getWeekday(year, month, day.day);
                 const weekend = isWeekend(year, month, day.day);
-                const c = calcDay(day);
+                const c = calcDay(day, weekend);
                 const hasCode = !!day.code;
                 const rowColor = day.code ? (CODE_COLORS[day.code] || '') : weekend ? 'bg-gray-50/50 dark:bg-gray-800/20' : '';
 
@@ -499,7 +499,7 @@ function StzCopyGrid({ days, year, month, totals }: {
       if (d.code === 'U') return 'Ur';
       if (d.code === 'F') return 'F';
       if (d.code) return d.code;
-      const c = calcDay(d);
+      const c = calcDay(d, isWeekend(year, month, d.day));
       return c.work > 0 ? hm(c.work) : '';
     });
   }, [days]);
