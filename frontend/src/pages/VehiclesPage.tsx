@@ -61,17 +61,24 @@ export function VehiclesPage() {
 
   const anyLoading = months.some(m => m.loading);
 
+  // All vehicle IDs for API calls
+  const allVehicleIds = useMemo(() => vehicleList.map(v => v.id), [vehicleList]);
+
   // Add a month by fetching from Samsara
   const handleAddMonth = useCallback(async () => {
     if (!addPeriod) return;
     if (months.some(m => m.period === addPeriod)) return; // already loaded
+    if (allVehicleIds.length === 0) {
+      setError(locale === 'de' ? 'Keine Fahrzeuge geladen' : 'Brak pojazdów — poczekaj na załadowanie listy');
+      return;
+    }
 
     const placeholder: LoadedMonth = { period: addPeriod, vehicles: [], loading: true };
     setMonths(prev => [...prev, placeholder].sort((a, b) => a.period.localeCompare(b.period)));
     setError('');
 
     try {
-      const result = await fetchVehicleActivity(addPeriod);
+      const result = await fetchVehicleActivity(addPeriod, allVehicleIds);
       setMonths(prev =>
         prev.map(m => m.period === addPeriod ? { period: addPeriod, vehicles: result.vehicles } : m),
       );
@@ -79,14 +86,15 @@ export function VehiclesPage() {
       setError(e.message);
       setMonths(prev => prev.filter(m => m.period !== addPeriod));
     }
-  }, [addPeriod, months]);
+  }, [addPeriod, months, allVehicleIds, locale]);
 
   // Reload a single month
   const handleReloadMonth = useCallback(async (period: string) => {
+    if (allVehicleIds.length === 0) return;
     setMonths(prev => prev.map(m => m.period === period ? { ...m, loading: true } : m));
     setError('');
     try {
-      const result = await fetchVehicleActivity(period);
+      const result = await fetchVehicleActivity(period, allVehicleIds);
       setMonths(prev =>
         prev.map(m => m.period === period ? { period, vehicles: result.vehicles } : m),
       );
@@ -94,7 +102,7 @@ export function VehiclesPage() {
       setError(e.message);
       setMonths(prev => prev.map(m => m.period === period ? { ...m, loading: false } : m));
     }
-  }, []);
+  }, [allVehicleIds]);
 
   // Merge all vehicles from all months into a flat list of day activities per vehicle
   const allDays = useMemo(() => {
