@@ -508,6 +508,7 @@ export const pl = {
   stzBulkWeek: 'Tydzień',
   stzBulkApply: 'Wypełnij',
   stzBulkOnlyEmpty: 'Tylko puste dni',
+  stzBulkCustom: 'Wybrane dni',
 
   samTitle: 'Kilometry dzień / noc',
   samSubtitle: 'Analiza CSV z Samsary — kilometry z podziałem na zmianę dzienną i nocną',

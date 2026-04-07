@@ -210,9 +210,18 @@ export function StundenzettelPage() {
   const [bulkStart, setBulkStart] = useState('');
   const [bulkEnd, setBulkEnd] = useState('');
   const [bulkPause, setBulkPause] = useState(0);
-  const [bulkRange, setBulkRange] = useState<'month' | 'week'>('month');
+  const [bulkRange, setBulkRange] = useState<'month' | 'week' | 'custom'>('month');
   const [bulkWeek, setBulkWeek] = useState(1);
   const [bulkOnlyEmpty, setBulkOnlyEmpty] = useState(true);
+  const [bulkSelectedDays, setBulkSelectedDays] = useState<Set<number>>(new Set());
+
+  const toggleBulkDay = (day: number) => {
+    setBulkSelectedDays(prev => {
+      const next = new Set(prev);
+      if (next.has(day)) next.delete(day); else next.add(day);
+      return next;
+    });
+  };
 
   const weeksInMonth = useMemo(() => {
     const count = daysInMonth(year, month);
@@ -243,12 +252,17 @@ export function StundenzettelPage() {
 
   const applyBulkFill = () => {
     if (!bulkStart && !bulkEnd) return;
+    if (bulkRange === 'custom' && bulkSelectedDays.size === 0) return;
     setDays(prev => prev.map(d => {
-      const dow = new Date(year, month - 1, d.day).getDay();
-      if (dow === 0 || dow === 6) return d;
       if (d.code) return d;
       if (bulkOnlyEmpty && (d.start || d.end)) return d;
-      if (bulkRange === 'week' && dayToWeek[d.day] !== bulkWeek) return d;
+      if (bulkRange === 'custom') {
+        if (!bulkSelectedDays.has(d.day)) return d;
+      } else {
+        const dow = new Date(year, month - 1, d.day).getDay();
+        if (dow === 0 || dow === 6) return d;
+        if (bulkRange === 'week' && dayToWeek[d.day] !== bulkWeek) return d;
+      }
       return { ...d, start: bulkStart || d.start, end: bulkEnd || d.end, pause: bulkPause };
     }));
   };
@@ -315,10 +329,11 @@ export function StundenzettelPage() {
               onChange={e => setBulkPause(parseInt(e.target.value) || 0)}
               className="input rounded px-2 py-1 text-xs font-mono w-14 text-center" />
           </div>
-          <select value={bulkRange} onChange={e => setBulkRange(e.target.value as 'month' | 'week')}
+          <select value={bulkRange} onChange={e => setBulkRange(e.target.value as 'month' | 'week' | 'custom')}
             className="input rounded px-2 py-1 text-xs">
             <option value="month">{t('stzBulkWholeMonth')}</option>
             <option value="week">{t('stzBulkWeek')}</option>
+            <option value="custom">{t('stzBulkCustom')}</option>
           </select>
           {bulkRange === 'week' && (
             <select value={bulkWeek} onChange={e => setBulkWeek(parseInt(e.target.value))}
@@ -333,11 +348,40 @@ export function StundenzettelPage() {
               className="rounded" />
             {t('stzBulkOnlyEmpty')}
           </label>
-          <button onClick={applyBulkFill} disabled={!bulkStart && !bulkEnd}
+          <button onClick={applyBulkFill} disabled={(!bulkStart && !bulkEnd) || (bulkRange === 'custom' && bulkSelectedDays.size === 0)}
             className="btn-primary px-3 py-1 text-xs rounded-lg disabled:opacity-40">
             {t('stzBulkApply')}
           </button>
         </div>
+        {bulkRange === 'custom' && (
+          <div className="flex items-center gap-1 mt-2 flex-wrap">
+            {days.map(d => {
+              const wd = getWeekday(year, month, d.day);
+              const weekend = isWeekend(year, month, d.day);
+              const selected = bulkSelectedDays.has(d.day);
+              return (
+                <button key={d.day} onClick={() => toggleBulkDay(d.day)}
+                  className={`w-8 h-8 rounded text-[10px] font-medium border transition-colors ${
+                    selected
+                      ? 'bg-primary-600 text-white border-primary-600'
+                      : weekend
+                      ? 'bg-gray-100 text-gray-400 border-gray-200 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-500'
+                      : 'bg-white text-ink border-gray-300 hover:border-primary-400 dark:bg-gray-900 dark:border-gray-600'
+                  }`}
+                  title={`${d.day} ${wd}`}
+                >
+                  {d.day}
+                </button>
+              );
+            })}
+            {bulkSelectedDays.size > 0 && (
+              <button onClick={() => setBulkSelectedDays(new Set())}
+                className="text-[10px] text-muted hover:text-red-500 ml-1">
+                {t('stzClear')}
+              </button>
+            )}
+          </div>
+        )}
       </Card>
 
       <ErrorBoundary>

@@ -510,6 +510,7 @@ export const de: Record<TranslationKey, string> = {
   stzBulkWeek: 'Woche',
   stzBulkApply: 'Ausfüllen',
   stzBulkOnlyEmpty: 'Nur leere Tage',
+  stzBulkCustom: 'Ausgewählte Tage',
 
   samTitle: 'Kilometer Tag / Nacht',
   samSubtitle: 'Analyse der Samsara-CSV — Kilometer aufgeteilt nach Tag- und Nachtschicht',
