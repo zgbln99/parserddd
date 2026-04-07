@@ -793,6 +793,8 @@ export interface VehicleActivityDay {
 export interface VehicleActivityGroup {
   name: string;
   plate: string;
+  tour?: string;
+  period?: string;
   days: VehicleActivityDay[];
   totalKm: number;
   totalMinutes: number;
@@ -810,50 +812,42 @@ export function exportVehicleActivityToXlsx(
   const grandTotalDays = vehicles.reduce((s, v) => s + v.days.length, 0);
   const fmtDur = (m: number) => `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}`;
 
-  // Weekday helper
   const wd = (d: string) => {
     try { return ['So','Mo','Di','Mi','Do','Fr','Sa'][new Date(d + 'T00:00:00').getDay()]; }
     catch { return ''; }
   };
+
+  const headerStyle = { font: { bold: true, sz: 10 }, fill: { fgColor: { rgb: 'E8EEF4' } }, border: { bottom: { style: 'thin', color: { rgb: 'CCCCCC' } } } };
 
   // ── Sheet 1: Übersicht ──
   const ovData: (string | number)[][] = [
     [companyName],
     [`Fahrzeug-Controlling — ${period}`],
     [],
-    ['Fahrzeug', 'Kennzeichen', 'Aktive Tage', 'km gesamt', 'Fahrzeit'],
+    ['Fahrzeug', 'Kennzeichen', 'Tour', 'Zeitraum', 'Aktive Tage', 'km gesamt', 'Fahrzeit'],
   ];
 
   for (const v of vehicles) {
-    ovData.push([v.name, v.plate, v.days.length, Math.round(v.totalKm * 10) / 10, fmtDur(v.totalMinutes)]);
+    ovData.push([v.name, v.plate, v.tour || '', v.period || period, v.days.length, Math.round(v.totalKm * 10) / 10, fmtDur(v.totalMinutes)]);
   }
 
   ovData.push([]);
-  ovData.push(['GESAMT', '', grandTotalDays, Math.round(grandTotalKm * 10) / 10, fmtDur(grandTotalMinutes)]);
+  ovData.push(['GESAMT', '', '', '', grandTotalDays, Math.round(grandTotalKm * 10) / 10, fmtDur(grandTotalMinutes)]);
   ovData.push([]);
   ovData.push([`Fahrzeuge: ${vehicles.length}  |  Tage: ${grandTotalDays}`]);
 
   const wsOv = XLSX.utils.aoa_to_sheet(ovData);
+  wsOv['!cols'] = [{ wch: 25 }, { wch: 15 }, { wch: 18 }, { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 12 }];
 
-  // Column widths
-  wsOv['!cols'] = [{ wch: 25 }, { wch: 15 }, { wch: 12 }, { wch: 14 }, { wch: 12 }];
-
-  // Style title
   const titleStyle = { font: { bold: true, sz: 14 }, fill: { fgColor: { rgb: '1E3A5F' } }, color: { rgb: 'FFFFFF' } };
   if (wsOv['A1']) wsOv['A1'].s = titleStyle;
   if (wsOv['A2']) wsOv['A2'].s = { font: { bold: true, sz: 11, color: { rgb: '666666' } } };
-
-  // Header row style
-  const headerRow = 3; // 0-indexed
-  const headerStyle = { font: { bold: true, sz: 10 }, fill: { fgColor: { rgb: 'E8EEF4' } }, border: { bottom: { style: 'thin', color: { rgb: 'CCCCCC' } } } };
-  for (let c = 0; c < 5; c++) {
-    const cell = wsOv[XLSX.utils.encode_cell({ r: headerRow, c })];
+  for (let c = 0; c < 7; c++) {
+    const cell = wsOv[XLSX.utils.encode_cell({ r: 3, c })];
     if (cell) cell.s = headerStyle;
   }
-
-  // Total row
   const totalRow = 4 + vehicles.length + 1;
-  for (let c = 0; c < 5; c++) {
+  for (let c = 0; c < 7; c++) {
     const cell = wsOv[XLSX.utils.encode_cell({ r: totalRow, c })];
     if (cell) cell.s = { font: { bold: true }, fill: { fgColor: { rgb: 'F0F4F8' } } };
   }
@@ -861,61 +855,75 @@ export function exportVehicleActivityToXlsx(
   XLSX.utils.book_append_sheet(wb, wsOv, 'Übersicht');
 
   // ── Sheet per vehicle ──
+  // Group by vehicle name (multiple periods for same vehicle → one sheet with month separators)
+  const byName = new Map<string, VehicleActivityGroup[]>();
   for (const v of vehicles) {
-    const sheetName = v.name.replace(/[\\/*?[\]:]/g, '').slice(0, 28);
+    if (!byName.has(v.name)) byName.set(v.name, []);
+    byName.get(v.name)!.push(v);
+  }
+
+  for (const [name, groups] of byName) {
+    const first = groups[0];
+    const sheetName = name.replace(/[\\/*?[\]:]/g, '').slice(0, 28);
     const data: (string | number)[][] = [
-      [`${v.name}${v.plate ? ` (${v.plate})` : ''}`],
-      [`Zeitraum: ${period}`],
+      [`${name}${first.plate ? ` (${first.plate})` : ''}${first.tour ? ` — Tour: ${first.tour}` : ''}`],
       [],
-      ['Datum', 'Tag', 'Beginn', 'Ende', 'Fahrzeit', 'km', 'Letzte Position'],
     ];
 
-    for (const d of v.days) {
-      data.push([
-        d.date,
-        wd(d.date),
-        d.begin_driving?.split(' ')[1] || '',
-        d.last_driving?.split(' ')[1] || '',
-        d.duration_hm,
-        Math.round(d.distance_km * 10) / 10,
-        d.last_location || '',
-      ]);
+    let totalKmAll = 0, totalMinAll = 0;
+
+    for (const g of groups) {
+      // Month separator
+      data.push([`── ${g.period || period} ──`]);
+      data.push(['Datum', 'Tag', 'Beginn', 'Ende', 'Fahrzeit', 'km', 'Letzte Position']);
+      const monthHeaderRow = data.length - 1;
+
+      for (const d of g.days) {
+        data.push([
+          d.date,
+          wd(d.date),
+          d.begin_driving?.split(' ')[1] || '',
+          d.last_driving?.split(' ')[1] || '',
+          d.duration_hm,
+          Math.round(d.distance_km * 10) / 10,
+          d.last_location || '',
+        ]);
+      }
+
+      data.push(['Summe', '', '', '', fmtDur(g.totalMinutes), Math.round(g.totalKm * 10) / 10, '']);
+      data.push([]);
+      totalKmAll += g.totalKm;
+      totalMinAll += g.totalMinutes;
     }
 
-    data.push([]);
-    data.push(['GESAMT', '', '', '', fmtDur(v.totalMinutes), Math.round(v.totalKm * 10) / 10, '']);
+    if (groups.length > 1) {
+      data.push(['GESAMT', '', '', '', fmtDur(totalMinAll), Math.round(totalKmAll * 10) / 10, '']);
+    }
 
     const ws = XLSX.utils.aoa_to_sheet(data);
     ws['!cols'] = [{ wch: 12 }, { wch: 5 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 35 }];
 
-    // Style title
     if (ws['A1']) ws['A1'].s = { font: { bold: true, sz: 12 } };
 
-    // Header style
-    for (let c = 0; c < 7; c++) {
-      const cell = ws[XLSX.utils.encode_cell({ r: 3, c })];
-      if (cell) cell.s = headerStyle;
-    }
-
-    // Weekend rows
-    for (let r = 4; r < 4 + v.days.length; r++) {
-      const dateStr = v.days[r - 4]?.date || '';
-      try {
-        const dow = new Date(dateStr + 'T00:00:00').getDay();
-        if (dow === 0 || dow === 6) {
-          for (let c = 0; c < 7; c++) {
-            const cell = ws[XLSX.utils.encode_cell({ r, c })];
-            if (cell) cell.s = { ...(cell.s || {}), fill: { fgColor: { rgb: 'FFF0F0' } } };
-          }
+    // Style month separators and header rows
+    for (let r = 0; r < data.length; r++) {
+      const val = data[r][0];
+      if (typeof val === 'string' && val.startsWith('──')) {
+        const cell = ws[XLSX.utils.encode_cell({ r, c: 0 })];
+        if (cell) cell.s = { font: { bold: true, sz: 11, color: { rgb: '1E3A5F' } } };
+      }
+      if (data[r][0] === 'Datum') {
+        for (let c = 0; c < 7; c++) {
+          const cell = ws[XLSX.utils.encode_cell({ r, c })];
+          if (cell) cell.s = headerStyle;
         }
-      } catch {}
-    }
-
-    // Total row style
-    const tRow = 4 + v.days.length + 1;
-    for (let c = 0; c < 7; c++) {
-      const cell = ws[XLSX.utils.encode_cell({ r: tRow, c })];
-      if (cell) cell.s = { font: { bold: true }, fill: { fgColor: { rgb: 'F0F4F8' } } };
+      }
+      if (typeof val === 'string' && (val === 'Summe' || val === 'GESAMT')) {
+        for (let c = 0; c < 7; c++) {
+          const cell = ws[XLSX.utils.encode_cell({ r, c })];
+          if (cell) cell.s = { font: { bold: true }, fill: { fgColor: { rgb: 'F0F4F8' } } };
+        }
+      }
     }
 
     XLSX.utils.book_append_sheet(wb, ws, sheetName);
