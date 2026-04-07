@@ -52,6 +52,7 @@ export function VehiclesPage() {
   const [vehiclesError, setVehiclesError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedVehicleId, setSelectedVehicleId] = useState('');
+  const [selectedVehicleIds, setSelectedVehicleIds] = useState<Set<string>>(new Set());
 
   // Report
   const [loading, setLoading] = useState(false);
@@ -104,6 +105,23 @@ export function VehiclesPage() {
     [vehicleList, selectedVehicleId],
   );
 
+  const toggleVehicleId = (id: string) => {
+    setSelectedVehicleIds(prev => {
+      const n = new Set(prev);
+      if (n.has(id)) n.delete(id); else n.add(id);
+      return n;
+    });
+  };
+
+  const toggleAllVehicles = () => {
+    if (selectedVehicleIds.size === filteredVehicles.length) {
+      setSelectedVehicleIds(new Set());
+    } else {
+      setSelectedVehicleIds(new Set(filteredVehicles.map(v => v.id)));
+    }
+  };
+
+  // Generate for single vehicle (click row → shows detail below)
   const handleGenerate = useCallback(async () => {
     if (!selectedVehicleId) return;
     const p = selectedPeriod || defaultPeriod;
@@ -128,6 +146,54 @@ export function VehiclesPage() {
       setLoading(false);
     }
   }, [selectedVehicleId, selectedPeriod, defaultPeriod]);
+
+  // Generate + save for all selected vehicles at once
+  const [bulkLoading, setBulkLoading] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState('');
+
+  const handleGenerateMulti = useCallback(async () => {
+    const ids = Array.from(selectedVehicleIds);
+    if (ids.length === 0) return;
+    const p = selectedPeriod || defaultPeriod;
+    setBulkLoading(true);
+    setError('');
+    setBulkProgress(`0 / ${ids.length}`);
+
+    try {
+      const result = await fetchVehicleActivity(p, ids);
+      let saved = 0;
+      setSavedReports(prev => {
+        let next = [...prev];
+        for (const v of result.vehicles) {
+          const vehicle = vehicleList.find(vl => vl.id === v.vehicle_id || vl.name === v.vehicle_name);
+          const id = `${v.vehicle_name}__${result.period}`;
+          next = next.filter(r => r.id !== id);
+          next.push({
+            id,
+            vehicleName: v.vehicle_name,
+            vehicleId: vehicle?.id || '',
+            plate: vehicle?.license_plate || '',
+            period: result.period,
+            totalKm: v.total_km,
+            activeDays: v.active_days,
+            totalMinutes: v.days.reduce((s: number, d: VehicleDayActivity) => s + d.duration_minutes, 0),
+            days: v.days,
+            savedAt: new Date().toISOString(),
+          });
+          saved++;
+        }
+        next.sort((a, b) => a.vehicleName.localeCompare(b.vehicleName) || a.period.localeCompare(b.period));
+        persistReports(next);
+        return next;
+      });
+      setBulkProgress(`${result.vehicles.length} / ${ids.length}`);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setBulkLoading(false);
+      setBulkProgress('');
+    }
+  }, [selectedVehicleIds, selectedPeriod, defaultPeriod, vehicleList]);
 
   // Save current result to localStorage
   const handleSave = useCallback(() => {
@@ -357,10 +423,19 @@ export function VehiclesPage() {
               className="input rounded-xl px-3 py-2 text-sm outline-none min-h-[44px]" />
           </div>
 
-          <button onClick={handleGenerate} disabled={loading || !selectedVehicleId}
+          <button onClick={handleGenerate} disabled={loading || bulkLoading || !selectedVehicleId}
             className="flex items-center justify-center gap-2 rounded-xl bg-primary-600 px-5 py-2 min-h-[44px] text-sm font-semibold text-white transition hover:bg-primary-700 disabled:opacity-50">
             {loading ? <RefreshCw size={14} className="animate-spin" /> : <Calendar size={14} />}
             {loading ? t('vehiclesLoading') : t('vehiclesGenerate')}
+          </button>
+
+          {/* Generate + save multiple at once */}
+          <button onClick={handleGenerateMulti} disabled={loading || bulkLoading || selectedVehicleIds.size === 0}
+            className="flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-2 min-h-[44px] text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50">
+            {bulkLoading ? <RefreshCw size={14} className="animate-spin" /> : <Save size={14} />}
+            {bulkLoading
+              ? `${bulkProgress}...`
+              : `${locale === 'de' ? 'Generieren & Speichern' : 'Generuj i zapisz'} (${selectedVehicleIds.size})`}
           </button>
 
           {activity && (
@@ -383,6 +458,13 @@ export function VehiclesPage() {
             <table className="w-full sm:min-w-[600px] text-sm">
               <thead className="sticky top-0 bg-black/[0.02] dark:bg-white/5">
                 <tr className="border-b border-border">
+                  <th className="w-8 px-2 py-2">
+                    <button onClick={toggleAllVehicles} className="text-muted hover:text-ink">
+                      {selectedVehicleIds.size === filteredVehicles.length && filteredVehicles.length > 0
+                        ? <CheckSquare size={14} className="text-emerald-600" />
+                        : <Square size={14} />}
+                    </button>
+                  </th>
                   <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-muted">{t('vehiclesName')}</th>
                   <th className="hidden sm:table-cell px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-muted">VIN</th>
                   <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-muted">
@@ -393,7 +475,12 @@ export function VehiclesPage() {
               <tbody className="divide-y divide-border">
                 {filteredVehicles.map((v) => (
                   <tr key={v.id} onClick={() => setSelectedVehicleId(v.id)}
-                    className={`cursor-pointer transition ${v.id === selectedVehicleId ? 'bg-primary-50' : 'hover:bg-surface'}`}>
+                    className={`cursor-pointer transition ${v.id === selectedVehicleId ? 'bg-primary-50' : selectedVehicleIds.has(v.id) ? 'bg-emerald-50/50 dark:bg-emerald-900/10' : 'hover:bg-surface'}`}>
+                    <td className="px-2 py-2" onClick={e => { e.stopPropagation(); toggleVehicleId(v.id); }}>
+                      {selectedVehicleIds.has(v.id)
+                        ? <CheckSquare size={14} className="text-emerald-600" />
+                        : <Square size={14} className="text-muted" />}
+                    </td>
                     <td className="px-3 py-2">
                       <div className="flex items-center gap-2">
                         <Truck size={14} className={v.id === selectedVehicleId ? 'text-primary-500' : 'text-muted'} />
@@ -405,7 +492,7 @@ export function VehiclesPage() {
                   </tr>
                 ))}
                 {filteredVehicles.length === 0 && (
-                  <tr><td colSpan={3} className="px-3 py-6 text-center text-muted">{t('noData')}</td></tr>
+                  <tr><td colSpan={4} className="px-3 py-6 text-center text-muted">{t('noData')}</td></tr>
                 )}
               </tbody>
             </table>
