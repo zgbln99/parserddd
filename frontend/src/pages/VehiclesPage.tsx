@@ -77,28 +77,34 @@ export function VehiclesPage() {
 
   const [selectedPeriod, setSelectedPeriod] = useState(defaultPeriod);
 
-  // Load vehicle list on mount
-  useEffect(() => {
-    let cancelled = false;
+  // Load vehicle list on mount + refresh function
+  const loadVehicleList = useCallback(() => {
     setVehiclesLoading(true);
     setVehiclesError('');
     fetchSamsaraVehicles()
-      .then((res) => { if (!cancelled) setVehicleList(res.vehicles); })
-      .catch((e) => { if (!cancelled) setVehiclesError(e.message); })
-      .finally(() => { if (!cancelled) setVehiclesLoading(false); });
-    return () => { cancelled = true; };
+      .then((res) => { setVehicleList(res.vehicles); })
+      .catch((e) => { setVehiclesError(e.message); })
+      .finally(() => { setVehiclesLoading(false); });
   }, []);
 
+  useEffect(() => { loadVehicleList(); }, [loadVehicleList]);
+
+  const [showDeactivated, setShowDeactivated] = useState(false);
+
   const filteredVehicles = useMemo(() => {
-    if (!searchQuery.trim()) return vehicleList;
+    let list = vehicleList;
+    if (!showDeactivated) {
+      list = list.filter(v => !v.name.toLowerCase().startsWith('deactivated'));
+    }
+    if (!searchQuery.trim()) return list;
     const q = searchQuery.toLowerCase();
-    return vehicleList.filter(
+    return list.filter(
       (v) =>
         v.name.toLowerCase().includes(q) ||
         v.vin?.toLowerCase().includes(q) ||
         v.license_plate?.toLowerCase().includes(q),
     );
-  }, [vehicleList, searchQuery]);
+  }, [vehicleList, searchQuery, showDeactivated]);
 
   const selectedVehicle = useMemo(
     () => vehicleList.find((v) => v.id === selectedVehicleId),
@@ -147,7 +153,7 @@ export function VehiclesPage() {
     }
   }, [selectedVehicleId, selectedPeriod, defaultPeriod]);
 
-  // Generate + save for all selected vehicles at once
+  // Generate + save for selected vehicles — one by one sequentially
   const [bulkLoading, setBulkLoading] = useState(false);
   const [bulkProgress, setBulkProgress] = useState('');
 
@@ -157,42 +163,47 @@ export function VehiclesPage() {
     const p = selectedPeriod || defaultPeriod;
     setBulkLoading(true);
     setError('');
-    setBulkProgress(`0 / ${ids.length}`);
 
-    try {
-      const result = await fetchVehicleActivity(p, ids);
-      let saved = 0;
-      setSavedReports(prev => {
-        let next = [...prev];
+    let done = 0;
+    let errors: string[] = [];
+
+    for (const vid of ids) {
+      done++;
+      const vehicle = vehicleList.find(vl => vl.id === vid);
+      setBulkProgress(`${done} / ${ids.length}${vehicle ? ` — ${vehicle.name}` : ''}`);
+
+      try {
+        const result = await fetchVehicleActivity(p, [vid]);
         for (const v of result.vehicles) {
-          const vehicle = vehicleList.find(vl => vl.id === v.vehicle_id || vl.name === v.vehicle_name);
+          const veh = vehicleList.find(vl => vl.id === v.vehicle_id || vl.name === v.vehicle_name);
           const id = `${v.vehicle_name}__${result.period}`;
-          next = next.filter(r => r.id !== id);
-          next.push({
-            id,
-            vehicleName: v.vehicle_name,
-            vehicleId: vehicle?.id || '',
-            plate: vehicle?.license_plate || '',
-            period: result.period,
-            totalKm: v.total_km,
-            activeDays: v.active_days,
-            totalMinutes: v.days.reduce((s: number, d: VehicleDayActivity) => s + d.duration_minutes, 0),
-            days: v.days,
-            savedAt: new Date().toISOString(),
+          setSavedReports(prev => {
+            const next = [...prev.filter(r => r.id !== id), {
+              id,
+              vehicleName: v.vehicle_name,
+              vehicleId: veh?.id || vid,
+              plate: veh?.license_plate || '',
+              period: result.period,
+              totalKm: v.total_km,
+              activeDays: v.active_days,
+              totalMinutes: v.days.reduce((s: number, d: VehicleDayActivity) => s + d.duration_minutes, 0),
+              days: v.days,
+              savedAt: new Date().toISOString(),
+            }].sort((a, b) => a.vehicleName.localeCompare(b.vehicleName) || a.period.localeCompare(b.period));
+            persistReports(next);
+            return next;
           });
-          saved++;
         }
-        next.sort((a, b) => a.vehicleName.localeCompare(b.vehicleName) || a.period.localeCompare(b.period));
-        persistReports(next);
-        return next;
-      });
-      setBulkProgress(`${result.vehicles.length} / ${ids.length}`);
-    } catch (e: any) {
-      setError(e.message);
-    } finally {
-      setBulkLoading(false);
-      setBulkProgress('');
+      } catch (e: any) {
+        errors.push(`${vehicle?.name || vid}: ${e.message}`);
+      }
     }
+
+    if (errors.length > 0) {
+      setError(errors.join(' | '));
+    }
+    setBulkLoading(false);
+    setBulkProgress('');
   }, [selectedVehicleIds, selectedPeriod, defaultPeriod, vehicleList]);
 
   // Save current result to localStorage
@@ -454,7 +465,18 @@ export function VehiclesPage() {
 
         {/* Vehicle list / selection */}
         {!vehiclesLoading && !vehiclesError && vehicleList.length > 0 && (
-          <div className="mt-4 max-h-[240px] overflow-y-auto overflow-x-hidden sm:overflow-x-auto rounded-lg border border-border">
+          <div className="mt-4">
+            <div className="flex items-center gap-3 mb-2">
+              <button onClick={loadVehicleList} className="text-xs text-primary-600 hover:text-primary-800 flex items-center gap-1">
+                <RefreshCw size={11} /> {locale === 'de' ? 'Liste aktualisieren' : 'Odśwież listę'}
+              </button>
+              <label className="flex items-center gap-1 text-xs text-muted cursor-pointer">
+                <input type="checkbox" checked={showDeactivated} onChange={e => setShowDeactivated(e.target.checked)} className="rounded" />
+                {locale === 'de' ? 'Deaktivierte anzeigen' : 'Pokaż deaktywowane'}
+              </label>
+              <span className="text-xs text-muted">{filteredVehicles.length} / {vehicleList.length}</span>
+            </div>
+          <div className="max-h-[240px] overflow-y-auto overflow-x-hidden sm:overflow-x-auto rounded-lg border border-border">
             <table className="w-full sm:min-w-[600px] text-sm">
               <thead className="sticky top-0 bg-black/[0.02] dark:bg-white/5">
                 <tr className="border-b border-border">
@@ -496,6 +518,7 @@ export function VehiclesPage() {
                 )}
               </tbody>
             </table>
+          </div>
           </div>
         )}
 
