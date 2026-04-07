@@ -503,6 +503,14 @@ export const de: Record<TranslationKey, string> = {
   stzTotal: 'Summe',
   stzCopy: 'In Excel kopieren',
 
+  // Stundenzettel bulk fill
+  stzBulkFill: 'Sammelausfüllung',
+  stzBulkRange: 'Bereich',
+  stzBulkWholeMonth: 'Ganzer Monat (Mo–Fr)',
+  stzBulkWeek: 'Woche',
+  stzBulkApply: 'Ausfüllen',
+  stzBulkOnlyEmpty: 'Nur leere Tage',
+
   samTitle: 'Kilometer Tag / Nacht',
   samSubtitle: 'Analyse der Samsara-CSV — Kilometer aufgeteilt nach Tag- und Nachtschicht',
   samUpload: 'Samsara CSV hierher ziehen oder klicken',

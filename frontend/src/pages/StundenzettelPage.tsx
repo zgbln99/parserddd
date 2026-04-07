@@ -206,6 +206,53 @@ export function StundenzettelPage() {
     return { workMin, n25, n40, diets, workDays, sick, vacation, holidays };
   }, [days]);
 
+  // Bulk fill state
+  const [bulkStart, setBulkStart] = useState('');
+  const [bulkEnd, setBulkEnd] = useState('');
+  const [bulkPause, setBulkPause] = useState(0);
+  const [bulkRange, setBulkRange] = useState<'month' | 'week'>('month');
+  const [bulkWeek, setBulkWeek] = useState(1);
+  const [bulkOnlyEmpty, setBulkOnlyEmpty] = useState(true);
+
+  const weeksInMonth = useMemo(() => {
+    const count = daysInMonth(year, month);
+    const weeks: { num: number; label: string }[] = [];
+    let weekStart = 1;
+    for (let d = 1; d <= count; d++) {
+      const dow = new Date(year, month - 1, d).getDay();
+      // End of week (Sunday) or last day of month
+      if (dow === 0 || d === count) {
+        weeks.push({ num: weeks.length + 1, label: `${weekStart}–${d}` });
+        weekStart = d + 1;
+      }
+    }
+    return weeks;
+  }, [year, month]);
+
+  // Map each day to its week number
+  const dayToWeek = useMemo(() => {
+    const map: Record<number, number> = {};
+    let wk = 1;
+    const count = daysInMonth(year, month);
+    for (let d = 1; d <= count; d++) {
+      map[d] = wk;
+      if (new Date(year, month - 1, d).getDay() === 0 && d < count) wk++;
+    }
+    return map;
+  }, [year, month]);
+
+  const applyBulkFill = () => {
+    if (!bulkStart && !bulkEnd) return;
+    setDays(prev => prev.map(d => {
+      const dow = new Date(year, month - 1, d.day).getDay();
+      if (dow === 0 || dow === 6) return d;
+      if (d.code) return d;
+      if (bulkOnlyEmpty && (d.start || d.end)) return d;
+      if (bulkRange === 'week' && dayToWeek[d.day] !== bulkWeek) return d;
+      return { ...d, start: bulkStart || d.start, end: bulkEnd || d.end, pause: bulkPause };
+    }));
+  };
+
   const hasAnyData = days.some(d => d.start || d.end || d.code);
 
   return (
@@ -253,6 +300,45 @@ export function StundenzettelPage() {
           <AlertCircle size={16} /> {error}
         </div>
       )}
+
+      {/* Bulk fill */}
+      <Card className="p-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs font-semibold uppercase tracking-wider text-muted">{t('stzBulkFill')}</span>
+          <input type="time" value={bulkStart} onChange={e => setBulkStart(e.target.value)}
+            placeholder={t('stzStart')} className="input rounded px-2 py-1 text-xs font-mono w-24" />
+          <input type="time" value={bulkEnd} onChange={e => setBulkEnd(e.target.value)}
+            placeholder={t('stzEnd')} className="input rounded px-2 py-1 text-xs font-mono w-24" />
+          <div className="flex items-center gap-1">
+            <span className="text-xs text-muted">{t('stzPause')}</span>
+            <input type="number" min={0} max={120} value={bulkPause || ''} placeholder="0"
+              onChange={e => setBulkPause(parseInt(e.target.value) || 0)}
+              className="input rounded px-2 py-1 text-xs font-mono w-14 text-center" />
+          </div>
+          <select value={bulkRange} onChange={e => setBulkRange(e.target.value as 'month' | 'week')}
+            className="input rounded px-2 py-1 text-xs">
+            <option value="month">{t('stzBulkWholeMonth')}</option>
+            <option value="week">{t('stzBulkWeek')}</option>
+          </select>
+          {bulkRange === 'week' && (
+            <select value={bulkWeek} onChange={e => setBulkWeek(parseInt(e.target.value))}
+              className="input rounded px-2 py-1 text-xs">
+              {weeksInMonth.map(w => (
+                <option key={w.num} value={w.num}>{t('stzBulkWeek')} {w.num} ({w.label})</option>
+              ))}
+            </select>
+          )}
+          <label className="flex items-center gap-1 text-xs text-muted cursor-pointer">
+            <input type="checkbox" checked={bulkOnlyEmpty} onChange={e => setBulkOnlyEmpty(e.target.checked)}
+              className="rounded" />
+            {t('stzBulkOnlyEmpty')}
+          </label>
+          <button onClick={applyBulkFill} disabled={!bulkStart && !bulkEnd}
+            className="btn-primary px-3 py-1 text-xs rounded-lg disabled:opacity-40">
+            {t('stzBulkApply')}
+          </button>
+        </div>
+      </Card>
 
       <ErrorBoundary>
         {/* Stats - only show when there's data */}

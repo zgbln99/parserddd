@@ -501,6 +501,14 @@ export const pl = {
   stzTotal: 'Suma',
   stzCopy: 'Kopiuj do Excela',
 
+  // Stundenzettel bulk fill
+  stzBulkFill: 'Wypełnij zbiorczo',
+  stzBulkRange: 'Zakres',
+  stzBulkWholeMonth: 'Cały miesiąc (Pn–Pt)',
+  stzBulkWeek: 'Tydzień',
+  stzBulkApply: 'Wypełnij',
+  stzBulkOnlyEmpty: 'Tylko puste dni',
+
   samTitle: 'Kilometry dzień / noc',
   samSubtitle: 'Analiza CSV z Samsary — kilometry z podziałem na zmianę dzienną i nocną',
   samUpload: 'Przeciągnij CSV z Samsary lub kliknij',
