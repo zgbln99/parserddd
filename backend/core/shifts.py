@@ -21,11 +21,9 @@ def detect_shifts(all_intervals, min_rest_hours=5):
     """Split a continuous timeline into driver shifts (BUSINESS HEURISTIC).
 
     Shift-splitting rules (matching GloboFleet behavior):
-    - A new shift begins after any REST or UNKNOWN period >= *min_rest_hours* (default 5h)
-      BUT ONLY IF the rest starts on a different CET calendar day than the current shift's
-      first work activity. Intra-day rests (even >5h) do NOT split the shift.
-    - This matches GloboFleet which treats long intra-day breaks as part of the shift
-      (e.g. driver works 05:24-07:19, rests 10h, works 18:10-19:45 = one 14:21 shift).
+    - A rest >= 9h (valid EU daily rest) ALWAYS splits, even within the same CET day.
+    - A rest >= *min_rest_hours* (default 5h) but < 9h splits only if it starts/ends
+      on a different CET calendar day than the current shift's first work activity.
     """
     if not all_intervals:
         return []
@@ -60,15 +58,19 @@ def detect_shifts(all_intervals, min_rest_hours=5):
 
             effective_rest = (rest_end - rest_begin).total_seconds()
             if effective_rest >= min_rest_sec:
-                # Only split if the rest crosses into a different CET day than the shift start.
-                # Intra-day rests (start and end on same CET day as shift) stay part of shift.
-                rest_begin_cet_date = _to_cet(rest_begin).date()
-                rest_end_cet_date = _to_cet(rest_end).date()
-                should_split = (
-                    current_shift_start_cet_date is None  # no work yet -> split (leading rest)
-                    or rest_begin_cet_date != current_shift_start_cet_date  # rest starts on different day
-                    or rest_end_cet_date != current_shift_start_cet_date    # rest ends on different day
-                )
+                # A rest >= 9h is a valid EU daily rest — always split.
+                # Shorter rests (5h–9h) only split across CET day boundaries.
+                daily_rest_sec = 9 * 3600
+                if effective_rest >= daily_rest_sec:
+                    should_split = True
+                else:
+                    rest_begin_cet_date = _to_cet(rest_begin).date()
+                    rest_end_cet_date = _to_cet(rest_end).date()
+                    should_split = (
+                        current_shift_start_cet_date is None
+                        or rest_begin_cet_date != current_shift_start_cet_date
+                        or rest_end_cet_date != current_shift_start_cet_date
+                    )
                 if should_split:
                     if current:
                         shifts.append(current)
