@@ -911,10 +911,12 @@ function MonthlyGridCopy({
   const daysInMonth = new Date(year, month, 0).getDate();
 
   // Build a map: day number -> total duration minutes for that day (from shifts)
+  // Uses grid_date (midpoint-based) so overnight shifts land on the correct day.
   const dayWorkMap = useMemo(() => {
     const map: Record<number, number> = {};
     for (const sh of shifts) {
-      const d = parseInt(sh.shift_date.slice(8, 10), 10);
+      const dateStr = sh.grid_date || sh.shift_date;
+      const d = parseInt(dateStr.slice(8, 10), 10);
       if (!isNaN(d)) {
         map[d] = (map[d] || 0) + sh.duration_minutes;
       }

@@ -42,6 +42,7 @@ export interface ShiftDetail {
   shift_start: string;
   shift_end: string;
   shift_date: string;
+  grid_date: string;
   weekday: string;
   duration_minutes: number;
   duration_hm: string;
