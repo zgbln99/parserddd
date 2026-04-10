@@ -126,12 +126,20 @@ export interface CalendarDayWork {
   has_diet: boolean;
 }
 
+export interface ManualEntry {
+  start: string;
+  end: string;
+  duration_minutes: number;
+  declared_type: string;
+}
+
 export interface AnalysisResult {
   driver_info: DriverInfo;
   vehicles: { plate: string; first_use: string; last_use: string }[];
   summary: AnalysisSummary;
   shift_details: ShiftDetail[];
   calendar_days?: Record<string, CalendarDayWork>;
+  manual_entries?: ManualEntry[];
   card_places?: CardPlace[];
   card_events?: CardEvent[];
   source_file?: string;

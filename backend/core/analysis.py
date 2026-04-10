@@ -118,27 +118,31 @@ def analyze_card(data, night_start_hour=None, config_loader=None, night_40_check
 
     _REAL_WORK = (AVAILABILITY, WORK, DRIVING)
 
-    # Detect manual entry errors from timeline
+    # Collect all manual entries and detect suspicious ones
+    wt_names = {AVAILABILITY: 'Bereitschaft', WORK: 'Arbeit', DRIVING: 'Lenken'}
+    manual_entries = []
     manual_errors = []
     for s, e, wt, m in timeline:
         if not m or wt in (REST, UNKNOWN):
             continue
         dur_min = int((e - s).total_seconds() / 60)
-        if dur_min < 30:
+        if dur_min < 1:
             continue
-        s_cet = _to_cet(s)
-        e_cet = _to_cet(e)
-        h_start = s_cet.hour
-        h_end = e_cet.hour if e_cet.date() == s_cet.date() else 24
-        is_overnight = h_start >= 20 or h_end <= 7 or (e - s).total_seconds() > 10 * 3600
-        if is_overnight or dur_min > 600:
-            wt_names = {AVAILABILITY: 'Bereitschaft', WORK: 'Arbeit', DRIVING: 'Lenken'}
-            manual_errors.append({
-                'start': _to_cet_str(s),
-                'end': _to_cet_str(e),
-                'duration_minutes': dur_min,
-                'declared_type': wt_names.get(wt, str(wt)),
-            })
+        entry = {
+            'start': _to_cet_str(s),
+            'end': _to_cet_str(e),
+            'duration_minutes': dur_min,
+            'declared_type': wt_names.get(wt, str(wt)),
+        }
+        manual_entries.append(entry)
+        if dur_min >= 30:
+            s_cet = _to_cet(s)
+            e_cet = _to_cet(e)
+            h_start = s_cet.hour
+            h_end = e_cet.hour if e_cet.date() == s_cet.date() else 24
+            is_overnight = h_start >= 20 or h_end <= 7 or (e - s).total_seconds() > 10 * 3600
+            if is_overnight or dur_min > 600:
+                manual_errors.append(entry)
 
     shift_details = []
     seen_shifts = set()
@@ -414,6 +418,7 @@ def analyze_card(data, night_start_hour=None, config_loader=None, night_40_check
         },
         'shift_details': shift_details,
         'calendar_days': calendar_days,
+        'manual_entries': manual_entries,
         'card_places': places,
         'card_events': card_events,
         'night_start_hour': night_start_hour,

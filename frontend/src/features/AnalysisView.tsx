@@ -703,10 +703,6 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
                     <span className="text-muted">{t('analysisDiet')}</span>
                     <Badge variant="green">{t('yes')}</Badge>
                   </>}
-                  {sh.manual_minutes > 0 && <>
-                    <span className="text-muted">Manual</span>
-                    <Badge variant="yellow">{sh.manual_hm}</Badge>
-                  </>}
                 </div>
               </div>
             );
@@ -721,7 +717,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
               <tr className="border-b border-border">
                 {[t('analysisWeekday'), t('analysisStart'), t('analysisEnd'), t('analysisTime'), t('analysisVehicle'),
                   t('analysisWorkTime'), t('analysisDriving'), t('analysisWork'), t('analysisAvailability'), t('analysisBreaks'),
-                  t('analysisNight25'), t('analysisNight40'), t('analysisDiet'), 'Manual',
+                  t('analysisNight25'), t('analysisNight40'), t('analysisDiet'),
                 ].map((h) => (
                   <th key={h} className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold text-muted">
                     {h}
@@ -766,13 +762,6 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
                       ? <Badge variant="green">{t('yes')}</Badge>
                       : <span className="text-muted">{t('no')}</span>}
                   </td>
-                  <td className="whitespace-nowrap px-3 py-2">
-                    {hasManualError
-                      ? <Badge variant="red">{sh.manual_hm || 'ERR'}</Badge>
-                      : sh.manual_minutes > 0
-                      ? <Badge variant="yellow">{sh.manual_hm}</Badge>
-                      : <span className="text-muted">-</span>}
-                  </td>
                 </tr>
                 );
               })}
@@ -785,6 +774,47 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
 
       {shifts.length === 0 && (
         <p className="py-8 text-center text-sm text-muted">{t('noData')}</p>
+      )}
+
+      {/* Manual entries section */}
+      {(data.manual_entries?.length ?? 0) > 0 && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50/50 dark:border-amber-800 dark:bg-amber-900/10">
+          <div className="flex items-center gap-2 px-4 py-3">
+            <FileText size={14} className="text-amber-600" />
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-400">
+              {t('analysisManualEntries')} ({data.manual_entries!.length})
+            </h3>
+            <span className="ml-auto text-xs text-amber-600 dark:text-amber-500">
+              {s.total_manual_hm}
+            </span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-t border-amber-200 dark:border-amber-800">
+                  {[t('analysisStart'), t('analysisEnd'), t('analysisTime'), t('analysisManualType')].map((h) => (
+                    <th key={h} className="whitespace-nowrap px-4 py-2 text-left text-xs font-semibold text-amber-700 dark:text-amber-400">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-amber-100 dark:divide-amber-800/50">
+                {data.manual_entries!.map((me, i) => {
+                  const hm = `${Math.floor(me.duration_minutes / 60)}:${String(me.duration_minutes % 60).padStart(2, '0')}`;
+                  return (
+                    <tr key={i} className="hover:bg-amber-100/50 dark:hover:bg-amber-900/20">
+                      <td className="whitespace-nowrap px-4 py-1.5 font-medium">{me.start}</td>
+                      <td className="whitespace-nowrap px-4 py-1.5 text-muted">{me.end}</td>
+                      <td className="whitespace-nowrap px-4 py-1.5 font-bold">{hm}</td>
+                      <td className="whitespace-nowrap px-4 py-1.5">
+                        <Badge variant="yellow">{me.declared_type}</Badge>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
       )}
 
       {/* Export */}
