@@ -263,6 +263,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
 
   const [showChart, setShowChart] = useState(false);
   const [showDietReport, setShowDietReport] = useState(false);
+  const [showManual, setShowManual] = useState(false);
   const printRef = useRef<HTMLDivElement>(null);
 
   // Chart data: per-shift stacked bars
@@ -677,12 +678,11 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
           {shifts.map((sh, i) => {
             const isWeekend = sh.weekday === 'So' || sh.weekday === 'Nd';
             const wd = localizeWeekday(sh.weekday, locale);
-            const hasErr = (sh as any).manual_errors?.length > 0;
             return (
-              <div key={i} className={`rounded-xl border p-3 ${hasErr ? 'border-red-300 bg-red-50 dark:border-red-800 dark:bg-red-900/15' : isWeekend ? 'border-border bg-rose-50/30 dark:bg-rose-900/10' : 'border-border bg-white/50 dark:bg-white/5'}`}>
+              <div key={i} className={`rounded-xl border p-3 ${isWeekend ? 'border-border bg-rose-50/30 dark:bg-rose-900/10' : 'border-border bg-white/50 dark:bg-white/5'}`}>
                 <div className="flex items-center justify-between mb-2">
                   <span className={`text-sm font-bold ${isWeekend ? 'text-danger' : ''}`}>{wd} {sh.shift_date?.slice(5)}</span>
-                  <span className={`text-sm font-bold ${hasErr ? 'text-danger' : ''}`}>{sh.duration_hm}</span>
+                  <span className="text-sm font-bold">{sh.duration_hm}</span>
                 </div>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
                   <span className="text-muted">{t('analysisStart')}</span>
@@ -737,18 +737,15 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
                 <tr
                   key={i}
                   className={`hover:bg-surface ${
-                    hasManualError
-                      ? 'bg-red-50 dark:bg-red-900/15'
-                      : isWeekend
+                    isWeekend
                       ? 'bg-rose-50/40 dark:bg-rose-900/10'
                       : ''
                   }`}
-                  title={manualErrorTitle}
                 >
                   <td className={`whitespace-nowrap px-3 py-2 font-bold ${isWeekend ? 'text-danger' : ''}`}>{wd}</td>
                   <td className="whitespace-nowrap px-3 py-2 font-medium">{sh.shift_start}</td>
                   <td className="whitespace-nowrap px-3 py-2 text-muted">{sh.shift_end}</td>
-                  <td className={`whitespace-nowrap px-3 py-2 font-bold ${hasManualError ? 'text-danger' : ''}`}>{sh.duration_hm}</td>
+                  <td className="whitespace-nowrap px-3 py-2 font-bold">{sh.duration_hm}</td>
                   <td className="whitespace-nowrap px-3 py-2 text-muted">{sh.vehicles.join(', ')}</td>
                   <td className="whitespace-nowrap px-3 py-2 font-bold">{sh.work_hm}</td>
                   <td className="whitespace-nowrap px-3 py-2">{sh.driving_hm}</td>
@@ -776,44 +773,47 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
         <p className="py-8 text-center text-sm text-muted">{t('noData')}</p>
       )}
 
-      {/* Manual entries section */}
+      {/* Manual entries collapsible section */}
       {(data.manual_entries?.length ?? 0) > 0 && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50/50 dark:border-amber-800 dark:bg-amber-900/10">
-          <div className="flex items-center gap-2 px-4 py-3">
-            <FileText size={14} className="text-amber-600" />
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-400">
-              {t('analysisManualEntries')} ({data.manual_entries!.length})
-            </h3>
-            <span className="ml-auto text-xs text-amber-600 dark:text-amber-500">
-              {s.total_manual_hm}
+        <div className="rounded-xl bg-surface">
+          <button
+            onClick={() => setShowManual(!showManual)}
+            className="flex w-full items-center gap-2 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted transition hover:text-ink"
+          >
+            <FileText size={14} />
+            {t('analysisManualEntries')} ({data.manual_entries!.length}) — {s.total_manual_hm}
+            <span className="ml-auto text-xs font-normal normal-case text-muted">
+              {showManual ? '▲' : '▼'}
             </span>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-t border-amber-200 dark:border-amber-800">
-                  {[t('analysisStart'), t('analysisEnd'), t('analysisTime'), t('analysisManualType')].map((h) => (
-                    <th key={h} className="whitespace-nowrap px-4 py-2 text-left text-xs font-semibold text-amber-700 dark:text-amber-400">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-amber-100 dark:divide-amber-800/50">
-                {data.manual_entries!.map((me, i) => {
-                  const hm = `${Math.floor(me.duration_minutes / 60)}:${String(me.duration_minutes % 60).padStart(2, '0')}`;
-                  return (
-                    <tr key={i} className="hover:bg-amber-100/50 dark:hover:bg-amber-900/20">
-                      <td className="whitespace-nowrap px-4 py-1.5 font-medium">{me.start}</td>
-                      <td className="whitespace-nowrap px-4 py-1.5 text-muted">{me.end}</td>
-                      <td className="whitespace-nowrap px-4 py-1.5 font-bold">{hm}</td>
-                      <td className="whitespace-nowrap px-4 py-1.5">
-                        <Badge variant="yellow">{me.declared_type}</Badge>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          </button>
+          {showManual && (
+            <div className="overflow-x-auto border-t border-border">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border">
+                    {[t('analysisStart'), t('analysisEnd'), t('analysisTime'), t('analysisManualType')].map((h) => (
+                      <th key={h} className="whitespace-nowrap px-4 py-2 text-left text-xs font-semibold text-muted">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {data.manual_entries!.map((me, i) => {
+                    const hm = `${Math.floor(me.duration_minutes / 60)}:${String(me.duration_minutes % 60).padStart(2, '0')}`;
+                    return (
+                      <tr key={i} className="hover:bg-surface">
+                        <td className="whitespace-nowrap px-4 py-1.5 font-medium">{me.start}</td>
+                        <td className="whitespace-nowrap px-4 py-1.5 text-muted">{me.end}</td>
+                        <td className="whitespace-nowrap px-4 py-1.5 font-bold">{hm}</td>
+                        <td className="whitespace-nowrap px-4 py-1.5">
+                          <Badge variant="yellow">{me.declared_type}</Badge>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
