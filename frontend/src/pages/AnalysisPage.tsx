@@ -22,7 +22,7 @@ export function AnalysisPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  useEffect(() => {
+  const runAnalysis = () => {
     if (!filePath) {
       setError('Brak ścieżki pliku');
       setLoading(false);
@@ -34,6 +34,10 @@ export function AnalysisPage() {
       .then(setData)
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    runAnalysis();
   }, [filePath]);
 
   const goBack = () => {
@@ -88,6 +92,7 @@ export function AnalysisPage() {
             dateTo={dateTo}
             onDateFromChange={setDateFrom}
             onDateToChange={setDateTo}
+            onReanalyze={runAnalysis}
           />
         </Card>
       )}

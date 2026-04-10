@@ -310,7 +310,7 @@ export function ReaderPage() {
             </div>
           </div>
           <Card className="p-3 sm:p-6">
-            <AnalysisView data={result} dateFrom={dateFrom} dateTo={dateTo} onDateFromChange={setDateFrom} onDateToChange={setDateTo} />
+            <AnalysisView data={result} dateFrom={dateFrom} dateTo={dateTo} onDateFromChange={setDateFrom} onDateToChange={setDateTo} onReanalyze={originalFile ? () => handleFile(originalFile) : undefined} />
           </Card>
         </div>
       )}

@@ -45,9 +45,10 @@ interface AnalysisViewProps {
   onDateFromChange?: (v: string) => void;
   onDateToChange?: (v: string) => void;
   vacationRanges?: VacationRange[];
+  onReanalyze?: () => void;
 }
 
-export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateToChange, vacationRanges }: AnalysisViewProps) {
+export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateToChange, vacationRanges, onReanalyze }: AnalysisViewProps) {
   const { t, locale } = useI18n();
   const { isAdmin } = useAuth();
   const di = data.driver_info;
@@ -661,6 +662,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
               <DriverConfigEditor
                 cardNumber={di.card_number}
                 driverName={di.driver_name || ''}
+                onSaved={onReanalyze}
               />
             </div>
           )}
