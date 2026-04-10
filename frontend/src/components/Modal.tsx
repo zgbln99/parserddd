@@ -1,4 +1,5 @@
 import { useEffect, useCallback, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
 interface ModalProps {
@@ -31,7 +32,7 @@ export function Modal({ open, onClose, title, children, wide, fullscreen }: Moda
 
   if (!open) return null;
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/30 p-4 pt-4 sm:pt-[8vh] animate-fade-in"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
@@ -54,6 +55,7 @@ export function Modal({ open, onClose, title, children, wide, fullscreen }: Moda
         )}
         <div className={`overflow-y-auto p-4 sm:p-6 ${fullscreen ? 'h-[calc(100%-60px)]' : 'max-h-[75vh]'}`}>{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
