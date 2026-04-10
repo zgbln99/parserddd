@@ -92,7 +92,7 @@ def api_settlement():
                             _n40 = bool(_row['night_40_enabled'])
                 except Exception:
                     pass
-                analysis = analyze_card(data, config_loader=_load_config, night_40_enabled=_n40)
+                analysis = analyze_card(data, config_loader=_load_config, night_40_check_midnight=_n40)
                 os.unlink(tmp_path)
 
                 month_shifts = [sh for sh in analysis.get('shift_details', [])

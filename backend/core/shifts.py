@@ -133,11 +133,13 @@ def _build_night_windows(earliest_utc, latest_utc, night_start_hour=22):
     return windows
 
 
-def calculate_shift_night_hours(minute_buckets, shift_start, night_start_hour=22, night_40_enabled=True):
+def calculate_shift_night_hours(minute_buckets, shift_start, night_start_hour=22, night_40_check_midnight=True):
     """Calculate night work minutes using CET night windows on UTC timeline.
 
     Args:
-        night_40_enabled: If False, all 00:00-04:00 hours count as 25% instead of 40%.
+        night_40_check_midnight: If True (default), 00:00-04:00 is 40% only when
+            shift started before midnight, otherwise 25%. If False, 00:00-04:00
+            is always 40%.
 
     Returns (night_25_minutes, night_40_minutes).
     """
@@ -155,8 +157,8 @@ def calculate_shift_night_hours(minute_buckets, shift_start, night_start_hour=22
             if night_start_hour <= hour <= 23:
                 night_25 += 1
             elif 0 <= hour < 4:
-                if not night_40_enabled:
-                    night_25 += 1
+                if not night_40_check_midnight:
+                    night_40 += 1
                 else:
                     cet_midnight = datetime(
                         dt_cet.year, dt_cet.month, dt_cet.day, tzinfo=CET
@@ -188,8 +190,8 @@ def calculate_shift_night_hours(minute_buckets, shift_start, night_start_hour=22
             if category == '25':
                 night_25 += mins
             elif category == 'check':
-                if not night_40_enabled:
-                    night_25 += mins
+                if not night_40_check_midnight:
+                    night_40 += mins
                 else:
                     # 00:00-04:00 CET: 40% if shift started before this CET midnight
                     cet_midnight_utc = w_start  # w_start IS CET 00:00 in UTC

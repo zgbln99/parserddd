@@ -230,7 +230,7 @@ export const pl = {
   driverConfig: 'Konfiguracja kierowcy',
   driverPersonalNr: 'Numer personalny',
   driverDoubleDiet: 'Podwójna dieta',
-  driverNight40: 'Dodatek nocny 40% (start przed północą)',
+  driverNight40: '40% tylko przy starcie przed północą',
   driverDietRate: 'Stawka diety',
   driverNotes: 'Notatki',
   driverNotesPlaceholder: 'Dodatkowe informacje...',

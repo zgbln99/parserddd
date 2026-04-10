@@ -82,7 +82,7 @@ def api_analyze_upload():
             tmp_path = tmp.name
         data = parse_ddd_auto(tmp_path, config_loader=_load_config)
         n40 = _get_night_40_enabled(data)
-        result = analyze_card(data, config_loader=_load_config, night_40_enabled=n40)
+        result = analyze_card(data, config_loader=_load_config, night_40_check_midnight=n40)
         _log_activity('analyze_upload', result.get('driver_info', {}).get('driver_name', ''))
         di = result.get('driver_info', {})
         _cache_card_expiry(di.get('card_number'), di.get('card_expiry_date'), di.get('driver_name', ''))
@@ -179,7 +179,7 @@ def api_analyze_dropbox():
             tmp_path = tmp.name
         data = parse_ddd_auto(tmp_path, config_loader=_load_config)
         n40 = _get_night_40_enabled(data)
-        result = analyze_card(data, config_loader=_load_config, night_40_enabled=n40)
+        result = analyze_card(data, config_loader=_load_config, night_40_check_midnight=n40)
         result['source_file'] = metadata.name
         _log_activity('analyze_dropbox', f"{result.get('driver_info', {}).get('driver_name', '')} — {metadata.name}")
         di = result.get('driver_info', {})
@@ -221,7 +221,7 @@ def api_compare_drivers():
                 tmp_path = tmp.name
             data = parse_ddd_auto(tmp_path, config_loader=_load_config)
             n40 = _get_night_40_enabled(data)
-            analysis = analyze_card(data, config_loader=_load_config, night_40_enabled=n40)
+            analysis = analyze_card(data, config_loader=_load_config, night_40_check_midnight=n40)
             os.unlink(tmp_path)
 
             shifts = []
