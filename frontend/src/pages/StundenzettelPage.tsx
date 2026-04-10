@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useMemo, Component, type ReactNode, type ErrorInfo } from 'react';
+import { useState, useCallback, useRef, useMemo, useEffect, Component, type ReactNode, type ErrorInfo } from 'react';
 import {
   Upload, FileText, AlertCircle, Clock, Moon, UtensilsCrossed,
   CalendarDays, Thermometer, Palmtree, Star, ClipboardCopy, Check,
@@ -129,6 +129,37 @@ export function StundenzettelPage() {
       return result;
     });
   };
+
+  // Load pre-filled data from analysis page (via localStorage)
+  useEffect(() => {
+    const raw = localStorage.getItem('stz_prefill');
+    if (!raw) return;
+    localStorage.removeItem('stz_prefill');
+    try {
+      const prefill = JSON.parse(raw);
+      if (prefill.period) {
+        setPeriod(prefill.period);
+      }
+      if (prefill.name) {
+        setName(prefill.name);
+      }
+      if (prefill.days && Array.isArray(prefill.days)) {
+        const y = parseInt((prefill.period || '').slice(0, 4)) || year;
+        const m = parseInt((prefill.period || '').slice(5, 7)) || month;
+        const count = daysInMonth(y, m);
+        const prefillMap = new Map<number, { start: string; end: string; pause: number; code: string }>();
+        for (const d of prefill.days) {
+          prefillMap.set(d.day, d);
+        }
+        const result: EditableDay[] = [];
+        for (let i = 1; i <= count; i++) {
+          const p = prefillMap.get(i);
+          result.push(p ? { day: i, start: p.start || '', end: p.end || '', pause: p.pause || 0, code: p.code || '' } : { day: i, start: '', end: '', pause: 0, code: '' });
+        }
+        setDays(result);
+      }
+    } catch { /* ignore parse errors */ }
+  }, []);
 
   const handleOcrUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

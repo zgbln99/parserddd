@@ -110,14 +110,20 @@ export interface CardEvent {
 
 export interface CalendarDayWork {
   date: string;
+  weekday: string;
+  shift_start: string;
+  shift_end: string;
+  duration_minutes: number;
   work_minutes: number;
   work_hm: string;
   driving_minutes: number;
   driving_hm: string;
+  break_minutes: number;
   night_25_minutes: number;
   night_40_minutes: number;
   night_25_hm: string;
   night_40_hm: string;
+  has_diet: boolean;
 }
 
 export interface AnalysisResult {

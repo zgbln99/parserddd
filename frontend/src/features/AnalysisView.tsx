@@ -6,7 +6,7 @@ import type { DriverConfig, MonthlyDays } from '../lib/api';
 import { Badge } from '../components/Badge';
 import { Spinner } from '../components/Spinner';
 import { BarChart } from '../components/BarChart';
-import { Download, FileText, ClipboardCopy, Check, Printer, BarChart3, UtensilsCrossed, Table2, Settings, CalendarDays, Sheet, Scale } from 'lucide-react';
+import { Download, FileText, ClipboardCopy, Check, Printer, BarChart3, UtensilsCrossed, Table2, Settings, CalendarDays, Sheet, Scale, Clock } from 'lucide-react';
 import type { AnalysisResult, ShiftDetail } from '../types';
 import { DriverConfigEditor } from './DriverConfigEditor';
 import { useAuth } from '../hooks/useAuth';
@@ -220,6 +220,44 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
   const handleGoogleSheetsExport = () => {
     generateGoogleSheetsUrl(di.driver_name || 'driver', s as any, shifts as any);
     toast(locale === 'de' ? 'In Zwischenablage kopiert — in Google Sheets einfügen' : 'Skopiowano do schowka — wklej w Google Sheets', 'success');
+  };
+
+  const handleStundenzettel = () => {
+    // Determine period from shifts
+    let period = '';
+    if (dateFrom && dateFrom.length >= 7) {
+      period = dateFrom.slice(0, 7);
+    } else if (shifts.length > 0 && shifts[0].shift_date) {
+      period = shifts[0].shift_date.slice(0, 7);
+    }
+    const year = parseInt(period.slice(0, 4)) || new Date().getFullYear();
+    const month = parseInt(period.slice(5, 7)) || (new Date().getMonth() + 1);
+    const numDays = new Date(year, month, 0).getDate();
+
+    // Build per-day data from calendar_days (CET-based, one entry per day)
+    const calDays = data.calendar_days || {};
+    const days: { day: number; start: string; end: string; pause: number; code: string }[] = [];
+    for (let d = 1; d <= numDays; d++) {
+      const key = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      const cd = calDays[key];
+      if (cd && cd.shift_start && cd.shift_end) {
+        // shift_start/shift_end are "YYYY-MM-DD HH:MM"
+        const startTime = cd.shift_start.slice(11, 16); // "HH:MM"
+        const endTime = cd.shift_end.slice(11, 16);
+        const breakMin = cd.break_minutes || 0;
+        days.push({ day: d, start: startTime, end: endTime, pause: breakMin, code: '' });
+      } else {
+        days.push({ day: d, start: '', end: '', pause: 0, code: '' });
+      }
+    }
+
+    // Store in localStorage and navigate to Stundenzettel page
+    localStorage.setItem('stz_prefill', JSON.stringify({
+      name: di.driver_name || '',
+      period,
+      days,
+    }));
+    window.location.href = '/stundenzettel';
   };
 
   const [showChart, setShowChart] = useState(false);
@@ -790,6 +828,13 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
         >
           <Sheet size={16} />
           {t('analysisExportGSheets')}
+        </button>
+        <button
+          onClick={handleStundenzettel}
+          className="flex min-h-[44px] items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-5 py-2.5 text-sm font-semibold text-amber-700 transition hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-400 dark:hover:bg-amber-900/30"
+        >
+          <Clock size={16} />
+          Stundenzettel
         </button>
         <button
           onClick={handlePrint}
