@@ -375,16 +375,15 @@ def analyze_card(data, night_start_hour=None, config_loader=None, night_40_check
             'manual_errors': manual_errors,
         })
 
-    # Recalculate summary from calendar_days (accurate per-CET-day attribution)
+    # Summary: work/driving/break/avail from calendar_days, night hours from shifts
+    # (shift-level night calculation respects night_40_check_midnight toggle)
     cd_total_work = sum(cd.get('work_minutes', 0) for cd in calendar_days.values())
     cd_total_driving = sum(cd.get('driving_minutes', 0) for cd in calendar_days.values())
     cd_total_break = sum(cd.get('break_minutes', 0) for cd in calendar_days.values())
     cd_total_avail = sum(cd.get('avail_minutes', 0) for cd in calendar_days.values())
-    cd_total_n25 = sum(cd.get('night_25_minutes', 0) for cd in calendar_days.values())
-    cd_total_n40 = sum(cd.get('night_40_minutes', 0) for cd in calendar_days.values())
-    cd_total_night = cd_total_n25 + cd_total_n40
     cd_total_manual = sum(cd.get('manual_minutes', 0) for cd in calendar_days.values())
     cd_diet_count = sum(1 for cd in calendar_days.values() if cd.get('has_diet'))
+    total_night = total_n25 + total_n40
 
     return {
         'driver_info': driver_info,
@@ -399,15 +398,15 @@ def analyze_card(data, night_start_hour=None, config_loader=None, night_40_check
             'total_break_minutes': cd_total_break,
             'total_avail_hm': minutes_to_hm(cd_total_avail),
             'total_avail_minutes': cd_total_avail,
-            'night_25_hm': minutes_to_hm(cd_total_n25),
-            'night_25_decimal': minutes_to_decimal(cd_total_n25),
-            'night_25_minutes': cd_total_n25,
-            'night_40_hm': minutes_to_hm(cd_total_n40),
-            'night_40_decimal': minutes_to_decimal(cd_total_n40),
-            'night_40_minutes': cd_total_n40,
-            'total_night_hm': minutes_to_hm(cd_total_night),
-            'total_night_decimal': minutes_to_decimal(cd_total_night),
-            'total_night_minutes': cd_total_night,
+            'night_25_hm': minutes_to_hm(total_n25),
+            'night_25_decimal': minutes_to_decimal(total_n25),
+            'night_25_minutes': total_n25,
+            'night_40_hm': minutes_to_hm(total_n40),
+            'night_40_decimal': minutes_to_decimal(total_n40),
+            'night_40_minutes': total_n40,
+            'total_night_hm': minutes_to_hm(total_night),
+            'total_night_decimal': minutes_to_decimal(total_night),
+            'total_night_minutes': total_night,
             'diet_count': cd_diet_count,
             'total_shifts': len(shift_details),
             'total_manual_hm': minutes_to_hm(cd_total_manual),

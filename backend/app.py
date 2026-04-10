@@ -118,6 +118,11 @@ def _init_db():
     except Exception:
         conn.execute("ALTER TABLE driver_config ADD COLUMN card_expiry_date TEXT NOT NULL DEFAULT ''")
         conn.commit()
+    try:
+        conn.execute("SELECT night_40_enabled FROM driver_config LIMIT 1")
+    except Exception:
+        conn.execute("ALTER TABLE driver_config ADD COLUMN night_40_enabled INTEGER NOT NULL DEFAULT 1")
+        conn.commit()
 
     conn.executescript('''
         CREATE TABLE IF NOT EXISTS driver_monthly_days (
