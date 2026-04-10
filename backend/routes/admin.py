@@ -92,6 +92,7 @@ def api_get_driver_config(card_number):
         'double_diet': 0,
         'diet_rate': 14.0,
         'notes': '',
+        'night_40_enabled': 1,
     })
 
 
@@ -110,6 +111,7 @@ def api_upsert_driver_config():
     personal_nr = _sanitize_text(data.get('personal_nr', ''), 50)
     notes = _sanitize_text(data.get('notes', ''), 500)
     double_diet = 1 if data.get('double_diet') else 0
+    night_40_enabled = 1 if data.get('night_40_enabled', True) else 0
 
     try:
         diet_rate = float(data.get('diet_rate', 14.0))
@@ -125,7 +127,7 @@ def api_upsert_driver_config():
     changes = []
     if existing:
         old = dict(existing)
-        field_map = {'driver_name': driver_name, 'personal_nr': personal_nr, 'double_diet': double_diet, 'diet_rate': diet_rate, 'notes': notes}
+        field_map = {'driver_name': driver_name, 'personal_nr': personal_nr, 'double_diet': double_diet, 'diet_rate': diet_rate, 'notes': notes, 'night_40_enabled': night_40_enabled}
         for field, new_val in field_map.items():
             old_val = old.get(field, '')
             if str(old_val) != str(new_val):
@@ -133,15 +135,15 @@ def api_upsert_driver_config():
         conn.execute('''
             UPDATE driver_config SET
                 driver_name = ?, personal_nr = ?, double_diet = ?,
-                diet_rate = ?, notes = ?, updated_at = ?
+                diet_rate = ?, notes = ?, night_40_enabled = ?, updated_at = ?
             WHERE card_number = ?
-        ''', (driver_name, personal_nr, double_diet, diet_rate, notes, now, card_number))
+        ''', (driver_name, personal_nr, double_diet, diet_rate, notes, night_40_enabled, now, card_number))
     else:
         changes.append({'field': '*', 'old': '', 'new': 'created'})
         conn.execute('''
-            INSERT INTO driver_config (card_number, driver_name, personal_nr, double_diet, diet_rate, notes, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (card_number, driver_name, personal_nr, double_diet, diet_rate, notes, now, now))
+            INSERT INTO driver_config (card_number, driver_name, personal_nr, double_diet, diet_rate, notes, night_40_enabled, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (card_number, driver_name, personal_nr, double_diet, diet_rate, notes, night_40_enabled, now, now))
 
     conn.commit()
     conn.close()
@@ -195,11 +197,15 @@ def api_bulk_driver_config():
             if 'notes' in updates:
                 sets.append('notes = ?')
                 vals.append(_sanitize_text(str(updates['notes']), 500))
+            if 'night_40_enabled' in updates:
+                sets.append('night_40_enabled = ?')
+                vals.append(1 if updates['night_40_enabled'] else 0)
             vals.append(cn)
             conn.execute(f"UPDATE driver_config SET {', '.join(sets)} WHERE card_number = ?", vals)
         else:
             # Create with defaults + updates
             double_diet = 1 if updates.get('double_diet') else 0
+            night_40_enabled = 1 if updates.get('night_40_enabled', True) else 0
             try:
                 diet_rate = float(updates.get('diet_rate', 14.0))
                 if diet_rate < 0 or diet_rate > 999:
@@ -207,12 +213,12 @@ def api_bulk_driver_config():
             except (ValueError, TypeError):
                 diet_rate = 14.0
             conn.execute('''
-                INSERT INTO driver_config (card_number, driver_name, personal_nr, double_diet, diet_rate, notes, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO driver_config (card_number, driver_name, personal_nr, double_diet, diet_rate, notes, night_40_enabled, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 cn, '', _sanitize_text(str(updates.get('personal_nr', '')), 50),
                 double_diet, diet_rate, _sanitize_text(str(updates.get('notes', '')), 500),
-                now, now,
+                night_40_enabled, now, now,
             ))
         count += 1
 

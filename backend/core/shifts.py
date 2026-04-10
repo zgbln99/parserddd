@@ -133,8 +133,11 @@ def _build_night_windows(earliest_utc, latest_utc, night_start_hour=22):
     return windows
 
 
-def calculate_shift_night_hours(minute_buckets, shift_start, night_start_hour=22):
+def calculate_shift_night_hours(minute_buckets, shift_start, night_start_hour=22, night_40_enabled=True):
     """Calculate night work minutes using CET night windows on UTC timeline.
+
+    Args:
+        night_40_enabled: If False, all 00:00-04:00 hours count as 25% instead of 40%.
 
     Returns (night_25_minutes, night_40_minutes).
     """
@@ -152,13 +155,16 @@ def calculate_shift_night_hours(minute_buckets, shift_start, night_start_hour=22
             if night_start_hour <= hour <= 23:
                 night_25 += 1
             elif 0 <= hour < 4:
-                cet_midnight = datetime(
-                    dt_cet.year, dt_cet.month, dt_cet.day, tzinfo=CET
-                ).astimezone(UTC)
-                if shift_start < cet_midnight:
-                    night_40 += 1
-                else:
+                if not night_40_enabled:
                     night_25 += 1
+                else:
+                    cet_midnight = datetime(
+                        dt_cet.year, dt_cet.month, dt_cet.day, tzinfo=CET
+                    ).astimezone(UTC)
+                    if shift_start < cet_midnight:
+                        night_40 += 1
+                    else:
+                        night_25 += 1
             elif 4 <= hour < 6:
                 night_25 += 1
         return night_25, night_40
@@ -182,12 +188,15 @@ def calculate_shift_night_hours(minute_buckets, shift_start, night_start_hour=22
             if category == '25':
                 night_25 += mins
             elif category == 'check':
-                # 00:00-04:00 CET: 40% if shift started before this CET midnight
-                cet_midnight_utc = w_start  # w_start IS CET 00:00 in UTC
-                if shift_start < cet_midnight_utc:
-                    night_40 += mins
-                else:
+                if not night_40_enabled:
                     night_25 += mins
+                else:
+                    # 00:00-04:00 CET: 40% if shift started before this CET midnight
+                    cet_midnight_utc = w_start  # w_start IS CET 00:00 in UTC
+                    if shift_start < cet_midnight_utc:
+                        night_40 += mins
+                    else:
+                        night_25 += mins
     return night_25, night_40
 
 

@@ -336,6 +336,7 @@ export interface DriverConfig {
   personal_nr: string;
   double_diet: number; // 0 or 1
   diet_rate: number;
+  night_40_enabled: number; // 0 or 1 — 40% night premium for pre-midnight shifts
   notes: string;
   created_at?: string;
   updated_at?: string;

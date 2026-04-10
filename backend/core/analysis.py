@@ -36,13 +36,14 @@ from .constants import CET
 logger = logging.getLogger('ddd-reader')
 
 
-def analyze_card(data, night_start_hour=None, config_loader=None):
+def analyze_card(data, night_start_hour=None, config_loader=None, night_40_enabled=True):
     """Analyze a parsed DDD card: shifts, calendar days, night hours, diets.
 
     Args:
         data: Parsed DDD data dict (from parse_ddd_auto or similar).
         night_start_hour: Override for night start hour (default: from config or 22).
         config_loader: Callable returning config dict (for night_start_hour default).
+        night_40_enabled: If False, all 00:00-04:00 hours count as 25% instead of 40%.
     """
     if night_start_hour is None:
         if config_loader:
@@ -176,7 +177,10 @@ def analyze_card(data, night_start_hour=None, config_loader=None):
                 if night_start_hour <= hour <= 23:
                     cd['n25'] += 1
                 elif 0 <= hour < 4:
-                    cd['n40'] += 1
+                    if night_40_enabled:
+                        cd['n40'] += 1
+                    else:
+                        cd['n25'] += 1
                 elif 4 <= hour < 6:
                     cd['n25'] += 1
             if wt == DRIVING:
@@ -299,7 +303,7 @@ def analyze_card(data, night_start_hour=None, config_loader=None):
         work_minutes = work_only_minutes + driving_minutes + avail_minutes
         duration_minutes = count_bucket_minutes_between(shift_start, shift_end)
         cet_start = _to_cet(shift_start)
-        night_25, night_40 = calculate_shift_night_hours(span_buckets, shift_start, night_start_hour)
+        night_25, night_40 = calculate_shift_night_hours(span_buckets, shift_start, night_start_hour, night_40_enabled)
 
         total_work += work_minutes
         total_driving += driving_minutes

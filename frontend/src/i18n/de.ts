@@ -232,6 +232,7 @@ export const de: Record<TranslationKey, string> = {
   driverConfig: 'Fahrerkonfiguration',
   driverPersonalNr: 'Personalnummer',
   driverDoubleDiet: 'Doppelte Verpflegung',
+  driverNight40: 'Nachtzuschlag 40% (Beginn vor Mitternacht)',
   driverDietRate: 'Verpflegungssatz',
   driverNotes: 'Notizen',
   driverNotesPlaceholder: 'Zusätzliche Informationen...',

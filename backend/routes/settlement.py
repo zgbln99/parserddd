@@ -79,7 +79,20 @@ def api_settlement():
                     tmp.write(response.content)
                     tmp_path = tmp.name
                 data = parse_ddd_auto(tmp_path, config_loader=_load_config)
-                analysis = analyze_card(data, config_loader=_load_config)
+                # Look up per-driver night_40_enabled
+                _n40 = True
+                try:
+                    _di = get_driver_info(data)
+                    _cn = _di.get('card_number', '')
+                    if _cn:
+                        _conn = _get_db()
+                        _row = _conn.execute('SELECT night_40_enabled FROM driver_config WHERE card_number = ?', (_cn,)).fetchone()
+                        _conn.close()
+                        if _row:
+                            _n40 = bool(_row['night_40_enabled'])
+                except Exception:
+                    pass
+                analysis = analyze_card(data, config_loader=_load_config, night_40_enabled=_n40)
                 os.unlink(tmp_path)
 
                 month_shifts = [sh for sh in analysis.get('shift_details', [])
