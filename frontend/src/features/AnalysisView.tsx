@@ -50,7 +50,8 @@ interface AnalysisViewProps {
 
 export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateToChange, vacationRanges, onReanalyze }: AnalysisViewProps) {
   const { t, locale } = useI18n();
-  const { isAdmin } = useAuth();
+  const { isAdmin, isFeatureVisible } = useAuth();
+  const fv = isFeatureVisible;
   const di = data.driver_info;
   const nightH = data.night_start_hour ?? 22;
   const allShifts = data.shift_details;
@@ -450,17 +451,17 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
           <p className="mt-1 text-2xl font-extrabold text-primary-700 dark:text-primary-300">{s.total_work_hm}</p>
           <p className="mt-0.5 text-xs text-primary-500/70/70">{s.total_work_decimal}h</p>
         </div>
-        <div className="rounded-xl border border-violet-200 bg-violet-50 p-4 text-center dark:border-violet-800 dark:bg-violet-900/30" title={locale === 'de' ? `Nachtarbeit ab ${nightH}:00 (25%)` : `Nocne od ${nightH}:00 (25%)`}>
+        {fv('night_hours_cards') && <div className="rounded-xl border border-violet-200 bg-violet-50 p-4 text-center dark:border-violet-800 dark:bg-violet-900/30" title={locale === 'de' ? `Nachtarbeit ab ${nightH}:00 (25%)` : `Nocne od ${nightH}:00 (25%)`}>
           <p className="text-xs font-bold uppercase tracking-wider text-violet-500 dark:text-violet-400">{t('analysisNight25')}</p>
           <p className="mt-1 text-2xl font-extrabold text-violet-700 dark:text-violet-300">{monthlyDays?.override_n25 || (s.night_25_minutes / 60).toFixed(2)}</p>
           <p className="mt-0.5 text-xs text-violet-500/70 dark:text-violet-400/70">{monthlyDays?.override_n25 ? '' : s.night_25_hm}</p>
           <p className="mt-0.5 text-xs text-violet-400/60 dark:text-violet-500/60">{locale === 'de' ? 'ab' : 'od'} {nightH}:00</p>
-        </div>
-        <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-4 text-center dark:border-indigo-800 dark:bg-indigo-900/30" title={locale === 'de' ? `Nachtarbeit ab ${nightH}:00 (40%)` : `Nocne od ${nightH}:00 (40%)`}>
+        </div>}
+        {fv('night_hours_cards') && <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-4 text-center dark:border-indigo-800 dark:bg-indigo-900/30" title={locale === 'de' ? `Nachtarbeit ab ${nightH}:00 (40%)` : `Nocne od ${nightH}:00 (40%)`}>
           <p className="text-xs font-bold uppercase tracking-wider text-indigo-500 dark:text-indigo-400">{t('analysisNight40')}</p>
           <p className="mt-1 text-2xl font-extrabold text-indigo-700 dark:text-indigo-300">{monthlyDays?.override_n40 || (s.night_40_minutes / 60).toFixed(2)}</p>
           <p className="mt-0.5 text-xs text-indigo-500/70 dark:text-indigo-400/70">{monthlyDays?.override_n40 ? '' : s.night_40_hm}</p>
-        </div>
+        </div>}
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-center dark:border-emerald-800 dark:bg-emerald-900/30" title="Verpflegungsmehraufwand - dieta za podróż służbową">
           <p className="text-xs font-bold uppercase tracking-wider text-success dark:text-emerald-400">{t('analysisDietCount')}</p>
           <p className="mt-1 text-2xl font-extrabold text-emerald-700 dark:text-emerald-300">{s.diet_count}</p>
@@ -488,7 +489,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
       </div>
 
       {/* Monthly grid copy block (hidden on mobile - 31-col table) */}
-      {shifts.length > 0 && hasDateFilter && dateFrom && (
+      {fv('monthly_grid') && shifts.length > 0 && hasDateFilter && dateFrom && (
         <div className="hidden sm:block rounded-xl bg-black/[0.02] p-4 dark:bg-white/5">
           <MonthlyGridCopy
             shifts={shifts}
@@ -506,7 +507,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
       )}
 
       {/* Chart toggle + chart */}
-      {shifts.length > 1 && (
+      {fv('chart') && shifts.length > 1 && (
         <div className="rounded-xl bg-surface">
           <button
             onClick={() => setShowChart(!showChart)}
@@ -544,7 +545,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
       )}
 
       {/* Diet report toggle */}
-      {shifts.length > 0 && (
+      {fv('diet_report') && shifts.length > 0 && (
         <div className="rounded-xl bg-surface">
           <button
             onClick={() => setShowDietReport(!showDietReport)}
@@ -801,7 +802,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
       )}
 
       {/* Manual entries collapsible section */}
-      {(data.manual_entries?.length ?? 0) > 0 && (
+      {fv('manual_entries') && (data.manual_entries?.length ?? 0) > 0 && (
         <div className="rounded-xl bg-surface">
           <button
             onClick={() => setShowManual(!showManual)}
@@ -846,62 +847,62 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
 
       {/* Export */}
       <div className="flex flex-wrap justify-center gap-3 pt-2">
-        <button
+        {fv('export_xlsx') && <button
           onClick={handleXlsxExport}
           className="flex min-h-[44px] items-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-primary-700 dark:hover:bg-primary-600"
         >
           <Download size={16} />
           {t('analysisExportXlsx')}
-        </button>
-        <button
+        </button>}
+        {fv('export_csv') && <button
           onClick={handleExport}
           className="flex min-h-[44px] items-center gap-2 rounded-xl border border-primary-200 px-5 py-2.5 text-sm font-semibold text-primary-600 transition hover:bg-primary-50 dark:border-primary-800"
         >
           <Download size={16} />
           {t('analysisExportCsv')}
-        </button>
-        <button
+        </button>}
+        {fv('export_pdf') && <button
           onClick={handlePdfExport}
           className="flex min-h-[44px] items-center gap-2 rounded-xl border border-primary-200 px-5 py-2.5 text-sm font-semibold text-primary-600 transition hover:bg-primary-50 dark:border-primary-800"
         >
           <FileText size={16} />
           {t('analysisExportPdf')}
-        </button>
-        <button
+        </button>}
+        {fv('export_arbeitszeitnachweis') && <button
           onClick={handleArbeitszeitPdf}
           className="flex min-h-[44px] items-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 px-5 py-2.5 text-sm font-semibold text-indigo-700 transition hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-900/20 dark:text-indigo-400 dark:hover:bg-indigo-900/30"
         >
           <Scale size={16} />
           {t('analysisExportArbeitszeitnachweis')}
-        </button>
-        <button
+        </button>}
+        {fv('export_datev') && <button
           onClick={handleDatevExport}
           className="flex min-h-[44px] items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-2.5 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-400 dark:hover:bg-emerald-900/30"
         >
           <Table2 size={16} />
           {t('analysisExportDatev')}
-        </button>
-        <button
+        </button>}
+        {fv('export_gsheets') && <button
           onClick={handleGoogleSheetsExport}
           className="flex min-h-[44px] items-center gap-2 rounded-xl border border-green-200 bg-green-50 px-5 py-2.5 text-sm font-semibold text-green-700 transition hover:bg-green-100 dark:border-green-800 dark:bg-green-900/20 dark:text-green-400 dark:hover:bg-green-900/30"
         >
           <Sheet size={16} />
           {t('analysisExportGSheets')}
-        </button>
-        <button
+        </button>}
+        {fv('export_stundenzettel') && <button
           onClick={handleStundenzettel}
           className="flex min-h-[44px] items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-5 py-2.5 text-sm font-semibold text-amber-700 transition hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-400 dark:hover:bg-amber-900/30"
         >
           <Clock size={16} />
           Stundenzettel
-        </button>
-        <button
+        </button>}
+        {fv('print') && <button
           onClick={handlePrint}
           className="flex min-h-[44px] items-center gap-2 rounded-xl border border-border px-5 py-2.5 text-sm font-semibold text-muted transition hover:bg-surface"
         >
           <Printer size={16} />
           {t('analysisPrint')}
-        </button>
+        </button>}
       </div>
     </div>
   );

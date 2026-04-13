@@ -33,6 +33,8 @@ interface AuthContextValue {
   isDriver: boolean;
   permissions: string[];
   hasPermission: (perm: string) => boolean;
+  hiddenFeatures: string[];
+  isFeatureVisible: (feature: string) => boolean;
   login: (password: string) => Promise<void>;
   logout: () => Promise<void>;
 }
@@ -45,6 +47,8 @@ const AuthContext = createContext<AuthContextValue>({
   isDriver: false,
   permissions: [],
   hasPermission: () => false,
+  hiddenFeatures: [],
+  isFeatureVisible: () => true,
   login: async () => {},
   logout: async () => {},
 });
@@ -60,6 +64,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loggedIn, setLoggedIn] = useState<boolean | null>(null);
   const [role, setRole] = useState<UserRole>('user');
   const [serverPermissions, setServerPermissions] = useState<string[]>([]);
+  const [hiddenFeatures, setHiddenFeatures] = useState<string[]>([]);
 
   useEffect(() => {
     authStatus()
@@ -67,6 +72,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setLoggedIn(data.logged_in);
         setRole(parseRole((data as any).role));
         setServerPermissions((data as any).permissions || []);
+        setHiddenFeatures((data as any).hidden_features || []);
       })
       .catch(() => setLoggedIn(false));
   }, []);
@@ -76,6 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoggedIn(true);
     setRole(parseRole((result as any).role));
     setServerPermissions((result as any).permissions || []);
+    setHiddenFeatures((result as any).hidden_features || []);
   }, []);
 
   const logout = useCallback(async () => {
@@ -97,6 +104,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [permissions],
   );
 
+  const isFeatureVisible = useCallback(
+    (feature: string) => !hiddenFeatures.includes(feature),
+    [hiddenFeatures],
+  );
+
   return (
     <AuthContext.Provider
       value={{
@@ -107,6 +119,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isDriver: role === 'driver',
         permissions,
         hasPermission,
+        hiddenFeatures,
+        isFeatureVisible,
         login,
         logout,
       }}

@@ -181,6 +181,7 @@ export const pl = {
   overrideN40: 'Nadpisz 40%',
   overrideHint: 'Ręczne nadpisanie — widoczne zamiast obliczonych wartości',
 
+  adminHiddenFeatures: 'Ukryte funkcje',
   adminPauseCap: 'Max 45 min pauzy',
   adminPauseCapHint: 'Na zmianę max 45 min pauzy, reszta jako Bereitschaft',
   adminWeekendDiet: 'Diety weekendowe',

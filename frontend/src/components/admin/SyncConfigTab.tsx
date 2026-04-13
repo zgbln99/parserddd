@@ -23,6 +23,7 @@ function SyncConfigSection() {
   const [parserEngine, setParserEngine] = useState('tachoparser');
   const [pauseCapEnabled, setPauseCapEnabled] = useState(false);
   const [weekendDiet, setWeekendDiet] = useState(false);
+  const [hiddenFeatures, setHiddenFeatures] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState('');
 
@@ -35,6 +36,7 @@ function SyncConfigSection() {
         setParserEngine(cfg.parser_engine || 'tachoparser');
         setPauseCapEnabled(!!cfg.pause_cap_enabled);
         setWeekendDiet(!!cfg.weekend_diet);
+        setHiddenFeatures(cfg.hidden_features || []);
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -52,6 +54,7 @@ function SyncConfigSection() {
       data.parser_engine = parserEngine;
       data.pause_cap_enabled = pauseCapEnabled ? 1 : 0;
       data.weekend_diet = weekendDiet ? 1 : 0;
+      data.hidden_features = hiddenFeatures;
       await updateConfig(data);
       setMsg('OK!');
       setSamsaraToken('');
@@ -178,6 +181,39 @@ function SyncConfigSection() {
               <div className="h-5 w-9 rounded-full bg-gray-200 after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-green-500 peer-checked:after:translate-x-full peer-checked:after:border-white dark:bg-gray-700" />
             </label>
             <span className="text-xs text-muted">{t('adminWeekendDietHint')}</span>
+          </div>
+        </div>
+        <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3">
+          <label className="text-xs font-semibold text-muted sm:w-40 shrink-0 pt-1">{t('adminHiddenFeatures')}</label>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-1">
+            {([
+              ['export_xlsx', 'Eksport Excel'],
+              ['export_csv', 'Eksport CSV'],
+              ['export_pdf', 'Eksport PDF'],
+              ['export_arbeitszeitnachweis', 'Arbeitszeitnachweis'],
+              ['export_datev', 'DATEV'],
+              ['export_gsheets', 'Google Sheets'],
+              ['export_stundenzettel', 'Stundenzettel'],
+              ['monthly_grid', 'Siatka miesięczna'],
+              ['manual_entries', 'Wpisy manualne'],
+              ['diet_report', 'Raport diet'],
+              ['chart', 'Wykres'],
+              ['night_hours_cards', 'Karty nocne'],
+              ['print', 'Drukuj'],
+            ] as [string, string][]).map(([key, label]) => (
+              <label key={key} className="flex items-center gap-2 rounded px-2 py-1 text-xs cursor-pointer hover:bg-surface">
+                <input
+                  type="checkbox"
+                  checked={hiddenFeatures.includes(key)}
+                  onChange={(e) => {
+                    if (e.target.checked) setHiddenFeatures(prev => [...prev, key]);
+                    else setHiddenFeatures(prev => prev.filter(f => f !== key));
+                  }}
+                  className="rounded border-gray-300"
+                />
+                <span className={hiddenFeatures.includes(key) ? 'line-through text-muted' : ''}>{label}</span>
+              </label>
+            ))}
           </div>
         </div>
         <div className="flex items-center gap-3 pt-2">

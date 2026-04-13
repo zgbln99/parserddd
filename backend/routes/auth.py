@@ -9,6 +9,7 @@ from auth.helpers import (
     _check_rate_limit, _record_failed_login, _clear_rate_limit,
     _record_login, _verify_password, _load_users,
 )
+from auth.helpers import _load_config as _load_global_config
 from config import ADMIN_PASSWORD, PORTAL_PASSWORD, ROLE_PERMISSIONS
 
 bp = Blueprint('auth', __name__)
@@ -77,9 +78,11 @@ def api_auth_status():
     role = session.get('role', 'user')
     custom_perms = session.get('permissions', [])
     perms = list(set(ROLE_PERMISSIONS.get(role, []) + custom_perms))
+    cfg = _load_global_config()
     return jsonify({
         'logged_in': bool(session.get('logged_in')),
         'role': role,
         'username': session.get('username', ''),
         'permissions': perms,
+        'hidden_features': cfg.get('hidden_features', []) if role != 'admin' else [],
     })

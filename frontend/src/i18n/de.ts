@@ -183,6 +183,7 @@ export const de: Record<TranslationKey, string> = {
   overrideN40: '40% überschreiben',
   overrideHint: 'Manuelle Eingabe — wird anstelle der berechneten Werte angezeigt',
 
+  adminHiddenFeatures: 'Ausgeblendete Funktionen',
   adminPauseCap: 'Max 45 Min Pause',
   adminPauseCapHint: 'Pro Schicht max 45 Min Pause, Rest als Bereitschaft',
   adminWeekendDiet: 'Wochenend-Verpflegung',

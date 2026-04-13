@@ -371,6 +371,7 @@ def api_get_config():
         'parser_engine': cfg.get('parser_engine', 'tachoparser'),
         'pause_cap_enabled': bool(cfg.get('pause_cap_enabled', False)),
         'weekend_diet': bool(cfg.get('weekend_diet', False)),
+        'hidden_features': cfg.get('hidden_features', []),
     })
 
 
@@ -392,6 +393,8 @@ def api_update_config():
         cfg['pause_cap_enabled'] = bool(data['pause_cap_enabled'])
     if 'weekend_diet' in data:
         cfg['weekend_diet'] = bool(data['weekend_diet'])
+    if 'hidden_features' in data:
+        cfg['hidden_features'] = list(data['hidden_features']) if isinstance(data['hidden_features'], list) else []
     _save_config(cfg)
     # Update in-memory
     if 'samsara_api_token' in data and data['samsara_api_token']:

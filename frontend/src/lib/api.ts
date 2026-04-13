@@ -320,6 +320,7 @@ export interface SyncConfig {
   parser_engine: string;
   pause_cap_enabled: boolean;
   weekend_diet: boolean;
+  hidden_features: string[];
 }
 
 export const fetchConfig = () =>
