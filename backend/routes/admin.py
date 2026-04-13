@@ -370,6 +370,7 @@ def api_get_config():
         'night_start_hour': int(cfg.get('night_start_hour', 22)),
         'parser_engine': cfg.get('parser_engine', 'tachoparser'),
         'pause_cap_enabled': bool(cfg.get('pause_cap_enabled', False)),
+        'weekend_diet': bool(cfg.get('weekend_diet', False)),
     })
 
 
@@ -389,6 +390,8 @@ def api_update_config():
         cfg['parser_engine'] = data['parser_engine']
     if 'pause_cap_enabled' in data:
         cfg['pause_cap_enabled'] = bool(data['pause_cap_enabled'])
+    if 'weekend_diet' in data:
+        cfg['weekend_diet'] = bool(data['weekend_diet'])
     _save_config(cfg)
     # Update in-memory
     if 'samsara_api_token' in data and data['samsara_api_token']:

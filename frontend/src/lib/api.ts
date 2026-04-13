@@ -317,6 +317,7 @@ export interface SyncConfig {
   night_start_hour: number;
   parser_engine: string;
   pause_cap_enabled: boolean;
+  weekend_diet: boolean;
 }
 
 export const fetchConfig = () =>

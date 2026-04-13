@@ -5,7 +5,7 @@ import {
   Plus, Trash2,
 } from 'lucide-react';
 import { useI18n } from '../i18n';
-import { parseStundenzettel, type StundenzettelDay } from '../lib/api';
+import { parseStundenzettel, fetchConfig, type StundenzettelDay } from '../lib/api';
 import { Card, StatCard } from '../components/Card';
 import { Badge } from '../components/Badge';
 import { Spinner } from '../components/Spinner';
@@ -52,7 +52,7 @@ function parseTimeToMin(t: string): number | null {
   return parseInt(m[1]) * 60 + parseInt(m[2]);
 }
 
-function calcDay(d: EditableDay, weekend = false) {
+function calcDay(d: EditableDay, weekend = false, weekendDiet = false) {
   const startMin = parseTimeToMin(d.start);
   const endMin = parseTimeToMin(d.end);
   if (startMin === null || endMin === null) return { work: 0, night25: 0, night40: 0, diet: false };
@@ -72,7 +72,7 @@ function calcDay(d: EditableDay, weekend = false) {
     }
   }
 
-  return { work, night25, night40, diet: !weekend && gross >= 480 };
+  return { work, night25, night40, diet: (!weekend || weekendDiet) && gross >= 480 };
 }
 
 function daysInMonth(year: number, month: number): number {
@@ -108,6 +108,12 @@ export function StundenzettelPage() {
   const [period, setPeriod] = useState(getCurrentPeriod);
   const year = parseInt(period.slice(0, 4)) || new Date().getFullYear();
   const month = parseInt(period.slice(5, 7)) || (new Date().getMonth() + 1);
+
+  const [weekendDiet, setWeekendDiet] = useState(false);
+
+  useEffect(() => {
+    fetchConfig().then(cfg => setWeekendDiet(!!cfg.weekend_diet)).catch(() => {});
+  }, []);
 
   const [name, setName] = useState('');
   const [days, setDays] = useState<EditableDay[]>(() => makeEmptyDays(
@@ -228,7 +234,7 @@ export function StundenzettelPage() {
       if (d.code === 'U') { vacation++; continue; }
       if (d.code === 'F') { holidays++; continue; }
       if (d.code) continue;
-      const c = calcDay(d, isWeekend(year, month, d.day));
+      const c = calcDay(d, isWeekend(year, month, d.day), weekendDiet);
       if (c.work > 0) {
         workMin += c.work; n25 += c.night25; n40 += c.night40; workDays++;
         if (c.diet) diets++;
@@ -433,7 +439,7 @@ export function StundenzettelPage() {
             </div>
 
             {/* Copy grid */}
-            <StzCopyGrid days={days} year={year} month={month} totals={totals} />
+            <StzCopyGrid days={days} year={year} month={month} totals={totals} weekendDiet={weekendDiet} />
           </>
         )}
 
@@ -457,7 +463,7 @@ export function StundenzettelPage() {
               {days.map((day, idx) => {
                 const wd = getWeekday(year, month, day.day);
                 const weekend = isWeekend(year, month, day.day);
-                const c = calcDay(day, weekend);
+                const c = calcDay(day, weekend, weekendDiet);
                 const hasCode = !!day.code;
                 const rowColor = day.code ? (CODE_COLORS[day.code] || '') : weekend ? 'bg-gray-50/50 dark:bg-gray-800/20' : '';
 
@@ -517,9 +523,10 @@ export function StundenzettelPage() {
 
 // --- Copy Grid ---
 
-function StzCopyGrid({ days, year, month, totals }: {
+function StzCopyGrid({ days, year, month, totals, weekendDiet = false }: {
   days: EditableDay[]; year: number; month: number;
   totals: { workMin: number; n25: number; n40: number; diets: number; sick: number; vacation: number; holidays: number; workDays: number };
+  weekendDiet?: boolean;
 }) {
   const { t } = useI18n();
   const [copied, setCopied] = useState(false);
@@ -530,7 +537,7 @@ function StzCopyGrid({ days, year, month, totals }: {
       if (d.code === 'U') return 'Ur';
       if (d.code === 'F') return 'F';
       if (d.code) return d.code;
-      const c = calcDay(d, isWeekend(year, month, d.day));
+      const c = calcDay(d, isWeekend(year, month, d.day), weekendDiet);
       return c.work > 0 ? hm(c.work) : '';
     });
   }, [days]);

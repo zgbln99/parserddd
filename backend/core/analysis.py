@@ -36,7 +36,7 @@ from .constants import CET
 logger = logging.getLogger('ddd-reader')
 
 
-def analyze_card(data, night_start_hour=None, config_loader=None, night_40_check_midnight=True, pause_cap_enabled=False):
+def analyze_card(data, night_start_hour=None, config_loader=None, night_40_check_midnight=True, pause_cap_enabled=False, weekend_diet=False):
     """Analyze a parsed DDD card: shifts, calendar days, night hours, diets.
 
     Args:
@@ -216,7 +216,7 @@ def analyze_card(data, night_start_hour=None, config_loader=None, night_40_check
             parsed_date = parse_date_safe(d)
             wd_idx = parsed_date.weekday() if parsed_date else 0
             is_weekday = wd_idx < 5
-            has_diet = duration >= 480 and is_weekday
+            has_diet = duration >= 480 and (is_weekday or weekend_diet)
 
             calendar_days[d] = {
                 'date': d,
@@ -334,7 +334,7 @@ def analyze_card(data, night_start_hour=None, config_loader=None, night_40_check
         total_n40 += night_40
         total_manual += manual_minutes
         is_weekday = cet_start.weekday() < 5
-        has_diet = duration_minutes >= 8 * 60 and is_weekday
+        has_diet = duration_minutes >= 8 * 60 and (is_weekday or weekend_diet)
         if has_diet:
             diet_count += 1
 

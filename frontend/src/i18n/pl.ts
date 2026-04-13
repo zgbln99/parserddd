@@ -179,6 +179,8 @@ export const pl = {
 
   adminPauseCap: 'Max 45 min pauzy',
   adminPauseCapHint: 'Na zmianę max 45 min pauzy, reszta jako Bereitschaft',
+  adminWeekendDiet: 'Diety weekendowe',
+  adminWeekendDietHint: 'Diety liczone też w soboty i niedziele (od 01.04)',
 
   // Reader
   readerTitle: 'Czytnik kart DDD',

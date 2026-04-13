@@ -181,6 +181,8 @@ export const de: Record<TranslationKey, string> = {
 
   adminPauseCap: 'Max 45 Min Pause',
   adminPauseCapHint: 'Pro Schicht max 45 Min Pause, Rest als Bereitschaft',
+  adminWeekendDiet: 'Wochenend-Verpflegung',
+  adminWeekendDietHint: 'Verpflegung auch an Samstagen und Sonntagen (ab 01.04)',
 
   // Reader
   readerTitle: 'DDD-Kartenleser',
