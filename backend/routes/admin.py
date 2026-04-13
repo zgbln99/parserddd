@@ -147,6 +147,11 @@ def api_upsert_driver_config():
 
     conn.commit()
     conn.close()
+    try:
+        from routes.analysis import _analysis_cache
+        _analysis_cache.clear()
+    except Exception:
+        pass
     _log_activity('save_driver_config', f"{card_number} — {driver_name}")
     _log_config_change('save_driver_config', f"{card_number} — {driver_name}", card_number=card_number, driver_name=driver_name, changes=changes)
     return jsonify({'ok': True})
@@ -396,6 +401,12 @@ def api_update_config():
     if 'hidden_features' in data:
         cfg['hidden_features'] = list(data['hidden_features']) if isinstance(data['hidden_features'], list) else []
     _save_config(cfg)
+    # Clear analysis cache when settings change
+    try:
+        from routes.analysis import _analysis_cache
+        _analysis_cache.clear()
+    except Exception:
+        pass
     # Update in-memory
     if 'samsara_api_token' in data and data['samsara_api_token']:
         cfg_mod.SAMSARA_API_TOKEN = data['samsara_api_token']

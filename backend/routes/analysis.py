@@ -2,8 +2,11 @@
 Analysis Blueprint — file upload analysis, preview, Dropbox analysis, compare.
 """
 
+import hashlib
+import json as _json
 import os
 import tempfile
+import time
 
 from flask import Blueprint, request, jsonify
 
@@ -20,6 +23,35 @@ from core.analysis import analyze_card
 from services.dropbox_service import get_server_dropbox_client
 
 bp = Blueprint('analysis', __name__)
+
+# ---------------------------------------------------------------------------
+# In-memory analysis cache: key = hash(file_content + flags) → result dict
+# ---------------------------------------------------------------------------
+_analysis_cache: dict[str, tuple[float, dict]] = {}
+_CACHE_MAX_AGE = 3600  # 1 hour
+_CACHE_MAX_SIZE = 50
+
+
+def _cache_key(file_content: bytes, flags: dict) -> str:
+    h = hashlib.md5(file_content, usedforsecurity=False)
+    h.update(_json.dumps(flags, sort_keys=True).encode())
+    return h.hexdigest()
+
+
+def _cache_get(key: str) -> dict | None:
+    entry = _analysis_cache.get(key)
+    if entry and (time.time() - entry[0]) < _CACHE_MAX_AGE:
+        return entry[1]
+    if entry:
+        _analysis_cache.pop(key, None)
+    return None
+
+
+def _cache_set(key: str, result: dict):
+    if len(_analysis_cache) >= _CACHE_MAX_SIZE:
+        oldest = min(_analysis_cache, key=lambda k: _analysis_cache[k][0])
+        _analysis_cache.pop(oldest, None)
+    _analysis_cache[key] = (time.time(), result)
 
 
 def _get_driver_analysis_flags(data):
@@ -82,15 +114,31 @@ def api_analyze_upload():
     if file.filename == '':
         return jsonify({'error': 'Nie wybrano pliku'}), 400
     try:
+        file_content = file.read()
+        cfg = _load_config()
+        global_flags = {
+            'night_start_hour': int(cfg.get('night_start_hour', 22)),
+            'pause_cap_enabled': bool(cfg.get('pause_cap_enabled', False)),
+            'weekend_diet': bool(cfg.get('weekend_diet', False)),
+        }
+        ck = _cache_key(file_content, global_flags)
+        cached = _cache_get(ck)
+        if cached:
+            return jsonify(cached)
+
         with tempfile.NamedTemporaryFile(suffix='.ddd', delete=False) as tmp:
-            file.save(tmp.name)
+            tmp.write(file_content)
             tmp_path = tmp.name
-        data = parse_ddd_auto(tmp_path, config_loader=_load_config)
+        data = parse_ddd_auto(tmp_path)
         _flags = _get_driver_analysis_flags(data)
         result = analyze_card(data, config_loader=_load_config, night_40_check_midnight=_flags['night_40_check_midnight'], pause_cap_enabled=_flags['pause_cap_enabled'], weekend_diet=_flags['weekend_diet'])
         _log_activity('analyze_upload', result.get('driver_info', {}).get('driver_name', ''))
         di = result.get('driver_info', {})
         _cache_card_expiry(di.get('card_number'), di.get('card_expiry_date'), di.get('driver_name', ''))
+        # Update cache key with per-driver flags
+        ck_full = _cache_key(file_content, {**global_flags, **_flags})
+        _cache_set(ck_full, result)
+        _cache_set(ck, result)
         return jsonify(result)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -179,16 +227,32 @@ def api_analyze_dropbox():
         return jsonify({'error': 'Brak sciezki pliku'}), 400
     try:
         metadata, response = dbx.files_download(file_path)
+        file_content = response.content
+        cfg = _load_config()
+        global_flags = {
+            'night_start_hour': int(cfg.get('night_start_hour', 22)),
+            'pause_cap_enabled': bool(cfg.get('pause_cap_enabled', False)),
+            'weekend_diet': bool(cfg.get('weekend_diet', False)),
+        }
+        ck = _cache_key(file_content, global_flags)
+        cached = _cache_get(ck)
+        if cached:
+            cached['source_file'] = metadata.name
+            return jsonify(cached)
+
         with tempfile.NamedTemporaryFile(suffix='.ddd', delete=False) as tmp:
-            tmp.write(response.content)
+            tmp.write(file_content)
             tmp_path = tmp.name
-        data = parse_ddd_auto(tmp_path, config_loader=_load_config)
+        data = parse_ddd_auto(tmp_path)
         _flags = _get_driver_analysis_flags(data)
         result = analyze_card(data, config_loader=_load_config, night_40_check_midnight=_flags['night_40_check_midnight'], pause_cap_enabled=_flags['pause_cap_enabled'], weekend_diet=_flags['weekend_diet'])
         result['source_file'] = metadata.name
         _log_activity('analyze_dropbox', f"{result.get('driver_info', {}).get('driver_name', '')} — {metadata.name}")
         di = result.get('driver_info', {})
         _cache_card_expiry(di.get('card_number'), di.get('card_expiry_date'), di.get('driver_name', ''))
+        ck_full = _cache_key(file_content, {**global_flags, **_flags})
+        _cache_set(ck_full, result)
+        _cache_set(ck, result)
         return jsonify(result)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
