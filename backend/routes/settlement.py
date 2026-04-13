@@ -274,7 +274,7 @@ def api_get_monthly_days(card_number, period):
     """Get vacation/sick days for a driver in a given month."""
     conn = _get_db()
     row = conn.execute(
-        "SELECT vacation_days, sick_days, overtime_hm, notes, absence_days FROM driver_monthly_days WHERE card_number = ? AND period = ?",
+        "SELECT vacation_days, sick_days, overtime_hm, notes, absence_days, override_n25, override_n40 FROM driver_monthly_days WHERE card_number = ? AND period = ?",
         (card_number, period),
     ).fetchone()
     conn.close()
@@ -291,6 +291,8 @@ def api_get_monthly_days(card_number, period):
             'overtime_hm': row[2],
             'notes': row[3],
             'absence_days': absence,
+            'override_n25': row[5] or '',
+            'override_n40': row[6] or '',
         })
     return jsonify({
         'card_number': card_number,
@@ -300,6 +302,8 @@ def api_get_monthly_days(card_number, period):
         'overtime_hm': '',
         'notes': '',
         'absence_days': {},
+        'override_n25': '',
+        'override_n40': '',
     })
 
 
@@ -314,20 +318,24 @@ def api_set_monthly_days(card_number, period):
     notes = body.get('notes', '')
     absence = body.get('absence_days', {})
     absence_str = _json.dumps(absence) if isinstance(absence, dict) else str(absence or '{}')
+    override_n25 = str(body.get('override_n25', '') or '')
+    override_n40 = str(body.get('override_n40', '') or '')
     now = datetime.utcnow().isoformat()
 
     conn = _get_db()
     conn.execute('''
-        INSERT INTO driver_monthly_days (card_number, period, vacation_days, sick_days, overtime_hm, notes, absence_days, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO driver_monthly_days (card_number, period, vacation_days, sick_days, overtime_hm, notes, absence_days, override_n25, override_n40, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(card_number, period) DO UPDATE SET
             vacation_days = excluded.vacation_days,
             sick_days = excluded.sick_days,
             overtime_hm = excluded.overtime_hm,
             notes = excluded.notes,
             absence_days = excluded.absence_days,
+            override_n25 = excluded.override_n25,
+            override_n40 = excluded.override_n40,
             updated_at = excluded.updated_at
-    ''', (card_number, period, vacation, sick, overtime, notes, absence_str, now))
+    ''', (card_number, period, vacation, sick, overtime, notes, absence_str, override_n25, override_n40, now))
     conn.commit()
     conn.close()
 

@@ -96,6 +96,8 @@ export interface MonthlyDays {
   overtime_hm: string;
   notes: string;
   absence_days: Record<string, 'Ur' | 'Kr'>;
+  override_n25?: string;
+  override_n40?: string;
 }
 
 export const fetchMonthlyDays = (cardNumber: string, period: string) =>

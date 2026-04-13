@@ -177,6 +177,10 @@ export const pl = {
   bulkGridCopy: 'Kopiuj do Excela',
   bulkGridDriver: 'Kierowca',
 
+  overrideN25: 'Nadpisz 25%',
+  overrideN40: 'Nadpisz 40%',
+  overrideHint: 'Ręczne nadpisanie — widoczne zamiast obliczonych wartości',
+
   adminPauseCap: 'Max 45 min pauzy',
   adminPauseCapHint: 'Na zmianę max 45 min pauzy, reszta jako Bereitschaft',
   adminWeekendDiet: 'Diety weekendowe',

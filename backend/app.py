@@ -148,6 +148,12 @@ def _init_db():
     except Exception:
         conn.execute("ALTER TABLE driver_monthly_days ADD COLUMN absence_days TEXT NOT NULL DEFAULT '{}'")
         conn.commit()
+    try:
+        conn.execute("SELECT override_n25 FROM driver_monthly_days LIMIT 1")
+    except Exception:
+        conn.execute("ALTER TABLE driver_monthly_days ADD COLUMN override_n25 TEXT NOT NULL DEFAULT ''")
+        conn.execute("ALTER TABLE driver_monthly_days ADD COLUMN override_n40 TEXT NOT NULL DEFAULT ''")
+        conn.commit()
 
     conn.executescript('''
         CREATE TABLE IF NOT EXISTS config_audit_log (

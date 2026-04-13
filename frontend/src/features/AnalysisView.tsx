@@ -181,6 +181,8 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
         sick_days: monthlyDays.sick_days,
         overtime_hm: monthlyDays.overtime_hm,
         absence_days: monthlyDays.absence_days,
+        override_n25: monthlyDays.override_n25,
+        override_n40: monthlyDays.override_n40,
       });
     } catch {
       // ignore
@@ -641,6 +643,31 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
               {savingMonthly ? t('loading') : t('monthlySave')}
             </button>
           </div>
+          {isAdmin && (
+            <div className="mt-3 flex flex-wrap items-end gap-4 border-t border-border pt-3">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-red-500">{t('overrideN25')}</label>
+                <input
+                  type="text"
+                  value={monthlyDays.override_n25 || ''}
+                  onChange={(e) => setMonthlyDays(prev => prev ? { ...prev, override_n25: e.target.value } : prev)}
+                  className="w-20 input rounded-xl px-2.5 py-1.5 text-sm tabular-nums outline-none"
+                  placeholder="—"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-red-500">{t('overrideN40')}</label>
+                <input
+                  type="text"
+                  value={monthlyDays.override_n40 || ''}
+                  onChange={(e) => setMonthlyDays(prev => prev ? { ...prev, override_n40: e.target.value } : prev)}
+                  className="w-20 input rounded-xl px-2.5 py-1.5 text-sm tabular-nums outline-none"
+                  placeholder="—"
+                />
+              </div>
+              <span className="text-[10px] text-red-400">{t('overrideHint')}</span>
+            </div>
+          )}
           <p className="mt-2 text-xs text-muted">{t('absenceCalendarHint')}</p>
         </div>
       )}
@@ -888,8 +915,8 @@ function ExcelCopyBlock({ summary, monthlyDays }: { summary: ReturnType<typeof O
   const s = summary as Record<string, unknown>;
   const [copied, setCopied] = useState(false);
 
-  const n25 = ((s.night_25_minutes as number) / 60).toFixed(2).replace('.', ',');
-  const n40 = ((s.night_40_minutes as number) / 60).toFixed(2).replace('.', ',');
+  const n25 = monthlyDays?.override_n25 || ((s.night_25_minutes as number) / 60).toFixed(2).replace('.', ',');
+  const n40 = monthlyDays?.override_n40 || ((s.night_40_minutes as number) / 60).toFixed(2).replace('.', ',');
   const vma = String(s.diet_count ?? 0);
   const azMin = s.total_work_minutes as number;
   const az = `${Math.floor(azMin / 60)}:${String(azMin % 60).padStart(2, '0')}`;
@@ -1043,10 +1070,10 @@ function MonthlyGridCopy({
     return wdNames[dt.getDay()];
   });
 
-  // Summary values from summary prop (recalculated in parent from shifts)
+  // Summary values from summary prop — use overrides if set by admin
   const s = summary;
-  const n25 = ((s.night_25_minutes as number) / 60).toFixed(2).replace('.', ',');
-  const n40 = ((s.night_40_minutes as number) / 60).toFixed(2).replace('.', ',');
+  const n25 = monthlyDays?.override_n25 || ((s.night_25_minutes as number) / 60).toFixed(2).replace('.', ',');
+  const n40 = monthlyDays?.override_n40 || ((s.night_40_minutes as number) / 60).toFixed(2).replace('.', ',');
   const vma = String(s.diet_count ?? 0);
   const azMin = s.total_work_minutes as number;
   const az = `${Math.floor(azMin / 60)}:${String(azMin % 60).padStart(2, '0')}`;

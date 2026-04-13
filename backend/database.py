@@ -277,7 +277,13 @@ def _run_sqlite_migrations():
         except Exception:
             db.execute("ALTER TABLE driver_monthly_days ADD COLUMN absence_days TEXT NOT NULL DEFAULT '{}'")
             db.commit()
-        # night_40_enabled on driver_config (toggle for 40% night premium)
+        # override_n25/n40 on driver_monthly_days (admin night hour overrides)
+        try:
+            db.execute("SELECT override_n25 FROM driver_monthly_days LIMIT 1")
+        except Exception:
+            db.execute("ALTER TABLE driver_monthly_days ADD COLUMN override_n25 TEXT NOT NULL DEFAULT ''")
+            db.execute("ALTER TABLE driver_monthly_days ADD COLUMN override_n40 TEXT NOT NULL DEFAULT ''")
+            db.commit()
         try:
             db.execute("SELECT night_40_enabled FROM driver_config LIMIT 1")
         except Exception:
