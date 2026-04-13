@@ -305,10 +305,31 @@ def analyze_card(data, night_start_hour=None, config_loader=None, night_40_check
             if m and wt in _REAL_WORK
         )
         # Pause cap: max 45min break per shift, rest → Bereitschaft
+        # Must modify span_buckets so night hour calculation sees AVAILABILITY, not REST
         if pause_cap_enabled and break_minutes > 45:
-            excess = break_minutes - 45
-            break_minutes = 45
-            avail_minutes += excess
+            rest_dts = sorted(
+                dt for dt, (wt, _m) in span_buckets.items()
+                if _is_break_like_for_reporting(wt) if STRICT_GLOBOFLEET_MODE
+            ) if STRICT_GLOBOFLEET_MODE else sorted(
+                dt for dt, (wt, _m) in span_buckets.items()
+                if wt in (REST, UNKNOWN)
+            )
+            # Keep first 45 as REST, convert the rest to AVAILABILITY
+            for dt in rest_dts[45:]:
+                wt_old, m_old = span_buckets[dt]
+                span_buckets[dt] = (AVAILABILITY, m_old)
+            # Recalculate from modified buckets
+            if STRICT_GLOBOFLEET_MODE:
+                break_minutes = sum(
+                    1 for wt, _m in span_buckets.values()
+                    if _is_break_like_for_reporting(wt)
+                )
+            else:
+                break_minutes = sum(
+                    1 for wt, _m in span_buckets.values()
+                    if wt in (REST, UNKNOWN)
+                )
+            avail_minutes = sum(1 for wt, _m in span_buckets.values() if wt == AVAILABILITY)
 
         work_minutes = work_only_minutes + driving_minutes + avail_minutes
         duration_minutes = count_bucket_minutes_between(shift_start, shift_end)
