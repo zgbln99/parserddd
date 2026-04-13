@@ -103,6 +103,8 @@ def api_dashboard():
                 'days_since': days,
                 'latest_download': ld,
                 'file_count': d.get('file_count', 0),
+                'latest_file_path': d.get('files', [{}])[0].get('path', '') if d.get('files') else '',
+                'latest_file_name': d.get('files', [{}])[0].get('name', '') if d.get('files') else '',
             })
         stale_drivers.sort(key=lambda x: (0 if x['days_since'] is None else 1, -(x['days_since'] or 9999)))
 

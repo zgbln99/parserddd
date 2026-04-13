@@ -60,6 +60,8 @@ export interface StaleDriver {
   days_since: number | null;
   latest_download: string;
   file_count: number;
+  latest_file_path: string;
+  latest_file_name: string;
 }
 
 export interface ExpiringCard {

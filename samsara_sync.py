@@ -288,6 +288,27 @@ def main():
     except Exception:
         pass
 
+    # Pre-warm analysis cache for uploaded files
+    app_url = os.environ.get('APP_URL', 'http://127.0.0.1:5000')
+    admin_pw = os.environ.get('ADMIN_PASSWORD', '')
+    if uploaded_files and admin_pw:
+        log(f'Pre-warming analysis cache for {len(uploaded_files)} files...')
+        try:
+            session = requests.Session()
+            session.post(f'{app_url}/api/auth/login', json={'password': admin_pw}, timeout=5)
+            warmed = 0
+            for f in uploaded_files:
+                if f.get('status') != 'ok':
+                    continue
+                try:
+                    session.get(f'{app_url}/api/analyze/dropbox', params={'path': f['path']}, timeout=30)
+                    warmed += 1
+                except Exception:
+                    pass
+            log(f'Pre-warmed {warmed} analyses.')
+        except Exception as exc:
+            log(f'Pre-warm failed: {exc}')
+
     log(f'Done: {uploaded} uploaded, {errors} errors, {len(synced_ids)} total synced.')
 
 

@@ -16,9 +16,25 @@ const DateFilterContext = createContext<DateFilterContextValue>({
   clear: () => {},
 });
 
+function lastFullMonth(): { from: string; to: string } {
+  const now = new Date();
+  const first = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const last = new Date(now.getFullYear(), now.getMonth(), 0);
+  const fmt = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  return { from: fmt(first), to: fmt(last) };
+}
+
 export function DateFilterProvider({ children }: { children: ReactNode }) {
-  const [dateFrom, setDateFromState] = useState(() => localStorage.getItem('ddd-date-from') || '');
-  const [dateTo, setDateToState] = useState(() => localStorage.getItem('ddd-date-to') || '');
+  const [dateFrom, setDateFromState] = useState(() => {
+    const saved = localStorage.getItem('ddd-date-from');
+    if (saved) return saved;
+    return lastFullMonth().from;
+  });
+  const [dateTo, setDateToState] = useState(() => {
+    const saved = localStorage.getItem('ddd-date-to');
+    if (saved) return saved;
+    return lastFullMonth().to;
+  });
 
   const setDateFrom = useCallback((v: string) => {
     setDateFromState(v);

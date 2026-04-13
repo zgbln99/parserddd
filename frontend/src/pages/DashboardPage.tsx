@@ -219,10 +219,14 @@ export function DashboardPage() {
           ) : (
             <div>
               <div className="divide-y divide-border">
-                {visibleStale.map((d) => (
+                {visibleStale.map((d) => {
+                  const analysisUrl = d.latest_file_path
+                    ? `/analysis?${new URLSearchParams({ path: d.latest_file_path, name: d.latest_file_name || d.name, driver: d.name })}`
+                    : '/drivers';
+                  return (
                   <Link
                     key={d.card_number || d.name}
-                    to="/drivers"
+                    to={analysisUrl}
                     className={`flex items-center gap-3 px-5 py-3 min-h-[44px] transition-colors hover:bg-primary-50 ${daysBg(d.days_since)}`}
                   >
                     <div className="flex-1 min-w-0">
@@ -238,7 +242,8 @@ export function DashboardPage() {
                       <p className="text-xs text-muted">{t('dashDaysSince')}</p>
                     </div>
                   </Link>
-                ))}
+                  );
+                })}
               </div>
               {staleDrivers.length > MAX_VISIBLE && (
                 <div className="border-t border-border px-5 py-3">
