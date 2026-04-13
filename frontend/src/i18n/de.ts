@@ -236,7 +236,7 @@ export const de: Record<TranslationKey, string> = {
   driverPersonalNr: 'Personalnummer',
   driverDoubleDiet: 'Doppelte Verpflegung',
   driverNight40: '40% nur bei Beginn vor Mitternacht',
-  driverPauseCap: 'Max 45 Min Pause (Fahrt < 4,5h)',
+  driverPauseCap: 'Max 45 Min Pause pro Schicht',
   driverDietRate: 'Verpflegungssatz',
   driverNotes: 'Notizen',
   driverNotesPlaceholder: 'Zusätzliche Informationen...',

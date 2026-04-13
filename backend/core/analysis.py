@@ -304,8 +304,8 @@ def analyze_card(data, night_start_hour=None, config_loader=None, night_40_check
             1 for _dt, (wt, m) in span_buckets.items()
             if m and wt in _REAL_WORK
         )
-        # Pause cap: if driving < 4.5h, max 45min break, rest → Bereitschaft
-        if pause_cap_enabled and driving_minutes < 270 and break_minutes > 45:
+        # Pause cap: max 45min break per shift, rest → Bereitschaft
+        if pause_cap_enabled and break_minutes > 45:
             excess = break_minutes - 45
             break_minutes = 45
             avail_minutes += excess
