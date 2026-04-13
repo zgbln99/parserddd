@@ -167,14 +167,14 @@ export function BulkGridPage() {
 
   // Copy all rows as TSV
   const handleCopy = useCallback(() => {
-    const header = ['Fahrer', ...dayNumbers.map(String), ...summaryHeaders].join('\t');
+    const header = ['Fahrer', '', '', ...dayNumbers.map(String), ...summaryHeaders].join('\t');
     const rows = results.map(r => {
       const dayCols = dayNumbers.map(d => fmtWork(r.dayWork[d] || 0));
       const n25 = (r.n25 / 60).toFixed(2).replace('.', ',');
       const n40 = (r.n40 / 60).toFixed(2).replace('.', ',');
       const vma = String(r.dietCount);
       const az = fmtWork(r.totalWork);
-      return [lastFirst(r.driver_name), ...dayCols, n25, n40, vma, az].join('\t');
+      return [lastFirst(r.driver_name), '', '', ...dayCols, n25, n40, vma, az].join('\t');
     });
     navigator.clipboard.writeText([header, ...rows].join('\n')).then(() => {
       setCopied(true);
@@ -294,11 +294,15 @@ export function BulkGridPage() {
                 {/* Day numbers */}
                 <tr>
                   <th className={`${thCls} !text-left min-w-[120px]`}>{t('bulkGridDriver')}</th>
+                  <th className={thCls} />
+                  <th className={thCls} />
                   {dayNumbers.map(d => <th key={d} className={thCls} style={{ width: 28 }}>{d}</th>)}
                   {summaryHeaders.map(h => <th key={h} className={thCls} style={{ width: 40 }}>{h}</th>)}
                 </tr>
                 {/* Weekdays */}
                 <tr>
+                  <th className={thCls} />
+                  <th className={thCls} />
                   <th className={thCls} />
                   {weekdays.map((wd, i) => {
                     const isWeekend = wd === 'So' || wd === 'Sa' || wd === 'Nd';
@@ -317,6 +321,8 @@ export function BulkGridPage() {
                       <td className={`${tdCls} !text-left font-semibold truncate`} title={lastFirst(r.driver_name)}>
                         {r.personal_nr ? `${r.personal_nr} ` : ''}{lastFirst(r.driver_name)}
                       </td>
+                      <td className={tdCls} />
+                      <td className={tdCls} />
                       {dayNumbers.map(d => {
                         const v = fmtWork(r.dayWork[d] || 0);
                         return <td key={d} className={`${tdCls} ${v ? 'font-semibold text-gray-800 dark:text-gray-200' : ''}`}>{v}</td>;
