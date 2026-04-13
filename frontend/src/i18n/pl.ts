@@ -164,6 +164,19 @@ export const pl = {
   adminNightStartHint: 'Od której godziny liczyć nocne',
   adminParserEngine: 'Silnik parsera DDD',
   adminParserEngineHint: 'Który parser używać do odczytu plików DDD',
+  // Bulk Grid
+  navBulkGrid: 'Siatka zbiorcza',
+  bulkGridTitle: 'Siatka zbiorcza',
+  bulkGridLoadDrivers: 'Załaduj kierowców',
+  bulkGridSelected: 'wybranych',
+  bulkGridSelectAll: 'Zaznacz wszystkich',
+  bulkGridSelectNone: 'Odznacz',
+  bulkGridGenerate: 'Generuj',
+  bulkGridResult: 'Wynik',
+  bulkGridDrivers: 'kierowców',
+  bulkGridCopy: 'Kopiuj do Excela',
+  bulkGridDriver: 'Kierowca',
+
   adminPauseCap: 'Max 45 min pauzy',
   adminPauseCapHint: 'Na zmianę max 45 min pauzy, reszta jako Bereitschaft',
 
