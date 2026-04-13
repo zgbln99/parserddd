@@ -274,25 +274,26 @@ def api_get_monthly_days(card_number, period):
     """Get vacation/sick days for a driver in a given month."""
     conn = _get_db()
     row = conn.execute(
-        "SELECT vacation_days, sick_days, overtime_hm, notes, absence_days, override_n25, override_n40 FROM driver_monthly_days WHERE card_number = ? AND period = ?",
+        "SELECT * FROM driver_monthly_days WHERE card_number = ? AND period = ?",
         (card_number, period),
     ).fetchone()
     conn.close()
     if row:
+        d = dict(row)
         try:
-            absence = _json.loads(row[4]) if row[4] else {}
+            absence = _json.loads(d.get('absence_days', '{}') or '{}')
         except Exception:
             absence = {}
         return jsonify({
             'card_number': card_number,
             'period': period,
-            'vacation_days': row[0],
-            'sick_days': row[1],
-            'overtime_hm': row[2],
-            'notes': row[3],
+            'vacation_days': d.get('vacation_days', 0),
+            'sick_days': d.get('sick_days', 0),
+            'overtime_hm': d.get('overtime_hm', ''),
+            'notes': d.get('notes', ''),
             'absence_days': absence,
-            'override_n25': row[5] or '',
-            'override_n40': row[6] or '',
+            'override_n25': d.get('override_n25', '') or '',
+            'override_n40': d.get('override_n40', '') or '',
         })
     return jsonify({
         'card_number': card_number,
