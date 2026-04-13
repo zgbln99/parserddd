@@ -78,7 +78,7 @@ export function Layout({ children }: { children: ReactNode }) {
     navigate('/login');
   };
 
-  const sidebarPx = collapsed ? 72 : 260;
+  const sidebarPx = collapsed ? 72 : 280;
 
   return (
     <div className="flex min-h-screen bg-surface">
@@ -101,7 +101,7 @@ export function Layout({ children }: { children: ReactNode }) {
         {/* Use inline style for reliable width transition on desktop */}
         <div
           className="flex h-full flex-col transition-[width] duration-300 overflow-hidden"
-          style={{ width: sidebarOpen ? 260 : sidebarPx }}
+          style={{ width: sidebarOpen ? 280 : sidebarPx }}
         >
           {/* Brand */}
           <div className={clsx('pb-4 pt-6', collapsed && !sidebarOpen ? 'px-3' : 'px-5')}>

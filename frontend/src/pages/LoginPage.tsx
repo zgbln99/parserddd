@@ -58,7 +58,7 @@ export function LoginPage() {
         className="relative w-[calc(100%-1rem)] sm:w-full max-w-sm rounded-3xl border border-white/10 bg-white/10 p-5 sm:p-8 backdrop-blur-xl shadow-2xl animate-scale-in"
       >
         <div className="mb-8 text-center">
-          <img src="/logo.png" alt="LTS" className="mx-auto mb-4 h-14 brightness-0 invert" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+          <img src="/logo.png" alt="LTS" className="mx-auto mb-4 h-14" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
           <h1 className="text-2xl font-bold tracking-tight text-white">{t('loginTitle')}</h1>
           <p className="mt-1.5 text-sm text-white/60">{t('loginSubtitle')}</p>
         </div>
