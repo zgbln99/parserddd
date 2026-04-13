@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useRef } from 'react';
-import { ClipboardCopy, Check, RefreshCw, Users, Calendar } from 'lucide-react';
+import { ClipboardCopy, Check, RefreshCw, Users, Calendar, Search } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { useDateFilter } from '../hooks/useDateFilter';
 import { fetchDrivers, analyzeDropboxFile, fetchDriverConfigs } from '../lib/api';
@@ -45,6 +45,7 @@ export function BulkGridPage() {
   const [driversLoaded, setDriversLoaded] = useState(false);
   const [loadingDrivers, setLoadingDrivers] = useState(false);
 
+  const [driverSearch, setDriverSearch] = useState('');
   const [results, setResults] = useState<BulkDriverRow[]>([]);
   const [period, setPeriod] = useState('');
   const [loading, setLoading] = useState(false);
@@ -219,23 +220,37 @@ export function BulkGridPage() {
           )}
         </div>
 
-        {/* Driver checkboxes */}
+        {/* Driver search + checkboxes */}
         {driversLoaded && (
-          <div className="mt-3 max-h-[200px] overflow-y-auto rounded-lg border border-border p-2">
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-1">
-              {allDrivers.map(d => (
-                <label key={d.name} className="flex items-center gap-2 rounded px-2 py-1 text-xs cursor-pointer hover:bg-surface">
-                  <input
-                    type="checkbox"
-                    checked={selected.has(d.name)}
-                    onChange={() => toggleDriver(d.name)}
-                    className="rounded border-gray-300"
-                  />
-                  <span className="truncate">{d.name}</span>
-                </label>
-              ))}
+          <>
+            <div className="relative mt-3 w-full sm:max-w-xs">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+              <input
+                type="text"
+                value={driverSearch}
+                onChange={(e) => setDriverSearch(e.target.value)}
+                placeholder={t('driversSearch')}
+                className="input w-full rounded-lg py-1.5 pl-8 pr-3 text-xs"
+              />
             </div>
-          </div>
+            <div className="mt-2 max-h-[200px] overflow-y-auto rounded-lg border border-border p-2">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-1">
+                {allDrivers
+                  .filter(d => !driverSearch || d.name.toLowerCase().includes(driverSearch.toLowerCase()))
+                  .map(d => (
+                  <label key={d.name} className="flex items-center gap-2 rounded px-2 py-1 text-xs cursor-pointer hover:bg-surface">
+                    <input
+                      type="checkbox"
+                      checked={selected.has(d.name)}
+                      onChange={() => toggleDriver(d.name)}
+                      className="rounded border-gray-300"
+                    />
+                    <span className="truncate">{d.name}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          </>
         )}
 
         {/* Progress */}
