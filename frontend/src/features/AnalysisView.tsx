@@ -446,26 +446,26 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
 
       {/* Key metrics - highlighted */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-xl border border-primary-200 bg-primary-50 p-4 text-center dark:border-primary-800 dark:bg-primary-900/30">
-          <p className="text-xs font-bold uppercase tracking-wider text-primary-500">{t('analysisWorkTime')}</p>
-          <p className="mt-1 text-2xl font-extrabold text-primary-700 dark:text-primary-300">{s.total_work_hm}</p>
-          <p className="mt-0.5 text-xs text-primary-500/70/70">{s.total_work_decimal}h</p>
+        <div className="rounded-2xl bg-gradient-to-br from-primary-500 to-primary-700 p-4 text-center shadow-lg shadow-primary-500/15">
+          <p className="text-xs font-bold uppercase tracking-wider text-primary-100">{t('analysisWorkTime')}</p>
+          <p className="mt-1 text-3xl font-extrabold text-white">{s.total_work_hm}</p>
+          <p className="mt-0.5 text-xs text-primary-200">{s.total_work_decimal}h</p>
         </div>
-        {fv('night_hours_cards') && <div className="rounded-xl border border-violet-200 bg-violet-50 p-4 text-center dark:border-violet-800 dark:bg-violet-900/30" title={locale === 'de' ? `Nachtarbeit ab ${nightH}:00 (25%)` : `Nocne od ${nightH}:00 (25%)`}>
-          <p className="text-xs font-bold uppercase tracking-wider text-violet-500 dark:text-violet-400">{t('analysisNight25')}</p>
-          <p className="mt-1 text-2xl font-extrabold text-violet-700 dark:text-violet-300">{monthlyDays?.override_n25 || (s.night_25_minutes / 60).toFixed(2)}</p>
-          <p className="mt-0.5 text-xs text-violet-500/70 dark:text-violet-400/70">{monthlyDays?.override_n25 ? '' : s.night_25_hm}</p>
-          <p className="mt-0.5 text-xs text-violet-400/60 dark:text-violet-500/60">{locale === 'de' ? 'ab' : 'od'} {nightH}:00</p>
+        {fv('night_hours_cards') && <div className="rounded-2xl bg-gradient-to-br from-violet-500 to-violet-700 p-4 text-center shadow-lg shadow-violet-500/15" title={locale === 'de' ? `Nachtarbeit ab ${nightH}:00 (25%)` : `Nocne od ${nightH}:00 (25%)`}>
+          <p className="text-xs font-bold uppercase tracking-wider text-violet-100">{t('analysisNight25')}</p>
+          <p className="mt-1 text-3xl font-extrabold text-white">{monthlyDays?.override_n25 || (s.night_25_minutes / 60).toFixed(2)}</p>
+          <p className="mt-0.5 text-xs text-violet-200">{monthlyDays?.override_n25 ? '' : s.night_25_hm}</p>
+          <p className="mt-0.5 text-xs text-violet-200/60">{locale === 'de' ? 'ab' : 'od'} {nightH}:00</p>
         </div>}
-        {fv('night_hours_cards') && <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-4 text-center dark:border-indigo-800 dark:bg-indigo-900/30" title={locale === 'de' ? `Nachtarbeit ab ${nightH}:00 (40%)` : `Nocne od ${nightH}:00 (40%)`}>
-          <p className="text-xs font-bold uppercase tracking-wider text-indigo-500 dark:text-indigo-400">{t('analysisNight40')}</p>
-          <p className="mt-1 text-2xl font-extrabold text-indigo-700 dark:text-indigo-300">{monthlyDays?.override_n40 || (s.night_40_minutes / 60).toFixed(2)}</p>
-          <p className="mt-0.5 text-xs text-indigo-500/70 dark:text-indigo-400/70">{monthlyDays?.override_n40 ? '' : s.night_40_hm}</p>
+        {fv('night_hours_cards') && <div className="rounded-2xl bg-gradient-to-br from-indigo-500 to-indigo-700 p-4 text-center shadow-lg shadow-indigo-500/15" title={locale === 'de' ? `Nachtarbeit ab ${nightH}:00 (40%)` : `Nocne od ${nightH}:00 (40%)`}>
+          <p className="text-xs font-bold uppercase tracking-wider text-indigo-100">{t('analysisNight40')}</p>
+          <p className="mt-1 text-3xl font-extrabold text-white">{monthlyDays?.override_n40 || (s.night_40_minutes / 60).toFixed(2)}</p>
+          <p className="mt-0.5 text-xs text-indigo-200">{monthlyDays?.override_n40 ? '' : s.night_40_hm}</p>
         </div>}
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-center dark:border-emerald-800 dark:bg-emerald-900/30" title="Verpflegungsmehraufwand - dieta za podróż służbową">
-          <p className="text-xs font-bold uppercase tracking-wider text-success dark:text-emerald-400">{t('analysisDietCount')}</p>
-          <p className="mt-1 text-2xl font-extrabold text-emerald-700 dark:text-emerald-300">{s.diet_count}</p>
-          <p className="mt-0.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+        <div className="rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-700 p-4 text-center shadow-lg shadow-emerald-500/15" title="Verpflegungsmehraufwand - dieta za podróż służbową">
+          <p className="text-xs font-bold uppercase tracking-wider text-emerald-100">{t('analysisDietCount')}</p>
+          <p className="mt-1 text-3xl font-extrabold text-white">{s.diet_count}</p>
+          <p className="mt-0.5 text-xs font-semibold text-emerald-200">
             {vma.amount.toFixed(2).replace('.', ',')} €
             {vma.doubleDiet && <span className="ml-1 text-xs font-normal opacity-70">(2×{vma.ratePerDay / 2}€)</span>}
           </p>

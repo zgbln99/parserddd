@@ -252,7 +252,14 @@ export function DriversPage() {
                     onClick={() => openDriver(d)}
                     className={`cursor-pointer transition hover:bg-primary-50 ${d.days_since !== null && d.days_since > 28 ? 'bg-danger/[0.03]' : ''}`}
                   >
-                    <td className="whitespace-nowrap px-4 py-3 font-semibold text-ink">{d.name}</td>
+                    <td className="whitespace-nowrap px-4 py-3 font-semibold text-ink">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary-500 to-primary-700 text-xs font-bold text-white shadow-sm">
+                          {d.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                        </div>
+                        {d.name}
+                      </div>
+                    </td>
                     <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-muted">{d.card_number}</td>
                     <td className="whitespace-nowrap px-4 py-3 text-muted">{formatDate(d.earliest_date, locale)}</td>
                     <td className="whitespace-nowrap px-4 py-3 text-muted">{formatDate(d.latest_date, locale)}</td>

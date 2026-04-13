@@ -39,29 +39,29 @@ export function StatCard({
 }) {
   const effectiveColor = color !== 'primary' ? color : (variant || 'primary');
   const iconStyles: Record<string, string> = {
-    primary: 'bg-primary-50 text-primary-600 dark:bg-primary-900/30',
-    green: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400',
-    orange: 'bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400',
-    red: 'bg-rose-50 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400',
-    blue: 'bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400',
+    primary: 'bg-gradient-to-br from-primary-500 to-primary-700 text-white shadow-lg shadow-primary-500/20',
+    green: 'bg-gradient-to-br from-emerald-500 to-emerald-700 text-white shadow-lg shadow-emerald-500/20',
+    orange: 'bg-gradient-to-br from-amber-500 to-amber-700 text-white shadow-lg shadow-amber-500/20',
+    red: 'bg-gradient-to-br from-rose-500 to-rose-700 text-white shadow-lg shadow-rose-500/20',
+    blue: 'bg-gradient-to-br from-blue-500 to-blue-700 text-white shadow-lg shadow-blue-500/20',
   };
 
-  const accentColors: Record<string, string> = {
-    primary: 'bg-primary-500',
-    green: 'bg-emerald-500',
-    orange: 'bg-amber-500',
-    red: 'bg-rose-500',
-    blue: 'bg-blue-500',
+  const topGradient: Record<string, string> = {
+    primary: 'from-primary-500/5 to-transparent',
+    green: 'from-emerald-500/5 to-transparent',
+    orange: 'from-amber-500/5 to-transparent',
+    red: 'from-rose-500/5 to-transparent',
+    blue: 'from-blue-500/5 to-transparent',
   };
 
   return (
     <Card className="relative overflow-hidden p-5">
-      {/* Left accent bar */}
-      <div className={clsx('absolute left-0 top-3 bottom-3 w-[3px] rounded-r-full', accentColors[effectiveColor])} />
-      <div className="flex items-center gap-4 pl-2">
+      {/* Top gradient glow */}
+      <div className={clsx('absolute inset-x-0 top-0 h-16 bg-gradient-to-b', topGradient[effectiveColor])} />
+      <div className="relative flex items-center gap-4">
         {icon && (
           <div className={clsx(
-            'flex h-11 w-11 items-center justify-center rounded-xl',
+            'flex h-12 w-12 items-center justify-center rounded-2xl',
             iconStyles[effectiveColor],
           )}>
             {icon}

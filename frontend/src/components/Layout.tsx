@@ -106,7 +106,8 @@ export function Layout({ children }: { children: ReactNode }) {
           {/* Brand */}
           <div className={clsx('pb-4 pt-6', collapsed && !sidebarOpen ? 'px-3' : 'px-5')}>
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-600 text-white">
+              <img src="/logo.png" alt="LTS" className="h-10 w-10 shrink-0 rounded-xl object-contain" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).nextElementSibling!.classList.remove('hidden'); }} />
+              <div className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary-500 to-primary-700 text-white">
                 <Truck size={20} />
               </div>
               {(!collapsed || sidebarOpen) && (
@@ -154,13 +155,13 @@ export function Layout({ children }: { children: ReactNode }) {
                   title={collapsed && !sidebarOpen ? t(labelKey) : undefined}
                   className={({ isActive }) =>
                     clsx(
-                      'group relative flex items-center rounded-lg text-[13px] font-medium transition-all duration-150',
+                      'group relative flex items-center rounded-xl text-[13px] font-medium transition-all duration-200',
                       collapsed && !sidebarOpen
                         ? 'justify-center px-2 py-2.5'
                         : 'gap-3 px-3 py-2.5',
                       isActive
-                        ? 'bg-primary-600 text-white'
-                        : 'text-muted hover:bg-surface hover:text-ink',
+                        ? 'bg-gradient-to-r from-primary-600 to-primary-500 text-white shadow-md shadow-primary-600/25'
+                        : 'text-muted hover:bg-primary-50 hover:text-primary-700 dark:hover:bg-primary-900/20 dark:hover:text-primary-300',
                     )
                   }
                 >
