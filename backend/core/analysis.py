@@ -63,42 +63,6 @@ def analyze_card(data, night_start_hour=None, config_loader=None, night_40_check
     timeline = build_timeline(records)
     shifts = detect_shifts(timeline)
 
-    # === DEBUG DUMP ===
-    _debug_dir = os.path.dirname(os.path.abspath(__file__))
-    _debug = {
-        'driver_info': driver_info,
-        'timeline': [
-            {
-                'start': s.isoformat(),
-                'end': e.isoformat(),
-                'wt': wt,
-                'manual': m,
-            }
-            for s, e, wt, m in timeline
-        ],
-        'shifts_count': len(shifts),
-        'shifts': [
-            [
-                {
-                    'start': s.isoformat(),
-                    'end': e.isoformat(),
-                    'wt': wt,
-                    'manual': m,
-                }
-                for s, e, wt, m in shift_intervals
-            ]
-            for shift_intervals in shifts
-        ],
-    }
-    _debug_path = os.path.join(_debug_dir, 'debug_analyze_card.json')
-    try:
-        with open(_debug_path, 'w') as f:
-            json.dump(_debug, f, indent=2, default=str)
-        logger.warning("DEBUG DUMP saved to %s", _debug_path)
-    except Exception as exc:
-        logger.warning("DEBUG DUMP failed: %s", exc)
-    # === END DEBUG DUMP ===
-
     # Helper: UTC-aware datetime -> CET string for display only
     def _to_cet_str(dt):
         return _to_cet(dt).strftime('%Y-%m-%d %H:%M')

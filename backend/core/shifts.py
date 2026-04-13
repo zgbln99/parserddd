@@ -215,6 +215,7 @@ def iter_tachograph_minutes(intervals):
     - start -> floor to minute
     - end   -> ceil to minute
     """
+    _td1 = timedelta(minutes=1)
     for start, end, wt, card_out in intervals:
         if end <= start:
             continue
@@ -225,12 +226,12 @@ def iter_tachograph_minutes(intervals):
         # END: round UP (ceil)
         minute_end = end.replace(second=0, microsecond=0)
         if minute_end < end:
-            minute_end += timedelta(minutes=1)
+            minute_end += _td1
 
-        current = minute_start
-        while current < minute_end:
-            yield current, wt, card_out
-            current += timedelta(minutes=1)
+        # Use integer count to avoid repeated timedelta additions
+        count = int((minute_end - minute_start).total_seconds()) // 60
+        for i in range(count):
+            yield minute_start + timedelta(minutes=i), wt, card_out
 
 
 def count_bucket_minutes_between(start, end):
@@ -241,12 +242,7 @@ def count_bucket_minutes_between(start, end):
     minute_end = end.replace(second=0, microsecond=0)
     if minute_end < end:
         minute_end += timedelta(minutes=1)
-    count = 0
-    current = minute_start
-    while current < minute_end:
-        count += 1
-        current += timedelta(minutes=1)
-    return count
+    return int((minute_end - minute_start).total_seconds()) // 60
 
 
 def count_minutes_for_interval_from_buckets(start, end, target_wt, minute_buckets):
