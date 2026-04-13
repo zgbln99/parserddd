@@ -23,6 +23,7 @@ export function DriverConfigEditor({ cardNumber, driverName, onClose, onSaved }:
   const [doubleDiet, setDoubleDiet] = useState(false);
   const [dietRate, setDietRate] = useState('14.00');
   const [night40Enabled, setNight40Enabled] = useState(true);
+  const [pauseCapEnabled, setPauseCapEnabled] = useState(false);
   const [notes, setNotes] = useState('');
   const [showHistory, setShowHistory] = useState(false);
   const [history, setHistory] = useState<ConfigAuditEntry[]>([]);
@@ -36,6 +37,7 @@ export function DriverConfigEditor({ cardNumber, driverName, onClose, onSaved }:
         setDoubleDiet(!!cfg.double_diet);
         setDietRate(String(cfg.diet_rate || 14.0));
         setNight40Enabled(cfg.night_40_enabled !== 0);
+        setPauseCapEnabled(!!cfg.pause_cap_enabled);
         setNotes(cfg.notes || '');
         setLoading(false);
       })
@@ -53,6 +55,7 @@ export function DriverConfigEditor({ cardNumber, driverName, onClose, onSaved }:
         double_diet: doubleDiet ? 1 : 0,
         diet_rate: parseFloat(dietRate) || 14.0,
         night_40_enabled: night40Enabled ? 1 : 0,
+        pause_cap_enabled: pauseCapEnabled ? 1 : 0,
         notes,
       });
       setMsg('OK!');
@@ -63,7 +66,7 @@ export function DriverConfigEditor({ cardNumber, driverName, onClose, onSaved }:
     } finally {
       setSaving(false);
     }
-  }, [cardNumber, driverName, personalNr, doubleDiet, dietRate, night40Enabled, notes, onSaved]);
+  }, [cardNumber, driverName, personalNr, doubleDiet, dietRate, night40Enabled, pauseCapEnabled, notes, onSaved]);
 
   if (loading) return <Spinner />;
 
@@ -133,6 +136,19 @@ export function DriverConfigEditor({ cardNumber, driverName, onClose, onSaved }:
             <div className="h-5 w-9 rounded-full bg-gray-200 after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-green-500 peer-checked:after:translate-x-full peer-checked:after:border-white dark:bg-gray-700" />
           </label>
           <span className={labelCls}>{t('driverNight40')}</span>
+        </div>
+        <div className="flex items-center gap-3">
+          <label className="relative inline-flex cursor-pointer items-center">
+            <input
+              type="checkbox"
+              checked={pauseCapEnabled}
+              onChange={(e) => setPauseCapEnabled(e.target.checked)}
+              className="peer sr-only"
+              disabled={!isAdmin}
+            />
+            <div className="h-5 w-9 rounded-full bg-gray-200 after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-green-500 peer-checked:after:translate-x-full peer-checked:after:border-white dark:bg-gray-700" />
+          </label>
+          <span className={labelCls}>{t('driverPauseCap')}</span>
         </div>
         <div>
           <label className={labelCls}>{t('driverNotes')}</label>

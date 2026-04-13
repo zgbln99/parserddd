@@ -36,7 +36,7 @@ from .constants import CET
 logger = logging.getLogger('ddd-reader')
 
 
-def analyze_card(data, night_start_hour=None, config_loader=None, night_40_check_midnight=True):
+def analyze_card(data, night_start_hour=None, config_loader=None, night_40_check_midnight=True, pause_cap_enabled=False):
     """Analyze a parsed DDD card: shifts, calendar days, night hours, diets.
 
     Args:
@@ -45,6 +45,8 @@ def analyze_card(data, night_start_hour=None, config_loader=None, night_40_check
         config_loader: Callable returning config dict (for night_start_hour default).
         night_40_check_midnight: If True (default), 00:00-04:00 is 40% only when shift
             started before midnight. If False, always 40%.
+        pause_cap_enabled: If True, shifts with driving < 4.5h get max 45min break,
+            excess break is counted as Bereitschaft (AVAILABILITY).
     """
     if night_start_hour is None:
         if config_loader:
@@ -302,6 +304,12 @@ def analyze_card(data, night_start_hour=None, config_loader=None, night_40_check
             1 for _dt, (wt, m) in span_buckets.items()
             if m and wt in _REAL_WORK
         )
+        # Pause cap: if driving < 4.5h, max 45min break, rest → Bereitschaft
+        if pause_cap_enabled and driving_minutes < 270 and break_minutes > 45:
+            excess = break_minutes - 45
+            break_minutes = 45
+            avail_minutes += excess
+
         work_minutes = work_only_minutes + driving_minutes + avail_minutes
         duration_minutes = count_bucket_minutes_between(shift_start, shift_end)
         cet_start = _to_cet(shift_start)

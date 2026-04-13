@@ -234,6 +234,7 @@ export const pl = {
   driverPersonalNr: 'Numer personalny',
   driverDoubleDiet: 'Podwójna dieta',
   driverNight40: '40% tylko przy starcie przed północą',
+  driverPauseCap: 'Max 45 min pauzy (jazda < 4,5h)',
   driverDietRate: 'Stawka diety',
   driverNotes: 'Notatki',
   driverNotesPlaceholder: 'Dodatkowe informacje...',

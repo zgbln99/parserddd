@@ -22,21 +22,23 @@ from services.dropbox_service import get_server_dropbox_client
 bp = Blueprint('analysis', __name__)
 
 
-def _get_night_40_enabled(data):
-    """Look up night_40_enabled from driver_config for the card in parsed data."""
+def _get_driver_analysis_flags(data):
+    """Look up per-driver analysis flags from driver_config."""
+    flags = {'night_40_check_midnight': True, 'pause_cap_enabled': False}
     try:
         di = get_driver_info(data)
         card_number = di.get('card_number', '')
         if not card_number:
-            return True
+            return flags
         conn = _get_db()
-        row = conn.execute('SELECT night_40_enabled FROM driver_config WHERE card_number = ?', (card_number,)).fetchone()
+        row = conn.execute('SELECT night_40_enabled, pause_cap_enabled FROM driver_config WHERE card_number = ?', (card_number,)).fetchone()
         conn.close()
         if row:
-            return bool(row['night_40_enabled'])
+            flags['night_40_check_midnight'] = bool(row['night_40_enabled'])
+            flags['pause_cap_enabled'] = bool(row['pause_cap_enabled'])
     except Exception:
         pass
-    return True
+    return flags
 
 
 def _cache_card_expiry(card_number, card_expiry_date, driver_name=''):
@@ -81,8 +83,8 @@ def api_analyze_upload():
             file.save(tmp.name)
             tmp_path = tmp.name
         data = parse_ddd_auto(tmp_path, config_loader=_load_config)
-        n40 = _get_night_40_enabled(data)
-        result = analyze_card(data, config_loader=_load_config, night_40_check_midnight=n40)
+        _flags = _get_driver_analysis_flags(data)
+        result = analyze_card(data, config_loader=_load_config, night_40_check_midnight=_flags['night_40_check_midnight'], pause_cap_enabled=_flags['pause_cap_enabled'])
         _log_activity('analyze_upload', result.get('driver_info', {}).get('driver_name', ''))
         di = result.get('driver_info', {})
         _cache_card_expiry(di.get('card_number'), di.get('card_expiry_date'), di.get('driver_name', ''))
@@ -178,8 +180,8 @@ def api_analyze_dropbox():
             tmp.write(response.content)
             tmp_path = tmp.name
         data = parse_ddd_auto(tmp_path, config_loader=_load_config)
-        n40 = _get_night_40_enabled(data)
-        result = analyze_card(data, config_loader=_load_config, night_40_check_midnight=n40)
+        _flags = _get_driver_analysis_flags(data)
+        result = analyze_card(data, config_loader=_load_config, night_40_check_midnight=_flags['night_40_check_midnight'], pause_cap_enabled=_flags['pause_cap_enabled'])
         result['source_file'] = metadata.name
         _log_activity('analyze_dropbox', f"{result.get('driver_info', {}).get('driver_name', '')} — {metadata.name}")
         di = result.get('driver_info', {})
@@ -220,8 +222,8 @@ def api_compare_drivers():
                 tmp.write(response.content)
                 tmp_path = tmp.name
             data = parse_ddd_auto(tmp_path, config_loader=_load_config)
-            n40 = _get_night_40_enabled(data)
-            analysis = analyze_card(data, config_loader=_load_config, night_40_check_midnight=n40)
+            _flags = _get_driver_analysis_flags(data)
+            analysis = analyze_card(data, config_loader=_load_config, night_40_check_midnight=_flags['night_40_check_midnight'], pause_cap_enabled=_flags['pause_cap_enabled'])
             os.unlink(tmp_path)
 
             shifts = []

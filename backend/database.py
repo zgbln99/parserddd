@@ -283,6 +283,12 @@ def _run_sqlite_migrations():
         except Exception:
             db.execute("ALTER TABLE driver_config ADD COLUMN night_40_enabled INTEGER NOT NULL DEFAULT 1")
             db.commit()
+        # pause_cap_enabled on driver_config (cap break at 45min when driving < 4.5h)
+        try:
+            db.execute("SELECT pause_cap_enabled FROM driver_config LIMIT 1")
+        except Exception:
+            db.execute("ALTER TABLE driver_config ADD COLUMN pause_cap_enabled INTEGER NOT NULL DEFAULT 0")
+            db.commit()
 
 
 # ---------------------------------------------------------------------------

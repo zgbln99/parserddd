@@ -337,6 +337,7 @@ export interface DriverConfig {
   double_diet: number; // 0 or 1
   diet_rate: number;
   night_40_enabled: number; // 0 or 1 — 40% night premium for pre-midnight shifts
+  pause_cap_enabled: number; // 0 or 1 — cap break at 45min when driving < 4.5h
   notes: string;
   created_at?: string;
   updated_at?: string;

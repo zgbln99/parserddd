@@ -93,6 +93,7 @@ def api_get_driver_config(card_number):
         'diet_rate': 14.0,
         'notes': '',
         'night_40_enabled': 1,
+        'pause_cap_enabled': 0,
     })
 
 
@@ -112,6 +113,7 @@ def api_upsert_driver_config():
     notes = _sanitize_text(data.get('notes', ''), 500)
     double_diet = 1 if data.get('double_diet') else 0
     night_40_enabled = 1 if data.get('night_40_enabled', True) else 0
+    pause_cap_enabled = 1 if data.get('pause_cap_enabled') else 0
 
     try:
         diet_rate = float(data.get('diet_rate', 14.0))
@@ -127,7 +129,7 @@ def api_upsert_driver_config():
     changes = []
     if existing:
         old = dict(existing)
-        field_map = {'driver_name': driver_name, 'personal_nr': personal_nr, 'double_diet': double_diet, 'diet_rate': diet_rate, 'notes': notes, 'night_40_enabled': night_40_enabled}
+        field_map = {'driver_name': driver_name, 'personal_nr': personal_nr, 'double_diet': double_diet, 'diet_rate': diet_rate, 'notes': notes, 'night_40_enabled': night_40_enabled, 'pause_cap_enabled': pause_cap_enabled}
         for field, new_val in field_map.items():
             old_val = old.get(field, '')
             if str(old_val) != str(new_val):
@@ -135,15 +137,15 @@ def api_upsert_driver_config():
         conn.execute('''
             UPDATE driver_config SET
                 driver_name = ?, personal_nr = ?, double_diet = ?,
-                diet_rate = ?, notes = ?, night_40_enabled = ?, updated_at = ?
+                diet_rate = ?, notes = ?, night_40_enabled = ?, pause_cap_enabled = ?, updated_at = ?
             WHERE card_number = ?
-        ''', (driver_name, personal_nr, double_diet, diet_rate, notes, night_40_enabled, now, card_number))
+        ''', (driver_name, personal_nr, double_diet, diet_rate, notes, night_40_enabled, pause_cap_enabled, now, card_number))
     else:
         changes.append({'field': '*', 'old': '', 'new': 'created'})
         conn.execute('''
-            INSERT INTO driver_config (card_number, driver_name, personal_nr, double_diet, diet_rate, notes, night_40_enabled, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (card_number, driver_name, personal_nr, double_diet, diet_rate, notes, night_40_enabled, now, now))
+            INSERT INTO driver_config (card_number, driver_name, personal_nr, double_diet, diet_rate, notes, night_40_enabled, pause_cap_enabled, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (card_number, driver_name, personal_nr, double_diet, diet_rate, notes, night_40_enabled, pause_cap_enabled, now, now))
 
     conn.commit()
     conn.close()
