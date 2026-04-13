@@ -452,14 +452,14 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
         </div>
         <div className="rounded-xl border border-violet-200 bg-violet-50 p-4 text-center dark:border-violet-800 dark:bg-violet-900/30" title={locale === 'de' ? `Nachtarbeit ab ${nightH}:00 (25%)` : `Nocne od ${nightH}:00 (25%)`}>
           <p className="text-xs font-bold uppercase tracking-wider text-violet-500 dark:text-violet-400">{t('analysisNight25')}</p>
-          <p className="mt-1 text-2xl font-extrabold text-violet-700 dark:text-violet-300">{(s.night_25_minutes / 60).toFixed(2)}</p>
-          <p className="mt-0.5 text-xs text-violet-500/70 dark:text-violet-400/70">{s.night_25_hm}</p>
+          <p className="mt-1 text-2xl font-extrabold text-violet-700 dark:text-violet-300">{monthlyDays?.override_n25 || (s.night_25_minutes / 60).toFixed(2)}</p>
+          <p className="mt-0.5 text-xs text-violet-500/70 dark:text-violet-400/70">{monthlyDays?.override_n25 ? '' : s.night_25_hm}</p>
           <p className="mt-0.5 text-xs text-violet-400/60 dark:text-violet-500/60">{locale === 'de' ? 'ab' : 'od'} {nightH}:00</p>
         </div>
         <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-4 text-center dark:border-indigo-800 dark:bg-indigo-900/30" title={locale === 'de' ? `Nachtarbeit ab ${nightH}:00 (40%)` : `Nocne od ${nightH}:00 (40%)`}>
           <p className="text-xs font-bold uppercase tracking-wider text-indigo-500 dark:text-indigo-400">{t('analysisNight40')}</p>
-          <p className="mt-1 text-2xl font-extrabold text-indigo-700 dark:text-indigo-300">{(s.night_40_minutes / 60).toFixed(2)}</p>
-          <p className="mt-0.5 text-xs text-indigo-500/70 dark:text-indigo-400/70">{s.night_40_hm}</p>
+          <p className="mt-1 text-2xl font-extrabold text-indigo-700 dark:text-indigo-300">{monthlyDays?.override_n40 || (s.night_40_minutes / 60).toFixed(2)}</p>
+          <p className="mt-0.5 text-xs text-indigo-500/70 dark:text-indigo-400/70">{monthlyDays?.override_n40 ? '' : s.night_40_hm}</p>
         </div>
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-center dark:border-emerald-800 dark:bg-emerald-900/30" title="Verpflegungsmehraufwand - dieta za podróż służbową">
           <p className="text-xs font-bold uppercase tracking-wider text-success dark:text-emerald-400">{t('analysisDietCount')}</p>
@@ -478,7 +478,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
           { label: t('analysisBreaks'), value: s.total_break_hm },
           { label: t('analysisAvailability'), value: s.total_avail_hm },
           { label: t('analysisTotalShifts'), value: String(s.total_shifts) },
-          { label: t('analysisNight25') + ' + ' + t('analysisNight40'), value: fmtNight(s.night_25_minutes + s.night_40_minutes, s.total_night_hm) },
+          { label: t('analysisNight25') + ' + ' + t('analysisNight40'), value: (monthlyDays?.override_n25 || monthlyDays?.override_n40) ? `${monthlyDays?.override_n25 || (s.night_25_minutes / 60).toFixed(2)} + ${monthlyDays?.override_n40 || (s.night_40_minutes / 60).toFixed(2)}` : fmtNight(s.night_25_minutes + s.night_40_minutes, s.total_night_hm) },
         ].map(({ label, value }) => (
           <div key={label} className="rounded-xl bg-black/[0.02] p-3 text-center dark:bg-white/5">
             <p className="text-xs font-bold uppercase tracking-wider text-muted">{label}</p>
