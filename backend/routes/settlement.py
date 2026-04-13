@@ -79,18 +79,19 @@ def api_settlement():
                     tmp.write(response.content)
                     tmp_path = tmp.name
                 data = parse_ddd_auto(tmp_path, config_loader=_load_config)
-                # Look up per-driver analysis flags
+                # Look up analysis flags
                 _flags = {'night_40_check_midnight': True, 'pause_cap_enabled': False}
                 try:
                     _di = get_driver_info(data)
                     _cn = _di.get('card_number', '')
                     if _cn:
                         _conn = _get_db()
-                        _row = _conn.execute('SELECT night_40_enabled, pause_cap_enabled FROM driver_config WHERE card_number = ?', (_cn,)).fetchone()
+                        _row = _conn.execute('SELECT night_40_enabled FROM driver_config WHERE card_number = ?', (_cn,)).fetchone()
                         _conn.close()
                         if _row:
                             _flags['night_40_check_midnight'] = bool(_row['night_40_enabled'])
-                            _flags['pause_cap_enabled'] = bool(_row['pause_cap_enabled'])
+                    _cfg = _load_config()
+                    _flags['pause_cap_enabled'] = bool(_cfg.get('pause_cap_enabled', False))
                 except Exception:
                     pass
                 analysis = analyze_card(data, config_loader=_load_config, night_40_check_midnight=_flags['night_40_check_midnight'], pause_cap_enabled=_flags['pause_cap_enabled'])

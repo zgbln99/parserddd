@@ -164,6 +164,8 @@ export const pl = {
   adminNightStartHint: 'Od której godziny liczyć nocne',
   adminParserEngine: 'Silnik parsera DDD',
   adminParserEngineHint: 'Który parser używać do odczytu plików DDD',
+  adminPauseCap: 'Max 45 min pauzy',
+  adminPauseCapHint: 'Na zmianę max 45 min pauzy, reszta jako Bereitschaft',
 
   // Reader
   readerTitle: 'Czytnik kart DDD',

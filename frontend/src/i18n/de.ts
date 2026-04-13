@@ -166,6 +166,8 @@ export const de: Record<TranslationKey, string> = {
   adminNightStartHint: 'Ab welcher Uhrzeit Nachtarbeit zählt',
   adminParserEngine: 'DDD-Parser-Engine',
   adminParserEngineHint: 'Welcher Parser zum Lesen der DDD-Dateien verwendet wird',
+  adminPauseCap: 'Max 45 Min Pause',
+  adminPauseCapHint: 'Pro Schicht max 45 Min Pause, Rest als Bereitschaft',
 
   // Reader
   readerTitle: 'DDD-Kartenleser',

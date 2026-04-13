@@ -23,19 +23,21 @@ bp = Blueprint('analysis', __name__)
 
 
 def _get_driver_analysis_flags(data):
-    """Look up per-driver analysis flags from driver_config."""
+    """Look up analysis flags from driver_config (per-driver) and global config."""
     flags = {'night_40_check_midnight': True, 'pause_cap_enabled': False}
     try:
+        # Per-driver flags
         di = get_driver_info(data)
         card_number = di.get('card_number', '')
-        if not card_number:
-            return flags
-        conn = _get_db()
-        row = conn.execute('SELECT night_40_enabled, pause_cap_enabled FROM driver_config WHERE card_number = ?', (card_number,)).fetchone()
-        conn.close()
-        if row:
-            flags['night_40_check_midnight'] = bool(row['night_40_enabled'])
-            flags['pause_cap_enabled'] = bool(row['pause_cap_enabled'])
+        if card_number:
+            conn = _get_db()
+            row = conn.execute('SELECT night_40_enabled FROM driver_config WHERE card_number = ?', (card_number,)).fetchone()
+            conn.close()
+            if row:
+                flags['night_40_check_midnight'] = bool(row['night_40_enabled'])
+        # Global flags
+        cfg = _load_config()
+        flags['pause_cap_enabled'] = bool(cfg.get('pause_cap_enabled', False))
     except Exception:
         pass
     return flags

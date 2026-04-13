@@ -21,6 +21,7 @@ function SyncConfigSection() {
   const [syncFolder, setSyncFolder] = useState('');
   const [nightStartHour, setNightStartHour] = useState(22);
   const [parserEngine, setParserEngine] = useState('tachoparser');
+  const [pauseCapEnabled, setPauseCapEnabled] = useState(false);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState('');
 
@@ -31,6 +32,7 @@ function SyncConfigSection() {
         setSyncFolder(cfg.sync_dest_folder || '/Samsara-DDD');
         setNightStartHour(cfg.night_start_hour ?? 22);
         setParserEngine(cfg.parser_engine || 'tachoparser');
+        setPauseCapEnabled(!!cfg.pause_cap_enabled);
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -46,6 +48,7 @@ function SyncConfigSection() {
       if (syncFolder) data.sync_dest_folder = syncFolder;
       data.night_start_hour = nightStartHour;
       data.parser_engine = parserEngine;
+      data.pause_cap_enabled = pauseCapEnabled ? 1 : 0;
       await updateConfig(data);
       setMsg('OK!');
       setSamsaraToken('');
@@ -142,6 +145,21 @@ function SyncConfigSection() {
               </button>
             ))}
             <span className="text-xs text-muted ml-2">{t('adminParserEngineHint')}</span>
+          </div>
+        </div>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+          <label className="text-xs font-semibold text-muted sm:w-40 shrink-0">{t('adminPauseCap')}</label>
+          <div className="flex items-center gap-3">
+            <label className="relative inline-flex cursor-pointer items-center">
+              <input
+                type="checkbox"
+                checked={pauseCapEnabled}
+                onChange={(e) => setPauseCapEnabled(e.target.checked)}
+                className="peer sr-only"
+              />
+              <div className="h-5 w-9 rounded-full bg-gray-200 after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-green-500 peer-checked:after:translate-x-full peer-checked:after:border-white dark:bg-gray-700" />
+            </label>
+            <span className="text-xs text-muted">{t('adminPauseCapHint')}</span>
           </div>
         </div>
         <div className="flex items-center gap-3 pt-2">

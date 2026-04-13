@@ -316,6 +316,7 @@ export interface SyncConfig {
   sync_dest_folder: string;
   night_start_hour: number;
   parser_engine: string;
+  pause_cap_enabled: boolean;
 }
 
 export const fetchConfig = () =>
