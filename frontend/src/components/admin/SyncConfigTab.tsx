@@ -135,25 +135,6 @@ function SyncConfigSection() {
           </div>
         </div>
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
-          <label className="text-xs font-semibold text-muted sm:w-40 shrink-0">{t('adminParserEngine')}</label>
-          <div className="flex items-center gap-2">
-            {(['tachoparser', 'tachograph-go'] as const).map(eng => (
-              <button
-                key={eng}
-                onClick={() => setParserEngine(eng)}
-                className={`rounded-lg px-4 py-2 text-sm font-bold transition-colors ${
-                  parserEngine === eng
-                    ? 'bg-primary-600 text-white'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
-                }`}
-              >
-                {eng}
-              </button>
-            ))}
-            <span className="text-xs text-muted ml-2">{t('adminParserEngineHint')}</span>
-          </div>
-        </div>
-        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
           <label className="text-xs font-semibold text-muted sm:w-40 shrink-0">{t('adminPauseCap')}</label>
           <div className="flex items-center gap-3">
             <label className="relative inline-flex cursor-pointer items-center">

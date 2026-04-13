@@ -205,7 +205,7 @@ from core.utils import parse_date_safe, minutes_to_hm, minutes_to_decimal  # noq
 from core.utils import _haversine_km, _to_cet, _sanitize_text  # noqa: E402, F401
 
 # Parsers
-from core.parsers import parse_ddd_file, parse_ddd_file_tachograph_go, parse_ddd_auto  # noqa: E402, F401
+from core.parsers import parse_ddd_file, parse_ddd_auto  # noqa: E402, F401
 
 # Extractors
 from core.extractors import get_driver_info, get_activity_records  # noqa: E402, F401
