@@ -29,6 +29,14 @@ function fmtWork(mins: number) {
   return `${h}:${String(m).padStart(2, '0')}`;
 }
 
+/** "Florian Köhli" → "Köhli, Florian" */
+function lastFirst(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length < 2) return name;
+  const last = parts.pop()!;
+  return `${last}, ${parts.join(' ')}`;
+}
+
 export function BulkGridPage() {
   const { t, locale } = useI18n();
   const { dateFrom } = useDateFilter();
@@ -166,7 +174,7 @@ export function BulkGridPage() {
       const n40 = (r.n40 / 60).toFixed(2).replace('.', ',');
       const vma = String(r.dietCount);
       const az = fmtWork(r.totalWork);
-      return [r.driver_name, ...dayCols, n25, n40, vma, az].join('\t');
+      return [lastFirst(r.driver_name), ...dayCols, n25, n40, vma, az].join('\t');
     });
     navigator.clipboard.writeText([header, ...rows].join('\n')).then(() => {
       setCopied(true);
@@ -306,8 +314,8 @@ export function BulkGridPage() {
                   const az = fmtWork(r.totalWork);
                   return (
                     <tr key={r.driver_name}>
-                      <td className={`${tdCls} !text-left font-semibold truncate`} title={r.driver_name}>
-                        {r.personal_nr ? `${r.personal_nr} ` : ''}{r.driver_name}
+                      <td className={`${tdCls} !text-left font-semibold truncate`} title={lastFirst(r.driver_name)}>
+                        {r.personal_nr ? `${r.personal_nr} ` : ''}{lastFirst(r.driver_name)}
                       </td>
                       {dayNumbers.map(d => {
                         const v = fmtWork(r.dayWork[d] || 0);
