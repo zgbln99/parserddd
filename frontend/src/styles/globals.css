@@ -341,3 +341,33 @@ body {
     padding-bottom: env(safe-area-inset-bottom);
   }
 }
+
+/* --- TABLET / IPAD OPTIMIZATION --- */
+@media (min-width: 768px) and (max-width: 1023px) {
+  /* Bigger touch targets on tablets */
+  button, a, .btn-press, [role="button"] {
+    min-height: 48px;
+  }
+
+  /* Table cells more spacious */
+  td, th {
+    padding-top: 0.75rem !important;
+    padding-bottom: 0.75rem !important;
+  }
+
+  /* Sidebar overlay wider on tablet */
+  .sidebar {
+    width: 320px !important;
+  }
+}
+
+/* Touch device: remove hover effects that cause sticky states on iOS */
+@media (hover: none) {
+  .card:hover {
+    transform: none;
+  }
+  .btn-press:hover {
+    transform: none;
+    box-shadow: none;
+  }
+}
