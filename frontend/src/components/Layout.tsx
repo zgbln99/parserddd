@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Users, FileText, RefreshCw, Sun, Moon, Globe, LogOut,
   Calendar, X, Shield, UserCog, GitCompareArrows, Receipt, Truck, Gauge, Coins, ClipboardCheck,
   Menu, ChevronLeft, ChevronRight, ShieldAlert, Route, MoonStar, PanelLeftClose, PanelLeftOpen,
-  Palette,
+  Palette, Radio,
 } from 'lucide-react';
 import { useI18n, type Locale } from '../i18n';
 import { useTheme } from '../hooks/useTheme';
@@ -20,6 +20,7 @@ const baseNavItems = [
   { to: '/drivers', icon: Users, labelKey: 'navDrivers' as const, permission: 'drivers' },
   { to: '/reader', icon: FileText, labelKey: 'navReader' as const, permission: 'reader' },
   { to: '/verstosse', icon: ShieldAlert, labelKey: 'navVerstosse' as const, permission: 'verstosse' },
+  { to: '/live', icon: Radio, labelKey: 'navLive' as const, permission: 'dashboard' },
 ];
 
 export function Layout({ children }: { children: ReactNode }) {

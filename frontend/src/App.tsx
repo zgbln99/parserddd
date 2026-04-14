@@ -30,6 +30,7 @@ const PayrollPage = lazy(() => import('./pages/PayrollPage').then(m => ({ defaul
 const PayrollAnalysisPage = lazy(() => import('./pages/PayrollAnalysisPage').then(m => ({ default: m.PayrollAnalysisPage })));
 const StundenzettelPage = lazy(() => import('./pages/StundenzettelPage').then(m => ({ default: m.StundenzettelPage })));
 const BulkGridPage = lazy(() => import('./pages/BulkGridPage').then(m => ({ default: m.BulkGridPage })));
+const LiveStatusPage = lazy(() => import('./pages/LiveStatusPage').then(m => ({ default: m.LiveStatusPage })));
 
 
 function PageFallback() {
@@ -125,6 +126,7 @@ export function App() {
           <Route path="/payroll/:card" element={<DispatcherRoute><PayrollAnalysisPage /></DispatcherRoute>} />
           <Route path="/stundenzettel" element={<DispatcherRoute><StundenzettelPage /></DispatcherRoute>} />
           <Route path="/bulk-grid" element={<DispatcherRoute><BulkGridPage /></DispatcherRoute>} />
+          <Route path="/live" element={<ProtectedRoute><LiveStatusPage /></ProtectedRoute>} />
           <Route path="/vehicles" element={<DispatcherRoute><VehiclesPage /></DispatcherRoute>} />
           <Route path="/driver-km" element={<DispatcherRoute><DriverKmPage /></DispatcherRoute>} />
           <Route path="/toll" element={<DispatcherRoute><TollCollectPage /></DispatcherRoute>} />
