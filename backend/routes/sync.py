@@ -66,10 +66,30 @@ def api_samsara_live_status():
     headers = {'Authorization': f'Bearer {token}'}
 
     try:
-        all_data = []
+        # 1. Fetch ALL drivers
+        all_drivers = []
         has_next = True
         after = None
+        while has_next:
+            params = {}
+            if after:
+                params['after'] = after
+            resp = http_requests.get(
+                f'{SAMSARA_API_BASE}/fleet/drivers',
+                headers=headers, params=params, timeout=15,
+            )
+            if resp.status_code != 200:
+                break
+            body = resp.json()
+            all_drivers.extend(body.get('data', []))
+            pagination = body.get('pagination', {})
+            after = pagination.get('endCursor')
+            has_next = pagination.get('hasNextPage', False)
 
+        # 2. Fetch HOS clocks (active sessions only)
+        hos_data = []
+        has_next = True
+        after = None
         while has_next:
             params = {}
             if after:
@@ -79,17 +99,18 @@ def api_samsara_live_status():
                 headers=headers, params=params, timeout=15,
             )
             if resp.status_code != 200:
-                return jsonify({'error': f'Samsara API: {resp.status_code}'}), 502
-
+                break
             body = resp.json()
-            all_data.extend(body.get('data', []))
+            hos_data.extend(body.get('data', []))
             pagination = body.get('pagination', {})
             after = pagination.get('endCursor')
             has_next = pagination.get('hasNextPage', False)
 
-        drivers = []
-        for entry in all_data:
+        # 3. Build HOS lookup by driver ID
+        hos_by_id = {}
+        for entry in hos_data:
             driver = entry.get('driver', {})
+            driver_id = driver.get('id', '')
             vehicle = entry.get('currentVehicle', {})
             duty = entry.get('currentDutyStatus', {})
             clocks = entry.get('clocks', {})
@@ -102,23 +123,47 @@ def api_samsara_live_status():
                 'sleeper': 'rest',
                 'offDuty': 'rest',
             }
-            status = status_map.get(hos_status, hos_status)
 
-            # Calculate remaining times
             drive_remaining = clocks.get('drive', {}).get('driveRemainingDurationMs', 0)
             shift_remaining = clocks.get('shift', {}).get('shiftRemainingDurationMs', 0)
             break_time = clocks.get('break', {}).get('timeUntilBreakDurationMs', 0)
 
-            drivers.append({
-                'id': driver.get('id', ''),
-                'name': driver.get('name', ''),
-                'status': status,
+            hos_by_id[driver_id] = {
+                'status': status_map.get(hos_status, hos_status),
                 'hos_status': hos_status,
                 'vehicle': vehicle.get('name', ''),
                 'drive_remaining_min': max(0, drive_remaining // 60000),
                 'shift_remaining_min': max(0, shift_remaining // 60000),
                 'break_in_min': max(0, break_time // 60000),
-            })
+            }
+
+        # 4. Merge: all drivers + HOS data
+        drivers = []
+        for drv in all_drivers:
+            drv_id = drv.get('id', '')
+            drv_name = drv.get('name', '')
+            activation = drv.get('driverActivationStatus', '')
+            if activation == 'deactivated':
+                continue
+
+            hos = hos_by_id.get(drv_id)
+            if hos:
+                drivers.append({
+                    'id': drv_id,
+                    'name': drv_name,
+                    **hos,
+                })
+            else:
+                drivers.append({
+                    'id': drv_id,
+                    'name': drv_name,
+                    'status': 'unknown',
+                    'hos_status': '',
+                    'vehicle': '',
+                    'drive_remaining_min': 0,
+                    'shift_remaining_min': 0,
+                    'break_in_min': 0,
+                })
 
         drivers.sort(key=lambda d: d['name'])
         return jsonify({'drivers': drivers, 'timestamp': now.isoformat()})

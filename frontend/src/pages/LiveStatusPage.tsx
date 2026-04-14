@@ -20,6 +20,7 @@ const STATUS_CONFIG: Record<string, { icon: typeof Truck; color: string; bg: str
   driving: { icon: Truck, color: 'text-emerald-600', bg: 'bg-emerald-50 border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-800', borderColor: 'border-l-emerald-500', gradientFrom: 'from-emerald-500 to-emerald-700', label: 'Jazda' },
   work: { icon: Wrench, color: 'text-blue-600', bg: 'bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800', borderColor: 'border-l-blue-500', gradientFrom: 'from-blue-500 to-blue-700', label: 'Praca' },
   rest: { icon: Coffee, color: 'text-gray-500', bg: 'bg-gray-50 border-gray-200 dark:bg-gray-800/50 dark:border-gray-700', borderColor: 'border-l-gray-400', gradientFrom: 'from-gray-400 to-gray-600', label: 'Przerwa / Wolne' },
+  unknown: { icon: Users, color: 'text-gray-400', bg: 'bg-gray-50/50 border-gray-100 dark:bg-gray-800/30 dark:border-gray-700', borderColor: 'border-l-gray-300', gradientFrom: 'from-gray-300 to-gray-500', label: 'Brak danych' },
 };
 
 function fmtDuration(min: number): string {
@@ -60,6 +61,7 @@ export function LiveStatusPage() {
     driving: drivers.filter(d => d.status === 'driving'),
     work: drivers.filter(d => d.status === 'work'),
     rest: drivers.filter(d => d.status === 'rest'),
+    unknown: drivers.filter(d => d.status === 'unknown' || !['driving', 'work', 'rest'].includes(d.status)),
   };
 
   const fmtUpdateTime = lastUpdate ? new Date(lastUpdate).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '';
@@ -91,8 +93,8 @@ export function LiveStatusPage() {
       )}
 
       {/* Stats bar */}
-      <div className="mb-6 grid grid-cols-3 gap-3">
-        {(['driving', 'work', 'rest'] as const).map(status => {
+      <div className="mb-6 grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {(['driving', 'work', 'rest', 'unknown'] as const).map(status => {
           const cfg = STATUS_CONFIG[status];
           const Icon = cfg.icon;
           const count = byStatus[status].length;
@@ -115,7 +117,7 @@ export function LiveStatusPage() {
       )}
 
       {/* Driver cards grouped by status */}
-      {(['driving', 'work', 'rest'] as const).map(status => {
+      {(['driving', 'work', 'rest', 'unknown'] as const).map(status => {
         const list = byStatus[status];
         if (list.length === 0) return null;
         const cfg = STATUS_CONFIG[status];
@@ -140,6 +142,7 @@ export function LiveStatusPage() {
                       {d.vehicle && (
                         <p className="text-xs text-muted truncate">{d.vehicle}</p>
                       )}
+                      {d.status !== 'unknown' && (
                       <div className="mt-2 grid grid-cols-3 gap-1 text-center">
                         <div>
                           <p className="text-[10px] text-muted">Jazda</p>
@@ -154,6 +157,7 @@ export function LiveStatusPage() {
                           <p className="text-xs font-bold text-ink">{fmtDuration(d.break_in_min)}</p>
                         </div>
                       </div>
+                      )}
                     </div>
                   </div>
                 </Card>
