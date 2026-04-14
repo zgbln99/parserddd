@@ -233,16 +233,7 @@ def analyze_card(data, night_start_hour=None, config_loader=None, night_40_check
         shift_start = work_dts[0]
         shift_end = work_dts[-1] + timedelta(minutes=1)
         shift_date = _to_cet(shift_start).strftime('%Y-%m-%d')
-        # grid_date: for the monthly grid, shifts starting before 06:00 are
-        # continuations of the previous day's work (e.g. 00:10-09:47 is the
-        # tail of a shift that began the evening before).  Attribute to
-        # the previous calendar day so they don't combine with a new shift
-        # that starts later the same day.
-        shift_start_cet = _to_cet(shift_start)
-        if shift_start_cet.hour < 6:
-            grid_date = (shift_start_cet - timedelta(days=1)).strftime('%Y-%m-%d')
-        else:
-            grid_date = shift_date
+        grid_date = shift_date
 
         shift_key = (shift_start, shift_end)
         if shift_key in seen_shifts:
