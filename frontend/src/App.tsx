@@ -8,6 +8,7 @@ import { GlobalSearch } from './components/GlobalSearch';
 import { OfflineBanner } from './components/OfflineBanner';
 import { Changelog } from './components/Changelog';
 import { InstallPrompt } from './components/InstallPrompt';
+import { NewFilesNotification } from './components/Notifications';
 
 // Lazy-loaded pages for code splitting
 const DashboardPage = lazy(() => import('./pages/DashboardPage').then(m => ({ default: m.DashboardPage })));
@@ -105,6 +106,7 @@ export function App() {
       <GlobalSearch />
       {loggedIn && isAdmin && <Changelog />}
       {loggedIn && <InstallPrompt />}
+      {loggedIn && <NewFilesNotification />}
       <Suspense fallback={<PageFallback />}>
         <Routes>
           <Route

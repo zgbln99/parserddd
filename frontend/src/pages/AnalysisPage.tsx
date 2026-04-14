@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, AlertCircle } from 'lucide-react';
+import { playNotificationSound } from '../components/Notifications';
 import { useI18n } from '../i18n';
 import { analyzeDropboxFile } from '../lib/api';
 import { Card } from '../components/Card';
@@ -44,6 +45,7 @@ export function AnalysisPage() {
     analyzeDropboxFile(filePath)
       .then((d) => {
         setData(d);
+        playNotificationSound();
         // Save to recent analyses
         try {
           const name = d.driver_info?.driver_name || driverName || fileName;

@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { Upload, FileText, AlertCircle, FolderUp, Check, Search, ChevronLeft, ChevronRight, Eye, X, Trash2 } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { analyzeUploadedFile, fetchDrivers, saveReaderFileToDropbox, previewDddFile } from '../lib/api';
+import { playNotificationSound } from '../components/Notifications';
 import { Spinner } from '../components/Spinner';
 import { Card } from '../components/Card';
 import { Modal } from '../components/Modal';
@@ -90,6 +91,7 @@ export function ReaderPage() {
       const data = await analyzeUploadedFile(file);
       setResult(data);
       setQuickPreview(null);
+      playNotificationSound();
     } catch (e: any) {
       setError(e.message);
     } finally {
