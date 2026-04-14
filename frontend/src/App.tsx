@@ -31,6 +31,7 @@ const PayrollAnalysisPage = lazy(() => import('./pages/PayrollAnalysisPage').the
 const StundenzettelPage = lazy(() => import('./pages/StundenzettelPage').then(m => ({ default: m.StundenzettelPage })));
 const BulkGridPage = lazy(() => import('./pages/BulkGridPage').then(m => ({ default: m.BulkGridPage })));
 const LiveStatusPage = lazy(() => import('./pages/LiveStatusPage').then(m => ({ default: m.LiveStatusPage })));
+const ArbeitszeitberichtPage = lazy(() => import('./pages/ArbeitszeitberichtPage').then(m => ({ default: m.ArbeitszeitberichtPage })));
 
 
 function PageFallback() {
@@ -134,6 +135,7 @@ export function App() {
           <Route path="/night-sim" element={<AdminRoute><NightSimulatorPage /></AdminRoute>} />
           <Route path="/analysis" element={<ProtectedRoute><AnalysisPage /></ProtectedRoute>} />
           <Route path="/verstosse" element={<PermissionRoute permission="verstosse"><VerstossePage /></PermissionRoute>} />
+          <Route path="/arbeitszeitbericht" element={<DispatcherRoute><ArbeitszeitberichtPage /></DispatcherRoute>} />
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

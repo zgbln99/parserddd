@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Users, FileText, RefreshCw, Sun, Moon, Globe, LogOut,
   Calendar, X, Shield, UserCog, GitCompareArrows, Receipt, Truck, Gauge, Coins, ClipboardCheck,
   Menu, ChevronLeft, ChevronRight, ShieldAlert, Route, MoonStar, PanelLeftClose, PanelLeftOpen,
-  Palette, Radio,
+  Palette, Radio, Clock,
 } from 'lucide-react';
 import { useI18n, type Locale } from '../i18n';
 import { useTheme } from '../hooks/useTheme';
@@ -50,6 +50,7 @@ export function Layout({ children }: { children: ReactNode }) {
           { to: '/payroll', icon: ClipboardCheck, labelKey: 'navPayroll' as const, permission: 'settlement' },
           { to: '/stundenzettel', icon: FileText, labelKey: 'navStundenzettel' as const, permission: 'settlement' },
           { to: '/bulk-grid', icon: Users, labelKey: 'navBulkGrid' as const, permission: 'settlement' },
+          { to: '/arbeitszeitbericht', icon: Clock, labelKey: 'navArbeitszeitbericht' as const, permission: 'settlement' },
           { to: '/vehicles', icon: Truck, labelKey: 'navVehicles' as const, permission: 'vehicles' },
           { to: '/driver-km', icon: Gauge, labelKey: 'navDriverKm' as const, permission: 'driver_km' },
           { to: '/toll', icon: Coins, labelKey: 'navTollCollect' as const, permission: 'toll' },

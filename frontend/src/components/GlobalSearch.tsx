@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, LayoutDashboard, Users, FileText, RefreshCw, Shield, UserCog, GitCompareArrows, Receipt, Truck, MoonStar } from 'lucide-react';
+import { Search, LayoutDashboard, Users, FileText, RefreshCw, Shield, UserCog, GitCompareArrows, Receipt, Truck, MoonStar, Clock } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { useAuth } from '../hooks/useAuth';
 
@@ -32,6 +32,7 @@ export function GlobalSearch() {
       { label: t('navDriverConfig'), to: '/config', icon: UserCog, keywords: ['config', 'konfiguracja', 'pracownicy', 'mitarbeiter'] },
       { label: t('navNightSim'), to: '/night-sim', icon: MoonStar, keywords: ['night', 'nocne', 'nacht', 'symulator', 'simulator', 'nachtschicht'] },
       { label: t('navAdmin'), to: '/admin', icon: Shield, keywords: ['admin', 'panel', 'users', 'logs'] },
+      { label: t('navArbeitszeitbericht'), to: '/arbeitszeitbericht', icon: Clock, keywords: ['arbeitszeitbericht', 'raport', 'arbeitszeit', 'czas pracy', 'timeline', 'woche', 'tydzień'] },
     ] : []),
   ];
 

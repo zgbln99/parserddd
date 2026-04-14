@@ -655,6 +655,9 @@ export const de: Record<TranslationKey, string> = {
   permAdmin: 'Verwaltung',
   permSync: 'Synchronisierung',
 
+  // Arbeitszeitbericht
+  navArbeitszeitbericht: 'Arbeitszeitbericht',
+
   // Drag & drop enhancements
   readerOnlyDdd: 'Nur .ddd-Dateien werden unterstützt',
   readerFilesQueued: 'Dateien in Warteschlange',

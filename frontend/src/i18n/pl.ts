@@ -653,6 +653,9 @@ export const pl = {
   permAdmin: 'Administracja',
   permSync: 'Synchronizacja',
 
+  // Arbeitszeitbericht
+  navArbeitszeitbericht: 'Raport czasu pracy',
+
   // Drag & drop enhancements
   readerOnlyDdd: 'Obsługiwane są tylko pliki .ddd',
   readerFilesQueued: 'plików w kolejce',
