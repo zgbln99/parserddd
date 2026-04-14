@@ -1057,7 +1057,7 @@ function MonthlyGridCopy({
   const daysInMonth = new Date(year, month, 0).getDate();
 
   // Build a map: day number -> total duration minutes for that day (from shifts)
-  // Uses grid_date (midpoint-based) so overnight shifts land on the correct day.
+  // Uses grid_date (= shift start date) so overnight shifts land on the day they began.
   const dayWorkMap = useMemo(() => {
     const map: Record<number, number> = {};
     for (const sh of shifts) {
