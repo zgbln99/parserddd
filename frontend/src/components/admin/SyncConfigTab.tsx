@@ -25,6 +25,7 @@ function SyncConfigSection() {
   const [weekendDiet, setWeekendDiet] = useState(false);
   const [nightIncludesBreaks, setNightIncludesBreaks] = useState(false);
   const [hiddenFeatures, setHiddenFeatures] = useState<string[]>([]);
+  const [companyNameInput, setCompanyNameInput] = useState('');
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState('');
 
@@ -39,6 +40,7 @@ function SyncConfigSection() {
         setWeekendDiet(!!cfg.weekend_diet);
         setNightIncludesBreaks(!!cfg.night_includes_breaks);
         setHiddenFeatures(cfg.hidden_features || []);
+        setCompanyNameInput(cfg.company_name || 'LTS Logistik GmbH');
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -58,6 +60,7 @@ function SyncConfigSection() {
       data.weekend_diet = weekendDiet ? 1 : 0;
       data.night_includes_breaks = nightIncludesBreaks ? 1 : 0;
       data.hidden_features = hiddenFeatures;
+      if (companyNameInput) data.company_name = companyNameInput;
       await updateConfig(data);
       setMsg('OK!');
       setSamsaraToken('');
@@ -116,6 +119,16 @@ function SyncConfigSection() {
             value={syncFolder}
             onChange={(e) => setSyncFolder(e.target.value)}
             className="input w-full rounded-xl px-3 py-1.5 text-sm outline-none"
+          />
+        </div>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+          <label className="text-xs font-semibold text-muted sm:w-40 shrink-0">{t('adminCompanyName')}</label>
+          <input
+            type="text"
+            value={companyNameInput}
+            onChange={(e) => setCompanyNameInput(e.target.value)}
+            className="input w-full rounded-xl px-3 py-1.5 text-sm outline-none"
+            placeholder="LTS Logistik GmbH"
           />
         </div>
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">

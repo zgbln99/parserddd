@@ -85,4 +85,5 @@ def api_auth_status():
         'username': session.get('username', ''),
         'permissions': perms,
         'hidden_features': cfg.get('hidden_features', []) if role != 'admin' else [],
+        'company_name': cfg.get('company_name', 'LTS Logistik GmbH'),
     })

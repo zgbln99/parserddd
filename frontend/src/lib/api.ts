@@ -325,6 +325,7 @@ export interface SyncConfig {
   weekend_diet: boolean;
   night_includes_breaks: boolean;
   hidden_features: string[];
+  company_name: string;
 }
 
 export const fetchConfig = () =>

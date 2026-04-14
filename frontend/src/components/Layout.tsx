@@ -25,7 +25,7 @@ const baseNavItems = [
 export function Layout({ children }: { children: ReactNode }) {
   const { t, locale, setLocale } = useI18n();
   const { theme, toggle } = useTheme();
-  const { logout, isAdmin, isDispatcher, role, hasPermission } = useAuth();
+  const { logout, isAdmin, isDispatcher, role, hasPermission, companyName } = useAuth();
   const { dateFrom, dateTo, setDateFrom, setDateTo, clear } = useDateFilter();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -113,7 +113,7 @@ export function Layout({ children }: { children: ReactNode }) {
               {(!collapsed || sidebarOpen) && (
                 <div className="min-w-0 flex-1">
                   <span className="block text-sm font-bold leading-tight text-ink">Tachoprüfung</span>
-                  <span className="text-[11px] font-medium text-muted">LTS Logistik GmbH</span>
+                  <span className="text-[11px] font-medium text-muted">{companyName}</span>
                 </div>
               )}
               <button
@@ -171,6 +171,32 @@ export function Layout({ children }: { children: ReactNode }) {
               ))}
             </div>
           </nav>
+
+          {/* Recent analyses */}
+          {(!collapsed || sidebarOpen) && (() => {
+            try {
+              const recent = JSON.parse(localStorage.getItem('recent-analyses') || '[]') as { name: string; url: string }[];
+              if (recent.length === 0) return null;
+              return (
+                <div className="border-t border-border px-3 py-3">
+                  <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-widest text-muted">{t('recentAnalyses')}</p>
+                  <div className="space-y-0.5">
+                    {recent.slice(0, 5).map((r, i) => (
+                      <NavLink
+                        key={i}
+                        to={r.url}
+                        onClick={() => setSidebarOpen(false)}
+                        className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-[12px] text-muted transition hover:bg-primary-50 hover:text-primary-700 dark:hover:bg-primary-900/20"
+                      >
+                        <Clock size={12} />
+                        <span className="truncate">{r.name}</span>
+                      </NavLink>
+                    ))}
+                  </div>
+                </div>
+              );
+            } catch { return null; }
+          })()}
 
           {/* Bottom controls */}
           <div className="border-t border-border p-3">

@@ -187,6 +187,8 @@ export const de: Record<TranslationKey, string> = {
   adminNightBreaks: 'Nacht inkl. Pausen',
   adminNightBreaksHint: 'Nachtzuschläge aus gesamter Schichtdauer (inkl. Pausen)',
   adminHiddenFeatures: 'Ausgeblendete Funktionen',
+  recentAnalyses: 'Letzte Analysen',
+  adminCompanyName: 'Firmenname',
   adminPauseCap: 'Max 45 Min Pause',
   adminPauseCapHint: 'Pro Schicht max 45 Min Pause, Rest als Bereitschaft',
   adminWeekendDiet: 'Wochenend-Verpflegung',

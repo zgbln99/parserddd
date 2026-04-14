@@ -26,10 +26,22 @@ export function ReaderPage() {
   const fileRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [timerStart, setTimerStart] = useState(0);
+  const [timerNow, setTimerNow] = useState(0);
   const [error, setError] = useState('');
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [originalFile, setOriginalFile] = useState<File | null>(null);
   const [quickPreview, setQuickPreview] = useState<{ driver_name?: string; card_number?: string; records?: number } | null>(null);
+
+  // Analysis timer
+  useEffect(() => {
+    if (!loading) return;
+    setTimerStart(Date.now());
+    setTimerNow(Date.now());
+    const id = setInterval(() => setTimerNow(Date.now()), 100);
+    return () => clearInterval(id);
+  }, [loading]);
+  const elapsedSec = loading ? ((timerNow - timerStart) / 1000).toFixed(1) : '0.0';
 
   // Multi-file support
   const [multiResults, setMultiResults] = useState<FileResult[]>([]);
@@ -261,10 +273,10 @@ export function ReaderPage() {
                 {quickPreview.records ? (
                   <p className="mt-1 text-xs text-muted">{quickPreview.records} {t('readerDaysFound')}</p>
                 ) : null}
-                <p className="mt-2 text-sm font-medium text-primary-600">{t('readerAnalyzing')}</p>
+                <p className="mt-2 text-sm font-medium text-primary-600">{t('readerAnalyzing')} {elapsedSec}s</p>
               </div>
             ) : (
-              <p className="text-sm font-medium">{t('readerAnalyzing')}</p>
+              <p className="text-sm font-medium">{t('readerAnalyzing')} {elapsedSec}s</p>
             )}
           </div>
         </Card>

@@ -31,7 +31,18 @@ export function AnalysisPage() {
     setLoading(true);
     setError('');
     analyzeDropboxFile(filePath)
-      .then(setData)
+      .then((d) => {
+        setData(d);
+        // Save to recent analyses
+        try {
+          const name = d.driver_info?.driver_name || driverName || fileName;
+          const url = `/analysis?${new URLSearchParams({ path: filePath, name: fileName, driver: driverName })}`;
+          const recent = JSON.parse(localStorage.getItem('recent-analyses') || '[]');
+          const filtered = recent.filter((r: any) => r.url !== url);
+          filtered.unshift({ name, url });
+          localStorage.setItem('recent-analyses', JSON.stringify(filtered.slice(0, 5)));
+        } catch {}
+      })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   };

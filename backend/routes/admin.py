@@ -378,6 +378,7 @@ def api_get_config():
         'weekend_diet': bool(cfg.get('weekend_diet', False)),
         'night_includes_breaks': bool(cfg.get('night_includes_breaks', False)),
         'hidden_features': cfg.get('hidden_features', []),
+        'company_name': cfg.get('company_name', 'LTS Logistik GmbH'),
     })
 
 
@@ -403,6 +404,8 @@ def api_update_config():
         cfg['night_includes_breaks'] = bool(data['night_includes_breaks'])
     if 'hidden_features' in data:
         cfg['hidden_features'] = list(data['hidden_features']) if isinstance(data['hidden_features'], list) else []
+    if 'company_name' in data:
+        cfg['company_name'] = str(data['company_name'])[:100]
     _save_config(cfg)
     # Clear analysis cache when settings change
     try:

@@ -185,6 +185,8 @@ export const pl = {
   adminNightBreaks: 'Nocne z przerwami',
   adminNightBreaksHint: 'Dodatki nocne liczone z całego czasu zmiany (łącznie z przerwą)',
   adminHiddenFeatures: 'Ukryte funkcje',
+  recentAnalyses: 'Ostatnie analizy',
+  adminCompanyName: 'Nazwa firmy',
   adminPauseCap: 'Max 45 min pauzy',
   adminPauseCapHint: 'Na zmianę max 45 min pauzy, reszta jako Bereitschaft',
   adminWeekendDiet: 'Diety weekendowe',

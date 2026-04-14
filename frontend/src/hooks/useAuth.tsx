@@ -35,6 +35,7 @@ interface AuthContextValue {
   hasPermission: (perm: string) => boolean;
   hiddenFeatures: string[];
   isFeatureVisible: (feature: string) => boolean;
+  companyName: string;
   login: (password: string) => Promise<void>;
   logout: () => Promise<void>;
 }
@@ -49,6 +50,7 @@ const AuthContext = createContext<AuthContextValue>({
   hasPermission: () => false,
   hiddenFeatures: [],
   isFeatureVisible: () => true,
+  companyName: 'LTS Logistik GmbH',
   login: async () => {},
   logout: async () => {},
 });
@@ -65,6 +67,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [role, setRole] = useState<UserRole>('user');
   const [serverPermissions, setServerPermissions] = useState<string[]>([]);
   const [hiddenFeatures, setHiddenFeatures] = useState<string[]>([]);
+  const [companyName, setCompanyName] = useState('LTS Logistik GmbH');
 
   useEffect(() => {
     authStatus()
@@ -73,6 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setRole(parseRole((data as any).role));
         setServerPermissions((data as any).permissions || []);
         setHiddenFeatures((data as any).hidden_features || []);
+        setCompanyName((data as any).company_name || 'LTS Logistik GmbH');
       })
       .catch(() => setLoggedIn(false));
   }, []);
@@ -121,6 +125,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         hasPermission,
         hiddenFeatures,
         isFeatureVisible,
+        companyName,
         login,
         logout,
       }}
