@@ -99,30 +99,62 @@ const CAL_DAYS_PL = ['ndz', 'pon', 'wt', 'śr', 'czw', 'pt', 'sob'];
 const CAL_DAYS_DE = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
 
 // ---------------------------------------------------------------------------
-// TimeAxisTimeline — the Samsara-style horizontal bar with hour markers
+// Samsara block heights — driving tallest, work medium, rest/avail shorter
 // ---------------------------------------------------------------------------
-function TimeAxisTimeline({ activities, shiftStart, shiftEnd }: {
+const TYPE_HEIGHT: Record<string, number> = {
+  DRIVING: 100,
+  WORK: 72,
+  REST: 48,
+  AVAILABILITY: 36,
+  UNKNOWN: 36,
+};
+
+// ---------------------------------------------------------------------------
+// TimeAxisTimeline — Samsara-style bar with varying heights + hover tooltip
+// ---------------------------------------------------------------------------
+function TimeAxisTimeline({ activities, shiftStart, shiftEnd, locale }: {
   activities: Activity[];
   shiftStart: string; // "YYYY-MM-DD HH:MM"
   shiftEnd: string;
+  locale: string;
 }) {
+  const [hover, setHover] = useState<{ idx: number; x: number; y: number } | null>(null);
+  const barRef = useRef<HTMLDivElement>(null);
+
   const startMin = timeToMin(shiftStart);
   let endMin = timeToMin(shiftEnd);
-  // Handle overnight shifts
   if (endMin <= startMin) endMin += 24 * 60;
   const totalSpan = endMin - startMin || 1;
 
-  // Hour markers — every full hour within range
+  // Hour markers
   const firstHour = Math.ceil(startMin / 60);
   const lastHour = Math.floor(endMin / 60);
   const hours: number[] = [];
   for (let h = firstHour; h <= lastHour; h++) hours.push(h);
 
+  const handleMouseEnter = (e: React.MouseEvent, idx: number) => {
+    if (!barRef.current) return;
+    const rect = barRef.current.getBoundingClientRect();
+    setHover({ idx, x: e.clientX - rect.left, y: e.clientY - rect.top });
+  };
+  const handleMouseMove = (e: React.MouseEvent, idx: number) => {
+    if (!barRef.current) return;
+    const rect = barRef.current.getBoundingClientRect();
+    setHover({ idx, x: e.clientX - rect.left, y: e.clientY - rect.top });
+  };
+  const handleMouseLeave = () => setHover(null);
+
+  const BAR_H = 64; // px — total bar height
+
   return (
     <div className="w-full">
       {/* Timeline bar */}
-      <div className="relative h-[52px] w-full bg-gray-50 dark:bg-gray-800/50">
-        {/* Activity blocks */}
+      <div
+        ref={barRef}
+        className="relative w-full bg-gray-50 dark:bg-gray-800/50"
+        style={{ height: BAR_H }}
+      >
+        {/* Activity blocks — bottom-aligned, different heights */}
         {activities.map((a, i) => {
           let aStart = timeToMin(a.start);
           let aEnd = timeToMin(a.end);
@@ -131,19 +163,29 @@ function TimeAxisTimeline({ activities, shiftStart, shiftEnd }: {
           const left = ((aStart - startMin) / totalSpan) * 100;
           const width = ((aEnd - aStart) / totalSpan) * 100;
           const cfg = TYPE_COLORS[a.type] || TYPE_COLORS.UNKNOWN;
+          const hPct = TYPE_HEIGHT[a.type] ?? 36;
+          const heightPx = Math.round((hPct / 100) * BAR_H);
+          const isHovered = hover?.idx === i;
+
           return (
             <div
               key={i}
-              className="absolute top-0 h-full transition-opacity hover:opacity-80"
+              className="absolute bottom-0 cursor-pointer transition-opacity"
               style={{
                 left: `${Math.max(0, left)}%`,
-                width: `${Math.min(width, 100 - left)}%`,
+                width: `${Math.max(0.3, Math.min(width, 100 - Math.max(0, left)))}%`,
+                height: heightPx,
                 backgroundColor: cfg.color,
+                opacity: isHovered ? 0.85 : 1,
+                zIndex: isHovered ? 20 : 1,
               }}
-              title={`${cfg.label}: ${fmtTime(a.start)} – ${fmtTime(a.end)} (${a.duration_minutes} min)`}
+              onMouseEnter={(e) => handleMouseEnter(e, i)}
+              onMouseMove={(e) => handleMouseMove(e, i)}
+              onMouseLeave={handleMouseLeave}
             />
           );
         })}
+
         {/* Hour grid lines */}
         {hours.map(h => {
           const pos = ((h * 60 - startMin) / totalSpan) * 100;
@@ -151,17 +193,61 @@ function TimeAxisTimeline({ activities, shiftStart, shiftEnd }: {
           return (
             <div
               key={h}
-              className="absolute top-0 h-full border-l border-white/30 dark:border-gray-600/40"
-              style={{ left: `${pos}%` }}
+              className="absolute top-0 h-full border-l border-white/40 dark:border-gray-600/50 pointer-events-none"
+              style={{ left: `${pos}%`, zIndex: 10 }}
             />
           );
         })}
+
+        {/* Hover tooltip — Samsara style floating card */}
+        {hover !== null && activities[hover.idx] && (() => {
+          const a = activities[hover.idx];
+          const cfg = TYPE_COLORS[a.type] || TYPE_COLORS.UNKNOWN;
+          // Position tooltip above cursor, centered horizontally
+          const tooltipLeft = Math.max(10, Math.min(hover.x - 80, (barRef.current?.clientWidth || 400) - 170));
+          return (
+            <div
+              className="absolute z-50 pointer-events-none"
+              style={{ left: tooltipLeft, bottom: BAR_H + 8 }}
+            >
+              <div className="rounded-lg bg-white dark:bg-gray-800 shadow-xl border border-gray-200 dark:border-gray-600 px-3 py-2 min-w-[150px]">
+                {/* Date + time header */}
+                <p className="text-[11px] font-semibold text-gray-900 dark:text-gray-100 mb-1.5">
+                  {a.start.slice(8, 10)}.{a.start.slice(5, 7)}.{a.start.slice(0, 4)} {fmtTime(a.start)}
+                </p>
+                {/* Activity info row */}
+                <div className="flex items-center gap-2">
+                  <span
+                    className="flex h-5 w-5 items-center justify-center rounded-full"
+                    style={{ backgroundColor: cfg.color }}
+                  >
+                    <span className="text-white text-[8px] font-bold">
+                      {a.type === 'DRIVING' ? '⊕' : a.type === 'WORK' ? '⚙' : a.type === 'REST' ? '◉' : '◎'}
+                    </span>
+                  </span>
+                  <div>
+                    <p className="text-xs text-gray-700 dark:text-gray-300">
+                      {fmtTime(a.start)} - {fmtTime(a.end)}
+                    </p>
+                    <p className="text-xs font-semibold text-gray-900 dark:text-gray-100">
+                      {a.duration_minutes} min
+                    </p>
+                  </div>
+                </div>
+              </div>
+              {/* Arrow */}
+              <div className="flex justify-center">
+                <div className="h-2 w-2 rotate-45 bg-white dark:bg-gray-800 border-b border-r border-gray-200 dark:border-gray-600 -mt-1" />
+              </div>
+            </div>
+          );
+        })()}
       </div>
+
       {/* Hour labels */}
       <div className="relative h-5 w-full">
-        {/* Start label */}
         <span className="absolute left-0 top-0.5 text-[11px] text-gray-500 dark:text-gray-400">
-          {shiftStart.slice(0, 10).split('-').reverse().join('.')}
+          {shiftStart.slice(8, 10)}.{shiftStart.slice(5, 7)}.{shiftStart.slice(0, 4)}
         </span>
         {hours.map(h => {
           const pos = ((h * 60 - startMin) / totalSpan) * 100;
@@ -280,6 +366,7 @@ function DaySection({
               activities={activities}
               shiftStart={shift.shift_start}
               shiftEnd={shift.shift_end}
+              locale={locale}
             />
           </div>
 
