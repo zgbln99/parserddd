@@ -181,6 +181,7 @@ export const de: Record<TranslationKey, string> = {
 
   overrideN25: '25% überschreiben',
   overrideN40: '40% überschreiben',
+  overrideWork: 'AZ überschreiben',
   overrideHint: 'Manuelle Eingabe — wird anstelle der berechneten Werte angezeigt',
 
   adminNightBreaks: 'Nacht inkl. Pausen',
@@ -196,6 +197,7 @@ export const de: Record<TranslationKey, string> = {
   readerUpload: '.ddd-Datei hierher ziehen oder klicken, um auszuwählen',
   readerUploadBtn: 'Datei auswählen',
   readerAnalyzing: 'Wird analysiert...',
+  readerDaysFound: 'Tage auf der Karte',
   readerDropHint: '.ddd-Datei hier ablegen',
   readerSelectFile: 'oder klicken, um eine Datei auszuwählen',
   readerSaveToDropbox: 'In Dropbox speichern',

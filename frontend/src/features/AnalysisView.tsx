@@ -184,6 +184,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
         absence_days: monthlyDays.absence_days,
         override_n25: monthlyDays.override_n25,
         override_n40: monthlyDays.override_n40,
+        override_work_hm: monthlyDays.override_work_hm,
       });
     } catch {
       // ignore
@@ -448,8 +449,8 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-2xl bg-gradient-to-br from-primary-500 to-primary-700 p-4 text-center shadow-lg shadow-primary-500/15">
           <p className="text-xs font-bold uppercase tracking-wider text-primary-100">{t('analysisWorkTime')}</p>
-          <p className="mt-1 text-3xl font-extrabold text-white">{s.total_work_hm}</p>
-          <p className="mt-0.5 text-xs text-primary-200">{s.total_work_decimal}h</p>
+          <p className="mt-1 text-3xl font-extrabold text-white">{monthlyDays?.override_work_hm || s.total_work_hm}</p>
+          <p className="mt-0.5 text-xs text-primary-200">{monthlyDays?.override_work_hm ? '' : `${s.total_work_decimal}h`}</p>
         </div>
         {fv('night_hours_cards') && <div className="rounded-2xl bg-gradient-to-br from-violet-500 to-violet-700 p-4 text-center shadow-lg shadow-violet-500/15" title={locale === 'de' ? `Nachtarbeit ab ${nightH}:00 (25%)` : `Nocne od ${nightH}:00 (25%)`}>
           <p className="text-xs font-bold uppercase tracking-wider text-violet-100">{t('analysisNight25')}</p>
@@ -663,6 +664,16 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
                   value={monthlyDays.override_n40 || ''}
                   onChange={(e) => setMonthlyDays(prev => prev ? { ...prev, override_n40: e.target.value } : prev)}
                   className="w-20 input rounded-xl px-2.5 py-1.5 text-sm tabular-nums outline-none"
+                  placeholder="—"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-red-500">{t('overrideWork')}</label>
+                <input
+                  type="text"
+                  value={monthlyDays.override_work_hm || ''}
+                  onChange={(e) => setMonthlyDays(prev => prev ? { ...prev, override_work_hm: e.target.value } : prev)}
+                  className="w-24 input rounded-xl px-2.5 py-1.5 text-sm tabular-nums outline-none"
                   placeholder="—"
                 />
               </div>
@@ -920,7 +931,7 @@ function ExcelCopyBlock({ summary, monthlyDays }: { summary: ReturnType<typeof O
   const n40 = monthlyDays?.override_n40 || ((s.night_40_minutes as number) / 60).toFixed(2).replace('.', ',');
   const vma = String(s.diet_count ?? 0);
   const azMin = s.total_work_minutes as number;
-  const az = `${Math.floor(azMin / 60)}:${String(azMin % 60).padStart(2, '0')}`;
+  const az = monthlyDays?.override_work_hm || `${Math.floor(azMin / 60)}:${String(azMin % 60).padStart(2, '0')}`;
 
   const urVal = monthlyDays?.vacation_days ? String(monthlyDays.vacation_days) : '';
   const krVal = monthlyDays?.sick_days ? String(monthlyDays.sick_days) : '';
@@ -1077,7 +1088,7 @@ function MonthlyGridCopy({
   const n40 = monthlyDays?.override_n40 || ((s.night_40_minutes as number) / 60).toFixed(2).replace('.', ',');
   const vma = String(s.diet_count ?? 0);
   const azMin = s.total_work_minutes as number;
-  const az = `${Math.floor(azMin / 60)}:${String(azMin % 60).padStart(2, '0')}`;
+  const az = monthlyDays?.override_work_hm || `${Math.floor(azMin / 60)}:${String(azMin % 60).padStart(2, '0')}`;
 
   // Count Ur/Kr from merged absenceDays (includes vacation from PDF)
   const urCount = Object.values(absenceDays).filter(v => v === 'Ur').length;

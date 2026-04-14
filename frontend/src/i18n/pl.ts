@@ -179,6 +179,7 @@ export const pl = {
 
   overrideN25: 'Nadpisz 25%',
   overrideN40: 'Nadpisz 40%',
+  overrideWork: 'Nadpisz AZ',
   overrideHint: 'Ręczne nadpisanie — widoczne zamiast obliczonych wartości',
 
   adminNightBreaks: 'Nocne z przerwami',
@@ -194,6 +195,7 @@ export const pl = {
   readerUpload: 'Przeciągnij plik .ddd lub kliknij, aby wybrać',
   readerUploadBtn: 'Wybierz plik',
   readerAnalyzing: 'Analizowanie...',
+  readerDaysFound: 'dni na karcie',
   readerDropHint: 'Upuść plik .ddd tutaj',
   readerSelectFile: 'lub kliknij, aby wybrać z dysku',
   readerSaveToDropbox: 'Zapisz do Dropbox',

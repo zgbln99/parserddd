@@ -295,6 +295,7 @@ def api_get_monthly_days(card_number, period):
             'absence_days': absence,
             'override_n25': d.get('override_n25', '') or '',
             'override_n40': d.get('override_n40', '') or '',
+            'override_work_hm': d.get('override_work_hm', '') or '',
         })
     return jsonify({
         'card_number': card_number,
@@ -306,6 +307,7 @@ def api_get_monthly_days(card_number, period):
         'absence_days': {},
         'override_n25': '',
         'override_n40': '',
+        'override_work_hm': '',
     })
 
 
@@ -322,12 +324,13 @@ def api_set_monthly_days(card_number, period):
     absence_str = _json.dumps(absence) if isinstance(absence, dict) else str(absence or '{}')
     override_n25 = str(body.get('override_n25', '') or '')
     override_n40 = str(body.get('override_n40', '') or '')
+    override_work_hm = str(body.get('override_work_hm', '') or '')
     now = datetime.utcnow().isoformat()
 
     conn = _get_db()
     conn.execute('''
-        INSERT INTO driver_monthly_days (card_number, period, vacation_days, sick_days, overtime_hm, notes, absence_days, override_n25, override_n40, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO driver_monthly_days (card_number, period, vacation_days, sick_days, overtime_hm, notes, absence_days, override_n25, override_n40, override_work_hm, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(card_number, period) DO UPDATE SET
             vacation_days = excluded.vacation_days,
             sick_days = excluded.sick_days,
@@ -336,8 +339,9 @@ def api_set_monthly_days(card_number, period):
             absence_days = excluded.absence_days,
             override_n25 = excluded.override_n25,
             override_n40 = excluded.override_n40,
+            override_work_hm = excluded.override_work_hm,
             updated_at = excluded.updated_at
-    ''', (card_number, period, vacation, sick, overtime, notes, absence_str, override_n25, override_n40, now))
+    ''', (card_number, period, vacation, sick, overtime, notes, absence_str, override_n25, override_n40, override_work_hm, now))
     conn.commit()
     conn.close()
 

@@ -29,6 +29,7 @@ export function ReaderPage() {
   const [error, setError] = useState('');
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [originalFile, setOriginalFile] = useState<File | null>(null);
+  const [quickPreview, setQuickPreview] = useState<{ driver_name?: string; card_number?: string; records?: number } | null>(null);
 
   // Multi-file support
   const [multiResults, setMultiResults] = useState<FileResult[]>([]);
@@ -63,9 +64,20 @@ export function ReaderPage() {
     setSaved(false);
     setOriginalFile(file);
     setMultiResults([]);
+    setQuickPreview(null);
+    // Quick preview in parallel with full analysis
+    previewDddFile(file).then(p => {
+      const ci = p.card_info || {};
+      setQuickPreview({
+        driver_name: ci.driver_name || '',
+        card_number: ci.card_number || '',
+        records: p.activity_records?.length || 0,
+      });
+    }).catch(() => {});
     try {
       const data = await analyzeUploadedFile(file);
       setResult(data);
+      setQuickPreview(null);
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -235,12 +247,27 @@ export function ReaderPage() {
         </Card>
       )}
 
-      {/* Loading */}
+      {/* Loading with quick preview */}
       {loading && (
-        <Card className="py-16">
-          <div className="flex flex-col items-center gap-3 text-muted">
+        <Card className="py-12">
+          <div className="flex flex-col items-center gap-4 text-muted">
             <Spinner size="lg" />
-            <p className="text-sm font-medium">{t('readerAnalyzing')}</p>
+            {quickPreview ? (
+              <div className="text-center animate-fade-in">
+                {quickPreview.driver_name && (
+                  <p className="text-lg font-bold text-ink">{quickPreview.driver_name}</p>
+                )}
+                {quickPreview.card_number && (
+                  <p className="text-xs font-mono text-muted">{quickPreview.card_number}</p>
+                )}
+                {quickPreview.records ? (
+                  <p className="mt-1 text-xs text-muted">{quickPreview.records} {t('readerDaysFound')}</p>
+                ) : null}
+                <p className="mt-2 text-sm font-medium text-primary-600">{t('readerAnalyzing')}</p>
+              </div>
+            ) : (
+              <p className="text-sm font-medium">{t('readerAnalyzing')}</p>
+            )}
           </div>
         </Card>
       )}

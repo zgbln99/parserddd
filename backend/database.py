@@ -284,6 +284,12 @@ def _run_sqlite_migrations():
             db.execute("ALTER TABLE driver_monthly_days ADD COLUMN override_n25 TEXT NOT NULL DEFAULT ''")
             db.execute("ALTER TABLE driver_monthly_days ADD COLUMN override_n40 TEXT NOT NULL DEFAULT ''")
             db.commit()
+        # override_work_hm on driver_monthly_days (admin work hours override)
+        try:
+            db.execute("SELECT override_work_hm FROM driver_monthly_days LIMIT 1")
+        except Exception:
+            db.execute("ALTER TABLE driver_monthly_days ADD COLUMN override_work_hm TEXT NOT NULL DEFAULT ''")
+            db.commit()
         try:
             db.execute("SELECT night_40_enabled FROM driver_config LIMIT 1")
         except Exception:
