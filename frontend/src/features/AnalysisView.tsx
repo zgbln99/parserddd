@@ -1056,15 +1056,18 @@ function MonthlyGridCopy({
   const month = parseInt(refDate.slice(5, 7), 10) || (new Date().getMonth() + 1); // 1-indexed
   const daysInMonth = new Date(year, month, 0).getDate();
 
-  // Build a map: day number -> total duration minutes for that day (from shifts)
-  // Uses grid_date (midpoint-based) so overnight shifts land on the correct day.
-  const dayWorkMap = useMemo(() => {
-    const map: Record<number, number> = {};
+  // Build a map: day number -> array of shift durations.
+  // Uses shift_date (= shift start date) so diet/allowance attribution is correct
+  // (a Sunday night shift stays on Sunday, not Monday).
+  // Multiple shifts starting on the same day are kept separate (not summed).
+  const dayShiftsMap = useMemo(() => {
+    const map: Record<number, number[]> = {};
     for (const sh of shifts) {
-      const dateStr = sh.grid_date || sh.shift_date;
+      const dateStr = sh.shift_date;
       const d = parseInt(dateStr.slice(8, 10), 10);
-      if (!isNaN(d)) {
-        map[d] = (map[d] || 0) + sh.duration_minutes;
+      if (!isNaN(d) && sh.duration_minutes > 0) {
+        if (!map[d]) map[d] = [];
+        map[d].push(sh.duration_minutes);
       }
     }
     return map;
@@ -1140,9 +1143,9 @@ function MonthlyGridCopy({
 
   // Cycle: empty → Ur → Kr → empty
   const handleCellClick = useCallback((day: number) => {
-    const work = dayWorkMap[day] || 0;
+    const hasWork = dayShiftsMap[day] && dayShiftsMap[day].length > 0;
     const current = absenceDays[String(day)];
-    if (work > 0 && !current) return;
+    if (hasWork && !current) return;
     if (!onAbsenceChange) return;
     const next = { ...absenceDays };
     const key = String(day);
@@ -1154,14 +1157,16 @@ function MonthlyGridCopy({
       delete next[key];
     }
     onAbsenceChange(next);
-  }, [dayWorkMap, absenceDays, onAbsenceChange]);
+  }, [dayShiftsMap, absenceDays, onAbsenceChange]);
 
   const handleCopy = useCallback(() => {
     // Copy only content (no headers): work hours per day + summary values
     const row3Values = dayNumbers.map((d) => {
       const absence = absenceDays[String(d)];
       if (absence) return absence;
-      return fmtWork(dayWorkMap[d] || 0);
+      const arr = dayShiftsMap[d];
+      if (!arr || arr.length === 0) return '';
+      return arr.map(m => fmtWork(m)).join(' + ');
     });
     const tsv = [...row3Values, ...summaryValues].join('\t');
 
@@ -1169,7 +1174,7 @@ function MonthlyGridCopy({
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
-  }, [dayNumbers, dayWorkMap, absenceDays, summaryValues]);
+  }, [dayNumbers, dayShiftsMap, absenceDays, summaryValues]);
 
   const thCls = 'border border-gray-300 bg-gray-200/60 px-1 py-0.5 text-center text-[10px] font-bold text-muted dark:border-gray-600 dark:bg-gray-700';
   const tdCls = 'border border-gray-300 bg-white px-1 py-0.5 text-center font-mono text-[10px] dark:border-gray-600 dark:bg-gray-900';
@@ -1233,9 +1238,10 @@ function MonthlyGridCopy({
             {/* Row 3: Work hours / absence (interactive) */}
             <tr>
               {dayNumbers.map((d) => {
-                const work = dayWorkMap[d] || 0;
+                const shiftsArr = dayShiftsMap[d];
+                const hasWork = shiftsArr && shiftsArr.length > 0;
                 const absence = absenceDays[String(d)] as 'Ur' | 'Kr' | undefined;
-                const isClickable = work === 0 && !!onAbsenceChange;
+                const isClickable = !hasWork && !!onAbsenceChange;
                 const isWeekendDay = (() => {
                   const wd = weekdays[d - 1];
                   return wd === 'So' || wd === 'Sa' || wd === 'Nd';
@@ -1250,8 +1256,10 @@ function MonthlyGridCopy({
                 } else if (absence === 'Kr') {
                   cellContent = 'Kr';
                   cellClass = `${tdCls} !bg-orange-100 !text-orange-700 font-bold cursor-pointer dark:!bg-orange-900/40 dark:!text-orange-300`;
-                } else if (work) {
-                  cellContent = fmtWork(work);
+                } else if (hasWork) {
+                  cellContent = shiftsArr.length === 1
+                    ? fmtWork(shiftsArr[0])
+                    : shiftsArr.map((m, i) => <div key={i}>{fmtWork(m)}</div>);
                   cellClass = `${tdCls} font-semibold text-gray-800 dark:text-gray-200`;
                 } else if (isClickable) {
                   cellClass = `${tdCls} cursor-pointer hover:!bg-gray-100 dark:hover:!bg-gray-800 ${isWeekendDay ? '!bg-red-50/50 dark:!bg-red-900/10' : ''}`;
