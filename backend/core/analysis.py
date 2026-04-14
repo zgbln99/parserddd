@@ -327,6 +327,37 @@ def analyze_card(data, night_start_hour=None, config_loader=None, night_40_check
             ),
         } for seg_start, seg_end in _build_segments(span_buckets, REST)]
 
+        # Full activity timeline for Arbeitszeitbericht
+        activity_timeline = []
+        sorted_dts = sorted(span_buckets.keys())
+        if sorted_dts:
+            seg_wt = span_buckets[sorted_dts[0]][0]
+            seg_start_dt = sorted_dts[0]
+            prev_dt = sorted_dts[0]
+            for dt in sorted_dts[1:]:
+                wt_cur = span_buckets[dt][0]
+                gap = int((dt - prev_dt).total_seconds()) // 60
+                if wt_cur != seg_wt or gap > 1:
+                    dur = int((prev_dt - seg_start_dt).total_seconds()) // 60 + 1
+                    if dur > 0:
+                        activity_timeline.append({
+                            'start': _to_cet_str(seg_start_dt),
+                            'end': _to_cet_str(prev_dt + timedelta(minutes=1)),
+                            'duration_minutes': dur,
+                            'type': ACTIVITY_NAMES.get(seg_wt, 'UNKNOWN'),
+                        })
+                    seg_wt = wt_cur
+                    seg_start_dt = dt
+                prev_dt = dt
+            dur = int((prev_dt - seg_start_dt).total_seconds()) // 60 + 1
+            if dur > 0:
+                activity_timeline.append({
+                    'start': _to_cet_str(seg_start_dt),
+                    'end': _to_cet_str(prev_dt + timedelta(minutes=1)),
+                    'duration_minutes': dur,
+                    'type': ACTIVITY_NAMES.get(seg_wt, 'UNKNOWN'),
+                })
+
         weekday_names_shift = ['Pn', 'Wt', 'Sr', 'Cz', 'Pt', 'So', 'Nd']
         shift_details.append({
             'shift_start': _to_cet_str(shift_start),
@@ -359,6 +390,7 @@ def analyze_card(data, night_start_hour=None, config_loader=None, night_40_check
             'manual_hm': minutes_to_hm(manual_minutes),
             'driving_segments': driving_segments,
             'break_segments': break_segments,
+            'activity_timeline': activity_timeline,
             'manual_errors': manual_errors,
         })
 

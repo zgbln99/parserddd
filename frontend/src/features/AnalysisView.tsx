@@ -9,6 +9,7 @@ import { BarChart } from '../components/BarChart';
 import { Download, FileText, ClipboardCopy, Check, Printer, BarChart3, UtensilsCrossed, Table2, Settings, CalendarDays, Sheet, Scale, Clock } from 'lucide-react';
 import type { AnalysisResult, ShiftDetail } from '../types';
 import { DriverConfigEditor } from './DriverConfigEditor';
+import { ArbeitszeitReport } from './ArbeitszeitReport';
 import { useAuth } from '../hooks/useAuth';
 import { minutesToHm } from '../lib/utils';
 import { exportToXlsx, generateGoogleSheetsUrl } from '../lib/xlsx-export';
@@ -275,6 +276,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
   const [showChart, setShowChart] = useState(false);
   const [showDietReport, setShowDietReport] = useState(false);
   const [showManual, setShowManual] = useState(false);
+  const [selectedShiftReport, setSelectedShiftReport] = useState<number | null>(null);
   const printRef = useRef<HTMLDivElement>(null);
 
   // Chart data: per-shift stacked bars
@@ -790,11 +792,14 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
                 const manualErrorTitle = hasManualError
                   ? (sh as any).manual_errors.map((e: any) => `${e.declared_type}: ${e.start} → ${e.end} (${e.duration_minutes}min)`).join('\n')
                   : '';
-                return (
+                return (<>
                 <tr
                   key={i}
-                  className={`hover:bg-surface ${
-                    isWeekend
+                  onClick={() => setSelectedShiftReport(selectedShiftReport === i ? null : i)}
+                  className={`hover:bg-surface cursor-pointer transition ${
+                    selectedShiftReport === i
+                      ? 'bg-primary-50/50 dark:bg-primary-900/10'
+                      : isWeekend
                       ? 'bg-rose-50/40 dark:bg-rose-900/10'
                       : ''
                   }`}
@@ -817,7 +822,14 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
                       : <span className="text-muted">{t('no')}</span>}
                   </td>
                 </tr>
-                );
+                {selectedShiftReport === i && (
+                  <tr key={`report-${i}`}>
+                    <td colSpan={13} className="p-4 bg-surface">
+                      <ArbeitszeitReport shift={sh} />
+                    </td>
+                  </tr>
+                )}
+                </>);
               })}
             </tbody>
           </table>
