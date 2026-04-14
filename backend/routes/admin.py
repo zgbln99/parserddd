@@ -376,6 +376,7 @@ def api_get_config():
         'parser_engine': cfg.get('parser_engine', 'tachoparser'),
         'pause_cap_enabled': bool(cfg.get('pause_cap_enabled', False)),
         'weekend_diet': bool(cfg.get('weekend_diet', False)),
+        'night_includes_breaks': bool(cfg.get('night_includes_breaks', False)),
         'hidden_features': cfg.get('hidden_features', []),
     })
 
@@ -398,6 +399,8 @@ def api_update_config():
         cfg['pause_cap_enabled'] = bool(data['pause_cap_enabled'])
     if 'weekend_diet' in data:
         cfg['weekend_diet'] = bool(data['weekend_diet'])
+    if 'night_includes_breaks' in data:
+        cfg['night_includes_breaks'] = bool(data['night_includes_breaks'])
     if 'hidden_features' in data:
         cfg['hidden_features'] = list(data['hidden_features']) if isinstance(data['hidden_features'], list) else []
     _save_config(cfg)

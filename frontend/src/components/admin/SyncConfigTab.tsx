@@ -23,6 +23,7 @@ function SyncConfigSection() {
   const [parserEngine, setParserEngine] = useState('tachoparser');
   const [pauseCapEnabled, setPauseCapEnabled] = useState(false);
   const [weekendDiet, setWeekendDiet] = useState(false);
+  const [nightIncludesBreaks, setNightIncludesBreaks] = useState(false);
   const [hiddenFeatures, setHiddenFeatures] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState('');
@@ -36,6 +37,7 @@ function SyncConfigSection() {
         setParserEngine(cfg.parser_engine || 'tachoparser');
         setPauseCapEnabled(!!cfg.pause_cap_enabled);
         setWeekendDiet(!!cfg.weekend_diet);
+        setNightIncludesBreaks(!!cfg.night_includes_breaks);
         setHiddenFeatures(cfg.hidden_features || []);
         setLoading(false);
       })
@@ -54,6 +56,7 @@ function SyncConfigSection() {
       data.parser_engine = parserEngine;
       data.pause_cap_enabled = pauseCapEnabled ? 1 : 0;
       data.weekend_diet = weekendDiet ? 1 : 0;
+      data.night_includes_breaks = nightIncludesBreaks ? 1 : 0;
       data.hidden_features = hiddenFeatures;
       await updateConfig(data);
       setMsg('OK!');
@@ -162,6 +165,21 @@ function SyncConfigSection() {
               <div className="h-5 w-9 rounded-full bg-gray-200 after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-green-500 peer-checked:after:translate-x-full peer-checked:after:border-white dark:bg-gray-700" />
             </label>
             <span className="text-xs text-muted">{t('adminWeekendDietHint')}</span>
+          </div>
+        </div>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+          <label className="text-xs font-semibold text-muted sm:w-40 shrink-0">{t('adminNightBreaks')}</label>
+          <div className="flex items-center gap-3">
+            <label className="relative inline-flex cursor-pointer items-center">
+              <input
+                type="checkbox"
+                checked={nightIncludesBreaks}
+                onChange={(e) => setNightIncludesBreaks(e.target.checked)}
+                className="peer sr-only"
+              />
+              <div className="h-5 w-9 rounded-full bg-gray-200 after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-green-500 peer-checked:after:translate-x-full peer-checked:after:border-white dark:bg-gray-700" />
+            </label>
+            <span className="text-xs text-muted">{t('adminNightBreaksHint')}</span>
           </div>
         </div>
         <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3">

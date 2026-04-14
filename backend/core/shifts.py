@@ -133,13 +133,15 @@ def _build_night_windows(earliest_utc, latest_utc, night_start_hour=22):
     return windows
 
 
-def calculate_shift_night_hours(minute_buckets, shift_start, night_start_hour=22, night_40_check_midnight=True):
+def calculate_shift_night_hours(minute_buckets, shift_start, night_start_hour=22, night_40_check_midnight=True, night_includes_breaks=False):
     """Calculate night work minutes using CET night windows on UTC timeline.
 
     Args:
         night_40_check_midnight: If True (default), 00:00-04:00 is 40% only when
             shift started before midnight, otherwise 25%. If False, 00:00-04:00
             is always 40%.
+        night_includes_breaks: If True, REST/UNKNOWN minutes also count toward
+            night premiums (entire shift duration, not just work time).
 
     Returns (night_25_minutes, night_40_minutes).
     """
@@ -150,7 +152,7 @@ def calculate_shift_night_hours(minute_buckets, shift_start, night_start_hour=22
 
     if STRICT_GLOBOFLEET_MODE:
         for dt, (work_type, _manual) in minute_buckets.items():
-            if work_type in (REST, UNKNOWN):
+            if not night_includes_breaks and work_type in (REST, UNKNOWN):
                 continue
             dt_cet = _to_cet(dt)
             hour = dt_cet.hour
@@ -179,7 +181,7 @@ def calculate_shift_night_hours(minute_buckets, shift_start, night_start_hour=22
     windows = _build_night_windows(earliest, latest, night_start_hour)
     for interval in intervals:
         iv_start, iv_end, work_type = interval[0], interval[1], interval[2]
-        if work_type in (REST, UNKNOWN):
+        if not night_includes_breaks and work_type in (REST, UNKNOWN):
             continue
         for w_start, w_end, category in windows:
             o_start = max(iv_start, w_start)

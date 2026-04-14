@@ -36,7 +36,7 @@ from .constants import CET
 logger = logging.getLogger('ddd-reader')
 
 
-def analyze_card(data, night_start_hour=None, config_loader=None, night_40_check_midnight=True, pause_cap_enabled=False, weekend_diet=False):
+def analyze_card(data, night_start_hour=None, config_loader=None, night_40_check_midnight=True, pause_cap_enabled=False, weekend_diet=False, night_includes_breaks=False):
     """Analyze a parsed DDD card: shifts, calendar days, night hours, diets.
 
     Args:
@@ -286,9 +286,9 @@ def analyze_card(data, night_start_hour=None, config_loader=None, night_40_check
             for dt in rest_dts[45:]:
                 wt_old, m_old = night_buckets[dt]
                 night_buckets[dt] = (AVAILABILITY, m_old)
-            night_25, night_40 = calculate_shift_night_hours(night_buckets, shift_start, night_start_hour, night_40_check_midnight)
+            night_25, night_40 = calculate_shift_night_hours(night_buckets, shift_start, night_start_hour, night_40_check_midnight, night_includes_breaks)
         else:
-            night_25, night_40 = calculate_shift_night_hours(span_buckets, shift_start, night_start_hour, night_40_check_midnight)
+            night_25, night_40 = calculate_shift_night_hours(span_buckets, shift_start, night_start_hour, night_40_check_midnight, night_includes_breaks)
 
         total_work += work_minutes
         total_driving += driving_minutes

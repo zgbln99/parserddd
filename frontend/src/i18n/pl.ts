@@ -181,6 +181,8 @@ export const pl = {
   overrideN40: 'Nadpisz 40%',
   overrideHint: 'Ręczne nadpisanie — widoczne zamiast obliczonych wartości',
 
+  adminNightBreaks: 'Nocne z przerwami',
+  adminNightBreaksHint: 'Dodatki nocne liczone z całego czasu zmiany (łącznie z przerwą)',
   adminHiddenFeatures: 'Ukryte funkcje',
   adminPauseCap: 'Max 45 min pauzy',
   adminPauseCapHint: 'Na zmianę max 45 min pauzy, reszta jako Bereitschaft',

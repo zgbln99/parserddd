@@ -322,6 +322,7 @@ export interface SyncConfig {
   parser_engine: string;
   pause_cap_enabled: boolean;
   weekend_diet: boolean;
+  night_includes_breaks: boolean;
   hidden_features: string[];
 }
 

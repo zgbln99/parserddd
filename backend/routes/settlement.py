@@ -80,7 +80,7 @@ def api_settlement():
                     tmp_path = tmp.name
                 data = parse_ddd_auto(tmp_path, config_loader=_load_config)
                 # Look up analysis flags
-                _flags = {'night_40_check_midnight': True, 'pause_cap_enabled': False, 'weekend_diet': False}
+                _flags = {'night_40_check_midnight': True, 'pause_cap_enabled': False, 'weekend_diet': False, 'night_includes_breaks': False}
                 try:
                     _di = get_driver_info(data)
                     _cn = _di.get('card_number', '')
@@ -93,9 +93,10 @@ def api_settlement():
                     _cfg = _load_config()
                     _flags['pause_cap_enabled'] = bool(_cfg.get('pause_cap_enabled', False))
                     _flags['weekend_diet'] = bool(_cfg.get('weekend_diet', False))
+                    _flags['night_includes_breaks'] = bool(_cfg.get('night_includes_breaks', False))
                 except Exception:
                     pass
-                analysis = analyze_card(data, config_loader=_load_config, night_40_check_midnight=_flags['night_40_check_midnight'], pause_cap_enabled=_flags['pause_cap_enabled'], weekend_diet=_flags['weekend_diet'])
+                analysis = analyze_card(data, config_loader=_load_config, night_40_check_midnight=_flags['night_40_check_midnight'], pause_cap_enabled=_flags['pause_cap_enabled'], weekend_diet=_flags['weekend_diet'], night_includes_breaks=_flags['night_includes_breaks'])
                 os.unlink(tmp_path)
 
                 month_shifts = [sh for sh in analysis.get('shift_details', [])

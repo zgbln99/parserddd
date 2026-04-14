@@ -56,7 +56,7 @@ def _cache_set(key: str, result: dict):
 
 def _get_driver_analysis_flags(data):
     """Look up analysis flags from driver_config (per-driver) and global config."""
-    flags = {'night_40_check_midnight': True, 'pause_cap_enabled': False, 'weekend_diet': False}
+    flags = {'night_40_check_midnight': True, 'pause_cap_enabled': False, 'weekend_diet': False, 'night_includes_breaks': False}
     try:
         # Per-driver flags
         di = get_driver_info(data)
@@ -71,6 +71,7 @@ def _get_driver_analysis_flags(data):
         cfg = _load_config()
         flags['pause_cap_enabled'] = bool(cfg.get('pause_cap_enabled', False))
         flags['weekend_diet'] = bool(cfg.get('weekend_diet', False))
+        flags['night_includes_breaks'] = bool(cfg.get('night_includes_breaks', False))
     except Exception:
         pass
     return flags
@@ -120,6 +121,7 @@ def api_analyze_upload():
             'night_start_hour': int(cfg.get('night_start_hour', 22)),
             'pause_cap_enabled': bool(cfg.get('pause_cap_enabled', False)),
             'weekend_diet': bool(cfg.get('weekend_diet', False)),
+            'night_includes_breaks': bool(cfg.get('night_includes_breaks', False)),
         }
         ck = _cache_key(file_content, global_flags)
         cached = _cache_get(ck)
@@ -131,7 +133,7 @@ def api_analyze_upload():
             tmp_path = tmp.name
         data = parse_ddd_auto(tmp_path)
         _flags = _get_driver_analysis_flags(data)
-        result = analyze_card(data, config_loader=_load_config, night_40_check_midnight=_flags['night_40_check_midnight'], pause_cap_enabled=_flags['pause_cap_enabled'], weekend_diet=_flags['weekend_diet'])
+        result = analyze_card(data, config_loader=_load_config, night_40_check_midnight=_flags['night_40_check_midnight'], pause_cap_enabled=_flags['pause_cap_enabled'], weekend_diet=_flags['weekend_diet'], night_includes_breaks=_flags['night_includes_breaks'])
         _log_activity('analyze_upload', result.get('driver_info', {}).get('driver_name', ''))
         di = result.get('driver_info', {})
         _cache_card_expiry(di.get('card_number'), di.get('card_expiry_date'), di.get('driver_name', ''))
@@ -233,6 +235,7 @@ def api_analyze_dropbox():
             'night_start_hour': int(cfg.get('night_start_hour', 22)),
             'pause_cap_enabled': bool(cfg.get('pause_cap_enabled', False)),
             'weekend_diet': bool(cfg.get('weekend_diet', False)),
+            'night_includes_breaks': bool(cfg.get('night_includes_breaks', False)),
         }
         ck = _cache_key(file_content, global_flags)
         cached = _cache_get(ck)
@@ -245,7 +248,7 @@ def api_analyze_dropbox():
             tmp_path = tmp.name
         data = parse_ddd_auto(tmp_path)
         _flags = _get_driver_analysis_flags(data)
-        result = analyze_card(data, config_loader=_load_config, night_40_check_midnight=_flags['night_40_check_midnight'], pause_cap_enabled=_flags['pause_cap_enabled'], weekend_diet=_flags['weekend_diet'])
+        result = analyze_card(data, config_loader=_load_config, night_40_check_midnight=_flags['night_40_check_midnight'], pause_cap_enabled=_flags['pause_cap_enabled'], weekend_diet=_flags['weekend_diet'], night_includes_breaks=_flags['night_includes_breaks'])
         result['source_file'] = metadata.name
         _log_activity('analyze_dropbox', f"{result.get('driver_info', {}).get('driver_name', '')} — {metadata.name}")
         di = result.get('driver_info', {})
@@ -290,7 +293,7 @@ def api_compare_drivers():
                 tmp_path = tmp.name
             data = parse_ddd_auto(tmp_path, config_loader=_load_config)
             _flags = _get_driver_analysis_flags(data)
-            analysis = analyze_card(data, config_loader=_load_config, night_40_check_midnight=_flags['night_40_check_midnight'], pause_cap_enabled=_flags['pause_cap_enabled'], weekend_diet=_flags['weekend_diet'])
+            analysis = analyze_card(data, config_loader=_load_config, night_40_check_midnight=_flags['night_40_check_midnight'], pause_cap_enabled=_flags['pause_cap_enabled'], weekend_diet=_flags['weekend_diet'], night_includes_breaks=_flags['night_includes_breaks'])
             os.unlink(tmp_path)
 
             shifts = []

@@ -183,6 +183,8 @@ export const de: Record<TranslationKey, string> = {
   overrideN40: '40% überschreiben',
   overrideHint: 'Manuelle Eingabe — wird anstelle der berechneten Werte angezeigt',
 
+  adminNightBreaks: 'Nacht inkl. Pausen',
+  adminNightBreaksHint: 'Nachtzuschläge aus gesamter Schichtdauer (inkl. Pausen)',
   adminHiddenFeatures: 'Ausgeblendete Funktionen',
   adminPauseCap: 'Max 45 Min Pause',
   adminPauseCapHint: 'Pro Schicht max 45 Min Pause, Rest als Bereitschaft',
