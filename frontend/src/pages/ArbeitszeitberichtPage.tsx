@@ -230,7 +230,7 @@ function TimeAxisTimeline({ activities, shiftStart, shiftEnd, locale }: {
                       {fmtTime(a.start)} - {fmtTime(a.end)}
                     </p>
                     <p className="text-xs font-semibold text-gray-900 dark:text-gray-100">
-                      {a.duration_minutes} min
+                      {fmtHm(a.duration_minutes)}
                     </p>
                   </div>
                 </div>
