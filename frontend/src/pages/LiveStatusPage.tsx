@@ -9,30 +9,24 @@ interface DriverStatus {
   id: string;
   name: string;
   status: string;
-  since: string;
-  duration_minutes: number;
+  hos_status: string;
+  vehicle: string;
+  drive_remaining_min: number;
+  shift_remaining_min: number;
+  break_in_min: number;
 }
 
-const STATUS_CONFIG: Record<string, { icon: typeof Truck; color: string; bg: string; label: string }> = {
-  driving: { icon: Truck, color: 'text-emerald-600', bg: 'bg-emerald-50 border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-800', label: 'Jazda' },
-  work: { icon: Wrench, color: 'text-blue-600', bg: 'bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800', label: 'Praca' },
-  available: { icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50 border-amber-200 dark:bg-amber-900/20 dark:border-amber-800', label: 'Dyspozycyjność' },
-  rest: { icon: Coffee, color: 'text-gray-500', bg: 'bg-gray-50 border-gray-200 dark:bg-gray-800/50 dark:border-gray-700', label: 'Przerwa' },
+const STATUS_CONFIG: Record<string, { icon: typeof Truck; color: string; bg: string; borderColor: string; gradientFrom: string; label: string }> = {
+  driving: { icon: Truck, color: 'text-emerald-600', bg: 'bg-emerald-50 border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-800', borderColor: 'border-l-emerald-500', gradientFrom: 'from-emerald-500 to-emerald-700', label: 'Jazda' },
+  work: { icon: Wrench, color: 'text-blue-600', bg: 'bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800', borderColor: 'border-l-blue-500', gradientFrom: 'from-blue-500 to-blue-700', label: 'Praca' },
+  rest: { icon: Coffee, color: 'text-gray-500', bg: 'bg-gray-50 border-gray-200 dark:bg-gray-800/50 dark:border-gray-700', borderColor: 'border-l-gray-400', gradientFrom: 'from-gray-400 to-gray-600', label: 'Przerwa / Wolne' },
 };
 
 function fmtDuration(min: number): string {
-  if (min < 60) return `${min}m`;
+  if (min <= 0) return '0:00';
   const h = Math.floor(min / 60);
   const m = min % 60;
-  return m > 0 ? `${h}h ${m}m` : `${h}h`;
-}
-
-function fmtTime(iso: string): string {
-  if (!iso) return '';
-  try {
-    const d = new Date(iso);
-    return d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
-  } catch { return ''; }
+  return `${h}:${String(m).padStart(2, '0')}`;
 }
 
 export function LiveStatusPage() {
@@ -48,27 +42,27 @@ export function LiveStatusPage() {
     fetch('/api/samsara/live-status', { credentials: 'include' })
       .then(r => r.json())
       .then(data => {
-        if (data.error) { setError(data.error); return; }
+        if (data.error) { setError(data.error); setLoading(false); return; }
         setDrivers(data.drivers || []);
         setLastUpdate(data.timestamp || '');
+        setLoading(false);
       })
-      .catch(e => setError(e.message))
-      .finally(() => setLoading(false));
+      .catch(e => { setError(e.message); setLoading(false); });
   }, []);
 
   useEffect(() => {
     load();
-    const id = setInterval(load, 60_000); // Auto-refresh every 60s
+    const id = setInterval(load, 60_000);
     return () => clearInterval(id);
   }, [load]);
 
   const byStatus = {
     driving: drivers.filter(d => d.status === 'driving'),
     work: drivers.filter(d => d.status === 'work'),
-    available: drivers.filter(d => d.status === 'available'),
     rest: drivers.filter(d => d.status === 'rest'),
-    other: drivers.filter(d => !['driving', 'work', 'available', 'rest'].includes(d.status)),
   };
+
+  const fmtUpdateTime = lastUpdate ? new Date(lastUpdate).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '';
 
   return (
     <div className="animate-slide-up">
@@ -78,7 +72,7 @@ export function LiveStatusPage() {
         </div>
         <div className="flex-1">
           <h1 className="text-2xl font-bold tracking-tight">{t('liveTitle')}</h1>
-          {lastUpdate && <p className="text-xs text-muted">{t('liveLastUpdate')}: {fmtTime(lastUpdate)}</p>}
+          {fmtUpdateTime && <p className="text-xs text-muted">{t('liveLastUpdate')}: {fmtUpdateTime}</p>}
         </div>
         <button
           onClick={load}
@@ -97,17 +91,17 @@ export function LiveStatusPage() {
       )}
 
       {/* Stats bar */}
-      <div className="mb-6 grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {(['driving', 'work', 'available', 'rest'] as const).map(status => {
+      <div className="mb-6 grid grid-cols-3 gap-3">
+        {(['driving', 'work', 'rest'] as const).map(status => {
           const cfg = STATUS_CONFIG[status];
           const Icon = cfg.icon;
           const count = byStatus[status].length;
           return (
             <div key={status} className={`rounded-2xl border p-4 ${cfg.bg}`}>
               <div className="flex items-center gap-3">
-                <Icon size={20} className={cfg.color} />
+                <Icon size={22} className={cfg.color} />
                 <div>
-                  <p className="text-2xl font-bold text-ink">{count}</p>
+                  <p className="text-3xl font-bold text-ink">{count}</p>
                   <p className={`text-xs font-semibold ${cfg.color}`}>{cfg.label}</p>
                 </div>
               </div>
@@ -121,10 +115,10 @@ export function LiveStatusPage() {
       )}
 
       {/* Driver cards grouped by status */}
-      {(['driving', 'work', 'available', 'rest', 'other'] as const).map(status => {
+      {(['driving', 'work', 'rest'] as const).map(status => {
         const list = byStatus[status];
         if (list.length === 0) return null;
-        const cfg = STATUS_CONFIG[status] || STATUS_CONFIG.rest;
+        const cfg = STATUS_CONFIG[status];
         const Icon = cfg.icon;
         return (
           <div key={status} className="mb-6">
@@ -136,22 +130,30 @@ export function LiveStatusPage() {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
               {list.map(d => (
-                <Card key={d.id} className={`p-4 border-l-4 ${status === 'driving' ? 'border-l-emerald-500' : status === 'work' ? 'border-l-blue-500' : status === 'available' ? 'border-l-amber-500' : 'border-l-gray-300'}`}>
-                  <div className="flex items-center gap-3">
-                    <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br ${status === 'driving' ? 'from-emerald-500 to-emerald-700' : status === 'work' ? 'from-blue-500 to-blue-700' : status === 'available' ? 'from-amber-500 to-amber-700' : 'from-gray-400 to-gray-600'} text-xs font-bold text-white`}>
+                <Card key={d.id} className={`p-4 border-l-4 ${cfg.borderColor}`}>
+                  <div className="flex items-start gap-3">
+                    <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br ${cfg.gradientFrom} text-xs font-bold text-white`}>
                       {d.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-ink truncate">{d.name}</p>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <Badge variant={status === 'driving' ? 'green' : status === 'work' ? 'blue' : status === 'available' ? 'orange' : 'gray'}>
-                          {cfg.label}
-                        </Badge>
-                        <span className="text-xs text-muted">{fmtDuration(d.duration_minutes)}</span>
+                      {d.vehicle && (
+                        <p className="text-xs text-muted truncate">{d.vehicle}</p>
+                      )}
+                      <div className="mt-2 grid grid-cols-3 gap-1 text-center">
+                        <div>
+                          <p className="text-[10px] text-muted">Jazda</p>
+                          <p className="text-xs font-bold text-ink">{fmtDuration(d.drive_remaining_min)}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] text-muted">Zmiana</p>
+                          <p className="text-xs font-bold text-ink">{fmtDuration(d.shift_remaining_min)}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] text-muted">Przerwa za</p>
+                          <p className="text-xs font-bold text-ink">{fmtDuration(d.break_in_min)}</p>
+                        </div>
                       </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xs font-mono text-muted">{fmtTime(d.since)}</p>
                     </div>
                   </div>
                 </Card>

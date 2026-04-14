@@ -57,15 +57,12 @@ def api_sync_log():
 @bp.route('/api/samsara/live-status')
 @login_required
 def api_samsara_live_status():
-    """Get live tachograph status for all drivers from Samsara."""
+    """Get live HOS/tachograph status for all drivers from Samsara."""
     token = _get_samsara_token()
     if not token:
         return jsonify({'error': 'Samsara API token not configured'}), 500
 
     now = datetime.now(timezone.utc)
-    start = (now - timedelta(hours=24)).strftime('%Y-%m-%dT%H:%M:%SZ')
-    end = now.strftime('%Y-%m-%dT%H:%M:%SZ')
-
     headers = {'Authorization': f'Bearer {token}'}
 
     try:
@@ -74,11 +71,11 @@ def api_samsara_live_status():
         after = None
 
         while has_next:
-            params = {'startTime': start, 'endTime': end}
+            params = {}
             if after:
                 params['after'] = after
             resp = http_requests.get(
-                f'{SAMSARA_API_BASE}/fleet/drivers/tachograph-activity',
+                f'{SAMSARA_API_BASE}/fleet/hos/clocks',
                 headers=headers, params=params, timeout=15,
             )
             if resp.status_code != 200:
@@ -90,48 +87,41 @@ def api_samsara_live_status():
             after = pagination.get('endCursor')
             has_next = pagination.get('hasNextPage', False)
 
-        # Build per-driver status from latest activity
-        drivers = {}
+        drivers = []
         for entry in all_data:
             driver = entry.get('driver', {})
-            driver_id = driver.get('id', '')
-            driver_name = driver.get('name', '')
+            vehicle = entry.get('currentVehicle', {})
+            duty = entry.get('currentDutyStatus', {})
+            clocks = entry.get('clocks', {})
 
-            activities = entry.get('tachographActivities', entry.get('activities', []))
-            if not activities:
-                continue
-
-            activities.sort(key=lambda a: a.get('startTime', ''), reverse=True)
-            latest = activities[0]
-
-            activity_type = latest.get('activity', latest.get('type', '')).lower()
-            start_time = latest.get('startTime', '')
-            duration_sec = 0
-            if start_time:
-                try:
-                    st = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
-                    duration_sec = int((now - st).total_seconds())
-                except Exception:
-                    pass
-
+            hos_status = duty.get('hosStatusType', '')
             status_map = {
-                'driving': 'driving', 'drive': 'driving',
-                'work': 'work', 'working': 'work',
-                'available': 'available', 'availability': 'available',
-                'break': 'rest', 'rest': 'rest', 'break_rest': 'rest', 'break/rest': 'rest',
+                'driving': 'driving',
+                'onDuty': 'work',
+                'onDutyNotDriving': 'work',
+                'sleeper': 'rest',
+                'offDuty': 'rest',
             }
-            status = status_map.get(activity_type, activity_type)
+            status = status_map.get(hos_status, hos_status)
 
-            drivers[driver_id] = {
-                'id': driver_id,
-                'name': driver_name,
+            # Calculate remaining times
+            drive_remaining = clocks.get('drive', {}).get('driveRemainingDurationMs', 0)
+            shift_remaining = clocks.get('shift', {}).get('shiftRemainingDurationMs', 0)
+            break_time = clocks.get('break', {}).get('timeUntilBreakDurationMs', 0)
+
+            drivers.append({
+                'id': driver.get('id', ''),
+                'name': driver.get('name', ''),
                 'status': status,
-                'since': start_time,
-                'duration_minutes': max(0, duration_sec // 60),
-            }
+                'hos_status': hos_status,
+                'vehicle': vehicle.get('name', ''),
+                'drive_remaining_min': max(0, drive_remaining // 60000),
+                'shift_remaining_min': max(0, shift_remaining // 60000),
+                'break_in_min': max(0, break_time // 60000),
+            })
 
-        result = sorted(drivers.values(), key=lambda d: d['name'])
-        return jsonify({'drivers': result, 'timestamp': now.isoformat()})
+        drivers.sort(key=lambda d: d['name'])
+        return jsonify({'drivers': drivers, 'timestamp': now.isoformat()})
 
     except http_requests.Timeout:
         return jsonify({'error': 'Samsara API timeout'}), 504
