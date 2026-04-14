@@ -169,6 +169,16 @@ export const analyzeUploadedFile = async (file: File) => {
   });
 };
 
+export const analyzeMergedFiles = async (file1: File, file2: File) => {
+  const form = new FormData();
+  form.append('files', file1);
+  form.append('files', file2);
+  return request<import('../types').AnalysisResult & { merged?: boolean; merged_files?: string[]; merged_days?: number }>('/api/analyze/merge', {
+    method: 'POST',
+    body: form,
+  });
+};
+
 // Stundenzettel OCR parsing
 export interface StundenzettelDay {
   day: number;

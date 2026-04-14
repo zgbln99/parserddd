@@ -149,6 +149,127 @@ def api_analyze_upload():
             os.unlink(tmp_path)
 
 
+@bp.route('/api/analyze/merge', methods=['POST'])
+@login_required
+def api_analyze_merge():
+    """Upload two DDD files (old + new card), merge and return combined analysis."""
+    files = request.files.getlist('files')
+    if len(files) < 2:
+        return jsonify({'error': 'Wymagane 2 pliki DDD (stara i nowa karta)'}), 400
+    tmp_paths = []
+    try:
+        # Parse both files
+        all_records = []
+        driver_info_combined = {}
+        vehicles_combined = []
+        places_combined = []
+        events_combined = []
+
+        for f in files[:2]:
+            with tempfile.NamedTemporaryFile(suffix='.ddd', delete=False) as tmp:
+                f.save(tmp.name)
+                tmp_paths.append(tmp.name)
+            data = parse_ddd_auto(tmp.name)
+
+            # Collect activity records
+            for key in ['card_driver_activity_1', 'card_driver_activity_2']:
+                act = data.get(key)
+                if act:
+                    recs = act.get('decoded_activity_daily_records', [])
+                    all_records.extend(recs)
+
+            # Merge driver info (prefer newer)
+            di = get_driver_info(data)
+            if di.get('card_number'):
+                driver_info_combined = di
+
+            # Merge vehicles, places, events
+            from core.extractors import get_vehicle_records, get_card_places, get_card_events
+            vehicles_combined.extend(get_vehicle_records(data))
+            places_combined.extend(get_card_places(data))
+            events_combined.extend(get_card_events(data))
+
+        # Deduplicate activity records by date (keep the one with more changes)
+        by_date = {}
+        for rec in all_records:
+            day = rec.get('activity_record_date', '')
+            if not day:
+                continue
+            existing = by_date.get(day)
+            if not existing:
+                by_date[day] = rec
+            else:
+                # Keep record with more activity changes
+                new_changes = len(rec.get('activity_change_info', []))
+                old_changes = len(existing.get('activity_change_info', []))
+                if new_changes > old_changes:
+                    by_date[day] = rec
+        merged_records = sorted(by_date.values(), key=lambda r: r.get('activity_record_date', ''))
+
+        # Build merged data structure
+        merged_data = {
+            'card_driver_activity_1': {
+                'decoded_activity_daily_records': merged_records,
+            },
+        }
+        # Re-add driver info
+        if driver_info_combined:
+            merged_data['card_identification_and_driver_card_holder_identification_1'] = {
+                'card_identification': {
+                    'card_number': driver_info_combined.get('card_number', ''),
+                    'card_issuing_authority_name': driver_info_combined.get('card_issuing_authority', ''),
+                    'card_issue_date': driver_info_combined.get('card_issue_date', ''),
+                    'card_expiry_date': driver_info_combined.get('card_expiry_date', ''),
+                },
+                'driver_card_holder_identification': {
+                    'card_holder_name': {
+                        'holder_surname': driver_info_combined.get('driver_name', '').split(' ')[-1] if driver_info_combined.get('driver_name') else '',
+                        'holder_first_names': ' '.join(driver_info_combined.get('driver_name', '').split(' ')[:-1]) if driver_info_combined.get('driver_name') else '',
+                    },
+                    'card_holder_birth_date': driver_info_combined.get('birth_date', ''),
+                },
+            }
+
+        # Deduplicate vehicles
+        seen_v = set()
+        unique_vehicles = []
+        for v in vehicles_combined:
+            key = (v.get('plate', ''), v.get('first_use', ''))
+            if key not in seen_v:
+                seen_v.add(key)
+                unique_vehicles.append(v)
+
+        merged_data['card_vehicles_used_1'] = {'card_vehicle_records': [
+            {'vehicle_registration': {'vehicle_registration_number': v['plate']},
+             'vehicle_first_use': v.get('first_use', ''), 'vehicle_last_use': v.get('last_use', ''),
+             'vehicle_odometer_begin': v.get('odometer_begin_km', 0), 'vehicle_odometer_end': v.get('odometer_end_km', 0)}
+            for v in unique_vehicles
+        ]}
+        merged_data['card_places_1'] = {'place_records': [
+            {'entry_time': p.get('date', ''), 'date': p.get('date', ''), 'country': p.get('country', ''), 'region': p.get('region', ''), 'type': p.get('type', '')}
+            for p in places_combined
+        ]}
+        merged_data['card_events_and_faults_1'] = {'card_event_records': events_combined}
+
+        # Analyze merged data
+        _flags = _get_driver_analysis_flags(merged_data)
+        result = analyze_card(merged_data, config_loader=_load_config, night_40_check_midnight=_flags['night_40_check_midnight'], pause_cap_enabled=_flags['pause_cap_enabled'], weekend_diet=_flags['weekend_diet'], night_includes_breaks=_flags['night_includes_breaks'])
+        result['merged'] = True
+        result['merged_files'] = [f.filename for f in files[:2]]
+        result['merged_days'] = len(merged_records)
+
+        _log_activity('analyze_merge', f"{result.get('driver_info', {}).get('driver_name', '')} — {len(merged_records)} days")
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        for p in tmp_paths:
+            try:
+                os.unlink(p)
+            except Exception:
+                pass
+
+
 @bp.route('/api/preview-ddd', methods=['POST'])
 @login_required
 def api_preview_ddd():

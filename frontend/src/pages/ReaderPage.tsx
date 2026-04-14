@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import { Upload, FileText, AlertCircle, FolderUp, Check, Search, ChevronLeft, ChevronRight, Eye, X, Trash2 } from 'lucide-react';
+import { Upload, FileText, AlertCircle, FolderUp, Check, Search, ChevronLeft, ChevronRight, Eye, X, Trash2, Merge } from 'lucide-react';
 import { useI18n } from '../i18n';
-import { analyzeUploadedFile, fetchDrivers, saveReaderFileToDropbox, previewDddFile } from '../lib/api';
+import { analyzeUploadedFile, analyzeMergedFiles, fetchDrivers, saveReaderFileToDropbox, previewDddFile } from '../lib/api';
 import { playNotificationSound } from '../components/Notifications';
 import { Spinner } from '../components/Spinner';
 import { Card } from '../components/Card';
@@ -33,6 +33,29 @@ export function ReaderPage() {
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [originalFile, setOriginalFile] = useState<File | null>(null);
   const [quickPreview, setQuickPreview] = useState<{ driver_name?: string; card_number?: string; records?: number } | null>(null);
+
+  // Merge cards
+  const [mergeMode, setMergeMode] = useState(false);
+  const [mergeFile1, setMergeFile1] = useState<File | null>(null);
+  const [mergeFile2, setMergeFile2] = useState<File | null>(null);
+  const mergeRef1 = useRef<HTMLInputElement>(null);
+  const mergeRef2 = useRef<HTMLInputElement>(null);
+
+  const handleMerge = useCallback(async () => {
+    if (!mergeFile1 || !mergeFile2) return;
+    setLoading(true);
+    setError('');
+    setResult(null);
+    try {
+      const data = await analyzeMergedFiles(mergeFile1, mergeFile2);
+      setResult(data);
+      playNotificationSound();
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [mergeFile1, mergeFile2]);
 
   // Analysis timer
   useEffect(() => {
@@ -257,6 +280,60 @@ export function ReaderPage() {
           </div>
           <input ref={fileRef} type="file" accept=".ddd" multiple onChange={onFileChange} className="hidden" />
         </Card>
+      )}
+
+      {/* Merge cards toggle */}
+      {!result && !loading && multiResults.length === 0 && (
+        <div className="mt-4">
+          {!mergeMode ? (
+            <button
+              onClick={() => setMergeMode(true)}
+              className="flex items-center gap-2 text-xs text-muted transition hover:text-primary-600"
+            >
+              <Merge size={14} />
+              {t('mergeCards')}
+            </button>
+          ) : (
+            <Card className="p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <Merge size={16} className="text-primary-600" />
+                <h3 className="text-sm font-bold">{t('mergeCards')}</h3>
+                <button onClick={() => { setMergeMode(false); setMergeFile1(null); setMergeFile2(null); }} className="ml-auto text-muted hover:text-ink"><X size={16} /></button>
+              </div>
+              <p className="text-xs text-muted mb-4">{t('mergeCardsHint')}</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="mb-1 block text-xs font-semibold text-muted">{t('mergeOldCard')}</label>
+                  <button
+                    onClick={() => mergeRef1.current?.click()}
+                    className={`w-full rounded-xl border-2 border-dashed px-4 py-3 text-sm transition ${mergeFile1 ? 'border-success bg-emerald-50/50 text-success' : 'border-border hover:border-primary-300 text-muted'}`}
+                  >
+                    {mergeFile1 ? mergeFile1.name : t('mergeSelectFile')}
+                  </button>
+                  <input ref={mergeRef1} type="file" accept=".ddd" onChange={(e) => setMergeFile1(e.target.files?.[0] || null)} className="hidden" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-semibold text-muted">{t('mergeNewCard')}</label>
+                  <button
+                    onClick={() => mergeRef2.current?.click()}
+                    className={`w-full rounded-xl border-2 border-dashed px-4 py-3 text-sm transition ${mergeFile2 ? 'border-success bg-emerald-50/50 text-success' : 'border-border hover:border-primary-300 text-muted'}`}
+                  >
+                    {mergeFile2 ? mergeFile2.name : t('mergeSelectFile')}
+                  </button>
+                  <input ref={mergeRef2} type="file" accept=".ddd" onChange={(e) => setMergeFile2(e.target.files?.[0] || null)} className="hidden" />
+                </div>
+              </div>
+              <button
+                onClick={handleMerge}
+                disabled={!mergeFile1 || !mergeFile2 || loading}
+                className="btn-press mt-4 flex items-center gap-2 rounded-xl bg-gradient-to-r from-primary-600 to-primary-500 px-6 py-2.5 text-sm font-semibold text-white shadow-md shadow-primary-500/20 transition hover:shadow-lg disabled:opacity-50"
+              >
+                <Merge size={16} />
+                {t('mergeAnalyze')}
+              </button>
+            </Card>
+          )}
+        </div>
       )}
 
       {/* Loading with quick preview */}
