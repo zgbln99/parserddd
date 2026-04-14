@@ -1056,29 +1056,17 @@ function MonthlyGridCopy({
   const month = parseInt(refDate.slice(5, 7), 10) || (new Date().getMonth() + 1); // 1-indexed
   const daysInMonth = new Date(year, month, 0).getDate();
 
-  // Build a map: day number -> total work minutes for that day
-  // Uses calendar_days (per-minute CET split) so overnight shifts are correctly
-  // divided across calendar days. Falls back to shift-based if calendar_days missing.
+  // Build a map: day number -> total duration for shifts STARTING on that day.
+  // Uses shift_date (= shift start date) so each shift's full duration lands on
+  // the day it began. Overnight tails do NOT carry over to the next day — this
+  // avoids combining an ending overnight shift with a new shift on the same day.
   const dayWorkMap = useMemo(() => {
     const map: Record<number, number> = {};
-    if (calendarDays && Object.keys(calendarDays).length > 0) {
-      const prefix = `${year}-${String(month).padStart(2, '0')}-`;
-      for (const [dateStr, cd] of Object.entries(calendarDays)) {
-        if (dateStr.startsWith(prefix)) {
-          const d = parseInt(dateStr.slice(8, 10), 10);
-          const mins = (cd as any).duration_minutes || cd.work_minutes || 0;
-          if (!isNaN(d) && mins > 0) {
-            map[d] = (map[d] || 0) + mins;
-          }
-        }
-      }
-    } else {
-      for (const sh of shifts) {
-        const dateStr = sh.grid_date || sh.shift_date;
-        const d = parseInt(dateStr.slice(8, 10), 10);
-        if (!isNaN(d)) {
-          map[d] = (map[d] || 0) + sh.duration_minutes;
-        }
+    for (const sh of shifts) {
+      const dateStr = sh.shift_date;
+      const d = parseInt(dateStr.slice(8, 10), 10);
+      if (!isNaN(d)) {
+        map[d] = (map[d] || 0) + sh.duration_minutes;
       }
     }
     return map;
