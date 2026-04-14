@@ -196,6 +196,8 @@ export const pl = {
   readerUploadBtn: 'Wybierz plik',
   readerAnalyzing: 'Analizowanie...',
   readerDaysFound: 'dni na karcie',
+  qrHint: 'Zeskanuj telefonem aby otworzyć analizę tego kierowcy',
+  qrDownload: 'Pobierz QR',
   readerDropHint: 'Upuść plik .ddd tutaj',
   readerSelectFile: 'lub kliknij, aby wybrać z dysku',
   readerSaveToDropbox: 'Zapisz do Dropbox',

@@ -198,6 +198,8 @@ export const de: Record<TranslationKey, string> = {
   readerUploadBtn: 'Datei auswählen',
   readerAnalyzing: 'Wird analysiert...',
   readerDaysFound: 'Tage auf der Karte',
+  qrHint: 'Mit dem Handy scannen um die Analyse dieses Fahrers zu öffnen',
+  qrDownload: 'QR herunterladen',
   readerDropHint: '.ddd-Datei hier ablegen',
   readerSelectFile: 'oder klicken, um eine Datei auszuwählen',
   readerSaveToDropbox: 'In Dropbox speichern',

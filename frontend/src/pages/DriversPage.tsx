@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, RefreshCw, ChevronUp, ChevronDown, FileText, AlertCircle, AlertTriangle, UserPlus } from 'lucide-react';
+import { Search, RefreshCw, ChevronUp, ChevronDown, FileText, AlertCircle, AlertTriangle, UserPlus, QrCode } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { fetchDrivers, addDriver } from '../lib/api';
 import { formatDate, formatDateTime, daysLabel, daysColor, formatBytes } from '../lib/format';
@@ -27,6 +27,10 @@ export function DriversPage() {
 
   // Driver files modal
   const [selectedDriver, setSelectedDriver] = useState<Driver | null>(null);
+
+  // QR code
+  const [qrDriver, setQrDriver] = useState<Driver | null>(null);
+  const [qrDataUrl, setQrDataUrl] = useState('');
 
   const load = useCallback((refresh = false) => {
     setLoading(true);
@@ -108,6 +112,22 @@ export function DriversPage() {
     const params = new URLSearchParams({ path: f.path, name: f.name, driver: driverName });
     navigate(`/analysis?${params}`);
   };
+
+  const showQr = useCallback(async (d: Driver, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setQrDriver(d);
+    try {
+      const QRCode = (await import('qrcode')).default;
+      const latestFile = d.files[0];
+      const url = latestFile
+        ? `${window.location.origin}/analysis?${new URLSearchParams({ path: latestFile.path, name: latestFile.name, driver: d.name })}`
+        : `${window.location.origin}/drivers`;
+      const dataUrl = await QRCode.toDataURL(url, { width: 300, margin: 2 });
+      setQrDataUrl(dataUrl);
+    } catch {
+      setQrDataUrl('');
+    }
+  }, []);
 
   const SortIcon = ({ field }: { field: SortField }) => {
     if (sortField !== field) return <ChevronUp size={12} className="opacity-20" />;
@@ -273,6 +293,15 @@ export function DriversPage() {
                     <td className="whitespace-nowrap px-4 py-3">
                       <Badge variant="gray">{d.file_count}</Badge>
                     </td>
+                    <td className="whitespace-nowrap px-2 py-3">
+                      <button
+                        onClick={(e) => showQr(d, e)}
+                        className="rounded-lg p-1.5 text-muted transition hover:bg-primary-50 hover:text-primary-600"
+                        title="QR Code"
+                      >
+                        <QrCode size={16} />
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -367,6 +396,41 @@ export function DriversPage() {
                   </div>
                 </div>
               ))
+            )}
+          </div>
+        )}
+      </Modal>
+
+      {/* QR Code modal */}
+      <Modal open={!!qrDriver} onClose={() => { setQrDriver(null); setQrDataUrl(''); }} title={qrDriver ? `QR — ${qrDriver.name}` : ''}>
+        {qrDriver && (
+          <div className="flex flex-col items-center gap-4 py-4">
+            {qrDataUrl ? (
+              <img src={qrDataUrl} alt="QR Code" className="w-64 h-64 rounded-xl" />
+            ) : (
+              <div className="flex h-64 w-64 items-center justify-center rounded-xl bg-surface">
+                <Spinner />
+              </div>
+            )}
+            <div className="text-center">
+              <p className="text-lg font-bold text-ink">{qrDriver.name}</p>
+              <p className="text-xs font-mono text-muted">{qrDriver.card_number}</p>
+            </div>
+            <p className="text-xs text-muted text-center max-w-xs">
+              {t('qrHint')}
+            </p>
+            {qrDataUrl && (
+              <button
+                onClick={() => {
+                  const link = document.createElement('a');
+                  link.download = `QR_${qrDriver.name.replace(/\s+/g, '_')}.png`;
+                  link.href = qrDataUrl;
+                  link.click();
+                }}
+                className="btn-press flex items-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-primary-700"
+              >
+                {t('qrDownload')}
+              </button>
             )}
           </div>
         )}

@@ -221,8 +221,8 @@ export function ReaderPage() {
         <Card
           className={`cursor-pointer border-2 border-dashed transition-all duration-300 ${
             dragging
-              ? 'border-primary-400 bg-primary-50/50 scale-[1.01] shadow-lg dark:border-primary-500 dark:bg-primary-900/10'
-              : 'border-border hover:border-primary-300'
+              ? 'border-primary-400 bg-gradient-to-br from-primary-50/80 to-indigo-50/50 scale-[1.02] shadow-xl ring-4 ring-primary-200/30 dark:border-primary-500 dark:bg-primary-900/10'
+              : 'border-border hover:border-primary-300 hover:shadow-md'
           }`}
           onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
           onDragLeave={() => setDragging(false)}
@@ -230,18 +230,16 @@ export function ReaderPage() {
           onClick={() => fileRef.current?.click()}
         >
           <div className="flex flex-col items-center gap-4 py-16">
-            <div className={`rounded-2xl bg-primary-50 p-5 transition-transform duration-300 ${dragging ? 'scale-125 rotate-6' : ''}`}>
-              <Upload size={32} className="text-primary-600" />
+            <div className={`rounded-2xl bg-gradient-to-br from-primary-500 to-primary-700 p-5 text-white shadow-lg shadow-primary-500/20 transition-all duration-300 ${dragging ? 'scale-125 rotate-6 shadow-2xl' : ''}`}>
+              <Upload size={32} />
             </div>
             <div className="text-center">
-              <p className="text-sm font-semibold text-ink">{t('readerMultiDrop')}</p>
-              <p className="mt-1 text-xs text-muted">{t('readerSelectFile')}</p>
+              <p className="text-base font-bold text-ink">{t('readerMultiDrop')}</p>
+              <p className="mt-1.5 text-sm text-muted">{t('readerSelectFile')}</p>
             </div>
-            <div className="flex items-center gap-2">
-              <button className="btn-press rounded-xl bg-primary-600 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-primary-700">
-                {t('readerUploadBtn')}
-              </button>
-            </div>
+            <button className="btn-press rounded-xl bg-gradient-to-r from-primary-600 to-primary-500 px-8 py-3 text-sm font-semibold text-white shadow-md shadow-primary-500/20 transition hover:shadow-lg">
+              {t('readerUploadBtn')}
+            </button>
           </div>
           <input ref={fileRef} type="file" accept=".ddd" multiple onChange={onFileChange} className="hidden" />
         </Card>
