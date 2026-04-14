@@ -233,7 +233,11 @@ def analyze_card(data, night_start_hour=None, config_loader=None, night_40_check
         shift_start = work_dts[0]
         shift_end = work_dts[-1] + timedelta(minutes=1)
         shift_date = _to_cet(shift_start).strftime('%Y-%m-%d')
-        grid_date = shift_date
+        # grid_date: midpoint-based date for monthly grid display.
+        # A shift 22:00->07:41 midpoint is ~02:50 next day -> grid shows next day.
+        # A shift 17:30->01:30 midpoint is ~21:30 same day -> grid shows same day.
+        shift_midpoint = shift_start + (shift_end - shift_start) / 2
+        grid_date = _to_cet(shift_midpoint).strftime('%Y-%m-%d')
 
         shift_key = (shift_start, shift_end)
         if shift_key in seen_shifts:

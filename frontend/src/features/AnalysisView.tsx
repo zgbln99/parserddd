@@ -1056,17 +1056,15 @@ function MonthlyGridCopy({
   const month = parseInt(refDate.slice(5, 7), 10) || (new Date().getMonth() + 1); // 1-indexed
   const daysInMonth = new Date(year, month, 0).getDate();
 
-  // Build a map: day number -> list of shift durations (not summed).
-  // When a day has two shifts (e.g. 00:10-09:47 and 23:25-10:43) they
-  // are shown separately in the grid cell.
+  // Build a map: day number -> total duration minutes for that day (from shifts)
+  // Uses grid_date (midpoint-based) so overnight shifts land on the correct day.
   const dayWorkMap = useMemo(() => {
-    const map: Record<number, number[]> = {};
+    const map: Record<number, number> = {};
     for (const sh of shifts) {
-      const dateStr = sh.shift_date;
+      const dateStr = sh.grid_date || sh.shift_date;
       const d = parseInt(dateStr.slice(8, 10), 10);
-      if (!isNaN(d) && sh.duration_minutes > 0) {
-        if (!map[d]) map[d] = [];
-        map[d].push(sh.duration_minutes);
+      if (!isNaN(d)) {
+        map[d] = (map[d] || 0) + sh.duration_minutes;
       }
     }
     return map;
@@ -1142,10 +1140,9 @@ function MonthlyGridCopy({
 
   // Cycle: empty → Ur → Kr → empty
   const handleCellClick = useCallback((day: number) => {
-    const workArr = dayWorkMap[day];
-    const hasWork = workArr && workArr.length > 0;
+    const work = dayWorkMap[day] || 0;
     const current = absenceDays[String(day)];
-    if (hasWork && !current) return;
+    if (work > 0 && !current) return;
     if (!onAbsenceChange) return;
     const next = { ...absenceDays };
     const key = String(day);
@@ -1164,9 +1161,7 @@ function MonthlyGridCopy({
     const row3Values = dayNumbers.map((d) => {
       const absence = absenceDays[String(d)];
       if (absence) return absence;
-      const arr = dayWorkMap[d];
-      if (!arr || arr.length === 0) return '';
-      return arr.map(m => fmtWork(m)).join('\n');
+      return fmtWork(dayWorkMap[d] || 0);
     });
     const tsv = [...row3Values, ...summaryValues].join('\t');
 
@@ -1238,10 +1233,9 @@ function MonthlyGridCopy({
             {/* Row 3: Work hours / absence (interactive) */}
             <tr>
               {dayNumbers.map((d) => {
-                const workArr = dayWorkMap[d];
-                const hasWork = workArr && workArr.length > 0;
+                const work = dayWorkMap[d] || 0;
                 const absence = absenceDays[String(d)] as 'Ur' | 'Kr' | undefined;
-                const isClickable = !hasWork && !!onAbsenceChange;
+                const isClickable = work === 0 && !!onAbsenceChange;
                 const isWeekendDay = (() => {
                   const wd = weekdays[d - 1];
                   return wd === 'So' || wd === 'Sa' || wd === 'Nd';
@@ -1256,10 +1250,8 @@ function MonthlyGridCopy({
                 } else if (absence === 'Kr') {
                   cellContent = 'Kr';
                   cellClass = `${tdCls} !bg-orange-100 !text-orange-700 font-bold cursor-pointer dark:!bg-orange-900/40 dark:!text-orange-300`;
-                } else if (hasWork) {
-                  cellContent = workArr.map((m, i) => (
-                    <div key={i}>{fmtWork(m)}</div>
-                  ));
+                } else if (work) {
+                  cellContent = fmtWork(work);
                   cellClass = `${tdCls} font-semibold text-gray-800 dark:text-gray-200`;
                 } else if (isClickable) {
                   cellClass = `${tdCls} cursor-pointer hover:!bg-gray-100 dark:hover:!bg-gray-800 ${isWeekendDay ? '!bg-red-50/50 dark:!bg-red-900/10' : ''}`;
