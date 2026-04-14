@@ -97,13 +97,13 @@ function PermissionRoute({ children, permission }: { children: React.ReactNode; 
 }
 
 export function App() {
-  const { loggedIn } = useAuth();
+  const { loggedIn, isAdmin } = useAuth();
 
   return (
     <>
       <OfflineBanner />
       <GlobalSearch />
-      {loggedIn && <Changelog />}
+      {loggedIn && isAdmin && <Changelog />}
       {loggedIn && <InstallPrompt />}
       <Suspense fallback={<PageFallback />}>
         <Routes>
