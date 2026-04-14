@@ -1056,14 +1056,14 @@ function MonthlyGridCopy({
   const month = parseInt(refDate.slice(5, 7), 10) || (new Date().getMonth() + 1); // 1-indexed
   const daysInMonth = new Date(year, month, 0).getDate();
 
-  // Build a map: day number -> total duration for shifts STARTING on that day.
-  // Uses shift_date (= shift start date) so each shift's full duration lands on
-  // the day it began. Overnight tails do NOT carry over to the next day — this
-  // avoids combining an ending overnight shift with a new shift on the same day.
+  // Build a map: day number -> total duration for the grid.
+  // Uses grid_date: shifts starting before 06:00 are attributed to the previous
+  // day (overnight continuation), so they don't combine with a new shift that
+  // starts later the same day.
   const dayWorkMap = useMemo(() => {
     const map: Record<number, number> = {};
     for (const sh of shifts) {
-      const dateStr = sh.shift_date;
+      const dateStr = sh.grid_date || sh.shift_date;
       const d = parseInt(dateStr.slice(8, 10), 10);
       if (!isNaN(d)) {
         map[d] = (map[d] || 0) + sh.duration_minutes;
