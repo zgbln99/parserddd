@@ -24,6 +24,13 @@ function minutesToDecimal(minutes: number) {
   return (minutes / 60).toFixed(2);
 }
 
+/** ISO country code → flag emoji */
+function countryFlag(code: string): string {
+  if (!code || code.length < 2) return '';
+  const c = code.slice(0, 2).toUpperCase();
+  return String.fromCodePoint(...[...c].map(ch => 0x1F1E6 + ch.charCodeAt(0) - 65));
+}
+
 const weekdayMap: Record<string, Record<string, string>> = {
   de: { Pn: 'Mo', Wt: 'Di', Śr: 'Mi', Cz: 'Do', Pt: 'Fr', So: 'Sa', Nd: 'So' },
 };
@@ -710,6 +717,17 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
       )}
 
       {/* Shifts table */}
+      {/* Countries visited */}
+      {data.card_places && data.card_places.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          {Array.from(new Set(data.card_places.map(p => p.country).filter(Boolean))).map(c => (
+            <span key={c} className="inline-flex items-center gap-1 rounded-full border border-border bg-white/60 px-2.5 py-0.5 text-xs font-medium dark:bg-white/5">
+              {countryFlag(c)} {c}
+            </span>
+          ))}
+        </div>
+      )}
+
       {shifts.length > 0 && (
         <>
         {/* Mobile shifts cards */}

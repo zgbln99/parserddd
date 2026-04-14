@@ -57,6 +57,15 @@ export function AnalysisPage() {
 
   return (
     <div className="animate-slide-up">
+      {/* Breadcrumbs */}
+      <nav className="mb-4 flex items-center gap-1.5 text-xs text-muted">
+        <a href="/" className="hover:text-primary-600 transition">Dashboard</a>
+        <span>/</span>
+        <a href="/drivers" className="hover:text-primary-600 transition">{t('driversTitle')}</a>
+        <span>/</span>
+        <span className="font-medium text-ink truncate max-w-[200px]">{data?.driver_info?.driver_name || driverName || fileName}</span>
+      </nav>
+
       {/* Header with back button */}
       <div className="mb-6 flex items-center gap-4">
         <button

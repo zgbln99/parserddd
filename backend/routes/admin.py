@@ -421,3 +421,42 @@ def api_update_config():
     _log_activity('update_config', ', '.join(data.keys()))
     _log_config_change('update_config', ', '.join(data.keys()))
     return jsonify({'ok': True})
+
+
+@bp.route('/api/admin/stats')
+@admin_required
+def api_system_stats():
+    """System statistics for admin dashboard."""
+    conn = _get_db()
+    try:
+        driver_count = conn.execute('SELECT COUNT(*) FROM driver_config').fetchone()[0]
+        monthly_count = conn.execute('SELECT COUNT(*) FROM driver_monthly_days').fetchone()[0]
+        audit_count = conn.execute('SELECT COUNT(*) FROM config_audit_log').fetchone()[0]
+    except Exception:
+        driver_count = monthly_count = audit_count = 0
+    finally:
+        conn.close()
+
+    # Analysis cache stats
+    try:
+        from routes.analysis import _analysis_cache
+        cache_size = len(_analysis_cache)
+    except Exception:
+        cache_size = 0
+
+    # DB file size
+    db_size = 0
+    try:
+        db_path = os.environ.get('DATABASE_FILE', '/opt/ddd-reader/ddd_portal.db')
+        if os.path.exists(db_path):
+            db_size = os.path.getsize(db_path)
+    except Exception:
+        pass
+
+    return jsonify({
+        'driver_configs': driver_count,
+        'monthly_records': monthly_count,
+        'audit_entries': audit_count,
+        'cache_entries': cache_size,
+        'db_size_bytes': db_size,
+    })

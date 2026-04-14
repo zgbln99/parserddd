@@ -362,11 +362,41 @@ function SyncMonitorSection() {
   );
 }
 
+function SystemStatsSection() {
+  const { t } = useI18n();
+  const [stats, setStats] = useState<Record<string, number> | null>(null);
+  useEffect(() => {
+    fetch('/api/admin/stats', { credentials: 'include' })
+      .then(r => r.json())
+      .then(setStats)
+      .catch(() => {});
+  }, []);
+  if (!stats) return null;
+  const fmtSize = (b: number) => b > 1048576 ? `${(b / 1048576).toFixed(1)} MB` : `${(b / 1024).toFixed(0)} KB`;
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+      {[
+        { label: t('statsDrivers'), value: stats.driver_configs },
+        { label: t('statsMonthly'), value: stats.monthly_records },
+        { label: t('statsAudit'), value: stats.audit_entries },
+        { label: t('statsCache'), value: stats.cache_entries },
+        { label: t('statsDb'), value: fmtSize(stats.db_size_bytes || 0) },
+      ].map(s => (
+        <div key={s.label} className="rounded-xl bg-black/[0.02] p-3 text-center dark:bg-white/5">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">{s.label}</p>
+          <p className="mt-1 text-lg font-bold text-ink">{s.value}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function SyncConfigTab() {
   const { t } = useI18n();
 
   return (
     <div className="space-y-6">
+      <SystemStatsSection />
       <SyncConfigSection />
       <div>
         <h2 className="mb-4 flex items-center gap-2 text-lg font-bold">

@@ -445,16 +445,16 @@ export function StundenzettelPage() {
 
         {/* Editable table - always visible */}
         <Card className="overflow-x-auto p-0">
-          <table className="w-full text-sm">
+          <table className="w-full text-xs sm:text-sm">
             <thead>
               <tr className="border-b border-border bg-surface">
-                <th className="px-2 py-2 text-left font-semibold text-muted w-10">{t('stzDay')}</th>
-                <th className="px-2 py-2 text-left font-semibold text-muted w-8"></th>
-                <th className="px-1 py-2 text-center font-semibold text-muted w-24">{t('stzStart')}</th>
-                <th className="px-1 py-2 text-center font-semibold text-muted w-24">{t('stzEnd')}</th>
-                <th className="px-1 py-2 text-center font-semibold text-muted w-16">{t('stzPause')}</th>
-                <th className="px-1 py-2 text-center font-semibold text-muted w-16">{t('stzCode')}</th>
-                <th className="px-2 py-2 text-center font-semibold text-muted w-16">{t('stzWork')}</th>
+                <th className="px-1 sm:px-2 py-2 text-left font-semibold text-muted w-8 sm:w-10">{t('stzDay')}</th>
+                <th className="px-1 py-2 text-left font-semibold text-muted w-6 sm:w-8"></th>
+                <th className="px-0.5 sm:px-1 py-2 text-center font-semibold text-muted w-16 sm:w-24">{t('stzStart')}</th>
+                <th className="px-0.5 sm:px-1 py-2 text-center font-semibold text-muted w-16 sm:w-24">{t('stzEnd')}</th>
+                <th className="px-0.5 sm:px-1 py-2 text-center font-semibold text-muted w-12 sm:w-16">{t('stzPause')}</th>
+                <th className="px-0.5 sm:px-1 py-2 text-center font-semibold text-muted w-10 sm:w-16 hidden xs:table-cell">{t('stzCode')}</th>
+                <th className="px-1 sm:px-2 py-2 text-center font-semibold text-muted w-14 sm:w-16">{t('stzWork')}</th>
                 <th className="px-2 py-2 text-center font-semibold text-muted hidden sm:table-cell">{t('stzNight')}</th>
                 <th className="px-2 py-2 text-center font-semibold text-muted hidden sm:table-cell">{t('stzDiet')}</th>
               </tr>
