@@ -21,6 +21,17 @@ export function AnalysisPage() {
   const [data, setData] = useState<AnalysisResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [timerStart, setTimerStart] = useState(0);
+  const [timerNow, setTimerNow] = useState(0);
+
+  useEffect(() => {
+    if (!loading) return;
+    setTimerStart(Date.now());
+    setTimerNow(Date.now());
+    const id = setInterval(() => setTimerNow(Date.now()), 100);
+    return () => clearInterval(id);
+  }, [loading]);
+  const elapsedSec = loading ? ((timerNow - timerStart) / 1000).toFixed(1) : '0.0';
 
   const runAnalysis = () => {
     if (!filePath) {
@@ -88,7 +99,7 @@ export function AnalysisPage() {
         <Card className="py-16">
           <div className="flex flex-col items-center gap-3 text-muted">
             <Spinner size="lg" />
-            <p className="text-sm font-medium">{t('analysisLoading')}</p>
+            <p className="text-sm font-medium">{t('analysisLoading')} {elapsedSec}s</p>
           </div>
         </Card>
       )}
