@@ -76,17 +76,24 @@ def api_vehicles_activity():
 
     body = request.get_json(force=True)
     period = body.get('period', '')  # "2026-03"
+    date_from = body.get('date_from', '')  # "2026-03-01" (optional, overrides period)
+    date_to = body.get('date_to', '')  # "2026-03-15" (optional, overrides period)
     vehicle_ids = body.get('vehicle_ids', [])  # required
     # skip_location removed — always fetch all sources for accuracy
 
-    if not period or len(period) != 7:
+    # Support date range (date_from + date_to) or legacy month period
+    if date_from and date_to:
+        if len(date_from) != 10 or len(date_to) != 10:
+            return jsonify({'error': 'Invalid date_from/date_to (expected YYYY-MM-DD)'}), 400
+        period = date_from[:7]  # for cache key / response label
+    elif not period or len(period) != 7:
         return jsonify({'error': 'Invalid period (expected YYYY-MM)'}), 400
 
     if not vehicle_ids:
         return jsonify({'error': 'No vehicle selected'}), 400
 
     # --- Check cache ---
-    cache_key = (period, tuple(sorted(vehicle_ids)))
+    cache_key = (date_from or period, date_to or period, tuple(sorted(vehicle_ids)))
     cached = VEHICLE_ACTIVITY_CACHE.get(cache_key)
     if cached:
         cache_ts, cache_data = cached
@@ -94,10 +101,14 @@ def api_vehicles_activity():
             current_app.logger.info('Vehicle activity cache hit for %s', cache_key)
             return jsonify(cache_data)
 
-    year, month = int(period[:4]), int(period[5:7])
-    _, last_day = monthrange(year, month)
-    start_time = f'{period}-01T00:00:00Z'
-    end_time = f'{period}-{last_day:02d}T23:59:59Z'
+    if date_from and date_to:
+        start_time = f'{date_from}T00:00:00Z'
+        end_time = f'{date_to}T23:59:59Z'
+    else:
+        year, month = int(period[:4]), int(period[5:7])
+        _, last_day = monthrange(year, month)
+        start_time = f'{period}-01T00:00:00Z'
+        end_time = f'{period}-{last_day:02d}T23:59:59Z'
 
     headers = {'Authorization': f'Bearer {SAMSARA_API_TOKEN}'}
     ids_param = ','.join(vehicle_ids[:50])

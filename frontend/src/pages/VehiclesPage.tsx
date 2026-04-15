@@ -77,6 +77,22 @@ export function VehiclesPage() {
 
   const [selectedPeriod, setSelectedPeriod] = useState(defaultPeriod);
 
+  // Date range (overrides period when both set)
+  const defaultDateFrom = useMemo(() => {
+    const p = selectedPeriod || defaultPeriod;
+    return `${p}-01`;
+  }, [selectedPeriod, defaultPeriod]);
+
+  const defaultDateTo = useMemo(() => {
+    const p = selectedPeriod || defaultPeriod;
+    const [y, m] = p.split('-').map(Number);
+    const last = new Date(y, m, 0).getDate();
+    return `${p}-${String(last).padStart(2, '0')}`;
+  }, [selectedPeriod, defaultPeriod]);
+
+  const [dateRangeFrom, setDateRangeFrom] = useState(defaultDateFrom);
+  const [dateRangeTo, setDateRangeTo] = useState(defaultDateTo);
+
   // Load vehicle list on mount + refresh function
   const loadVehicleList = useCallback(() => {
     setVehiclesLoading(true);
@@ -138,7 +154,7 @@ export function VehiclesPage() {
     setDebugInfo(null);
 
     try {
-      const result = await fetchVehicleActivity(p, [selectedVehicleId]);
+      const result = await fetchVehicleActivity(p, [selectedVehicleId], dateRangeFrom, dateRangeTo);
       if (result.vehicles.length > 0) {
         setActivity(result.vehicles[0]);
       } else {
@@ -151,7 +167,7 @@ export function VehiclesPage() {
     } finally {
       setLoading(false);
     }
-  }, [selectedVehicleId, selectedPeriod, defaultPeriod]);
+  }, [selectedVehicleId, selectedPeriod, defaultPeriod, dateRangeFrom, dateRangeTo]);
 
   // Generate + save for selected vehicles — one by one sequentially
   const [bulkLoading, setBulkLoading] = useState(false);
@@ -173,7 +189,7 @@ export function VehiclesPage() {
       setBulkProgress(`${done} / ${ids.length}${vehicle ? ` — ${vehicle.name}` : ''}`);
 
       try {
-        const result = await fetchVehicleActivity(p, [vid]);
+        const result = await fetchVehicleActivity(p, [vid], dateRangeFrom, dateRangeTo);
         for (const v of result.vehicles) {
           const veh = vehicleList.find(vl => vl.id === v.vehicle_id || vl.name === v.vehicle_name);
           const id = `${v.vehicle_name}__${result.period}`;
@@ -417,9 +433,15 @@ export function VehiclesPage() {
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-muted">{t('vehiclesPeriod')}</label>
-            <input type="month" value={selectedPeriod || defaultPeriod} onChange={(e) => setSelectedPeriod(e.target.value)}
-              className="input rounded-xl px-3 py-2 text-sm outline-none min-h-[44px]" />
+            <label className="mb-1 block text-sm font-medium text-muted">{locale === 'de' ? 'Datum von' : 'Data od'}</label>
+            <input type="date" value={dateRangeFrom} onChange={(e) => setDateRangeFrom(e.target.value)}
+              className="input rounded-xl px-3 py-2 text-sm outline-none min-h-[44px] dark:[color-scheme:dark]" />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm font-medium text-muted">{locale === 'de' ? 'Datum bis' : 'Data do'}</label>
+            <input type="date" value={dateRangeTo} onChange={(e) => setDateRangeTo(e.target.value)}
+              className="input rounded-xl px-3 py-2 text-sm outline-none min-h-[44px] dark:[color-scheme:dark]" />
           </div>
 
           <div>
