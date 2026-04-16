@@ -23,7 +23,7 @@ export function AdminPage() {
     <div className="animate-slide-up space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-red-500 to-rose-600 text-white shadow-lg shadow-red-500/20">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#ff3b30] text-white">
           <Shield size={20} />
         </div>
         <div>
@@ -33,7 +33,7 @@ export function AdminPage() {
       </div>
 
       {/* Tab bar */}
-      <div className="flex gap-1 rounded-xl bg-black/[0.04] p-1 dark:bg-white/5">
+      <div className="flex gap-1 rounded-xl bg-[#f5f5f7] p-1 dark:bg-[#272729]">
         {tabs.map(({ key, icon: Icon, labelKey, color }) => (
           <button
             key={key}

@@ -258,8 +258,8 @@ export function ReaderPage() {
         <Card
           className={`cursor-pointer border-2 border-dashed transition-all duration-300 ${
             dragging
-              ? 'border-primary-400 bg-gradient-to-br from-primary-50/80 to-indigo-50/50 scale-[1.02] shadow-xl ring-4 ring-primary-200/30 dark:border-primary-500 dark:bg-primary-900/10'
-              : 'border-border hover:border-primary-300 hover:shadow-md'
+              ? 'border-primary-400 bg-primary-50/80 scale-[1.02] ring-4 ring-primary-200/30 dark:border-primary-500 dark:bg-primary-900/10'
+              : 'border-border hover:border-primary-300 hover:opacity-95'
           }`}
           onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
           onDragLeave={() => setDragging(false)}
@@ -267,14 +267,14 @@ export function ReaderPage() {
           onClick={() => fileRef.current?.click()}
         >
           <div className="flex flex-col items-center gap-4 py-16">
-            <div className={`rounded-2xl bg-gradient-to-br from-primary-500 to-primary-700 p-5 text-white shadow-lg shadow-primary-500/20 transition-all duration-300 ${dragging ? 'scale-125 rotate-6 shadow-2xl' : ''}`}>
+            <div className={`rounded-xl bg-[#0071e3] p-5 text-white transition-all duration-300 ${dragging ? 'scale-125 rotate-6' : ''}`}>
               <Upload size={32} />
             </div>
             <div className="text-center">
               <p className="text-base font-bold text-ink">{t('readerMultiDrop')}</p>
               <p className="mt-1.5 text-sm text-muted">{t('readerSelectFile')}</p>
             </div>
-            <button className="btn-press rounded-xl bg-gradient-to-r from-primary-600 to-primary-500 px-8 py-3 text-sm font-semibold text-white shadow-md shadow-primary-500/20 transition hover:shadow-lg">
+            <button className="btn-press rounded-xl bg-[#0071e3] px-8 py-3 text-sm font-semibold text-white transition hover:opacity-90">
               {t('readerUploadBtn')}
             </button>
           </div>
@@ -326,7 +326,7 @@ export function ReaderPage() {
               <button
                 onClick={handleMerge}
                 disabled={!mergeFile1 || !mergeFile2 || loading}
-                className="btn-press mt-4 flex items-center gap-2 rounded-xl bg-gradient-to-r from-primary-600 to-primary-500 px-6 py-2.5 text-sm font-semibold text-white shadow-md shadow-primary-500/20 transition hover:shadow-lg disabled:opacity-50"
+                className="btn-press mt-4 flex items-center gap-2 rounded-xl bg-[#0071e3] px-6 py-2.5 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
               >
                 <Merge size={16} />
                 {t('mergeAnalyze')}

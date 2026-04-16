@@ -168,7 +168,7 @@ export function DriverConfigPage() {
     <div className="animate-slide-up space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 text-white ">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#30d158] text-white">
           <Users size={20} />
         </div>
         <div>
@@ -288,7 +288,7 @@ export function DriverConfigPage() {
                   <input type="text" value={editNotes} onChange={(e) => setEditNotes(e.target.value)} placeholder={t('driverNotesPlaceholder')} className={`block w-full ${inputCls}`} />
                 </div>
                 <div className="flex items-center gap-3">
-                  <button onClick={() => handleSave(d)} disabled={saving} className="flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-2 text-sm font-semibold text-white  transition hover:bg-primary-700 disabled:opacity-50">
+                  <button onClick={() => handleSave(d)} disabled={saving} className="flex items-center gap-1.5 rounded-lg bg-[#30d158] px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50">
                     <Save size={14} />
                     {saving ? '...' : t('save')}
                   </button>
@@ -430,7 +430,7 @@ export function DriverConfigPage() {
                           <button
                             onClick={() => handleSave(d)}
                             disabled={saving}
-                            className="flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-2 text-sm font-semibold text-white  transition hover:bg-primary-700 disabled:opacity-50"
+                            className="flex items-center gap-1.5 rounded-lg bg-[#30d158] px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
                           >
                             <Save size={14} />
                             {saving ? '...' : t('save')}

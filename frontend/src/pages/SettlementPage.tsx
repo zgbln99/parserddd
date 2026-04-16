@@ -209,7 +209,7 @@ export function SettlementPage() {
             <>
               <button
                 onClick={handleExportPdf}
-                className="flex min-h-[44px] items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-500 to-indigo-600 px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-indigo-500/20 transition hover:bg-primary-700"
+                className="flex min-h-[44px] items-center gap-2 rounded-xl bg-[#0071e3] px-5 py-2 text-sm font-semibold text-white transition hover:opacity-90"
               >
                 <FileText size={14} />
                 {t('analysisExportPdf')}
@@ -217,7 +217,7 @@ export function SettlementPage() {
               <button
                 onClick={handleExportDatev}
                 disabled={exporting}
-                className="flex min-h-[44px] items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-emerald-500/20 transition hover:bg-primary-700 disabled:opacity-50"
+                className="flex min-h-[44px] items-center gap-2 rounded-xl bg-[#30d158] px-5 py-2 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
               >
                 <Download size={14} />
                 {exporting ? t('loading') : t('settlementExportDatev')}

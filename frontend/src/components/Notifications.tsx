@@ -78,8 +78,8 @@ export function NewFilesNotification() {
 
   return (
     <div className="fixed top-16 right-4 z-50 animate-slide-up max-w-sm">
-      <div className="flex items-start gap-3 rounded-2xl border border-primary-200 bg-white/95 p-4 shadow-xl backdrop-blur-lg dark:border-primary-800 dark:bg-gray-900/95">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary-500 to-primary-700 text-white">
+      <div className="flex items-start gap-3 rounded-xl border border-primary-200 bg-white/95 p-4 backdrop-blur-lg dark:border-primary-800 dark:bg-gray-900/95">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#0071e3] text-white">
           <Bell size={18} />
         </div>
         <div className="flex-1 min-w-0">

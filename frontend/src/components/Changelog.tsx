@@ -56,7 +56,7 @@ export function Changelog() {
         </button>
 
         <div className="mb-5 flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary-500 to-indigo-600 text-white shadow-lg shadow-primary-500/20">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#0071e3] text-white">
             <Sparkles size={20} />
           </div>
           <div>
@@ -80,7 +80,7 @@ export function Changelog() {
 
         <button
           onClick={handleClose}
-          className="btn-press mt-5 w-full rounded-xl bg-gradient-to-r from-primary-600 to-primary-500 py-3 text-sm font-semibold text-white shadow-md shadow-primary-500/20 transition hover:shadow-lg"
+          className="btn-press mt-5 w-full rounded-xl bg-[#0071e3] py-3 text-sm font-semibold text-white transition hover:opacity-90"
         >
           Super, rozumiem!
         </button>

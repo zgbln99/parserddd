@@ -69,7 +69,7 @@ export function LiveStatusPage() {
   return (
     <div className="animate-slide-up">
       <div className="mb-6 flex items-center gap-4">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 text-white shadow-lg shadow-emerald-500/20">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#30d158] text-white">
           <Truck size={20} />
         </div>
         <div className="flex-1">

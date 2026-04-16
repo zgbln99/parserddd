@@ -88,7 +88,7 @@ export function UsersTab() {
       {error && <p className="mb-3 text-sm text-danger">{error}</p>}
 
       {showForm && (
-        <div className="mb-4 flex flex-wrap items-end gap-3 rounded-lg bg-black/[0.02] p-4 dark:bg-white/5">
+        <div className="mb-4 flex flex-wrap items-end gap-3 rounded-lg bg-[#f5f5f7] p-4 dark:bg-[#272729]">
           <div>
             <label className="mb-1 block text-xs font-semibold text-muted">{t('adminUserName')}</label>
             <input
@@ -124,7 +124,7 @@ export function UsersTab() {
           <button
             onClick={handleCreate}
             disabled={saving}
-            className="rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-1.5 text-sm font-semibold text-white shadow-lg shadow-emerald-500/20 transition hover:bg-primary-700 disabled:opacity-50"
+            className="rounded-lg bg-[#30d158] px-4 py-1.5 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
           >
             {saving ? '...' : t('save')}
           </button>

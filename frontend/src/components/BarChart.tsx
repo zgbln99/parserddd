@@ -144,7 +144,7 @@ export function BarChart({ bars, formatValue = (v) => v.toFixed(1) }: BarChartPr
 
               {/* Hover tooltip */}
               {isHovered && total > 0 && (
-                <div className="pointer-events-none absolute left-[96px] top-full z-20 mt-1 rounded-xl border border-border bg-card px-3 py-2 shadow-lg">
+                <div className="pointer-events-none absolute left-[96px] top-full z-20 mt-1 rounded-xl border border-border bg-card px-3 py-2">
                   <div className="mb-1.5 text-xs font-bold text-ink">
                     {bar.label} {bar.sublabel} — {formatValue(total)}h
                   </div>

@@ -343,7 +343,7 @@ export function VerstossePage() {
             <button
               onClick={handleGenerate}
               disabled={loading || selected.size === 0}
-              className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-red-600 to-orange-600 px-6 py-2.5 text-sm font-bold text-white shadow-lg shadow-red-500/20 transition hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center gap-2 rounded-xl bg-[#ff3b30] px-6 py-2.5 text-sm font-bold text-white transition hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? <Spinner size="sm" /> : <Play size={16} />}
               {t('verstosseGenerate')}
@@ -363,14 +363,14 @@ export function VerstossePage() {
         <>
           {/* Summary cards */}
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-            <div className="rounded-2xl border border-gray-200 bg-white px-5 py-5 shadow-sm dark:bg-slate-800/50">
+            <div className="rounded-xl border border-gray-200 bg-white px-5 py-5 dark:bg-slate-800/50">
               <div className="flex items-center gap-2">
                 <Users size={14} className="text-muted" />
                 <span className="text-[11px] font-medium uppercase tracking-wider text-muted">{t('verstosseDriversAnalyzed')}</span>
               </div>
               <p className="mt-3 text-3xl font-bold text-gray-900 dark:text-white">{results.length}</p>
             </div>
-            <div className="rounded-2xl border border-gray-200 bg-white px-5 py-5 shadow-sm dark:bg-slate-800/50">
+            <div className="rounded-xl border border-gray-200 bg-white px-5 py-5 dark:bg-slate-800/50">
               <div className="flex items-center gap-2">
                 <AlertTriangle size={14} className={totalViolations > 0 ? 'text-red-400' : 'text-green-400'} />
                 <span className="text-[11px] font-medium uppercase tracking-wider text-muted">{t('verstosseTotalViolations')}</span>
@@ -379,11 +379,11 @@ export function VerstossePage() {
                 {totalViolations}
               </p>
             </div>
-            <div className="rounded-2xl border border-orange-200 bg-gradient-to-br from-orange-50 to-amber-50/50 px-5 py-5 shadow-sm dark:border-orange-500/20 dark:from-orange-500/5 dark:to-amber-500/5">
+            <div className="rounded-xl border border-orange-200 bg-[#ff9f0a]/5 px-5 py-5 dark:border-orange-500/20">
               <span className="text-[11px] font-medium uppercase tracking-wider text-orange-500">{t('verstosseFahrerFines')}</span>
               <p className="mt-3 text-3xl font-bold tabular-nums text-orange-600 dark:text-orange-400">{fmtAmount(totalFahrer)}</p>
             </div>
-            <div className="rounded-2xl border border-red-200 bg-gradient-to-br from-red-50 to-rose-50/50 px-5 py-5 shadow-sm dark:border-red-500/20 dark:from-red-500/5 dark:to-rose-500/5">
+            <div className="rounded-xl border border-red-200 bg-[#ff3b30]/5 px-5 py-5 dark:border-red-500/20">
               <span className="text-[11px] font-medium uppercase tracking-wider text-red-500">{t('verstosseUnternehmenFines')}</span>
               <p className="mt-3 text-3xl font-bold tabular-nums text-red-700 dark:text-red-300">{fmtAmount(totalUnternehmen)}</p>
             </div>
@@ -402,7 +402,7 @@ export function VerstossePage() {
               </p>
               <button
                 onClick={handleGenerateAllPdfs}
-                className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-red-600 to-orange-600 px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-red-500/20 transition hover:bg-primary-700"
+                className="flex items-center gap-2 rounded-xl bg-[#ff3b30] px-5 py-2.5 text-sm font-bold text-white transition hover:opacity-90"
               >
                 <ShieldAlert size={16} />
                 {t('verstosseExportAll')}

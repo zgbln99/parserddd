@@ -82,7 +82,7 @@ export function LoginPage() {
         <button
           type="submit"
           disabled={loading}
-          className="btn-press flex w-full items-center justify-center gap-2 rounded-xl bg-white px-4 py-3.5 text-sm font-semibold text-primary-700 shadow-lg transition-all duration-200 hover:bg-white/90 hover:shadow-xl disabled:opacity-50"
+          className="btn-press flex w-full items-center justify-center gap-2 rounded-xl bg-white px-4 py-3.5 text-sm font-semibold text-primary-700 transition-all duration-200 hover:bg-white/90 disabled:opacity-50"
         >
           {loading ? <Spinner size="sm" /> : t('login')}
         </button>
