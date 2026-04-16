@@ -463,7 +463,7 @@ export function CompareDriversPage() {
         </div>
 
         <div className="max-h-[280px] overflow-y-auto rounded-lg border border-border">
-          <div className="grid grid-cols-1 gap-1 bg-black/[0.04] sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 dark:bg-white/5">
+          <div className="grid grid-cols-1 gap-1 bg-[#f5f5f7] sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 dark:bg-[#272729]">
             {filtered.map((d) => (
               <label
                 key={d.name}
@@ -538,7 +538,7 @@ export function CompareDriversPage() {
                       const sh = shiftLookup.get(r.driver_name)?.get(date);
                       if (!sh) return null;
                       return (
-                        <div key={r.driver_name} className="flex items-center justify-between gap-2 rounded-lg bg-black/[0.02] px-3 py-1.5 dark:bg-white/5">
+                        <div key={r.driver_name} className="flex items-center justify-between gap-2 rounded-lg bg-[#f5f5f7] px-3 py-1.5 dark:bg-[#272729]">
                           <span className="text-xs font-medium truncate">{r.driver_name}</span>
                           <div className="flex items-center gap-3 text-xs shrink-0">
                             <span className="font-semibold text-emerald-600 dark:text-emerald-400">{sh.start}</span>

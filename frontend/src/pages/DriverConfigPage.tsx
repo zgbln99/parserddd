@@ -381,7 +381,7 @@ export function DriverConfigPage() {
                   {/* Inline editor */}
                   {expandedCard === d.card_number && (
                     <tr>
-                      <td colSpan={8} className="bg-black/[0.02] px-6 py-4 dark:bg-white/5">
+                      <td colSpan={8} className="bg-[#f5f5f7] px-6 py-4 dark:bg-[#272729]">
                         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                           <div>
                             <label className="mb-1 block text-xs font-semibold text-muted">{t('driverPersonalNr')}</label>

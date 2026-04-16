@@ -55,7 +55,7 @@ export function LoginPage() {
 
       <form
         onSubmit={handleSubmit}
-        className="relative w-[calc(100%-1rem)] sm:w-full max-w-sm rounded-3xl border border-white/10 bg-white/10 p-5 sm:p-8 backdrop-blur-xl shadow-2xl animate-scale-in"
+        className="relative w-[calc(100%-1rem)] sm:w-full max-w-sm rounded-3xl border border-white/10 bg-white/10 p-5 sm:p-8 backdrop-blur-xl animate-scale-in"
       >
         <div className="mb-8 text-center">
           <img src="/logo.png" alt="LTS" className="mx-auto mb-4 h-14" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />

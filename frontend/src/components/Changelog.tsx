@@ -47,7 +47,7 @@ export function Changelog() {
       className="fixed inset-0 z-[60] flex items-center justify-center bg-black/30 p-4 animate-fade-in"
       onClick={(e) => { if (e.target === e.currentTarget) handleClose(); }}
     >
-      <div className="relative w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl animate-scale-in dark:bg-gray-900">
+      <div className="relative w-full max-w-md rounded-3xl bg-white p-6 animate-scale-in dark:bg-gray-900">
         <button
           onClick={handleClose}
           className="absolute right-4 top-4 rounded-lg p-1.5 text-muted transition hover:bg-surface hover:text-ink"

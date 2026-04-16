@@ -337,7 +337,7 @@ export function SettlementPage() {
                 </div>
               ))}
               {/* Mobile totals */}
-              <div className="p-4 bg-black/[0.02] dark:bg-white/5 space-y-1.5">
+              <div className="p-4 bg-[#f5f5f7] dark:bg-[#272729] space-y-1.5">
                 <p className="text-sm font-bold mb-2">{t('settlementTotal')}</p>
                 <CardField label={t('analysisShifts')} value={<span className="font-bold">{totals.shifts}</span>} />
                 <CardField label={t('analysisWorkTime')} value={<span className="font-mono font-bold">{fmtH(totals.work)}</span>} />
@@ -390,7 +390,7 @@ export function SettlementPage() {
                   ))}
                 </tbody>
                 <tfoot>
-                  <tr className="border-t-2 border-border bg-black/[0.02] font-semibold dark:bg-white/5">
+                  <tr className="border-t-2 border-border bg-[#f5f5f7] font-semibold dark:bg-[#272729]">
                     <td className="px-4 py-3" colSpan={3}>{t('settlementTotal')}</td>
                     <td className="whitespace-nowrap px-4 py-3 text-right">{totals.shifts}</td>
                     <td className="whitespace-nowrap px-4 py-3 text-right font-mono">{fmtH(totals.work)}</td>

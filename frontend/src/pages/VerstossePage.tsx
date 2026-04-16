@@ -302,7 +302,7 @@ export function VerstossePage() {
                   onClick={() => setPdfLang(code)}
                   className={`flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-semibold transition ${
                     pdfLang === code
-                      ? 'bg-blue-600 text-white shadow-sm'
+                      ? 'bg-blue-600 text-white'
                       : 'text-muted hover:bg-gray-100 dark:hover:bg-white/10'
                   }`}
                 >

@@ -17,10 +17,10 @@ interface DriverStatus {
 }
 
 const STATUS_CONFIG: Record<string, { icon: typeof Truck; color: string; bg: string; borderColor: string; gradientFrom: string; label: string }> = {
-  driving: { icon: Truck, color: 'text-emerald-600', bg: 'bg-emerald-50 border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-800', borderColor: 'border-l-emerald-500', gradientFrom: 'from-emerald-500 to-emerald-700', label: 'Jazda' },
-  work: { icon: Wrench, color: 'text-blue-600', bg: 'bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800', borderColor: 'border-l-blue-500', gradientFrom: 'from-blue-500 to-blue-700', label: 'Praca' },
-  rest: { icon: Coffee, color: 'text-gray-500', bg: 'bg-gray-50 border-gray-200 dark:bg-gray-800/50 dark:border-gray-700', borderColor: 'border-l-gray-400', gradientFrom: 'from-gray-400 to-gray-600', label: 'Przerwa / Wolne' },
-  unknown: { icon: Users, color: 'text-gray-400', bg: 'bg-gray-50/50 border-gray-100 dark:bg-gray-800/30 dark:border-gray-700', borderColor: 'border-l-gray-300', gradientFrom: 'from-gray-300 to-gray-500', label: 'Brak danych' },
+  driving: { icon: Truck, color: 'text-emerald-600', bg: 'bg-emerald-50 border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-800', borderColor: 'border-l-emerald-500', gradientFrom: 'bg-[#30d158]', label: 'Jazda' },
+  work: { icon: Wrench, color: 'text-blue-600', bg: 'bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800', borderColor: 'border-l-blue-500', gradientFrom: 'bg-[#0071e3]', label: 'Praca' },
+  rest: { icon: Coffee, color: 'text-gray-500', bg: 'bg-gray-50 border-gray-200 dark:bg-gray-800/50 dark:border-gray-700', borderColor: 'border-l-gray-400', gradientFrom: 'bg-[#86868b]', label: 'Przerwa / Wolne' },
+  unknown: { icon: Users, color: 'text-gray-400', bg: 'bg-gray-50/50 border-gray-100 dark:bg-gray-800/30 dark:border-gray-700', borderColor: 'border-l-gray-300', gradientFrom: 'bg-[#aeaeb2]', label: 'Brak danych' },
 };
 
 function fmtDuration(min: number): string {
@@ -99,7 +99,7 @@ export function LiveStatusPage() {
           const Icon = cfg.icon;
           const count = byStatus[status].length;
           return (
-            <div key={status} className={`rounded-2xl border p-4 ${cfg.bg}`}>
+            <div key={status} className={`rounded-xl border p-4 ${cfg.bg}`}>
               <div className="flex items-center gap-3">
                 <Icon size={22} className={cfg.color} />
                 <div>
@@ -134,7 +134,7 @@ export function LiveStatusPage() {
               {list.map(d => (
                 <Card key={d.id} className={`p-4 border-l-4 ${cfg.borderColor}`}>
                   <div className="flex items-start gap-3">
-                    <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br ${cfg.gradientFrom} text-xs font-bold text-white`}>
+                    <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${cfg.gradientFrom} text-xs font-bold text-white`}>
                       {d.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
                     </div>
                     <div className="flex-1 min-w-0">
