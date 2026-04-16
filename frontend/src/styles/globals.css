@@ -1,47 +1,53 @@
 @import "tailwindcss";
 
+/* ==========================================================================
+   Tesla-Inspired Design System
+   Based on DESIGN.md — radical subtraction, flat surfaces, single accent
+   ========================================================================== */
+
 @theme {
-  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  /* Typography: clean geometric sans-serif */
+  --font-sans: -apple-system, 'Helvetica Neue', Arial, sans-serif;
 
-  /* Cool neutral palette */
-  --color-surface: #F8FAFC;
-  --color-surface-dark: #0F172A;
+  /* Tesla palette — monochrome + single blue accent */
+  --color-surface: #FFFFFF;
+  --color-surface-dark: #171A20;
   --color-card: #FFFFFF;
-  --color-card-dark: #1E293B;
-  --color-ink: #0F172A;
-  --color-ink-dark: #F1F5F9;
-  --color-muted: #64748B;
-  --color-muted-dark: #94A3B8;
-  --color-border: #E2E8F0;
-  --color-border-dark: #334155;
+  --color-card-dark: #1E2127;
+  --color-ink: #171A20;
+  --color-ink-dark: #F4F4F4;
+  --color-muted: #5C5E62;
+  --color-muted-dark: #8E8E8E;
+  --color-border: #EEEEEE;
+  --color-border-dark: #393C41;
 
-  /* Primary: modern blue */
-  --color-primary-50: #EFF6FF;
-  --color-primary-100: #DBEAFE;
-  --color-primary-200: #BFDBFE;
-  --color-primary-300: #93C5FD;
-  --color-primary-400: #60A5FA;
-  --color-primary-500: #3B82F6;
-  --color-primary-600: #2563EB;
-  --color-primary-700: #1D4ED8;
-  --color-primary-800: #1E40AF;
-  --color-primary-900: #1E3A8A;
+  /* Primary: Electric Blue — sole chromatic color */
+  --color-primary-50: #EBF0FD;
+  --color-primary-100: #D6E0FB;
+  --color-primary-200: #ADC1F7;
+  --color-primary-300: #85A3F3;
+  --color-primary-400: #5C84EF;
+  --color-primary-500: #3E6AE1;
+  --color-primary-600: #3258C4;
+  --color-primary-700: #2545A6;
+  --color-primary-800: #193389;
+  --color-primary-900: #0C206B;
 
-  /* Accent: vibrant indigo */
-  --color-accent: #6366F1;
-  --color-accent-light: #EEF2FF;
-  --color-accent-dark: #4F46E5;
+  /* Accent = same Electric Blue (Tesla uses one accent) */
+  --color-accent: #3E6AE1;
+  --color-accent-light: #EBF0FD;
+  --color-accent-dark: #3258C4;
 
-  /* Status */
+  /* Status — minimal, used sparingly */
   --color-success: #059669;
   --color-warning: #D97706;
   --color-danger: #DC2626;
-  --color-info: #0284C7;
+  --color-info: #3E6AE1;
 
-  /* Animations */
-  --animate-fade-in: fade-in 0.3s ease-out;
-  --animate-slide-up: slide-up 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-  --animate-slide-in-right: slide-in-right 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  /* Animations — 0.33s universal timing */
+  --animate-fade-in: fade-in 0.33s ease-out;
+  --animate-slide-up: slide-up 0.33s cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-slide-in-right: slide-in-right 0.33s cubic-bezier(0.16, 1, 0.3, 1);
   --animate-slide-out-right: slide-out-right 0.25s cubic-bezier(0.4, 0, 1, 1) forwards;
   --animate-scale-in: scale-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   --animate-toast-progress: toast-progress 4s linear forwards;
@@ -94,11 +100,6 @@
   to { opacity: 0; transform: translateY(-4px); }
 }
 
-@keyframes float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-2px); }
-}
-
 .page-enter {
   animation: page-enter 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
@@ -108,7 +109,7 @@
   pointer-events: none;
 }
 
-/* --- BASE --- */
+/* === BASE === */
 html, body {
   overflow-x: hidden;
   max-width: 100vw;
@@ -118,128 +119,118 @@ body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: linear-gradient(135deg, var(--color-surface) 0%, #EEF2FF 100%);
-  background-attachment: fixed;
+  background: var(--color-surface);
   color: var(--color-ink);
-  letter-spacing: -0.011em;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.43;
+  letter-spacing: normal;
 }
 
-/* Dark mode */
+/* Dark mode — Carbon Dark palette */
 .dark {
   color-scheme: dark;
-  --color-surface: #0F172A;
-  --color-card: #1E293B;
-  --color-ink: #F1F5F9;
-  --color-muted: #94A3B8;
-  --color-border: #334155;
-  --color-accent-light: #1E1B4B;
-  --color-accent-dark: #818CF8;
-  --color-primary-50: rgba(37, 99, 235, 0.08);
+  --color-surface: #171A20;
+  --color-card: #1E2127;
+  --color-ink: #F4F4F4;
+  --color-muted: #8E8E8E;
+  --color-border: #393C41;
+  --color-accent-light: #1E2440;
+  --color-accent-dark: #5C84EF;
+  --color-primary-50: rgba(62, 106, 225, 0.08);
   --color-success: #34D399;
   --color-warning: #FBBF24;
   --color-danger: #F87171;
-  --color-info: #38BDF8;
+  --color-info: #5C84EF;
 }
 
 .dark body {
-  background: linear-gradient(135deg, #0F172A 0%, #1a1040 100%);
+  background: #171A20;
 }
 
-/* Text selection */
+/* Text selection — blue tint */
 ::selection {
-  background: rgba(37, 99, 235, 0.15);
+  background: rgba(62, 106, 225, 0.15);
 }
 
 .dark ::selection {
-  background: rgba(96, 165, 250, 0.2);
+  background: rgba(92, 132, 239, 0.2);
 }
 
-/* --- CARD --- */
+/* === CARD — flat, no shadow, no gradient === */
 .card {
-  background: rgba(255, 255, 255, 0.8);
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(226, 232, 240, 0.6);
-  border-radius: 16px;
-  box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.03),
-    0 4px 8px rgba(0, 0, 0, 0.02),
-    0 0 0 1px rgba(0, 0, 0, 0.01);
-  transition: box-shadow 0.25s ease, transform 0.25s ease, border-color 0.25s ease;
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  transition: border-color 0.33s;
 }
 
 .card:hover {
-  box-shadow:
-    0 2px 4px rgba(0, 0, 0, 0.04),
-    0 8px 24px rgba(0, 0, 0, 0.06),
-    0 0 0 1px rgba(37, 99, 235, 0.05);
-  transform: translateY(-1px);
+  border-color: #D0D1D2;
 }
 
 .dark .card {
-  background: rgba(30, 41, 59, 0.7);
-  border-color: rgba(51, 65, 85, 0.5);
-  box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.1),
-    0 4px 8px rgba(0, 0, 0, 0.08);
+  background: var(--color-card);
+  border-color: var(--color-border);
 }
 
 .dark .card:hover {
-  box-shadow:
-    0 2px 4px rgba(0, 0, 0, 0.15),
-    0 8px 24px rgba(0, 0, 0, 0.2);
-  transform: translateY(-1px);
+  border-color: #5C5E62;
 }
 
-/* --- INPUT --- */
+/* === INPUT — clean, minimal === */
 .input {
-  background: rgba(255, 255, 255, 0.9);
+  background: transparent;
   border: 1px solid var(--color-border);
-  border-radius: 10px;
-  transition: all 0.2s ease;
+  border-radius: 4px;
+  transition: border-color 0.33s;
   font-family: inherit;
+  font-size: 14px;
+  color: var(--color-ink);
 }
 
 .input:focus {
-  border-color: var(--color-primary-400);
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1), 0 1px 3px rgba(0, 0, 0, 0.05);
+  border-color: #3E6AE1;
+  box-shadow: none;
   outline: none;
-  background: #FFFFFF;
+  background: var(--color-card);
 }
 
 .dark .input {
-  background: rgba(30, 41, 59, 0.8);
+  background: transparent;
 }
 
 .dark .input:focus {
-  box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.15), 0 1px 3px rgba(0, 0, 0, 0.2);
-  background: #1E293B;
+  border-color: #5C84EF;
+  box-shadow: none;
+  background: var(--color-card);
 }
 
-/* --- SIDEBAR --- */
+/* === SIDEBAR — clean white, no gradient === */
 .sidebar {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 250, 252, 0.98) 100%);
-  border-right: 1px solid rgba(226, 232, 240, 0.5);
-  backdrop-filter: blur(16px);
+  background: var(--color-card);
+  border-right: 1px solid var(--color-border);
 }
 
 .dark .sidebar {
-  background: linear-gradient(180deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.98) 100%);
-  border-right-color: rgba(51, 65, 85, 0.4);
+  background: var(--color-card);
+  border-right-color: var(--color-border);
 }
 
-/* --- TOPBAR --- */
+/* === TOPBAR — frosted glass (Tesla's scroll effect) === */
 .topbar {
   background: rgba(255, 255, 255, 0.75);
-  backdrop-filter: blur(16px) saturate(1.5);
-  border-bottom: 1px solid rgba(226, 232, 240, 0.5);
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--color-border);
 }
 
 .dark .topbar {
-  background: rgba(30, 41, 59, 0.75);
-  border-bottom-color: rgba(51, 65, 85, 0.4);
+  background: rgba(30, 33, 39, 0.75);
+  backdrop-filter: blur(16px);
+  border-bottom-color: var(--color-border);
 }
 
-/* --- TABLE --- */
+/* === TABLE — clean lines === */
 .clean-table {
   border-collapse: separate;
   border-spacing: 0;
@@ -247,47 +238,48 @@ body {
 }
 
 .clean-table thead th {
-  background: rgba(248, 250, 252, 0.8);
-  backdrop-filter: blur(4px);
+  background: #F4F4F4;
   border-bottom: 1px solid var(--color-border);
   position: sticky;
   top: 0;
   z-index: 10;
-  font-weight: 600;
+  font-weight: 500;
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--color-muted);
 }
 
+.dark .clean-table thead th {
+  background: #1E2127;
+}
+
 .clean-table tbody tr {
-  transition: all 0.15s ease;
+  transition: background-color 0.33s;
 }
 
 .clean-table tbody tr:hover {
-  background: rgba(37, 99, 235, 0.04);
+  background: rgba(62, 106, 225, 0.04);
 }
 
 .clean-table td {
   border-bottom: 1px solid var(--color-border);
 }
 
-/* --- BUTTON PRESS --- */
+/* === BUTTON — flat, 4px radius, no shadow === */
 .btn-press {
-  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: background-color 0.33s, border-color 0.33s, color 0.33s;
 }
 
 .btn-press:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
+  /* Color-only hover — no transform, no shadow (Tesla rule) */
 }
 
 .btn-press:active {
-  transform: translateY(0) scale(0.98);
-  box-shadow: none;
+  opacity: 0.85;
 }
 
-/* --- SCROLLBAR --- */
+/* === SCROLLBAR — thin, subtle === */
 * {
   scrollbar-width: thin;
   scrollbar-color: rgba(0, 0, 0, 0.08) transparent;
@@ -323,7 +315,7 @@ body {
   background: rgba(255, 255, 255, 0.12);
 }
 
-/* --- SKELETON --- */
+/* === SKELETON === */
 .skeleton-shimmer {
   background: linear-gradient(
     90deg,
@@ -335,39 +327,32 @@ body {
   animation: shimmer 2s linear infinite;
 }
 
-/* --- SAFE AREA --- */
+/* === SAFE AREA === */
 @supports (padding-bottom: env(safe-area-inset-bottom)) {
   .safe-bottom {
     padding-bottom: env(safe-area-inset-bottom);
   }
 }
 
-/* --- TABLET / IPAD OPTIMIZATION --- */
+/* === TABLET === */
 @media (min-width: 768px) and (max-width: 1023px) {
-  /* Bigger touch targets on tablets */
   button, a, .btn-press, [role="button"] {
     min-height: 48px;
   }
 
-  /* Table cells more spacious */
   td, th {
     padding-top: 0.75rem !important;
     padding-bottom: 0.75rem !important;
   }
 
-  /* Sidebar overlay wider on tablet */
   .sidebar {
     width: 320px !important;
   }
 }
 
-/* Touch device: remove hover effects that cause sticky states on iOS */
+/* Touch: no hover transforms */
 @media (hover: none) {
   .card:hover {
-    transform: none;
-  }
-  .btn-press:hover {
-    transform: none;
-    box-shadow: none;
+    border-color: var(--color-border);
   }
 }

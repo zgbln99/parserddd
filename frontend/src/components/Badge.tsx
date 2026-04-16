@@ -23,7 +23,7 @@ const dotClasses: Record<Variant, string> = {
 export function Badge({ variant = 'gray', children, dot }: { variant?: Variant; children: React.ReactNode; dot?: boolean }) {
   return (
     <span className={clsx(
-      'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold',
+      'inline-flex items-center gap-1.5 rounded border px-2.5 py-0.5 text-xs font-medium',
       variantClasses[variant],
     )}>
       {dot && <span className={clsx('h-1.5 w-1.5 rounded-full', dotClasses[variant])} />}

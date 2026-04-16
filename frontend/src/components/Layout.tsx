@@ -108,8 +108,8 @@ export function Layout({ children }: { children: ReactNode }) {
           {/* Brand */}
           <div className={clsx('pb-4 pt-6', collapsed && !sidebarOpen ? 'px-3' : 'px-5')}>
             <div className="flex items-center gap-3">
-              <img src="/logo.png" alt="LTS" className="h-10 w-10 shrink-0 rounded-xl object-contain" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).nextElementSibling!.classList.remove('hidden'); }} />
-              <div className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary-500 to-primary-700 text-white">
+              <img src="/logo.png" alt="LTS" className="h-10 w-10 shrink-0 rounded object-contain" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).nextElementSibling!.classList.remove('hidden'); }} />
+              <div className="hidden h-10 w-10 shrink-0 items-center justify-center rounded bg-primary-500 text-white">
                 <Truck size={20} />
               </div>
               {(!collapsed || sidebarOpen) && (
@@ -126,13 +126,9 @@ export function Layout({ children }: { children: ReactNode }) {
               </button>
             </div>
             {(!collapsed || sidebarOpen) && (role === 'admin' || role === 'dispatcher') && (
-              <div className={`mt-3 flex items-center gap-2 rounded-lg px-3 py-1.5 ${
-                role === 'admin' ? 'bg-accent-light' : 'bg-blue-50 dark:bg-blue-900/20'
-              }`}>
-                <Shield size={12} className={role === 'admin' ? 'text-accent-dark' : 'text-blue-600'} />
-                <span className={`text-[11px] font-semibold ${
-                  role === 'admin' ? 'text-accent-dark' : 'text-blue-700 dark:text-blue-400'
-                }`}>
+              <div className="mt-3 flex items-center gap-2 rounded px-3 py-1.5 bg-[#F4F4F4] dark:bg-white/5">
+                <Shield size={12} className="text-primary-500" />
+                <span className="text-[11px] font-medium text-muted">
                   {role === 'admin' ? 'Administrator' : t('roleDispatcher')}
                 </span>
               </div>
@@ -157,13 +153,13 @@ export function Layout({ children }: { children: ReactNode }) {
                   title={collapsed && !sidebarOpen ? t(labelKey) : undefined}
                   className={({ isActive }) =>
                     clsx(
-                      'group relative flex items-center rounded-xl text-[13px] font-medium transition-all duration-200',
+                      'group relative flex items-center text-[14px] font-medium transition-all duration-300',
                       collapsed && !sidebarOpen
-                        ? 'justify-center px-2 py-2.5'
-                        : 'gap-3 px-3 py-2.5',
+                        ? 'justify-center px-2 py-2.5 rounded'
+                        : 'gap-3 px-3 py-2.5 rounded',
                       isActive
-                        ? 'bg-gradient-to-r from-primary-600 to-primary-500 text-white shadow-md shadow-primary-600/25'
-                        : 'text-muted hover:bg-primary-50 hover:text-primary-700 dark:hover:bg-primary-900/20 dark:hover:text-primary-300',
+                        ? 'bg-primary-500 text-white'
+                        : 'text-muted hover:bg-[#F4F4F4] hover:text-ink dark:hover:bg-white/5 dark:hover:text-ink',
                     )
                   }
                 >
@@ -188,7 +184,7 @@ export function Layout({ children }: { children: ReactNode }) {
                         key={i}
                         to={r.url}
                         onClick={() => setSidebarOpen(false)}
-                        className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-[12px] text-muted transition hover:bg-primary-50 hover:text-primary-700 dark:hover:bg-primary-900/20"
+                        className="flex items-center gap-2 rounded px-3 py-1.5 text-[12px] text-muted transition-colors duration-300 hover:bg-[#F4F4F4] hover:text-ink dark:hover:bg-white/5"
                       >
                         <Clock size={12} />
                         <span className="truncate">{r.name}</span>
