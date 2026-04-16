@@ -1,6 +1,6 @@
 import { useState, useRef, useMemo } from 'react';
-import { Car, Wrench, BedDouble, Timer, HelpCircle } from 'lucide-react';
 import { useI18n } from '../i18n';
+import { ACTIVITY_ICONS } from '../components/ActivityIcons';
 import type { ShiftDetail } from '../types';
 
 interface Activity {
@@ -17,14 +17,6 @@ const TYPE_COLORS: Record<string, { color: string; labelPl: string; labelDe: str
   REST:         { color: '#3b82f6', labelPl: 'Odpoczywający',   labelDe: 'Ruhezeit' },
   AVAILABILITY: { color: '#9ca3af', labelPl: 'Dostępny',        labelDe: 'Bereitschaft' },
   UNKNOWN:      { color: '#e5e7eb', labelPl: 'Nieznany',        labelDe: 'Unbekannt' },
-};
-
-const TYPE_ICON: Record<string, typeof Car> = {
-  DRIVING: Car,
-  WORK: Wrench,
-  REST: BedDouble,
-  AVAILABILITY: Timer,
-  UNKNOWN: HelpCircle,
 };
 
 const TYPE_HEIGHT: Record<string, number> = {
@@ -167,7 +159,7 @@ export function ArbeitszeitReport({ shift }: { shift: ShiftDetail }) {
                   </p>
                   <div className="flex items-center gap-2">
                     {(() => {
-                      const Icon = TYPE_ICON[a.type] || TYPE_ICON.UNKNOWN;
+                      const Icon = ACTIVITY_ICONS[a.type] || ACTIVITY_ICONS.UNKNOWN;
                       return (
                         <span className="flex h-6 w-6 items-center justify-center rounded-full" style={{ backgroundColor: cfg.color }}>
                           <Icon size={13} className="text-white" />

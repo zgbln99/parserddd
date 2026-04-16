@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   ChevronLeft, ChevronRight, ChevronUp, ChevronDown, AlertCircle, Users, Calendar,
-  Clock, Printer, Car, Wrench, BedDouble, Timer, HelpCircle,
+  Clock, Printer,
 } from 'lucide-react';
+import { ACTIVITY_ICONS } from '../components/ActivityIcons';
 import { useI18n } from '../i18n';
 import { fetchDrivers, analyzeDropboxFile } from '../lib/api';
 import type { Driver, AnalysisResult, ShiftDetail } from '../types';
@@ -101,14 +102,6 @@ const CAL_DAYS_DE = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
 // ---------------------------------------------------------------------------
 // Samsara block heights — driving tallest, work medium, rest/avail shorter
 // ---------------------------------------------------------------------------
-const TYPE_ICON: Record<string, typeof Car> = {
-  DRIVING: Car,
-  WORK: Wrench,
-  REST: BedDouble,
-  AVAILABILITY: Timer,
-  UNKNOWN: HelpCircle,
-};
-
 const TYPE_HEIGHT: Record<string, number> = {
   DRIVING: 100,
   WORK: 72,
@@ -226,7 +219,7 @@ function TimeAxisTimeline({ activities, shiftStart, shiftEnd, locale }: {
                 {/* Activity info row */}
                 <div className="flex items-center gap-2">
                   {(() => {
-                    const Icon = TYPE_ICON[a.type] || TYPE_ICON.UNKNOWN;
+                    const Icon = ACTIVITY_ICONS[a.type] || ACTIVITY_ICONS.UNKNOWN;
                     return (
                       <span className="flex h-6 w-6 items-center justify-center rounded-full" style={{ backgroundColor: cfg.color }}>
                         <Icon size={13} className="text-white" />
