@@ -1,286 +1,313 @@
-# Design System Inspired by Tesla
+# Design System Inspired by Apple
 
 ## 1. Visual Theme & Atmosphere
 
-Tesla's website is an exercise in radical subtraction — a digital showroom where the product is everything and the interface is almost nothing. The page opens with a full-viewport hero that fills the entire screen with cinematic car photography: three vehicles arranged on polished concrete against a hazy cityscape sky, with a single model name floating above in translucent white type. There are no decorative borders, no gradients, no patterns, no shadows. The UI exists only to provide just enough navigational structure to get out of the way. Every pixel that isn't product imagery is white space, and that restraint is the design system's most powerful statement.
+Apple's website is a masterclass in controlled drama — vast expanses of pure black and near-white serve as cinematic backdrops for products that are photographed as if they were sculptures in a gallery. The design philosophy is reductive to its core: every pixel exists in service of the product, and the interface itself retreats until it becomes invisible. This is not minimalism as aesthetic preference; it is minimalism as reverence for the object.
 
-The color philosophy is almost ascetic: a single blue (`#3E6AE1`) for primary calls to action, three shades of dark gray for text hierarchy, and white for everything else. The entire emotional weight is carried by photography — sprawling landscape shots, studio-lit vehicle profiles, and atmospheric environmental compositions that stretch edge-to-edge across each viewport-height section. The UI chrome dissolves into the imagery. The navigation bar floats above the hero with no visible background, border, or shadow — the TESLA wordmark and five navigation labels simply exist in the space, trusting the content beneath them to provide sufficient contrast.
+The typography anchors everything. San Francisco (SF Pro Display for large sizes, SF Pro Text for body) is Apple's proprietary typeface, engineered with optical sizing that automatically adjusts letterforms depending on point size. At display sizes (56px), weight 600 with a tight line-height of 1.07 and subtle negative letter-spacing (-0.28px) creates headlines that feel machined rather than typeset — precise, confident, and unapologetically direct. At body sizes (17px), the tracking loosens slightly (-0.374px) and line-height opens to 1.47, creating a reading rhythm that is comfortable without ever feeling slack.
 
-Typography recently transitioned from Gotham to Universal Sans — a custom family split into "Display" for headlines and "Text" for body/UI elements — unifying the website, mobile app, and in-car software into a single typographic voice. The Display variant renders hero titles at 40px weight 500, while the Text variant handles everything from navigation (14px/500) to body copy (14px/400). The font carries a geometric precision with slightly humanist terminals that feels engineered rather than designed — exactly matching Tesla's brand identity of technology that doesn't need to announce itself. There are no text shadows, no text gradients, no decorative type treatments. Every letterform earns its place through clarity alone.
+The color story is starkly binary. Product sections alternate between pure black (`#000000`) backgrounds with white text and light gray (`#f5f5f7`) backgrounds with near-black text (`#1d1d1f`). This creates a cinematic pacing — dark sections feel immersive and premium, light sections feel open and informational. The only chromatic accent is Apple Blue (`#0071e3`), reserved exclusively for interactive elements: links, buttons, and focus states. This singular accent color in a sea of neutrals gives every clickable element unmistakable visibility.
 
 **Key Characteristics:**
-- Full-viewport hero sections (100vh) dominated by cinematic car photography with minimal overlay UI
-- Near-zero UI decoration: no shadows, no gradients, no borders, no patterns anywhere on the page
-- Single accent color — Electric Blue (`#3E6AE1`) — used exclusively for primary CTA buttons
-- Universal Sans font family (Display + Text) unifying web, app, and in-car interfaces
-- Photography-first presentation where product imagery carries all emotional weight
-- Frosted-glass navigation concept with transparent/white nav that floats over hero content
-- 0.33s cubic-bezier transitions as the universal timing for all interactive state changes
-- Carousel-driven hero with dot indicators and edge arrow navigation for multiple vehicle showcases
-- "Ask a Question" persistent chatbot bar anchored to the viewport bottom
+- SF Pro Display/Text with optical sizing — letterforms adapt automatically to size context
+- Binary light/dark section rhythm: black (`#000000`) alternating with light gray (`#f5f5f7`)
+- Single accent color: Apple Blue (`#0071e3`) reserved exclusively for interactive elements
+- Product-as-hero photography on solid color fields — no gradients, no textures, no distractions
+- Extremely tight headline line-heights (1.07-1.14) creating compressed, billboard-like impact
+- Full-width section layout with centered content — the viewport IS the canvas
+- Pill-shaped CTAs (980px radius) creating soft, approachable action buttons
+- Generous whitespace between sections allowing each product moment to breathe
 
 ## 2. Color Palette & Roles
 
 ### Primary
-- **Electric Blue** (`#3E6AE1`): Primary CTA button background — a confident, mid-saturation blue (rgb 62, 106, 225) that stands alone as the only chromatic color in the entire interface. Used exclusively for "Order Now" and other primary action buttons
-- **Pure White** (`#FFFFFF`): Dominant background color for all surfaces, panels, navigation, and secondary button fills — the canvas that lets photography breathe
+- **Pure Black** (`#000000`): Hero section backgrounds, immersive product showcases. The darkest canvas for the brightest products.
+- **Light Gray** (`#f5f5f7`): Alternate section backgrounds, informational areas. Not white — the slight blue-gray tint prevents sterility.
+- **Near Black** (`#1d1d1f`): Primary text on light backgrounds, dark button fills. Slightly warmer than pure black for comfortable reading.
 
-### Secondary & Accent
-- **Promo Blue** (`#3E6AE1`): Blue also serves for promotional text ("0% APR Available") displayed over hero imagery in the same hue as the CTA — creating a visual link between incentive messaging and action
-- No secondary accent colors exist. Tesla deliberately avoids color variety to maintain extreme visual discipline
+### Interactive
+- **Apple Blue** (`#0071e3`): `--sk-focus-color`, primary CTA backgrounds, focus rings. The ONLY chromatic color in the interface.
+- **Link Blue** (`#0066cc`): `--sk-body-link-color`, inline text links. Slightly darker than Apple Blue for text-level readability.
+- **Bright Blue** (`#2997ff`): Links on dark backgrounds. Higher luminance for contrast on black sections.
 
-### Surface & Background
-- **White Canvas** (`#FFFFFF`): Page background, navigation panel, dropdown menus, and all surface containers
-- **Light Ash** (`#F4F4F4`): Subtle alternate surface for section differentiation — barely perceptible shift from pure white (rgb 244, 244, 244)
-- **Carbon Dark** (`#171A20`): Dark surface color for hero text overlays and potential dark-mode contexts (rgb 23, 26, 32) — a warm near-black with a blue undertone
-- **Frosted Glass** (`rgba(255, 255, 255, 0.75)`): Semi-transparent white for navigation backdrop-filter effects on scroll
+### Text
+- **White** (`#ffffff`): Text on dark backgrounds, button text on blue/dark CTAs.
+- **Near Black** (`#1d1d1f`): Primary body text on light backgrounds.
+- **Black 80%** (`rgba(0, 0, 0, 0.8)`): Secondary text, nav items on light backgrounds. Slightly softened.
+- **Black 48%** (`rgba(0, 0, 0, 0.48)`): Tertiary text, disabled states, carousel controls.
 
-### Neutrals & Text
-- **Carbon Dark** (`#171A20`): Primary heading and navigation text — the darkest text value (rgb 23, 26, 32), used for model names, nav labels, and hero titles on light backgrounds
-- **Graphite** (`#393C41`): Body text and secondary content (rgb 57, 60, 65) — the default paragraph color, slightly warmer than pure gray
-- **Pewter** (`#5C5E62`): Tertiary text for sub-links, secondary navigation links like "Learn" and "Order" (rgb 92, 94, 98)
-- **Silver Fog** (`#8E8E8E`): Placeholder text in input fields and disabled states (rgb 142, 142, 142)
-- **Cloud Gray** (`#EEEEEE`): Light borders and divider lines (rgb 238, 238, 238)
-- **Pale Silver** (`#D0D1D2`): Subtle UI borders and delineation (rgb 208, 209, 210)
+### Surface & Dark Variants
+- **Dark Surface 1** (`#272729`): Card backgrounds in dark sections.
+- **Dark Surface 2** (`#262628`): Subtle surface variation in dark contexts.
+- **Dark Surface 3** (`#28282a`): Elevated cards on dark backgrounds.
+- **Dark Surface 4** (`#2a2a2d`): Highest dark surface elevation.
+- **Dark Surface 5** (`#242426`): Deepest dark surface tone.
 
-### Semantic & Accent
-- Tesla's marketing site avoids semantic color coding (no green/red/yellow status indicators). Error, success, and warning states follow standard browser defaults in form contexts
-- The blue CTA (`#3E6AE1`) serves as the sole interactive color signal
+### Button States
+- **Button Active** (`#ededf2`): Active/pressed state for light buttons.
+- **Button Default Light** (`#fafafc`): Search/filter button backgrounds.
+- **Overlay** (`rgba(210, 210, 215, 0.64)`): Media control scrims, overlays.
+- **White 32%** (`rgba(255, 255, 255, 0.32)`): Hover state on dark modal close buttons.
 
-### Gradient System
-- No gradients are used anywhere in the interface
-- Depth is achieved entirely through photography, whitespace, and the binary contrast between full-bleed imagery and clean white surfaces
-- The navigation achieves layering through opacity (frosted glass effect) rather than gradient or shadow
+### Shadows
+- **Card Shadow** (`rgba(0, 0, 0, 0.22) 3px 5px 30px 0px`): Soft, diffused elevation for product cards. Offset and wide blur create a natural, photographic shadow.
 
 ## 3. Typography Rules
 
 ### Font Family
-- **Display**: `Universal Sans Display`, -apple-system, Arial, sans-serif — used for hero titles and large model names. A geometric sans-serif with precisely engineered proportions, recently replacing Gotham to unify Tesla's digital ecosystem (website, mobile app, vehicle interface)
-- **Text/UI**: `Universal Sans Text`, -apple-system, Arial, sans-serif — used for navigation, body copy, buttons, and all UI text. Optimized for legibility at smaller sizes with slightly wider proportions than the Display variant
-- **No OpenType features** detected — typography is completely unembellished
-- **No italic variants** observed on the marketing site
+- **Display**: `SF Pro Display`, with fallbacks: `SF Pro Icons, Helvetica Neue, Helvetica, Arial, sans-serif`
+- **Body**: `SF Pro Text`, with fallbacks: `SF Pro Icons, Helvetica Neue, Helvetica, Arial, sans-serif`
+- SF Pro Display is used at 20px and above; SF Pro Text is optimized for 19px and below.
 
 ### Hierarchy
 
-| Role | Size | Weight | Line Height | Letter Spacing | Notes |
-|------|------|--------|-------------|----------------|-------|
-| Hero Title | 40px (2.50rem) | 500 | 48px (1.20) | normal | Universal Sans Display, white on dark hero imagery |
-| Product Name | 17px (1.06rem) | 500 | 20px (1.18) | normal | Universal Sans Text, model names in nav panel and cards |
-| Nav Item | 14px (0.88rem) | 500 | 16.8px (1.20) | normal | Universal Sans Text, primary navigation labels |
-| Body Text | 14px (0.88rem) | 400 | 20px (1.43) | normal | Universal Sans Text, paragraph and descriptive content |
-| Button Label | 14px (0.88rem) | 500 | 16.8px (1.20) | normal | Universal Sans Text, CTA button text |
-| Sub-link | 14px (0.88rem) | 400 | 20px (1.43) | normal | Tertiary links (Learn, Order, Experience) |
-| Promo Text | 22px (1.38rem) | 400 | 20px (0.91) | normal | White promotional text on hero ("0% APR Available") |
-| Category Label | 16px (est.) | 500 | — | normal | White text labels on category cards ("Sport Sedan") |
+| Role | Font | Size | Weight | Line Height | Letter Spacing | Notes |
+|------|------|------|--------|-------------|----------------|-------|
+| Display Hero | SF Pro Display | 56px (3.50rem) | 600 | 1.07 (tight) | -0.28px | Product launch headlines, maximum impact |
+| Section Heading | SF Pro Display | 40px (2.50rem) | 600 | 1.10 (tight) | normal | Feature section titles |
+| Tile Heading | SF Pro Display | 28px (1.75rem) | 400 | 1.14 (tight) | 0.196px | Product tile headlines |
+| Card Title | SF Pro Display | 21px (1.31rem) | 700 | 1.19 (tight) | 0.231px | Bold card headings |
+| Sub-heading | SF Pro Display | 21px (1.31rem) | 400 | 1.19 (tight) | 0.231px | Regular card headings |
+| Nav Heading | SF Pro Text | 34px (2.13rem) | 600 | 1.47 | -0.374px | Large navigation headings |
+| Sub-nav | SF Pro Text | 24px (1.50rem) | 300 | 1.50 | normal | Light sub-navigation text |
+| Body | SF Pro Text | 17px (1.06rem) | 400 | 1.47 | -0.374px | Standard reading text |
+| Body Emphasis | SF Pro Text | 17px (1.06rem) | 600 | 1.24 (tight) | -0.374px | Emphasized body text, labels |
+| Button Large | SF Pro Text | 18px (1.13rem) | 300 | 1.00 (tight) | normal | Large button text, light weight |
+| Button | SF Pro Text | 17px (1.06rem) | 400 | 2.41 (relaxed) | normal | Standard button text |
+| Link | SF Pro Text | 14px (0.88rem) | 400 | 1.43 | -0.224px | Body links, "Learn more" |
+| Caption | SF Pro Text | 14px (0.88rem) | 400 | 1.29 (tight) | -0.224px | Secondary text, descriptions |
+| Caption Bold | SF Pro Text | 14px (0.88rem) | 600 | 1.29 (tight) | -0.224px | Emphasized captions |
+| Micro | SF Pro Text | 12px (0.75rem) | 400 | 1.33 | -0.12px | Fine print, footnotes |
+| Micro Bold | SF Pro Text | 12px (0.75rem) | 600 | 1.33 | -0.12px | Bold fine print |
+| Nano | SF Pro Text | 10px (0.63rem) | 400 | 1.47 | -0.08px | Legal text, smallest size |
 
 ### Principles
-- **"Normal" letter-spacing everywhere**: Unlike most modern tech brands that use negative tracking for headlines, Tesla uses default letter-spacing at every level. This reflects a philosophy that the typeface should speak for itself without manipulation
-- **Weight restraint**: Only two weights appear — 500 (medium) for headings/UI and 400 (regular) for body. No bold (700), no light (300). The system avoids typographic drama
-- **Unified font sizing**: Most UI text clusters at 14px with only hero titles (40px) and promo text (22px) breaking away. This extreme uniformity creates a sense of engineered consistency
-- **Display vs Text split**: The two-variant system (Display for hero, Text for UI) creates subtle optical correction without visible stylistic difference — they appear as the same typeface at different sizes
-- **No text transforms**: No uppercase text appears in the main navigation or CTAs — the lowercase approach reinforces Tesla's understated confidence
+- **Optical sizing as philosophy**: SF Pro automatically switches between Display and Text optical sizes. Display versions have wider letter spacing and thinner strokes optimized for large sizes; Text versions are tighter and sturdier for small sizes. This means the font literally changes its DNA based on context.
+- **Weight restraint**: The scale spans 300 (light) to 700 (bold) but most text lives at 400 (regular) and 600 (semibold). Weight 300 appears only on large decorative text. Weight 700 is rare, used only for bold card titles.
+- **Negative tracking at all sizes**: Unlike most systems that only track headlines, Apple applies subtle negative letter-spacing even at body sizes (-0.374px at 17px, -0.224px at 14px, -0.12px at 12px). This creates universally tight, efficient text.
+- **Extreme line-height range**: Headlines compress to 1.07 while body text opens to 1.47, and some button contexts stretch to 2.41. This dramatic range creates clear visual hierarchy through rhythm alone.
 
 ## 4. Component Stylings
 
 ### Buttons
-All buttons use barely-rounded rectangles (4px border-radius) — creating a sharp, technical aesthetic that mirrors the precision of the vehicles.
 
-**Primary CTA** — The main action button:
-- Default: bg `#3E6AE1` (Electric Blue), text `#FFFFFF`, fontSize 14px, fontWeight 500, padding 4px with inner content centering, borderRadius 4px, minHeight 40px, width 200px
-- Border: 3px solid transparent (reserves space for focus/active border animation)
-- Box Shadow: `rgba(0,0,0,0) 0px 0px 0px 2px inset` (invisible at rest, animates to visible on focus)
-- Transition: `border-color 0.33s, background-color 0.33s, color 0.33s, box-shadow 0.25s`
-- Hover: subtle darkening of blue background
-- Used for: "Order Now" calls to action
+**Primary Blue (CTA)**
+- Background: `#0071e3` (Apple Blue)
+- Text: `#ffffff`
+- Padding: 8px 15px
+- Radius: 8px
+- Border: 1px solid transparent
+- Font: SF Pro Text, 17px, weight 400
+- Hover: background brightens slightly
+- Active: `#ededf2` background shift
+- Focus: `2px solid var(--sk-focus-color, #0071E3)` outline
+- Use: Primary call-to-action ("Buy", "Shop iPhone")
 
-**Secondary CTA** — The alternative action button:
-- Default: bg `#FFFFFF`, text `#393C41` (Graphite), same dimensions and border pattern as primary
-- Transition: identical timing to primary (0.33s)
-- Used for: "View Inventory" alongside primary CTA
+**Primary Dark**
+- Background: `#1d1d1f`
+- Text: `#ffffff`
+- Padding: 8px 15px
+- Radius: 8px
+- Font: SF Pro Text, 17px, weight 400
+- Use: Secondary CTA, dark variant
 
-**Nav Button** — Top navigation items:
-- Default: bg transparent, text `#171A20` (Carbon Dark), fontSize 14px, fontWeight 500, borderRadius 4px, padding 4px 16px, minHeight 32px
-- Transition: `color 0.33s, background-color 0.33s`
-- Active/expanded: subtle background highlight
-- Used for: "Vehicles", "Energy", "Charging", "Discover", "Shop"
+**Pill Link (Learn More / Shop)**
+- Background: transparent
+- Text: `#0066cc` (light bg) or `#2997ff` (dark bg)
+- Radius: 980px (full pill)
+- Border: 1px solid `#0066cc`
+- Font: SF Pro Text, 14px-17px
+- Hover: underline decoration
+- Use: "Learn more" and "Shop" links — the signature Apple inline CTA
 
-**Text Link** — In-content actions:
-- Default: text `#5C5E62` (Pewter), fontSize 14px, fontWeight 400, no background, no border
-- Hover: underline decoration with box-shadow transition
-- Transition: `box-shadow 0.33s cubic-bezier(0.5, 0, 0, 0.75), color 0.33s`
-- Used for: "Learn", "Order", "Experience", "New", "Pre-Owned" links in dropdown panel
+**Filter / Search Button**
+- Background: `#fafafc`
+- Text: `rgba(0, 0, 0, 0.8)`
+- Padding: 0px 14px
+- Radius: 11px
+- Border: 3px solid `rgba(0, 0, 0, 0.04)`
+- Focus: `2px solid var(--sk-focus-color, #0071E3)` outline
+- Use: Search bars, filter controls
+
+**Media Control**
+- Background: `rgba(210, 210, 215, 0.64)`
+- Text: `rgba(0, 0, 0, 0.48)`
+- Radius: 50% (circular)
+- Active: scale(0.9), background shifts
+- Focus: `2px solid var(--sk-focus-color, #0071e3)` outline, white bg, black text
+- Use: Play/pause, carousel arrows
 
 ### Cards & Containers
-
-**Vehicle Card** (Navigation panel):
-- Background: transparent (inherits panel white)
-- Border: none
-- Shadow: none
-- Content: vehicle image (transparent PNG) + model name centered below + two text links
-- Layout: 3-column grid within the dropdown panel
-- No hover animation on the card itself — interaction is via the text links beneath
-
-**Category Card** (Homepage lower section):
-- Background: full-bleed landscape photography
-- Border radius: approximately 12px (subtly rounded)
-- Overflow: hidden (clips image to rounded corners)
-- Text: white label in top-left corner ("Sport Sedan", "Midsize SUV")
-- Size: large format, approximately 2:1 aspect ratio
-- No shadow, no border, no overlay gradient — text relies on image darkness for contrast
-
-### Inputs & Forms
-- Background: transparent
-- Text color: `#171A20` (Carbon Dark)
-- Placeholder color: `#8E8E8E` (Silver Fog)
-- Border: minimal, inherits from browser defaults
-- Font: Universal Sans Text, 14px
-- The "Ask a Question" chatbot input bar sits at the viewport bottom with a clean white background and subtle border
+- Background: `#f5f5f7` (light) or `#272729`-`#2a2a2d` (dark)
+- Border: none (borders are rare in Apple's system)
+- Radius: 5px-8px
+- Shadow: `rgba(0, 0, 0, 0.22) 3px 5px 30px 0px` for elevated product cards
+- Content: centered, generous padding
+- Hover: no standard hover state — cards are static, links within them are interactive
 
 ### Navigation
-- **Desktop**: Centered horizontal nav with TESLA wordmark (spaced uppercase letters) on the left, five category buttons center-aligned, and three icon buttons (help, globe/language, account) on the right
-- **Background**: White (transitions from transparent over dark hero to opaque white on scroll via class toggle `tds-site-header--white-background`)
-- **Dropdown panel**: Full-width white panel with 3-column vehicle grid + right sidebar text links, no shadow, no border — appears seamlessly below the nav
-- **Sticky behavior**: `sticky-without-slide` class — stays at top without slide-in animation
-- **Mobile**: Hamburger collapse pattern
-- **No visible separator** between nav and content — the nav blends with the hero
+- Background: `rgba(0, 0, 0, 0.8)` (translucent dark) with `backdrop-filter: saturate(180%) blur(20px)`
+- Height: 48px (compact)
+- Text: `#ffffff` at 12px, weight 400
+- Active: underline on hover
+- Logo: Apple logomark (SVG) centered or left-aligned, 17x48px viewport
+- Mobile: collapses to hamburger with full-screen overlay menu
+- The nav floats above content, maintaining its dark translucent glass regardless of section background
 
 ### Image Treatment
-- **Hero**: Full-viewport (100vh) sections with cinematic photography — edge-to-edge, no padding, no margin
-- **Vehicle images**: Transparent PNG renders on white background in dropdown panel, studio-quality 3/4 angle shots
-- **Category cards**: Landscape photography with approximately 2:1 ratio, rounded corners (12px)
-- **Carousel**: Auto-advancing with dot indicators (3 dots) and left/right arrow navigation on edges
-- **Lazy loading**: Below-fold sections use lazy loading, rendering as blank white until scrolled into view
+- Products on solid-color fields (black or white) — no backgrounds, no context, just the object
+- Full-bleed section images that span the entire viewport width
+- Product photography at extremely high resolution with subtle shadows
+- Lifestyle images confined to rounded-corner containers (12px+ radius)
 
-### Persistent Chat Bar
-- Anchored to viewport bottom, visible across all sections
-- White background with subtle border
-- Contains: chat icon + "Ask a Question" label + placeholder text ("What's Dog Mode?") + send icon + "Schedule a Drive Today" secondary CTA
-- Schedule CTA has a teal/blue icon accent
+### Distinctive Components
+
+**Product Hero Module**
+- Full-viewport-width section with solid background (black or `#f5f5f7`)
+- Product name as the primary headline (SF Pro Display, 56px, weight 600)
+- One-line descriptor below in lighter weight
+- Two pill CTAs side by side: "Learn more" (outline) and "Buy" / "Shop" (filled)
+
+**Product Grid Tile**
+- Square or near-square card on contrasting background
+- Product image dominating 60-70% of the tile
+- Product name + one-line description below
+- "Learn more" and "Shop" link pair at bottom
+
+**Feature Comparison Strip**
+- Horizontal scroll of product variants
+- Each variant as a vertical card with image, name, and key specs
+- Minimal chrome — the products speak for themselves
 
 ## 5. Layout Principles
 
 ### Spacing System
-- **Base unit**: 8px
-- **Common values**: 8px (0.5rem), 16px (1rem), 21.44px (1.34rem)
-- **Button padding**: 4px (minimal outer) with content centering via flexbox, 4px 16px for nav items
-- **Section padding**: Full-viewport sections with content centered vertically
-- **Card gap**: approximately 16px between category cards
+- Base unit: 8px
+- Scale: 2px, 4px, 5px, 6px, 7px, 8px, 9px, 10px, 11px, 14px, 15px, 17px, 20px, 24px
+- Notable characteristic: the scale is dense at small sizes (2-11px) with granular 1px increments, then jumps in larger steps. This allows precise micro-adjustments for typography and icon alignment.
 
 ### Grid & Container
-- **Max width**: approximately 1383px (full viewport width used for most content)
-- **Hero**: Full-bleed, edge-to-edge, 100vh sections
-- **Navigation panel**: 3-column grid for vehicle cards with right-aligned text sidebar (~70/30 split)
-- **Category cards**: 2-up horizontal layout (large left card + smaller right card)
+- Max content width: approximately 980px (the recurring "980px radius" in pill buttons echoes this width)
+- Hero: full-viewport-width sections with centered content block
+- Product grids: 2-3 column layouts within centered container
+- Single-column for hero moments — one product, one message, full attention
+- No visible grid lines or gutters — spacing creates implied structure
 
 ### Whitespace Philosophy
-Tesla uses whitespace as a luxury signal. The generous vertical spacing between sections (each section is a full viewport height) means you can only see one "message" at a time — one car, one model name, one CTA pair. This creates a gallery-like browsing experience where each scroll is a deliberate transition, not a continuous feed. White space is not empty — it's the frame that elevates each vehicle to the status of art piece.
+- **Cinematic breathing room**: Each product section occupies a full viewport height (or close to it). The whitespace between products is not empty — it is the pause between scenes in a film.
+- **Vertical rhythm through color blocks**: Rather than using spacing alone to separate sections, Apple uses alternating background colors (black, `#f5f5f7`, white). Each color change signals a new "scene."
+- **Compression within, expansion between**: Text blocks are tightly set (negative letter-spacing, tight line-heights) while the space surrounding them is vast. This creates a tension between density and openness.
 
 ### Border Radius Scale
-| Value | Context |
-|-------|---------|
-| 0px | Most elements — sharp edges are the default |
-| 4px | Buttons (primary, secondary, nav items) — barely perceptible rounding |
-| ~12px | Category cards — noticeable but restrained rounding on larger surfaces |
-| 50% | Carousel dot indicators — perfect circles |
+- Micro (5px): Small containers, link tags
+- Standard (8px): Buttons, product cards, image containers
+- Comfortable (11px): Search inputs, filter buttons
+- Large (12px): Feature panels, lifestyle image containers
+- Full Pill (980px): CTA links ("Learn more", "Shop"), navigation pills
+- Circle (50%): Media controls (play/pause, arrows)
 
 ## 6. Depth & Elevation
 
 | Level | Treatment | Use |
 |-------|-----------|-----|
-| Level 0 (Flat) | No shadow, no border | Default state for all elements — cards, panels, buttons at rest |
-| Level 1 (Frost) | `rgba(255,255,255,0.75)` backdrop | Navigation bar on scroll — frosted glass transparency |
-| Level 2 (Overlay) | `rgba(128,128,128,0.65)` | Modal overlays and region/cookie popups |
-| Level 3 (Subtle) | `rgba(0,0,0,0.05)` | Minimal shadow hints on rare hover states |
+| Flat (Level 0) | No shadow, solid background | Standard content sections, text blocks |
+| Navigation Glass | `backdrop-filter: saturate(180%) blur(20px)` on `rgba(0,0,0,0.8)` | Sticky navigation bar — the glass effect |
+| Subtle Lift (Level 1) | `rgba(0, 0, 0, 0.22) 3px 5px 30px 0px` | Product cards, floating elements |
+| Media Control | `rgba(210, 210, 215, 0.64)` background with scale transforms | Play/pause buttons, carousel controls |
+| Focus (Accessibility) | `2px solid #0071e3` outline | Keyboard focus on all interactive elements |
 
-### Shadow Philosophy
-Tesla's approach to elevation is essentially "none." The site avoids box-shadows entirely in its primary interface. Depth is communicated through three alternative strategies:
-1. **Z-index layering**: The sticky navigation sits above hero content through positioning, not shadow
-2. **Opacity-based transparency**: The frosted glass nav and overlay modals use background-color opacity rather than shadow to indicate layering
-3. **Photography-as-depth**: The full-bleed images create their own visual depth through perspective, lighting, and composition — making UI shadows redundant
+**Shadow Philosophy**: Apple uses shadow extremely sparingly. The primary shadow (`3px 5px 30px` with 0.22 opacity) is soft, wide, and offset — mimicking a diffused studio light casting a natural shadow beneath a physical object. This reinforces the "product as physical sculpture" metaphor. Most elements have NO shadow at all; elevation comes from background color contrast (dark card on darker background, or light card on slightly different gray).
 
 ### Decorative Depth
-- No gradients, glows, or atmospheric effects on UI elements
-- The hero imagery itself provides all visual richness — sunset skies, reflected light on car surfaces, ground shadows from studio lighting
-- The carousel arrow buttons use a semi-transparent white background to float above the hero imagery without disrupting it
+- Navigation glass: the translucent, blurred navigation bar is the most recognizable depth element, creating a sense of floating UI above scrolling content
+- Section color transitions: depth is implied by the alternation between black and light gray sections rather than by shadows
+- Product photography shadows: the products themselves cast shadows in their photography, so the UI doesn't need to add synthetic ones
 
 ## 7. Do's and Don'ts
 
 ### Do
-- Let photography dominate every screen — the product IS the design
-- Use Electric Blue (`#3E6AE1`) exclusively for primary CTAs — never for decorative purposes
-- Maintain viewport-height sections for major content blocks — one message per screen
-- Keep typography at weight 400-500 only — no bold, no light, no extremes
-- Use 4px border-radius for all interactive elements — precision over playfulness
-- Trust whitespace as a luxury signal — never fill available space just because it's empty
-- Keep all transitions at 0.33s — consistency in motion is as important as consistency in color
-- Use transparent PNG vehicle imagery on white backgrounds for product showcases
-- Center CTAs horizontally below model names — the vertical rhythm is model → subtitle → buttons
-- Maintain the Display/Text font split — Display for hero-scale text only, Text for everything else
+- Use SF Pro Display at 20px+ and SF Pro Text below 20px — respect the optical sizing boundary
+- Apply negative letter-spacing at all text sizes (not just headlines) — Apple tracks tight universally
+- Use Apple Blue (`#0071e3`) ONLY for interactive elements — it must be the singular accent
+- Alternate between black and light gray (`#f5f5f7`) section backgrounds for cinematic rhythm
+- Use 980px pill radius for CTA links — the signature Apple link shape
+- Keep product imagery on solid-color fields with no competing visual elements
+- Use the translucent dark glass (`rgba(0,0,0,0.8)` + blur) for sticky navigation
+- Compress headline line-heights to 1.07-1.14 — Apple headlines are famously tight
 
 ### Don't
-- Add shadows to any element — elevation through shadow contradicts the flat, gallery aesthetic
-- Use more than one chromatic color besides the blue CTA — the palette is intentionally monochrome-plus-one
-- Apply gradients, patterns, or decorative backgrounds to surfaces — white and photography are the only backgrounds
-- Use text larger than 40px on the web — the typography is deliberately restrained even at hero scale
-- Add borders to cards or containers — separation is achieved through spacing, not lines
-- Use uppercase text transforms — Tesla's confidence is expressed through lowercase calm
-- Introduce rounded-pill buttons or large border-radii — the 4px radius is deliberate and precise
-- Override the Universal Sans family with other typefaces — cross-platform consistency is a core brand value
-- Add hover animations with scale/translate transforms — Tesla's interactions are color-only (background and border transitions)
-- Clutter the viewport with multiple CTAs — every screen should have at most two action buttons
+- Don't introduce additional accent colors — the entire chromatic budget is spent on blue
+- Don't use heavy shadows or multiple shadow layers — Apple's shadow system is one soft diffused shadow or nothing
+- Don't use borders on cards or containers — Apple almost never uses visible borders (except on specific buttons)
+- Don't apply wide letter-spacing to SF Pro — it is designed to run tight at every size
+- Don't use weight 800 or 900 — the maximum is 700 (bold), and even that is rare
+- Don't add textures, patterns, or gradients to backgrounds — solid colors only
+- Don't make the navigation opaque — the glass blur effect is essential to the Apple UI identity
+- Don't center-align body text — Apple body copy is left-aligned; only headlines center
+- Don't use rounded corners larger than 12px on rectangular elements (980px is for pills only)
 
 ## 8. Responsive Behavior
 
 ### Breakpoints
 | Name | Width | Key Changes |
 |------|-------|-------------|
-| Mobile | <768px | Single-column layout, hamburger nav replaces horizontal labels, hero text scales to ~28px, CTA buttons stack vertically, category cards become full-width |
-| Tablet | 768-1024px | 2-column nav panel, hero maintains full-viewport height, CTAs remain side-by-side, reduced horizontal padding |
-| Desktop | 1024-1440px | Full horizontal nav, 3-column vehicle grid in dropdown, hero at 40px, side-by-side CTAs at 200px/160px width |
-| Large Desktop | >1440px | Content remains centered, hero photography scales to fill wider viewports, max-width container for nav panel content |
+| Small Mobile | <360px | Minimum supported, single column |
+| Mobile | 360-480px | Standard mobile layout |
+| Mobile Large | 480-640px | Wider single column, larger images |
+| Tablet Small | 640-834px | 2-column product grids begin |
+| Tablet | 834-1024px | Full tablet layout, expanded nav |
+| Desktop Small | 1024-1070px | Standard desktop layout begins |
+| Desktop | 1070-1440px | Full layout, max content width |
+| Large Desktop | >1440px | Centered with generous margins |
 
 ### Touch Targets
-- Primary CTA buttons: 200px × 40px minimum (well above 44×44px WCAG requirement)
-- Nav buttons: minimum 32px height with 4px 16px padding — adequate touch targets
-- Carousel arrows: ~44px square white semi-transparent buttons at viewport edges
-- Text links ("Learn", "Order"): 14px text with adequate line-height spacing for touch
+- Primary CTAs: 8px 15px padding creating ~44px touch height
+- Navigation links: 48px height with adequate spacing
+- Media controls: 50% radius circular buttons, minimum 44x44px
+- "Learn more" pills: generous padding for comfortable tapping
 
 ### Collapsing Strategy
-- **Navigation**: Horizontal category buttons (Vehicles, Energy, Charging, Discover, Shop) collapse to a hamburger/drawer menu on mobile
-- **Hero CTA pair**: Side-by-side buttons on desktop stack vertically on mobile
-- **Category cards**: 2-up horizontal layout collapses to single-column full-width on mobile
-- **Vehicle grid**: 3-column grid in desktop nav panel becomes 2-column on tablet, single-column on mobile
-- **Spacing**: Section vertical padding remains generous (viewport-height sections) but horizontal padding reduces
+- Hero headlines: 56px Display → 40px → 28px on mobile, maintaining tight line-height proportionally
+- Product grids: 3-column → 2-column → single column stacked
+- Navigation: full horizontal nav → compact mobile menu (hamburger)
+- Product hero modules: full-bleed maintained at all sizes, text scales down
+- Section backgrounds: maintain full-width color blocks at all breakpoints — the cinematic rhythm never breaks
+- Image sizing: products scale proportionally, never crop — the product silhouette is sacred
 
 ### Image Behavior
-- Hero images are fully responsive and fill the entire viewport at every breakpoint
-- Vehicle carousel images use `object-fit: cover` to maintain cinematic composition across widths
-- Transparent PNG vehicle images in the nav panel scale proportionally within their grid cells
-- Category card images maintain their landscape ratio and clip via `overflow: hidden` with border-radius
+- Product photography maintains aspect ratio at all breakpoints
+- Hero product images scale down but stay centered
+- Full-bleed section backgrounds persist at every size
+- Lifestyle images may crop on mobile but maintain their rounded corners
+- Lazy loading for below-fold product images
 
 ## 9. Agent Prompt Guide
 
 ### Quick Color Reference
-- Primary CTA: "Electric Blue (#3E6AE1)"
-- Background: "Pure White (#FFFFFF)"
-- Heading text: "Carbon Dark (#171A20)"
-- Body text: "Graphite (#393C41)"
-- Tertiary text: "Pewter (#5C5E62)"
-- Placeholder: "Silver Fog (#8E8E8E)"
-- Alternate surface: "Light Ash (#F4F4F4)"
-- Dark surface: "Carbon Dark (#171A20)"
+- Primary CTA: Apple Blue (`#0071e3`)
+- Page background (light): `#f5f5f7`
+- Page background (dark): `#000000`
+- Heading text (light): `#1d1d1f`
+- Heading text (dark): `#ffffff`
+- Body text: `rgba(0, 0, 0, 0.8)` on light, `#ffffff` on dark
+- Link (light bg): `#0066cc`
+- Link (dark bg): `#2997ff`
+- Focus ring: `#0071e3`
+- Card shadow: `rgba(0, 0, 0, 0.22) 3px 5px 30px 0px`
 
 ### Example Component Prompts
-- "Create a hero section with a full-viewport background image, centered 'Model Y' title in Universal Sans Display at 40px weight 500 in white, a subtitle line below, and two buttons side by side: a primary Electric Blue (#3E6AE1) 'Order Now' button and a secondary white 'View Inventory' button, both with 4px border-radius and 40px height"
-- "Design a navigation bar with a spaced-letter wordmark on the left, five text buttons (14px, weight 500, Carbon Dark #171A20) centered, and three icon buttons on the right, all on a white background with no shadow or border"
-- "Build a vehicle card grid with 3 columns, each card showing a transparent-background car image above a model name (17px, weight 500, Carbon Dark) and two text links (14px, weight 400, Pewter #5C5E62) labeled 'Learn' and 'Order', on a pure white surface with no borders or shadows"
-- "Create a category card with full-bleed landscape photography, 12px border-radius, overflow hidden, and a white text label ('Sport Sedan') positioned in the top-left corner with no overlay gradient"
-- "Design a persistent bottom bar with a chat input ('Ask a Question' placeholder), a send icon, and a secondary CTA ('Schedule a Drive Today') with a teal icon, anchored to the viewport bottom on a white background"
+- "Create a hero section on black background. Headline at 56px SF Pro Display weight 600, line-height 1.07, letter-spacing -0.28px, color white. One-line subtitle at 21px SF Pro Display weight 400, line-height 1.19, color white. Two pill CTAs: 'Learn more' (transparent bg, white text, 1px solid white border, 980px radius) and 'Buy' (Apple Blue #0071e3 bg, white text, 8px radius, 8px 15px padding)."
+- "Design a product card: #f5f5f7 background, 8px border-radius, no border, no shadow. Product image top 60% of card on solid background. Title at 28px SF Pro Display weight 400, letter-spacing 0.196px, line-height 1.14. Description at 14px SF Pro Text weight 400, color rgba(0,0,0,0.8). 'Learn more' and 'Shop' links in #0066cc at 14px."
+- "Build the Apple navigation: sticky, 48px height, background rgba(0,0,0,0.8) with backdrop-filter: saturate(180%) blur(20px). Links at 12px SF Pro Text weight 400, white text. Apple logo left, links centered, search and bag icons right."
+- "Create an alternating section layout: first section black bg with white text and centered product image, second section #f5f5f7 bg with #1d1d1f text. Each section near full-viewport height with 56px headline and two pill CTAs below."
+- "Design a 'Learn more' link: text #0066cc on light bg or #2997ff on dark bg, 14px SF Pro Text, underline on hover. After the text, include a right-arrow chevron character (>). Wrap in a container with 980px border-radius for pill shape when used as a standalone CTA."
 
 ### Iteration Guide
-When refining existing screens generated with this design system:
-1. Focus on ONE component at a time — Tesla's system is so minimal that each element must be pixel-perfect
-2. Reference specific color names and hex codes from this document — there are only 6-7 colors in the entire system
-3. Use natural language descriptions, not CSS values — "barely rounded corners" not "border-radius: 4px"
-4. Describe the desired "feel" alongside specific measurements — "gallery-like silence between sections" communicates the whitespace philosophy better than "margin-bottom: 100vh"
-5. Always verify that photography is doing the emotional heavy-lifting — if the UI itself feels "designed," it's too much
+1. Every interactive element gets Apple Blue (`#0071e3`) — no other accent colors
+2. Section backgrounds alternate: black for immersive moments, `#f5f5f7` for informational moments
+3. Typography optical sizing: SF Pro Display at 20px+, SF Pro Text below — never mix
+4. Negative letter-spacing at all sizes: -0.28px at 56px, -0.374px at 17px, -0.224px at 14px, -0.12px at 12px
+5. The navigation glass effect (translucent dark + blur) is non-negotiable — it defines the Apple web experience
+6. Products always appear on solid color fields — never on gradients, textures, or lifestyle backgrounds in hero modules
+7. Shadow is rare and always soft: `3px 5px 30px 0.22 opacity` or nothing at all
+8. Pill CTAs use 980px radius — this creates the signature Apple rounded-rectangle-that-looks-like-a-capsule shape
