@@ -88,10 +88,13 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
 
   // Recalculate summary based on filtered shifts
   const s = useMemo(() => {
-    if (!dateFrom && !dateTo) return data.summary;
+    if (!dateFrom && !dateTo) {
+      const totalDur = (data.shift_details || []).reduce((sum, sh) => sum + (sh.duration_minutes || 0), 0);
+      return { ...data.summary, total_duration_minutes: totalDur, total_duration_hm: minutesToHm(totalDur) };
+    }
 
     let totalWork = 0, totalDriving = 0, totalBreak = 0, totalAvail = 0;
-    let night25 = 0, night40 = 0, dietCount = 0, totalManual = 0;
+    let night25 = 0, night40 = 0, dietCount = 0, totalManual = 0, totalDuration = 0;
 
     for (const sh of shifts) {
       totalWork += sh.work_minutes;
@@ -101,6 +104,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
       night25 += sh.night_25_minutes;
       night40 += sh.night_40_minutes;
       totalManual += sh.manual_minutes || 0;
+      totalDuration += sh.duration_minutes || 0;
       if (sh.has_diet) dietCount++;
     }
 
@@ -129,6 +133,8 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
       total_shifts: shifts.length,
       total_manual_hm: minutesToHm(totalManual),
       total_manual_minutes: totalManual,
+      total_duration_minutes: totalDuration,
+      total_duration_hm: minutesToHm(totalDuration),
     };
   }, [data.summary, shifts, dateFrom, dateTo]);
 
@@ -479,6 +485,22 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
             {vma.amount.toFixed(2).replace('.', ',')} €
             {vma.doubleDiet && <span className="ml-1 text-xs font-normal opacity-70">(2×{vma.ratePerDay / 2}€)</span>}
           </p>
+        </div>
+      </div>
+
+      {/* Duration breakdown: with breaks / without breaks / breaks */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="rounded-xl bg-black/[0.02] p-3 dark:bg-white/5">
+          <p className="text-xs font-bold uppercase tracking-wider text-muted">{locale === 'de' ? 'Gesamtzeit mit Pausen' : 'Czas łącznie z przerwami'}</p>
+          <p className="mt-0.5 text-xl font-extrabold">{(s as any).total_duration_hm || '—'}</p>
+        </div>
+        <div className="rounded-xl bg-black/[0.02] p-3 dark:bg-white/5">
+          <p className="text-xs font-bold uppercase tracking-wider text-muted">{locale === 'de' ? 'Arbeitszeit ohne Pausen' : 'Czas pracy bez przerw'}</p>
+          <p className="mt-0.5 text-xl font-extrabold">{monthlyDays?.override_work_hm || s.total_work_hm}</p>
+        </div>
+        <div className="rounded-xl bg-black/[0.02] p-3 dark:bg-white/5">
+          <p className="text-xs font-bold uppercase tracking-wider text-muted">{locale === 'de' ? 'Pausen gesamt' : 'Przerwy łącznie'}</p>
+          <p className="mt-0.5 text-xl font-extrabold">{s.total_break_hm}</p>
         </div>
       </div>
 
