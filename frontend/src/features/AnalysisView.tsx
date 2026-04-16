@@ -427,7 +427,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
 
       {/* Date filter */}
       {hasDateFilter && (
-        <div className="flex flex-wrap items-center gap-3 rounded bg-[#F4F4F4] border border-border px-4 py-3 dark:bg-white/5">
+        <div className="flex flex-wrap items-center gap-3 rounded-xl bg-[#f5f5f7] dark:bg-[#272729] px-4 py-3 dark:bg-white/5">
           <span className="text-xs font-semibold uppercase tracking-wider text-muted">{t('analysisDateFilter')}:</span>
           <label className="text-xs text-muted">{t('detailFrom')}:</label>
           <input
@@ -462,43 +462,43 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
 
       {/* Key metrics - highlighted */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded border border-primary-500 bg-primary-500 p-4 text-center">
-          <p className="text-xs font-medium uppercase tracking-wider text-white/80">{t('analysisWorkTime')}</p>
-          <p className="mt-1 text-3xl font-bold text-white">{monthlyDays?.override_work_hm || s.total_work_hm}</p>
-          <p className="mt-0.5 text-xs text-white/60">{monthlyDays?.override_work_hm ? '' : `${s.total_work_decimal}h`}</p>
+        <div className="rounded-xl bg-[#0071e3] p-5 text-center">
+          <p className="text-[12px] font-semibold uppercase tracking-wide text-white/70">{t('analysisWorkTime')}</p>
+          <p className="mt-1.5 text-3xl font-semibold text-white" style={{ letterSpacing: '-0.28px' }}>{monthlyDays?.override_work_hm || s.total_work_hm}</p>
+          <p className="mt-1 text-[12px] text-white/50">{monthlyDays?.override_work_hm ? '' : `${s.total_work_decimal}h`}</p>
         </div>
-        {fv('night_hours_cards') && <div className="rounded border border-border bg-[#F4F4F4] p-4 text-center dark:bg-white/5 dark:border-border" title={locale === 'de' ? `Nachtarbeit ab ${nightH}:00 (25%)` : `Nocne od ${nightH}:00 (25%)`}>
-          <p className="text-xs font-medium uppercase tracking-wider text-muted">{t('analysisNight25')}</p>
-          <p className="mt-1 text-3xl font-bold text-ink">{monthlyDays?.override_n25 || (s.night_25_minutes / 60).toFixed(2)}</p>
-          <p className="mt-0.5 text-xs text-muted">{monthlyDays?.override_n25 ? '' : s.night_25_hm}</p>
-          <p className="mt-0.5 text-xs text-muted/60">{locale === 'de' ? 'ab' : 'od'} {nightH}:00</p>
+        {fv('night_hours_cards') && <div className="rounded-xl bg-[#f5f5f7] p-5 text-center dark:bg-[#272729]" title={locale === 'de' ? `Nachtarbeit ab ${nightH}:00 (25%)` : `Nocne od ${nightH}:00 (25%)`}>
+          <p className="text-[12px] font-semibold uppercase tracking-wide text-muted">{t('analysisNight25')}</p>
+          <p className="mt-1.5 text-3xl font-semibold text-ink" style={{ letterSpacing: '-0.28px' }}>{monthlyDays?.override_n25 || (s.night_25_minutes / 60).toFixed(2)}</p>
+          <p className="mt-1 text-[12px] text-muted">{monthlyDays?.override_n25 ? '' : s.night_25_hm}</p>
+          <p className="mt-0.5 text-[11px] text-muted/50">{locale === 'de' ? 'ab' : 'od'} {nightH}:00</p>
         </div>}
-        {fv('night_hours_cards') && <div className="rounded border border-border bg-[#F4F4F4] p-4 text-center dark:bg-white/5 dark:border-border" title={locale === 'de' ? `Nachtarbeit ab ${nightH}:00 (40%)` : `Nocne od ${nightH}:00 (40%)`}>
-          <p className="text-xs font-medium uppercase tracking-wider text-muted">{t('analysisNight40')}</p>
-          <p className="mt-1 text-3xl font-bold text-ink">{monthlyDays?.override_n40 || (s.night_40_minutes / 60).toFixed(2)}</p>
-          <p className="mt-0.5 text-xs text-muted">{monthlyDays?.override_n40 ? '' : s.night_40_hm}</p>
+        {fv('night_hours_cards') && <div className="rounded-xl bg-[#f5f5f7] p-5 text-center dark:bg-[#272729]" title={locale === 'de' ? `Nachtarbeit ab ${nightH}:00 (40%)` : `Nocne od ${nightH}:00 (40%)`}>
+          <p className="text-[12px] font-semibold uppercase tracking-wide text-muted">{t('analysisNight40')}</p>
+          <p className="mt-1.5 text-3xl font-semibold text-ink" style={{ letterSpacing: '-0.28px' }}>{monthlyDays?.override_n40 || (s.night_40_minutes / 60).toFixed(2)}</p>
+          <p className="mt-1 text-[12px] text-muted">{monthlyDays?.override_n40 ? '' : s.night_40_hm}</p>
         </div>}
-        <div className="rounded border border-border bg-[#F4F4F4] p-4 text-center dark:bg-white/5 dark:border-border" title="Verpflegungsmehraufwand - dieta za podróż służbową">
-          <p className="text-xs font-medium uppercase tracking-wider text-muted">{t('analysisDietCount')}</p>
-          <p className="mt-1 text-3xl font-bold text-ink">{s.diet_count}</p>
-          <p className="mt-0.5 text-xs font-medium text-muted">
+        <div className="rounded-xl bg-[#f5f5f7] p-5 text-center dark:bg-[#272729]" title="Verpflegungsmehraufwand - dieta za podróż służbową">
+          <p className="text-[12px] font-semibold uppercase tracking-wide text-muted">{t('analysisDietCount')}</p>
+          <p className="mt-1.5 text-3xl font-semibold text-ink" style={{ letterSpacing: '-0.28px' }}>{s.diet_count}</p>
+          <p className="mt-1 text-[12px] font-medium text-muted">
             {vma.amount.toFixed(2).replace('.', ',')} €
-            {vma.doubleDiet && <span className="ml-1 text-xs font-normal opacity-70">(2×{vma.ratePerDay / 2}€)</span>}
+            {vma.doubleDiet && <span className="ml-1 text-[11px] font-normal opacity-60">(2×{vma.ratePerDay / 2}€)</span>}
           </p>
         </div>
       </div>
 
       {/* Duration breakdown: with breaks / without breaks / breaks */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <div className="rounded bg-[#F4F4F4] border border-border p-3 text-center dark:bg-white/5">
+        <div className="rounded-xl bg-[#f5f5f7] dark:bg-[#272729] p-3 text-center dark:bg-white/5">
           <p className="text-xs font-bold uppercase tracking-wider text-muted">{locale === 'de' ? 'Gesamtzeit mit Pausen' : 'Czas łącznie z przerwami'}</p>
           <p className="mt-0.5 text-xl font-extrabold">{(s as any).total_duration_hm || '—'}</p>
         </div>
-        <div className="rounded bg-[#F4F4F4] border border-border p-3 text-center dark:bg-white/5">
+        <div className="rounded-xl bg-[#f5f5f7] dark:bg-[#272729] p-3 text-center dark:bg-white/5">
           <p className="text-xs font-bold uppercase tracking-wider text-muted">{locale === 'de' ? 'Arbeitszeit ohne Pausen' : 'Czas pracy bez przerw'}</p>
           <p className="mt-0.5 text-xl font-extrabold">{monthlyDays?.override_work_hm || s.total_work_hm}</p>
         </div>
-        <div className="rounded bg-[#F4F4F4] border border-border p-3 text-center dark:bg-white/5">
+        <div className="rounded-xl bg-[#f5f5f7] dark:bg-[#272729] p-3 text-center dark:bg-white/5">
           <p className="text-xs font-bold uppercase tracking-wider text-muted">{locale === 'de' ? 'Pausen gesamt' : 'Przerwy łącznie'}</p>
           <p className="mt-0.5 text-xl font-extrabold">{s.total_break_hm}</p>
         </div>
@@ -513,7 +513,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
           { label: t('analysisTotalShifts'), value: String(s.total_shifts) },
           { label: t('analysisNight25') + ' + ' + t('analysisNight40'), value: (monthlyDays?.override_n25 || monthlyDays?.override_n40) ? `${monthlyDays?.override_n25 || (s.night_25_minutes / 60).toFixed(2)} + ${monthlyDays?.override_n40 || (s.night_40_minutes / 60).toFixed(2)}` : fmtNight(s.night_25_minutes + s.night_40_minutes, s.total_night_hm) },
         ].map(({ label, value }) => (
-          <div key={label} className="rounded bg-[#F4F4F4] border border-border p-3 text-center dark:bg-white/5">
+          <div key={label} className="rounded-xl bg-[#f5f5f7] dark:bg-[#272729] p-3 text-center dark:bg-white/5">
             <p className="text-xs font-bold uppercase tracking-wider text-muted">{label}</p>
             <p className="mt-0.5 text-xl font-extrabold">{value}</p>
           </div>
@@ -522,7 +522,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
 
       {/* Monthly grid copy block (hidden on mobile - 31-col table) */}
       {fv('monthly_grid') && shifts.length > 0 && hasDateFilter && dateFrom && (
-        <div className="hidden sm:block rounded bg-[#F4F4F4] border border-border p-4 dark:bg-white/5">
+        <div className="hidden sm:block rounded-xl bg-[#f5f5f7] dark:bg-[#272729] p-4 dark:bg-white/5">
           <MonthlyGridCopy
             shifts={shifts}
             summary={s as unknown as Record<string, unknown>}
@@ -637,7 +637,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
 
       {/* Monthly days (vacation/sick) */}
       {di.card_number && period && monthlyDays && (
-        <div className="rounded bg-[#F4F4F4] border border-border p-4 dark:bg-white/5">
+        <div className="rounded-xl bg-[#f5f5f7] dark:bg-[#272729] p-4 dark:bg-white/5">
           <div className="mb-3 flex items-center gap-2">
             <CalendarDays size={14} className="text-muted" />
             <span className="text-xs font-semibold uppercase tracking-wider text-muted">

@@ -3,29 +3,29 @@ import { clsx } from 'clsx';
 type Variant = 'green' | 'orange' | 'yellow' | 'red' | 'blue' | 'gray';
 
 const variantClasses: Record<Variant, string> = {
-  green: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800',
-  orange: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800',
-  yellow: 'bg-yellow-50 text-yellow-700 border-yellow-200 dark:bg-yellow-900/20 dark:text-yellow-400 dark:border-yellow-800',
-  red: 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-900/20 dark:text-rose-400 dark:border-rose-800',
-  blue: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800',
-  gray: 'bg-gray-50 text-gray-600 border-gray-200 dark:bg-gray-800/30 dark:text-gray-400 dark:border-gray-700',
+  green: 'bg-[#30d158]/10 text-[#248a3d] dark:bg-[#30d158]/15 dark:text-[#30d158]',
+  orange: 'bg-[#ff9f0a]/10 text-[#c93400] dark:bg-[#ff9f0a]/15 dark:text-[#ff9f0a]',
+  yellow: 'bg-[#ffd60a]/10 text-[#9e6c00] dark:bg-[#ffd60a]/15 dark:text-[#ffd60a]',
+  red: 'bg-[#ff3b30]/10 text-[#d70015] dark:bg-[#ff453a]/15 dark:text-[#ff453a]',
+  blue: 'bg-[#0071e3]/10 text-[#0066cc] dark:bg-[#2997ff]/15 dark:text-[#2997ff]',
+  gray: 'bg-black/[0.04] text-[rgba(0,0,0,0.56)] dark:bg-white/[0.06] dark:text-[rgba(255,255,255,0.56)]',
 };
 
 const dotClasses: Record<Variant, string> = {
-  green: 'bg-emerald-500',
-  orange: 'bg-amber-500',
-  yellow: 'bg-yellow-500',
-  red: 'bg-rose-500',
-  blue: 'bg-blue-500',
-  gray: 'bg-gray-400',
+  green: 'bg-[#30d158]',
+  orange: 'bg-[#ff9f0a]',
+  yellow: 'bg-[#ffd60a]',
+  red: 'bg-[#ff3b30]',
+  blue: 'bg-[#0071e3]',
+  gray: 'bg-[rgba(0,0,0,0.24)]',
 };
 
 export function Badge({ variant = 'gray', children, dot }: { variant?: Variant; children: React.ReactNode; dot?: boolean }) {
   return (
     <span className={clsx(
-      'inline-flex items-center gap-1.5 rounded border px-2.5 py-0.5 text-xs font-medium',
+      'inline-flex items-center gap-1.5 rounded-md px-2.5 py-0.5 text-[12px] font-semibold',
       variantClasses[variant],
-    )}>
+    )} style={{ letterSpacing: '-0.12px' }}>
       {dot && <span className={clsx('h-1.5 w-1.5 rounded-full', dotClasses[variant])} />}
       {children}
     </span>

@@ -1,53 +1,54 @@
 @import "tailwindcss";
 
 /* ==========================================================================
-   Tesla-Inspired Design System
-   Based on DESIGN.md — radical subtraction, flat surfaces, single accent
+   Apple-Inspired Design System
+   Based on DESIGN.md — cinematic sections, glass nav, SF Pro typography
    ========================================================================== */
 
 @theme {
-  /* Typography: clean geometric sans-serif */
-  --font-sans: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+  /* Typography: SF Pro with system fallbacks */
+  --font-sans: 'SF Pro Text', 'SF Pro Icons', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --font-display: 'SF Pro Display', 'SF Pro Icons', 'Helvetica Neue', Helvetica, Arial, sans-serif;
 
-  /* Tesla palette — monochrome + single blue accent */
-  --color-surface: #FFFFFF;
-  --color-surface-dark: #171A20;
-  --color-card: #FFFFFF;
-  --color-card-dark: #1E2127;
-  --color-ink: #171A20;
-  --color-ink-dark: #F4F4F4;
-  --color-muted: #5C5E62;
-  --color-muted-dark: #8E8E8E;
-  --color-border: #EEEEEE;
-  --color-border-dark: #393C41;
+  /* Apple light palette */
+  --color-surface: #f5f5f7;
+  --color-surface-dark: #000000;
+  --color-card: #ffffff;
+  --color-card-dark: #272729;
+  --color-ink: #1d1d1f;
+  --color-ink-dark: #ffffff;
+  --color-muted: rgba(0, 0, 0, 0.48);
+  --color-muted-dark: rgba(255, 255, 255, 0.56);
+  --color-border: #d2d2d7;
+  --color-border-dark: #424245;
 
-  /* Primary: Electric Blue — sole chromatic color */
-  --color-primary-50: #EBF0FD;
-  --color-primary-100: #D6E0FB;
-  --color-primary-200: #ADC1F7;
-  --color-primary-300: #85A3F3;
-  --color-primary-400: #5C84EF;
-  --color-primary-500: #3E6AE1;
-  --color-primary-600: #3258C4;
-  --color-primary-700: #2545A6;
-  --color-primary-800: #193389;
-  --color-primary-900: #0C206B;
+  /* Primary: Apple Blue — sole interactive accent */
+  --color-primary-50: #e8f2fd;
+  --color-primary-100: #c5dffb;
+  --color-primary-200: #9ec9f8;
+  --color-primary-300: #6eb0f4;
+  --color-primary-400: #2997ff;
+  --color-primary-500: #0071e3;
+  --color-primary-600: #0066cc;
+  --color-primary-700: #004c99;
+  --color-primary-800: #003366;
+  --color-primary-900: #001a33;
 
-  /* Accent = same Electric Blue (Tesla uses one accent) */
-  --color-accent: #3E6AE1;
-  --color-accent-light: #EBF0FD;
-  --color-accent-dark: #3258C4;
+  /* Accent = Apple Blue */
+  --color-accent: #0071e3;
+  --color-accent-light: #e8f2fd;
+  --color-accent-dark: #0066cc;
 
-  /* Status — minimal, used sparingly */
-  --color-success: #059669;
-  --color-warning: #D97706;
-  --color-danger: #DC2626;
-  --color-info: #3E6AE1;
+  /* Status */
+  --color-success: #30d158;
+  --color-warning: #ff9f0a;
+  --color-danger: #ff3b30;
+  --color-info: #0071e3;
 
-  /* Animations — 0.33s universal timing */
-  --animate-fade-in: fade-in 0.33s ease-out;
-  --animate-slide-up: slide-up 0.33s cubic-bezier(0.16, 1, 0.3, 1);
-  --animate-slide-in-right: slide-in-right 0.33s cubic-bezier(0.16, 1, 0.3, 1);
+  /* Animations — 0.3s ease */
+  --animate-fade-in: fade-in 0.3s ease-out;
+  --animate-slide-up: slide-up 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-slide-in-right: slide-in-right 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   --animate-slide-out-right: slide-out-right 0.25s cubic-bezier(0.4, 0, 1, 1) forwards;
   --animate-scale-in: scale-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   --animate-toast-progress: toast-progress 4s linear forwards;
@@ -119,118 +120,125 @@ body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: var(--color-surface);
-  color: var(--color-ink);
-  font-size: 14px;
+  background: #f5f5f7;
+  color: #1d1d1f;
+  font-size: 17px;
   font-weight: 400;
-  line-height: 1.43;
-  letter-spacing: normal;
+  line-height: 1.47;
+  letter-spacing: -0.374px;
 }
 
-/* Dark mode — Carbon Dark palette */
+/* Dark mode — Apple dark surfaces */
 .dark {
   color-scheme: dark;
-  --color-surface: #171A20;
-  --color-card: #1E2127;
-  --color-ink: #F4F4F4;
-  --color-muted: #8E8E8E;
-  --color-border: #393C41;
-  --color-accent-light: #1E2440;
-  --color-accent-dark: #5C84EF;
-  --color-primary-50: rgba(62, 106, 225, 0.08);
-  --color-success: #34D399;
-  --color-warning: #FBBF24;
-  --color-danger: #F87171;
-  --color-info: #5C84EF;
+  --color-surface: #000000;
+  --color-card: #272729;
+  --color-ink: #ffffff;
+  --color-muted: rgba(255, 255, 255, 0.56);
+  --color-border: #424245;
+  --color-accent-light: #1a2a40;
+  --color-accent-dark: #2997ff;
+  --color-primary-50: rgba(0, 113, 227, 0.08);
+  --color-primary-400: #2997ff;
+  --color-success: #30d158;
+  --color-warning: #ff9f0a;
+  --color-danger: #ff453a;
+  --color-info: #2997ff;
 }
 
 .dark body {
-  background: #171A20;
+  background: #000000;
+  color: #ffffff;
 }
 
-/* Text selection — blue tint */
+/* Text selection */
 ::selection {
-  background: rgba(62, 106, 225, 0.15);
+  background: rgba(0, 113, 227, 0.2);
 }
 
 .dark ::selection {
-  background: rgba(92, 132, 239, 0.2);
+  background: rgba(41, 151, 255, 0.25);
 }
 
-/* === CARD — flat, no shadow, no gradient === */
+/* === CARD — Apple: #f5f5f7 or white, no border, soft shadow === */
 .card {
   background: var(--color-card);
-  border: 1px solid var(--color-border);
-  border-radius: 4px;
-  transition: border-color 0.33s;
+  border: none;
+  border-radius: 12px;
+  box-shadow: rgba(0, 0, 0, 0.04) 0px 2px 12px 0px;
+  transition: box-shadow 0.3s ease;
 }
 
 .card:hover {
-  border-color: #D0D1D2;
+  box-shadow: rgba(0, 0, 0, 0.08) 0px 4px 20px 0px;
 }
 
 .dark .card {
-  background: var(--color-card);
-  border-color: var(--color-border);
+  background: #272729;
+  box-shadow: none;
 }
 
 .dark .card:hover {
-  border-color: #5C5E62;
+  box-shadow: none;
 }
 
-/* === INPUT — clean, minimal === */
+/* === INPUT — clean, 11px radius (Apple filter style) === */
 .input {
-  background: transparent;
-  border: 1px solid var(--color-border);
-  border-radius: 4px;
-  transition: border-color 0.33s;
+  background: #fafafc;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 11px;
+  transition: border-color 0.3s, box-shadow 0.3s;
   font-family: inherit;
   font-size: 14px;
+  letter-spacing: -0.224px;
   color: var(--color-ink);
 }
 
 .input:focus {
-  border-color: #3E6AE1;
-  box-shadow: none;
+  border-color: #0071e3;
+  box-shadow: 0 0 0 2px rgba(0, 113, 227, 0.25);
   outline: none;
-  background: var(--color-card);
+  background: #ffffff;
 }
 
 .dark .input {
-  background: transparent;
+  background: #2a2a2d;
+  border-color: #424245;
 }
 
 .dark .input:focus {
-  border-color: #5C84EF;
-  box-shadow: none;
-  background: var(--color-card);
+  border-color: #2997ff;
+  box-shadow: 0 0 0 2px rgba(41, 151, 255, 0.25);
+  background: #2a2a2d;
 }
 
-/* === SIDEBAR — clean white, no gradient === */
+/* === SIDEBAR — Apple: white/light, clean === */
 .sidebar {
-  background: var(--color-card);
-  border-right: 1px solid var(--color-border);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: saturate(180%) blur(20px);
+  border-right: 1px solid rgba(0, 0, 0, 0.08);
 }
 
 .dark .sidebar {
-  background: var(--color-card);
-  border-right-color: var(--color-border);
+  background: rgba(39, 39, 41, 0.92);
+  backdrop-filter: saturate(180%) blur(20px);
+  border-right-color: #424245;
 }
 
-/* === TOPBAR — frosted glass (Tesla's scroll effect) === */
+/* === TOPBAR — Apple's signature dark glass nav === */
 .topbar {
-  background: rgba(255, 255, 255, 0.75);
-  backdrop-filter: blur(16px);
-  border-bottom: 1px solid var(--color-border);
+  background: rgba(251, 251, 253, 0.8);
+  backdrop-filter: saturate(180%) blur(20px);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
 }
 
 .dark .topbar {
-  background: rgba(30, 33, 39, 0.75);
-  backdrop-filter: blur(16px);
-  border-bottom-color: var(--color-border);
+  background: rgba(29, 29, 31, 0.8);
+  backdrop-filter: saturate(180%) blur(20px);
+  border-bottom-color: #424245;
 }
 
-/* === TABLE — clean lines === */
+/* === TABLE === */
 .clean-table {
   border-collapse: separate;
   border-spacing: 0;
@@ -238,60 +246,61 @@ body {
 }
 
 .clean-table thead th {
-  background: #F4F4F4;
-  border-bottom: 1px solid var(--color-border);
+  background: #f5f5f7;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
   position: sticky;
   top: 0;
   z-index: 10;
-  font-weight: 500;
-  font-size: 0.75rem;
+  font-weight: 600;
+  font-size: 12px;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: -0.12px;
   color: var(--color-muted);
 }
 
 .dark .clean-table thead th {
-  background: #1E2127;
+  background: #1d1d1f;
+  border-bottom-color: #424245;
 }
 
 .clean-table tbody tr {
-  transition: background-color 0.33s;
+  transition: background-color 0.3s;
 }
 
 .clean-table tbody tr:hover {
-  background: rgba(62, 106, 225, 0.04);
+  background: rgba(0, 113, 227, 0.04);
 }
 
 .clean-table td {
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
 }
 
-/* === BUTTON — flat, 4px radius, no shadow === */
+.dark .clean-table td {
+  border-bottom-color: #424245;
+}
+
+/* === BUTTON === */
 .btn-press {
-  transition: background-color 0.33s, border-color 0.33s, color 0.33s;
-}
-
-.btn-press:hover {
-  /* Color-only hover — no transform, no shadow (Tesla rule) */
+  transition: background-color 0.3s, color 0.3s, opacity 0.3s;
 }
 
 .btn-press:active {
-  opacity: 0.85;
+  opacity: 0.75;
 }
 
-/* === SCROLLBAR — thin, subtle === */
+/* === SCROLLBAR === */
 * {
   scrollbar-width: thin;
-  scrollbar-color: rgba(0, 0, 0, 0.08) transparent;
+  scrollbar-color: rgba(0, 0, 0, 0.12) transparent;
 }
 
 .dark * {
-  scrollbar-color: rgba(255, 255, 255, 0.06) transparent;
+  scrollbar-color: rgba(255, 255, 255, 0.08) transparent;
 }
 
 ::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
@@ -299,20 +308,20 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.08);
+  background: rgba(0, 0, 0, 0.12);
   border-radius: 100px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.15);
+  background: rgba(0, 0, 0, 0.2);
 }
 
 .dark ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .dark ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.15);
 }
 
 /* === SKELETON === */
@@ -353,6 +362,6 @@ body {
 /* Touch: no hover transforms */
 @media (hover: none) {
   .card:hover {
-    border-color: var(--color-border);
+    box-shadow: rgba(0, 0, 0, 0.04) 0px 2px 12px 0px;
   }
 }
