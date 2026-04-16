@@ -490,15 +490,15 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
 
       {/* Duration breakdown: with breaks / without breaks / breaks */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <div className="rounded-xl bg-black/[0.02] p-3 dark:bg-white/5">
+        <div className="rounded-xl bg-black/[0.02] p-3 text-center dark:bg-white/5">
           <p className="text-xs font-bold uppercase tracking-wider text-muted">{locale === 'de' ? 'Gesamtzeit mit Pausen' : 'Czas łącznie z przerwami'}</p>
           <p className="mt-0.5 text-xl font-extrabold">{(s as any).total_duration_hm || '—'}</p>
         </div>
-        <div className="rounded-xl bg-black/[0.02] p-3 dark:bg-white/5">
+        <div className="rounded-xl bg-black/[0.02] p-3 text-center dark:bg-white/5">
           <p className="text-xs font-bold uppercase tracking-wider text-muted">{locale === 'de' ? 'Arbeitszeit ohne Pausen' : 'Czas pracy bez przerw'}</p>
           <p className="mt-0.5 text-xl font-extrabold">{monthlyDays?.override_work_hm || s.total_work_hm}</p>
         </div>
-        <div className="rounded-xl bg-black/[0.02] p-3 dark:bg-white/5">
+        <div className="rounded-xl bg-black/[0.02] p-3 text-center dark:bg-white/5">
           <p className="text-xs font-bold uppercase tracking-wider text-muted">{locale === 'de' ? 'Pausen gesamt' : 'Przerwy łącznie'}</p>
           <p className="mt-0.5 text-xl font-extrabold">{s.total_break_hm}</p>
         </div>
