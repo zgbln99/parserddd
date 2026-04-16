@@ -1,4 +1,5 @@
 import { useState, useRef, useMemo } from 'react';
+import { Car, Wrench, BedDouble, Timer, HelpCircle } from 'lucide-react';
 import { useI18n } from '../i18n';
 import type { ShiftDetail } from '../types';
 
@@ -16,6 +17,14 @@ const TYPE_COLORS: Record<string, { color: string; labelPl: string; labelDe: str
   REST:         { color: '#3b82f6', labelPl: 'Odpoczywający',   labelDe: 'Ruhezeit' },
   AVAILABILITY: { color: '#9ca3af', labelPl: 'Dostępny',        labelDe: 'Bereitschaft' },
   UNKNOWN:      { color: '#e5e7eb', labelPl: 'Nieznany',        labelDe: 'Unbekannt' },
+};
+
+const TYPE_ICON: Record<string, typeof Car> = {
+  DRIVING: Car,
+  WORK: Wrench,
+  REST: BedDouble,
+  AVAILABILITY: Timer,
+  UNKNOWN: HelpCircle,
 };
 
 const TYPE_HEIGHT: Record<string, number> = {
@@ -157,14 +166,14 @@ export function ArbeitszeitReport({ shift }: { shift: ShiftDetail }) {
                     {a.start.slice(8, 10)}.{a.start.slice(5, 7)}.{a.start.slice(0, 4)} {fmtTime(a.start)}
                   </p>
                   <div className="flex items-center gap-2">
-                    <span
-                      className="flex h-5 w-5 items-center justify-center rounded-full"
-                      style={{ backgroundColor: cfg.color }}
-                    >
-                      <span className="text-white text-[8px] font-bold">
-                        {a.type === 'DRIVING' ? '⊕' : a.type === 'WORK' ? '⚙' : a.type === 'REST' ? '◉' : '◎'}
-                      </span>
-                    </span>
+                    {(() => {
+                      const Icon = TYPE_ICON[a.type] || TYPE_ICON.UNKNOWN;
+                      return (
+                        <span className="flex h-6 w-6 items-center justify-center rounded-full" style={{ backgroundColor: cfg.color }}>
+                          <Icon size={13} className="text-white" />
+                        </span>
+                      );
+                    })()}
                     <div>
                       <p className="text-[12px] text-muted">{fmtTime(a.start)} - {fmtTime(a.end)}</p>
                       <p className="text-[12px] font-semibold text-ink">{fmtHm(a.duration_minutes)}</p>
