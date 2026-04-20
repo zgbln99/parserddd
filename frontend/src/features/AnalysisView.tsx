@@ -138,30 +138,20 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
     };
   }, [data.summary, shifts, dateFrom, dateTo]);
 
-  // Vehicle km lookup: plate → total distance from odometer
-  const vehicleKm = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const v of (data.vehicles || [])) {
-      const dist = v.distance_km ?? Math.max(0, (v.odometer_end_km || 0) - (v.odometer_begin_km || 0));
-      if (dist > 0) {
-        // Aggregate per plate (can have multiple entries for same plate)
-        map.set(v.plate, (map.get(v.plate) || 0) + dist);
-      }
-    }
-    return map;
-  }, [data.vehicles]);
-
-  // Total km for the filtered shifts
+  // Total km: sum distance_km from all vehicle records whose usage period
+  // overlaps with the selected date range (GloboFleet-style per-record sum).
   const totalKm = useMemo(() => {
-    // Sum unique vehicles used in filtered shifts
-    const usedPlates = new Set<string>();
-    for (const sh of shifts) {
-      for (const p of sh.vehicles) usedPlates.add(p);
-    }
-    let sum = 0;
-    for (const p of usedPlates) sum += vehicleKm.get(p) || 0;
-    return sum;
-  }, [shifts, vehicleKm]);
+    return (data.vehicles || []).reduce((sum, v) => {
+      if (dateFrom || dateTo) {
+        const fromIso = (v.first_use || '').slice(0, 10);
+        const toIso = (v.last_use || '').slice(0, 10);
+        if (dateTo && fromIso && fromIso > dateTo) return sum;
+        if (dateFrom && toIso && toIso < dateFrom) return sum;
+      }
+      const dist = v.distance_km ?? Math.max(0, (v.odometer_end_km || 0) - (v.odometer_begin_km || 0));
+      return sum + dist;
+    }, 0);
+  }, [data.vehicles, dateFrom, dateTo]);
 
   // VMA calculation
   const vma = useMemo(() => {
@@ -828,12 +818,12 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
         {/* Desktop shifts table */}
         <div className="hidden sm:block -mx-6 overflow-x-auto px-6">
           <div className="rounded-xl border border-border">
-          <table className="w-full min-w-[1200px] text-sm">
+          <table className="w-full min-w-[1100px] text-sm">
             <thead>
               <tr className="border-b border-border">
                 {[t('analysisWeekday'), t('analysisStart'), t('analysisEnd'), t('analysisTime'), t('analysisVehicle'),
                   t('analysisWorkTime'), t('analysisDriving'), t('analysisWork'), t('analysisAvailability'), t('analysisBreaks'),
-                  t('analysisNight25'), t('analysisNight40'), t('analysisDiet'), 'km',
+                  t('analysisNight25'), t('analysisNight40'), t('analysisDiet'),
                 ].map((h) => (
                   <th key={h} className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold text-muted">
                     {h}
@@ -878,17 +868,10 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
                       ? <Badge variant="green">{t('yes')}</Badge>
                       : <span className="text-muted">{t('no')}</span>}
                   </td>
-                  <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums font-medium">
-                    {(() => {
-                      let km = 0;
-                      for (const p of sh.vehicles) km += vehicleKm.get(p) || 0;
-                      return km > 0 ? `${km.toLocaleString(locale === 'de' ? 'de-DE' : 'pl-PL')} km` : <span className="text-muted">—</span>;
-                    })()}
-                  </td>
                 </tr>
                 {selectedShiftReport === i && (
                   <tr key={`report-${i}`}>
-                    <td colSpan={14} className="p-4 bg-surface">
+                    <td colSpan={13} className="p-4 bg-surface">
                       <ArbeitszeitReport shift={sh} />
                     </td>
                   </tr>
@@ -901,6 +884,118 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
         </div>
         </>
       )}
+
+      {/* Vehicle usage (GloboFleet-style): Tacho begin / end / distance per vehicle record */}
+      {(() => {
+        const allV = data.vehicles || [];
+        if (allV.length === 0) return null;
+        // Filter by date range
+        const filtered = allV.filter((v) => {
+          if (!dateFrom && !dateTo) return true;
+          const fromIso = (v.first_use || '').slice(0, 10);
+          const toIso = (v.last_use || '').slice(0, 10);
+          if (dateTo && fromIso && fromIso > dateTo) return false;
+          if (dateFrom && toIso && toIso < dateFrom) return false;
+          return true;
+        });
+        if (filtered.length === 0) return null;
+
+        const fmtNum = (n: number) => n.toLocaleString(locale === 'de' ? 'de-DE' : 'pl-PL');
+        // Format "02. März 2026"
+        const months = locale === 'de'
+          ? ['Jan.', 'Feb.', 'März', 'Apr.', 'Mai', 'Juni', 'Juli', 'Aug.', 'Sep.', 'Okt.', 'Nov.', 'Dez.']
+          : ['sty', 'lut', 'mar', 'kwi', 'maj', 'cze', 'lip', 'sie', 'wrz', 'paź', 'lis', 'gru'];
+        const fmtDate = (s: string) => {
+          if (!s || s.length < 10) return '—';
+          const d = parseInt(s.slice(8, 10), 10);
+          const m = parseInt(s.slice(5, 7), 10) - 1;
+          const y = s.slice(0, 4);
+          return `${String(d).padStart(2, '0')}. ${months[m]} ${y}`;
+        };
+        const fmtTime = (s: string) => s && s.length >= 16 ? s.slice(11, 16) : '—';
+        // ISO week
+        const isoWeek = (isoDate: string) => {
+          if (!isoDate) return '';
+          const d = new Date(isoDate.slice(0, 10));
+          const target = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+          const dayNum = target.getUTCDay() || 7;
+          target.setUTCDate(target.getUTCDate() + 4 - dayNum);
+          const yearStart = new Date(Date.UTC(target.getUTCFullYear(), 0, 1));
+          return String(Math.ceil((((target.getTime() - yearStart.getTime()) / 86400000) + 1) / 7));
+        };
+        // Duration between first_use and last_use → HH:MM
+        const fmtDuration = (from: string, to: string) => {
+          if (!from || !to) return '—';
+          const f = new Date(from.replace(' ', 'T'));
+          const t = new Date(to.replace(' ', 'T'));
+          if (isNaN(f.getTime()) || isNaN(t.getTime())) return '—';
+          let mins = Math.max(0, Math.round((t.getTime() - f.getTime()) / 60000));
+          const h = Math.floor(mins / 60);
+          const m = mins % 60;
+          return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+        };
+
+        const totalDistance = filtered.reduce((sum, v) => sum + (v.distance_km ?? Math.max(0, (v.odometer_end_km || 0) - (v.odometer_begin_km || 0))), 0);
+
+        return (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold uppercase tracking-wider text-muted">
+                {locale === 'de' ? `Fahrzeugnutzung (${filtered.length} Aufzeichnungen)` : `Wykorzystanie pojazdów (${filtered.length} rekordów)`}
+              </h3>
+            </div>
+            <div className="rounded-xl border border-border overflow-x-auto">
+              <table className="w-full min-w-[900px] text-sm">
+                <thead>
+                  <tr className="border-b border-border bg-[#f5f5f7] dark:bg-[#272729]">
+                    <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold text-muted">KW</th>
+                    <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold text-muted">{locale === 'de' ? 'Datum' : 'Data'}</th>
+                    <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold text-muted">{locale === 'de' ? 'Zeitraum' : 'Godziny'}</th>
+                    <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold text-muted">{locale === 'de' ? 'Dauer' : 'Czas'}</th>
+                    <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold text-muted">{locale === 'de' ? 'Fahrzeug' : 'Pojazd'}</th>
+                    <th className="whitespace-nowrap px-3 py-2.5 text-right text-xs font-semibold text-muted">Tacho {locale === 'de' ? 'Anfang' : 'początek'}</th>
+                    <th className="whitespace-nowrap px-3 py-2.5 text-right text-xs font-semibold text-muted">Tacho {locale === 'de' ? 'Ende' : 'koniec'}</th>
+                    <th className="whitespace-nowrap px-3 py-2.5 text-right text-xs font-semibold text-muted">{locale === 'de' ? 'Entfernung' : 'Przejechane'}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {filtered.map((v, i) => {
+                    const dist = v.distance_km ?? Math.max(0, (v.odometer_end_km || 0) - (v.odometer_begin_km || 0));
+                    return (
+                      <tr key={i} className="hover:bg-surface">
+                        <td className="whitespace-nowrap px-3 py-2 text-muted">{isoWeek(v.first_use)}</td>
+                        <td className="whitespace-nowrap px-3 py-2 text-muted">{fmtDate(v.first_use)}</td>
+                        <td className="whitespace-nowrap px-3 py-2 tabular-nums">{fmtTime(v.first_use)} – {fmtTime(v.last_use)}</td>
+                        <td className="whitespace-nowrap px-3 py-2 tabular-nums">{fmtDuration(v.first_use, v.last_use)}</td>
+                        <td className="whitespace-nowrap px-3 py-2 font-semibold">{v.plate}</td>
+                        <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-muted">
+                          {v.odometer_begin_km ? `${fmtNum(v.odometer_begin_km)} KM` : '—'}
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-muted">
+                          {v.odometer_end_km ? `${fmtNum(v.odometer_end_km)} KM` : '—'}
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums font-semibold text-ink">
+                          {fmtNum(dist)} KM
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t-2 border-border bg-[#f5f5f7] dark:bg-[#272729]">
+                    <td colSpan={7} className="px-3 py-2.5 text-right text-sm font-bold text-ink">
+                      {locale === 'de' ? 'Gesamt' : 'Suma'}:
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums text-base font-bold text-ink">
+                      {fmtNum(totalDistance)} KM
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        );
+      })()}
 
       {shifts.length === 0 && (
         <p className="py-8 text-center text-sm text-muted">{t('noData')}</p>
