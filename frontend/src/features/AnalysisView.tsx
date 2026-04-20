@@ -153,6 +153,22 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
     }, 0);
   }, [data.vehicles, dateFrom, dateTo]);
 
+  // Per-shift km: sum distance_km from vehicle records whose usage period
+  // overlaps with this shift's time window.
+  const shiftKm = useMemo(() => {
+    return (sh: ShiftDetail): number => {
+      let total = 0;
+      for (const v of (data.vehicles || [])) {
+        if (!v.first_use || !v.last_use) continue;
+        // Overlap: v.start <= sh.end AND v.end >= sh.start
+        if (v.first_use <= sh.shift_end && v.last_use >= sh.shift_start) {
+          total += v.distance_km ?? Math.max(0, (v.odometer_end_km || 0) - (v.odometer_begin_km || 0));
+        }
+      }
+      return total;
+    };
+  }, [data.vehicles]);
+
   // VMA calculation
   const vma = useMemo(() => {
     const dietRate = driverConfig?.diet_rate ?? 14.0;
@@ -818,12 +834,12 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
         {/* Desktop shifts table */}
         <div className="hidden sm:block -mx-6 overflow-x-auto px-6">
           <div className="rounded-xl border border-border">
-          <table className="w-full min-w-[1100px] text-sm">
+          <table className="w-full min-w-[1200px] text-sm">
             <thead>
               <tr className="border-b border-border">
                 {[t('analysisWeekday'), t('analysisStart'), t('analysisEnd'), t('analysisTime'), t('analysisVehicle'),
                   t('analysisWorkTime'), t('analysisDriving'), t('analysisWork'), t('analysisAvailability'), t('analysisBreaks'),
-                  t('analysisNight25'), t('analysisNight40'), t('analysisDiet'),
+                  t('analysisNight25'), t('analysisNight40'), t('analysisDiet'), 'km',
                 ].map((h) => (
                   <th key={h} className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold text-muted">
                     {h}
@@ -868,10 +884,16 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
                       ? <Badge variant="green">{t('yes')}</Badge>
                       : <span className="text-muted">{t('no')}</span>}
                   </td>
+                  <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums font-medium">
+                    {(() => {
+                      const km = shiftKm(sh);
+                      return km > 0 ? `${km.toLocaleString(locale === 'de' ? 'de-DE' : 'pl-PL')} km` : <span className="text-muted">—</span>;
+                    })()}
+                  </td>
                 </tr>
                 {selectedShiftReport === i && (
                   <tr key={`report-${i}`}>
-                    <td colSpan={13} className="p-4 bg-surface">
+                    <td colSpan={14} className="p-4 bg-surface">
                       <ArbeitszeitReport shift={sh} />
                     </td>
                   </tr>
