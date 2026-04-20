@@ -138,6 +138,32 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
     };
   }, [data.summary, shifts, dateFrom, dateTo]);
 
+  // Per-shift km: distribute each vehicle's distance across shifts that used it,
+  // proportional to driving minutes (DDD only stores begin/end odometer per vehicle).
+  const shiftKm = useMemo(() => {
+    const vehicleDist = new Map<string, number>();
+    for (const v of (data.vehicles || [])) {
+      vehicleDist.set(v.plate, v.distance_km ?? Math.max(0, (v.odometer_end_km || 0) - (v.odometer_begin_km || 0)));
+    }
+    const drivingPerVehicle = new Map<string, number>();
+    for (const sh of shifts) {
+      for (const p of sh.vehicles) {
+        drivingPerVehicle.set(p, (drivingPerVehicle.get(p) || 0) + sh.driving_minutes);
+      }
+    }
+    return (sh: ShiftDetail): number => {
+      let total = 0;
+      for (const p of sh.vehicles) {
+        const dist = vehicleDist.get(p) || 0;
+        const totalDriving = drivingPerVehicle.get(p) || 0;
+        if (totalDriving > 0 && dist > 0) {
+          total += dist * (sh.driving_minutes / totalDriving);
+        }
+      }
+      return Math.round(total);
+    };
+  }, [data.vehicles, shifts]);
+
   // VMA calculation
   const vma = useMemo(() => {
     const dietRate = driverConfig?.diet_rate ?? 14.0;
@@ -488,8 +514,8 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
         </div>
       </div>
 
-      {/* Duration breakdown: with breaks / without breaks / breaks / kilometers */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      {/* Duration breakdown: with breaks / without breaks / breaks */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <div className="rounded-xl bg-[#f5f5f7] dark:bg-[#272729] p-3 text-center">
           <p className="text-xs font-bold uppercase tracking-wider text-muted">{locale === 'de' ? 'Gesamtzeit mit Pausen' : 'Czas łącznie z przerwami'}</p>
           <p className="mt-0.5 text-xl font-extrabold">{(s as any).total_duration_hm || '—'}</p>
@@ -502,27 +528,6 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
           <p className="text-xs font-bold uppercase tracking-wider text-muted">{locale === 'de' ? 'Pausen gesamt' : 'Przerwy łącznie'}</p>
           <p className="mt-0.5 text-xl font-extrabold">{s.total_break_hm}</p>
         </div>
-        {(() => {
-          // Total km for vehicles whose usage period overlaps the selected date filter
-          const totalKm = (data.vehicles || []).reduce((sum, v) => {
-            // If date filter is active, only count vehicles overlapping the range
-            if (dateFrom || dateTo) {
-              const fromIso = (v.first_use || '').slice(0, 10);
-              const toIso = (v.last_use || '').slice(0, 10);
-              if (dateTo && fromIso && fromIso > dateTo) return sum;
-              if (dateFrom && toIso && toIso < dateFrom) return sum;
-            }
-            const dist = v.distance_km ?? Math.max(0, (v.odometer_end_km || 0) - (v.odometer_begin_km || 0));
-            return sum + dist;
-          }, 0);
-          const fmtNum = (n: number) => n.toLocaleString(locale === 'de' ? 'de-DE' : 'pl-PL');
-          return (
-            <div className="rounded-xl bg-[#f5f5f7] dark:bg-[#272729] p-3 text-center">
-              <p className="text-xs font-bold uppercase tracking-wider text-muted">{locale === 'de' ? 'Kilometer' : 'Kilometry'}</p>
-              <p className="mt-0.5 text-xl font-extrabold">{fmtNum(totalKm)} km</p>
-            </div>
-          );
-        })()}
       </div>
 
       {/* Secondary metrics */}
@@ -815,12 +820,12 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
         {/* Desktop shifts table */}
         <div className="hidden sm:block -mx-6 overflow-x-auto px-6">
           <div className="rounded-xl border border-border">
-          <table className="w-full min-w-[1100px] text-sm">
+          <table className="w-full min-w-[1200px] text-sm">
             <thead>
               <tr className="border-b border-border">
                 {[t('analysisWeekday'), t('analysisStart'), t('analysisEnd'), t('analysisTime'), t('analysisVehicle'),
                   t('analysisWorkTime'), t('analysisDriving'), t('analysisWork'), t('analysisAvailability'), t('analysisBreaks'),
-                  t('analysisNight25'), t('analysisNight40'), t('analysisDiet'),
+                  t('analysisNight25'), t('analysisNight40'), t('analysisDiet'), 'km',
                 ].map((h) => (
                   <th key={h} className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold text-muted">
                     {h}
@@ -865,10 +870,16 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
                       ? <Badge variant="green">{t('yes')}</Badge>
                       : <span className="text-muted">{t('no')}</span>}
                   </td>
+                  <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums font-medium">
+                    {(() => {
+                      const km = shiftKm(sh);
+                      return km > 0 ? `${km.toLocaleString(locale === 'de' ? 'de-DE' : 'pl-PL')} km` : <span className="text-muted">—</span>;
+                    })()}
+                  </td>
                 </tr>
                 {selectedShiftReport === i && (
                   <tr key={`report-${i}`}>
-                    <td colSpan={13} className="p-4 bg-surface">
+                    <td colSpan={14} className="p-4 bg-surface">
                       <ArbeitszeitReport shift={sh} />
                     </td>
                   </tr>
