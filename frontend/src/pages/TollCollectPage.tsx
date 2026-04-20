@@ -150,7 +150,7 @@ interface LoadedMonth {
 }
 
 export function TollCollectPage() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Multi-month state
