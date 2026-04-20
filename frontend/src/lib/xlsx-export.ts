@@ -236,15 +236,10 @@ export function exportTollToXlsx(
     return `${monthNames[parseInt(m, 10) - 1]} ${y}`;
   };
 
-  // Value columns = months + gesamt + (optional) 2 diff columns
-  const diffCols = showDiff ? 2 : 0;
-  const valCols = (hasMultiMonths ? monthPeriods.length + 1 : 1) + diffCols;
+  // Value columns = months + gesamt (no diff inline — diff goes to separate sheet)
+  const valCols = hasMultiMonths ? monthPeriods.length + 1 : 1;
   const colCount_ov = 4 + valCols; // 4 fixed + value columns
   const valStart = 4; // first value column index
-
-  // Diff is between last two months
-  const lastMp = showDiff ? monthPeriods[monthPeriods.length - 1] : '';
-  const prevMp = showDiff ? monthPeriods[monthPeriods.length - 2] : '';
 
   // Header row 1: Maut labels
   const hdrRow1: string[] = ['Nr.', 'Kennzeichen', 'Tour', 'Fahrten'];
@@ -252,10 +247,6 @@ export function exportTollToXlsx(
     for (const mp of monthPeriods) hdrRow1.push(`Maut ${fmtMonth(mp)}`);
   }
   hdrRow1.push('Maut Gesamt (€)');
-  if (showDiff) {
-    hdrRow1.push(`Δ Maut € (${fmtMonth(lastMp)} − ${fmtMonth(prevMp)})`);
-    hdrRow1.push(`Δ Maut %`);
-  }
 
   // Header row 2: km labels
   const hdrRow2: string[] = ['', '', '', ''];
@@ -263,10 +254,6 @@ export function exportTollToXlsx(
     for (const mp of monthPeriods) hdrRow2.push(`km ${fmtMonth(mp)}`);
   }
   hdrRow2.push('km Gesamt');
-  if (showDiff) {
-    hdrRow2.push(`Δ km (${fmtMonth(lastMp)} − ${fmtMonth(prevMp)})`);
-    hdrRow2.push(`Δ km %`);
-  }
 
   // Build data: each vehicle = 2 rows (maut row + km row)
   const dataRows: (string | number)[][] = [];
@@ -279,15 +266,6 @@ export function exportTollToXlsx(
       for (const mp of monthPeriods) mautRow.push(byMonthA.get(mp) || 0);
     }
     mautRow.push(v.totalAmount);
-    if (showDiff) {
-      const byMonthA = vehicleMonthAmounts.get(v.plate)!;
-      const last = byMonthA.get(lastMp) || 0;
-      const prev = byMonthA.get(prevMp) || 0;
-      const diffEur = last - prev;
-      const diffPct = prev === 0 ? (last === 0 ? 0 : 1) : diffEur / prev;
-      mautRow.push(diffEur);
-      mautRow.push(diffPct);
-    }
     dataRows.push(mautRow);
 
     // Row 2: km values
@@ -297,15 +275,6 @@ export function exportTollToXlsx(
       for (const mp of monthPeriods) kmRow.push(byMonthK.get(mp) || 0);
     }
     kmRow.push(v.totalKm);
-    if (showDiff) {
-      const byMonthK = vehicleMonthKm.get(v.plate)!;
-      const last = byMonthK.get(lastMp) || 0;
-      const prev = byMonthK.get(prevMp) || 0;
-      const diffKm = last - prev;
-      const diffPct = prev === 0 ? (last === 0 ? 0 : 1) : diffKm / prev;
-      kmRow.push(diffKm);
-      kmRow.push(diffPct);
-    }
     dataRows.push(kmRow);
   }
 
@@ -317,14 +286,6 @@ export function exportTollToXlsx(
     }
   }
   footerMaut.push(grandTotalAmount);
-  if (showDiff) {
-    const lastSum = vehicles.reduce((s, v) => s + (vehicleMonthAmounts.get(v.plate)!.get(lastMp) || 0), 0);
-    const prevSum = vehicles.reduce((s, v) => s + (vehicleMonthAmounts.get(v.plate)!.get(prevMp) || 0), 0);
-    const diff = lastSum - prevSum;
-    const diffPct = prevSum === 0 ? (lastSum === 0 ? 0 : 1) : diff / prevSum;
-    footerMaut.push(diff);
-    footerMaut.push(diffPct);
-  }
 
   const footerKm: (string | number)[] = ['', '', '', ''];
   if (hasMultiMonths) {
@@ -333,14 +294,6 @@ export function exportTollToXlsx(
     }
   }
   footerKm.push(grandTotalKm);
-  if (showDiff) {
-    const lastSum = vehicles.reduce((s, v) => s + (vehicleMonthKm.get(v.plate)!.get(lastMp) || 0), 0);
-    const prevSum = vehicles.reduce((s, v) => s + (vehicleMonthKm.get(v.plate)!.get(prevMp) || 0), 0);
-    const diff = lastSum - prevSum;
-    const diffPct = prevSum === 0 ? (lastSum === 0 ? 0 : 1) : diff / prevSum;
-    footerKm.push(diff);
-    footerKm.push(diffPct);
-  }
 
   const overviewData: (string | number)[][] = [
     [companyName],
@@ -358,12 +311,7 @@ export function exportTollToXlsx(
 
   const wsOverview = XLSX.utils.aoa_to_sheet(overviewData);
   const ovColWidths: { wch: number }[] = [{ wch: 6 }, { wch: 18 }, { wch: 22 }, { wch: 10 }];
-  const normalValCols = valCols - diffCols;
-  for (let i = 0; i < normalValCols; i++) ovColWidths.push({ wch: 18 });
-  if (showDiff) {
-    ovColWidths.push({ wch: 22 }); // Δ absolute
-    ovColWidths.push({ wch: 14 }); // Δ %
-  }
+  for (let i = 0; i < valCols; i++) ovColWidths.push({ wch: 18 });
   wsOverview['!cols'] = ovColWidths;
 
   // Merges: title rows + header fixed cols merged 2 rows + each vehicle fixed cols merged 2 rows
@@ -466,15 +414,8 @@ export function exportTollToXlsx(
 
       // Number formats
       if (c >= valStart) {
-        // Last column = Δ %, 2nd-to-last = Δ absolute (€ or km), before that = monthly/total (€ or km)
-        const isPctCol = showDiff && c === colCount_ov - 1;
-        if (isPctCol) {
-          applyNumberFormat(wsOverview, mautR, c, '+0.00%;-0.00%;0.00%');
-          applyNumberFormat(wsOverview, kmR, c, '+0.00%;-0.00%;0.00%');
-        } else {
-          applyNumberFormat(wsOverview, mautR, c, '#,##0.00 €');
-          applyNumberFormat(wsOverview, kmR, c, '#,##0.0');
-        }
+        applyNumberFormat(wsOverview, mautR, c, '#,##0.00 €');
+        applyNumberFormat(wsOverview, kmR, c, '#,##0.0');
       }
     }
   }
@@ -494,14 +435,8 @@ export function exportTollToXlsx(
       alignment: { horizontal: c >= 4 ? 'right' : 'left', vertical: 'center' },
     });
     if (c >= valStart) {
-      const isPctCol = showDiff && c === colCount_ov - 1;
-      if (isPctCol) {
-        applyNumberFormat(wsOverview, footerStart, c, '+0.00%;-0.00%;0.00%');
-        applyNumberFormat(wsOverview, footerStart + 1, c, '+0.00%;-0.00%;0.00%');
-      } else {
-        applyNumberFormat(wsOverview, footerStart, c, '#,##0.00 €');
-        applyNumberFormat(wsOverview, footerStart + 1, c, '#,##0.0');
-      }
+      applyNumberFormat(wsOverview, footerStart, c, '#,##0.00 €');
+      applyNumberFormat(wsOverview, footerStart + 1, c, '#,##0.0');
     }
   }
 
@@ -509,6 +444,160 @@ export function exportTollToXlsx(
   wsOverview['!freeze'] = { xSplit: 0, ySplit: 7 };
 
   XLSX.utils.book_append_sheet(wb, wsOverview, 'Übersicht');
+
+  // ── Sheet: Monatsvergleich (month-over-month diff by TOUR) ──
+  if (showDiff && monthPeriods.length >= 2) {
+    const lastMp = monthPeriods[monthPeriods.length - 1];
+    const prevMp = monthPeriods[monthPeriods.length - 2];
+
+    // Group by Tour across all vehicles
+    const tourMaut = new Map<string, Map<string, number>>();
+    const tourKm = new Map<string, Map<string, number>>();
+    const tourVehicles = new Map<string, Set<string>>();
+    for (const v of vehicles) {
+      const tour = v.tour || v.plate;
+      if (!tourMaut.has(tour)) {
+        tourMaut.set(tour, new Map());
+        tourKm.set(tour, new Map());
+        tourVehicles.set(tour, new Set());
+      }
+      tourVehicles.get(tour)!.add(v.plate);
+      for (const r of v.rows) {
+        const m = r.date.slice(0, 7);
+        tourMaut.get(tour)!.set(m, (tourMaut.get(tour)!.get(m) || 0) + r.amount);
+        tourKm.get(tour)!.set(m, (tourKm.get(tour)!.get(m) || 0) + r.km);
+      }
+    }
+
+    const tours = Array.from(tourMaut.keys()).sort();
+
+    // Build sheet data
+    const FILL_DIFF_POS = { fgColor: { rgb: 'E6F4EA' } };  // green bg for positive
+    const FILL_DIFF_NEG = { fgColor: { rgb: 'FCE8E6' } };  // red bg for negative
+    const FONT_GREEN = { ...FONT_BOLD, color: { rgb: '1E7E34' } };
+    const FONT_RED = { ...FONT_BOLD, color: { rgb: 'C62828' } };
+
+    const diffData: (string | number)[][] = [
+      [companyName],
+      [`Monatsvergleich — ${fmtMonth(lastMp)} vs. ${fmtMonth(prevMp)}`],
+      [],
+      ['Nr.', 'Tour', 'Fahrzeuge', `Maut ${fmtMonth(prevMp)}`, `Maut ${fmtMonth(lastMp)}`, 'Δ Maut €', 'Δ Maut %', `km ${fmtMonth(prevMp)}`, `km ${fmtMonth(lastMp)}`, 'Δ km', 'Δ km %'],
+    ];
+
+    let totalPrevMaut = 0, totalLastMaut = 0;
+    let totalPrevKm = 0, totalLastKm = 0;
+
+    for (let i = 0; i < tours.length; i++) {
+      const tour = tours[i];
+      const prevAmt = tourMaut.get(tour)!.get(prevMp) || 0;
+      const lastAmt = tourMaut.get(tour)!.get(lastMp) || 0;
+      const diffAmt = lastAmt - prevAmt;
+      const diffAmtPct = prevAmt === 0 ? (lastAmt === 0 ? 0 : 1) : diffAmt / prevAmt;
+      const prevK = tourKm.get(tour)!.get(prevMp) || 0;
+      const lastK = tourKm.get(tour)!.get(lastMp) || 0;
+      const diffK = lastK - prevK;
+      const diffKPct = prevK === 0 ? (lastK === 0 ? 0 : 1) : diffK / prevK;
+      const plates = Array.from(tourVehicles.get(tour)!).join(', ');
+
+      totalPrevMaut += prevAmt;
+      totalLastMaut += lastAmt;
+      totalPrevKm += prevK;
+      totalLastKm += lastK;
+
+      diffData.push([i + 1, tour, plates, prevAmt, lastAmt, diffAmt, diffAmtPct, prevK, lastK, diffK, diffKPct]);
+    }
+
+    // Footer
+    const totalDiffMaut = totalLastMaut - totalPrevMaut;
+    const totalDiffMautPct = totalPrevMaut === 0 ? 0 : totalDiffMaut / totalPrevMaut;
+    const totalDiffKm = totalLastKm - totalPrevKm;
+    const totalDiffKmPct = totalPrevKm === 0 ? 0 : totalDiffKm / totalPrevKm;
+
+    diffData.push([]);
+    diffData.push(['', 'GESAMT', '', totalPrevMaut, totalLastMaut, totalDiffMaut, totalDiffMautPct, totalPrevKm, totalLastKm, totalDiffKm, totalDiffKmPct]);
+
+    const wsDiff = XLSX.utils.aoa_to_sheet(diffData);
+    wsDiff['!cols'] = [
+      { wch: 5 }, { wch: 22 }, { wch: 28 },
+      { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 12 },
+      { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 12 },
+    ];
+
+    // Styles — title
+    styleRange(wsDiff, 0, 0, 0, 10, { font: FONT_TITLE });
+    styleRange(wsDiff, 1, 0, 1, 10, { font: FONT_SUBTITLE });
+
+    // Header row (row 3)
+    const FILL_HDR_MAUT_DIFF = { fgColor: { rgb: '1A365D' } };
+    const FILL_HDR_KM_DIFF = { fgColor: { rgb: '276749' } };
+    for (let c = 0; c <= 10; c++) {
+      const isMautCol = c >= 3 && c <= 6;
+      const isKmCol = c >= 7;
+      styleCell(wsDiff, 3, c, {
+        font: { ...FONT_BOLD, color: { rgb: 'FFFFFF' } },
+        fill: isKmCol ? FILL_HDR_KM_DIFF : isMautCol ? FILL_HDR_MAUT_DIFF : FILL_HEADER,
+        border: BORDERS_ALL,
+        alignment: { horizontal: c >= 3 ? 'right' : 'left', vertical: 'center', wrapText: true },
+      });
+    }
+
+    // Data rows
+    const diffDataStart = 4;
+    for (let i = 0; i < tours.length; i++) {
+      const r = diffDataStart + i;
+      for (let c = 0; c <= 10; c++) {
+        const isDiffEurCol = c === 5 || c === 9;
+        const isDiffPctCol = c === 6 || c === 10;
+        const cellAddr = XLSX.utils.encode_cell({ r, c });
+        const cellVal = wsDiff[cellAddr]?.v;
+        const isNeg = typeof cellVal === 'number' && cellVal < 0;
+        const isPos = typeof cellVal === 'number' && cellVal > 0;
+
+        styleCell(wsDiff, r, c, {
+          font: (isDiffEurCol || isDiffPctCol) ? (isNeg ? FONT_RED : isPos ? FONT_GREEN : FONT_DEFAULT) : (c === 1 ? FONT_BOLD : FONT_DEFAULT),
+          fill: (isDiffEurCol || isDiffPctCol) ? (isNeg ? FILL_DIFF_NEG : isPos ? FILL_DIFF_POS : undefined) : (i % 2 === 1 ? FILL_ALT : undefined),
+          border: BORDERS_ALL,
+          alignment: { horizontal: c >= 3 ? 'right' : (c === 0 ? 'center' : 'left'), vertical: 'center' },
+        });
+
+        // Number formats
+        if (c === 3 || c === 4 || c === 5) applyNumberFormat(wsDiff, r, c, '#,##0.00 €');
+        if (c === 7 || c === 8 || c === 9) applyNumberFormat(wsDiff, r, c, '#,##0.0');
+        if (c === 6 || c === 10) applyNumberFormat(wsDiff, r, c, '+0.0%;-0.0%;0.0%');
+      }
+    }
+
+    // Footer
+    const footerR = diffDataStart + tours.length + 1;
+    for (let c = 0; c <= 10; c++) {
+      const isDiffEurCol = c === 5 || c === 9;
+      const isDiffPctCol = c === 6 || c === 10;
+      const cellAddr = XLSX.utils.encode_cell({ r: footerR, c });
+      const cellVal = wsDiff[cellAddr]?.v;
+      const isNeg = typeof cellVal === 'number' && cellVal < 0;
+      const isPos = typeof cellVal === 'number' && cellVal > 0;
+
+      styleCell(wsDiff, footerR, c, {
+        font: (isDiffEurCol || isDiffPctCol)
+          ? { ...(isNeg ? FONT_RED : isPos ? FONT_GREEN : FONT_BOLD), sz: 11 }
+          : { ...FONT_BOLD, sz: 11 },
+        fill: FILL_TOTAL,
+        border: BORDER_BOTTOM_THICK,
+        alignment: { horizontal: c >= 3 ? 'right' : 'left', vertical: 'center' },
+      });
+      if (c === 3 || c === 4 || c === 5) applyNumberFormat(wsDiff, footerR, c, '#,##0.00 €');
+      if (c === 7 || c === 8 || c === 9) applyNumberFormat(wsDiff, footerR, c, '#,##0.0');
+      if (c === 6 || c === 10) applyNumberFormat(wsDiff, footerR, c, '+0.0%;-0.0%;0.0%');
+    }
+
+    // Merges for title
+    wsDiff['!merges'] = [
+      { s: { r: 0, c: 0 }, e: { r: 0, c: 10 } },
+      { s: { r: 1, c: 0 }, e: { r: 1, c: 10 } },
+    ];
+
+    XLSX.utils.book_append_sheet(wb, wsDiff, 'Monatsvergleich');
+  }
 
   // ── Sheet per vehicle ──
   const vehHeaders = [
