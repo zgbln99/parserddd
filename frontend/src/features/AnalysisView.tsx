@@ -138,31 +138,30 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
     };
   }, [data.summary, shifts, dateFrom, dateTo]);
 
-  // Per-shift km: distribute each vehicle's distance across shifts that used it,
-  // proportional to driving minutes (DDD only stores begin/end odometer per vehicle).
-  const shiftKm = useMemo(() => {
-    const vehicleDist = new Map<string, number>();
+  // Vehicle km lookup: plate → total distance from odometer
+  const vehicleKm = useMemo(() => {
+    const map = new Map<string, number>();
     for (const v of (data.vehicles || [])) {
-      vehicleDist.set(v.plate, v.distance_km ?? Math.max(0, (v.odometer_end_km || 0) - (v.odometer_begin_km || 0)));
+      const dist = v.distance_km ?? Math.max(0, (v.odometer_end_km || 0) - (v.odometer_begin_km || 0));
+      if (dist > 0) {
+        // Aggregate per plate (can have multiple entries for same plate)
+        map.set(v.plate, (map.get(v.plate) || 0) + dist);
+      }
     }
-    const drivingPerVehicle = new Map<string, number>();
+    return map;
+  }, [data.vehicles]);
+
+  // Total km for the filtered shifts
+  const totalKm = useMemo(() => {
+    // Sum unique vehicles used in filtered shifts
+    const usedPlates = new Set<string>();
     for (const sh of shifts) {
-      for (const p of sh.vehicles) {
-        drivingPerVehicle.set(p, (drivingPerVehicle.get(p) || 0) + sh.driving_minutes);
-      }
+      for (const p of sh.vehicles) usedPlates.add(p);
     }
-    return (sh: ShiftDetail): number => {
-      let total = 0;
-      for (const p of sh.vehicles) {
-        const dist = vehicleDist.get(p) || 0;
-        const totalDriving = drivingPerVehicle.get(p) || 0;
-        if (totalDriving > 0 && dist > 0) {
-          total += dist * (sh.driving_minutes / totalDriving);
-        }
-      }
-      return Math.round(total);
-    };
-  }, [data.vehicles, shifts]);
+    let sum = 0;
+    for (const p of usedPlates) sum += vehicleKm.get(p) || 0;
+    return sum;
+  }, [shifts, vehicleKm]);
 
   // VMA calculation
   const vma = useMemo(() => {
@@ -529,8 +528,6 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
           <p className="mt-0.5 text-xl font-extrabold">{s.total_break_hm}</p>
         </div>
         {(() => {
-          // Sum of per-shift km (only shifts in the current date filter)
-          const totalKm = shifts.reduce((sum, sh) => sum + shiftKm(sh), 0);
           const fmtNum = (n: number) => n.toLocaleString(locale === 'de' ? 'de-DE' : 'pl-PL');
           return (
             <div className="rounded-xl bg-[#f5f5f7] dark:bg-[#272729] p-3 text-center">
@@ -883,7 +880,8 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
                   </td>
                   <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums font-medium">
                     {(() => {
-                      const km = shiftKm(sh);
+                      let km = 0;
+                      for (const p of sh.vehicles) km += vehicleKm.get(p) || 0;
                       return km > 0 ? `${km.toLocaleString(locale === 'de' ? 'de-DE' : 'pl-PL')} km` : <span className="text-muted">—</span>;
                     })()}
                   </td>
