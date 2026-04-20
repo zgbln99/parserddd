@@ -189,6 +189,7 @@ export function exportTollToXlsx(
   vehicles: TollVehicleGroup[],
   period: string,
   companyName: string,
+  showMonthDiff = false,
 ) {
   const wb = XLSX.utils.book_new();
 
@@ -206,6 +207,8 @@ export function exportTollToXlsx(
   }
   const monthPeriods = Array.from(allMonthSet).sort();
   const hasMultiMonths = monthPeriods.length > 1;
+  // Show diff column only when requested AND we have at least 2 months
+  const showDiff = showMonthDiff && monthPeriods.length >= 2;
 
   // Pre-compute per-vehicle per-month Maut amounts and km
   const vehicleMonthAmounts = new Map<string, Map<string, number>>();
@@ -233,10 +236,15 @@ export function exportTollToXlsx(
     return `${monthNames[parseInt(m, 10) - 1]} ${y}`;
   };
 
-  // Value columns = months + gesamt
-  const valCols = hasMultiMonths ? monthPeriods.length + 1 : 1;
+  // Value columns = months + gesamt + (optional) 2 diff columns
+  const diffCols = showDiff ? 2 : 0;
+  const valCols = (hasMultiMonths ? monthPeriods.length + 1 : 1) + diffCols;
   const colCount_ov = 4 + valCols; // 4 fixed + value columns
   const valStart = 4; // first value column index
+
+  // Diff is between last two months
+  const lastMp = showDiff ? monthPeriods[monthPeriods.length - 1] : '';
+  const prevMp = showDiff ? monthPeriods[monthPeriods.length - 2] : '';
 
   // Header row 1: Maut labels
   const hdrRow1: string[] = ['Nr.', 'Kennzeichen', 'Tour', 'Fahrten'];
@@ -244,6 +252,10 @@ export function exportTollToXlsx(
     for (const mp of monthPeriods) hdrRow1.push(`Maut ${fmtMonth(mp)}`);
   }
   hdrRow1.push('Maut Gesamt (€)');
+  if (showDiff) {
+    hdrRow1.push(`Δ Maut € (${fmtMonth(lastMp)} − ${fmtMonth(prevMp)})`);
+    hdrRow1.push(`Δ Maut %`);
+  }
 
   // Header row 2: km labels
   const hdrRow2: string[] = ['', '', '', ''];
@@ -251,6 +263,10 @@ export function exportTollToXlsx(
     for (const mp of monthPeriods) hdrRow2.push(`km ${fmtMonth(mp)}`);
   }
   hdrRow2.push('km Gesamt');
+  if (showDiff) {
+    hdrRow2.push(`Δ km (${fmtMonth(lastMp)} − ${fmtMonth(prevMp)})`);
+    hdrRow2.push(`Δ km %`);
+  }
 
   // Build data: each vehicle = 2 rows (maut row + km row)
   const dataRows: (string | number)[][] = [];
@@ -263,6 +279,15 @@ export function exportTollToXlsx(
       for (const mp of monthPeriods) mautRow.push(byMonthA.get(mp) || 0);
     }
     mautRow.push(v.totalAmount);
+    if (showDiff) {
+      const byMonthA = vehicleMonthAmounts.get(v.plate)!;
+      const last = byMonthA.get(lastMp) || 0;
+      const prev = byMonthA.get(prevMp) || 0;
+      const diffEur = last - prev;
+      const diffPct = prev === 0 ? (last === 0 ? 0 : 1) : diffEur / prev;
+      mautRow.push(diffEur);
+      mautRow.push(diffPct);
+    }
     dataRows.push(mautRow);
 
     // Row 2: km values
@@ -272,6 +297,15 @@ export function exportTollToXlsx(
       for (const mp of monthPeriods) kmRow.push(byMonthK.get(mp) || 0);
     }
     kmRow.push(v.totalKm);
+    if (showDiff) {
+      const byMonthK = vehicleMonthKm.get(v.plate)!;
+      const last = byMonthK.get(lastMp) || 0;
+      const prev = byMonthK.get(prevMp) || 0;
+      const diffKm = last - prev;
+      const diffPct = prev === 0 ? (last === 0 ? 0 : 1) : diffKm / prev;
+      kmRow.push(diffKm);
+      kmRow.push(diffPct);
+    }
     dataRows.push(kmRow);
   }
 
@@ -283,6 +317,14 @@ export function exportTollToXlsx(
     }
   }
   footerMaut.push(grandTotalAmount);
+  if (showDiff) {
+    const lastSum = vehicles.reduce((s, v) => s + (vehicleMonthAmounts.get(v.plate)!.get(lastMp) || 0), 0);
+    const prevSum = vehicles.reduce((s, v) => s + (vehicleMonthAmounts.get(v.plate)!.get(prevMp) || 0), 0);
+    const diff = lastSum - prevSum;
+    const diffPct = prevSum === 0 ? (lastSum === 0 ? 0 : 1) : diff / prevSum;
+    footerMaut.push(diff);
+    footerMaut.push(diffPct);
+  }
 
   const footerKm: (string | number)[] = ['', '', '', ''];
   if (hasMultiMonths) {
@@ -291,6 +333,14 @@ export function exportTollToXlsx(
     }
   }
   footerKm.push(grandTotalKm);
+  if (showDiff) {
+    const lastSum = vehicles.reduce((s, v) => s + (vehicleMonthKm.get(v.plate)!.get(lastMp) || 0), 0);
+    const prevSum = vehicles.reduce((s, v) => s + (vehicleMonthKm.get(v.plate)!.get(prevMp) || 0), 0);
+    const diff = lastSum - prevSum;
+    const diffPct = prevSum === 0 ? (lastSum === 0 ? 0 : 1) : diff / prevSum;
+    footerKm.push(diff);
+    footerKm.push(diffPct);
+  }
 
   const overviewData: (string | number)[][] = [
     [companyName],
@@ -308,7 +358,12 @@ export function exportTollToXlsx(
 
   const wsOverview = XLSX.utils.aoa_to_sheet(overviewData);
   const ovColWidths: { wch: number }[] = [{ wch: 6 }, { wch: 18 }, { wch: 22 }, { wch: 10 }];
-  for (let i = 0; i < valCols; i++) ovColWidths.push({ wch: 18 });
+  const normalValCols = valCols - diffCols;
+  for (let i = 0; i < normalValCols; i++) ovColWidths.push({ wch: 18 });
+  if (showDiff) {
+    ovColWidths.push({ wch: 22 }); // Δ absolute
+    ovColWidths.push({ wch: 14 }); // Δ %
+  }
   wsOverview['!cols'] = ovColWidths;
 
   // Merges: title rows + header fixed cols merged 2 rows + each vehicle fixed cols merged 2 rows
@@ -411,8 +466,15 @@ export function exportTollToXlsx(
 
       // Number formats
       if (c >= valStart) {
-        applyNumberFormat(wsOverview, mautR, c, '#,##0.00 €');
-        applyNumberFormat(wsOverview, kmR, c, '#,##0.0');
+        // Last column = Δ %, 2nd-to-last = Δ absolute (€ or km), before that = monthly/total (€ or km)
+        const isPctCol = showDiff && c === colCount_ov - 1;
+        if (isPctCol) {
+          applyNumberFormat(wsOverview, mautR, c, '+0.00%;-0.00%;0.00%');
+          applyNumberFormat(wsOverview, kmR, c, '+0.00%;-0.00%;0.00%');
+        } else {
+          applyNumberFormat(wsOverview, mautR, c, '#,##0.00 €');
+          applyNumberFormat(wsOverview, kmR, c, '#,##0.0');
+        }
       }
     }
   }
@@ -432,8 +494,14 @@ export function exportTollToXlsx(
       alignment: { horizontal: c >= 4 ? 'right' : 'left', vertical: 'center' },
     });
     if (c >= valStart) {
-      applyNumberFormat(wsOverview, footerStart, c, '#,##0.00 €');
-      applyNumberFormat(wsOverview, footerStart + 1, c, '#,##0.0');
+      const isPctCol = showDiff && c === colCount_ov - 1;
+      if (isPctCol) {
+        applyNumberFormat(wsOverview, footerStart, c, '+0.00%;-0.00%;0.00%');
+        applyNumberFormat(wsOverview, footerStart + 1, c, '+0.00%;-0.00%;0.00%');
+      } else {
+        applyNumberFormat(wsOverview, footerStart, c, '#,##0.00 €');
+        applyNumberFormat(wsOverview, footerStart + 1, c, '#,##0.0');
+      }
     }
   }
 

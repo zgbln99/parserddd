@@ -184,6 +184,7 @@ export function TollCollectPage() {
 
   // Selected vehicles for Excel export
   const [selectedPlates, setSelectedPlates] = useState<Set<string>>(new Set());
+  const [showMonthDiff, setShowMonthDiff] = useState(false);
 
   // All rows merged from all months
   const allRows = useMemo(() => months.flatMap(m => m.rows), [months]);
@@ -426,7 +427,7 @@ export function TollCollectPage() {
       ? (periods.length === 1 ? periods[0] : `${periods[0]}_${periods[periods.length - 1]}`)
       : new Date().toISOString().slice(0, 7);
 
-    exportTollToXlsx(selected, periodStr, 'LTS Logistik GmbH');
+    exportTollToXlsx(selected, periodStr, 'LTS Logistik GmbH', showMonthDiff);
   };
 
   return (
@@ -799,6 +800,19 @@ export function TollCollectPage() {
                 {selectedPlates.size} / {byVehicle.length} {t('tollSelected')}
               </span>
             )}
+            <label
+              className={`inline-flex items-center gap-1.5 text-xs font-medium select-none ${months.length >= 2 ? 'cursor-pointer text-ink' : 'cursor-not-allowed text-muted opacity-50'}`}
+              title={months.length < 2 ? (locale === 'de' ? 'Mindestens 2 Monate laden' : 'Załaduj minimum 2 miesiące') : ''}
+            >
+              <input
+                type="checkbox"
+                checked={showMonthDiff && months.length >= 2}
+                disabled={months.length < 2}
+                onChange={(e) => setShowMonthDiff(e.target.checked)}
+                className="h-3.5 w-3.5 accent-[#0071e3]"
+              />
+              {locale === 'de' ? 'Differenz zum Vormonat' : 'Różnica vs. poprzedni miesiąc'}
+            </label>
             <button
               onClick={handleExportExcel}
               disabled={selectedPlates.size === 0}
