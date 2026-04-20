@@ -514,8 +514,8 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
         </div>
       </div>
 
-      {/* Duration breakdown: with breaks / without breaks / breaks */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      {/* Duration breakdown + total km */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-xl bg-[#f5f5f7] dark:bg-[#272729] p-3 text-center">
           <p className="text-xs font-bold uppercase tracking-wider text-muted">{locale === 'de' ? 'Gesamtzeit mit Pausen' : 'Czas łącznie z przerwami'}</p>
           <p className="mt-0.5 text-xl font-extrabold">{(s as any).total_duration_hm || '—'}</p>
@@ -528,6 +528,17 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
           <p className="text-xs font-bold uppercase tracking-wider text-muted">{locale === 'de' ? 'Pausen gesamt' : 'Przerwy łącznie'}</p>
           <p className="mt-0.5 text-xl font-extrabold">{s.total_break_hm}</p>
         </div>
+        {(() => {
+          // Sum of per-shift km (only shifts in the current date filter)
+          const totalKm = shifts.reduce((sum, sh) => sum + shiftKm(sh), 0);
+          const fmtNum = (n: number) => n.toLocaleString(locale === 'de' ? 'de-DE' : 'pl-PL');
+          return (
+            <div className="rounded-xl bg-[#f5f5f7] dark:bg-[#272729] p-3 text-center">
+              <p className="text-xs font-bold uppercase tracking-wider text-muted">{locale === 'de' ? 'Kilometer' : 'Kilometry'}</p>
+              <p className="mt-0.5 text-xl font-extrabold">{fmtNum(totalKm)} km</p>
+            </div>
+          );
+        })()}
       </div>
 
       {/* Secondary metrics */}
