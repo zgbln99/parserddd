@@ -237,12 +237,15 @@ def get_vehicle_records(data):
             if dedup_key in seen:
                 continue
             seen.add(dedup_key)
+            ob = int(odo_begin) if odo_begin else 0
+            oe = int(odo_end) if odo_end else 0
             vehicles.append({
                 'plate': plate,
                 'first_use': first_use,
                 'last_use': last_use,
-                'odometer_begin_km': int(odo_begin) if odo_begin else 0,
-                'odometer_end_km': int(odo_end) if odo_end else 0,
+                'odometer_begin_km': ob,
+                'odometer_end_km': oe,
+                'distance_km': max(0, oe - ob),
             })
     vehicles.sort(key=lambda v: v.get('first_use', ''))
     return vehicles

@@ -135,7 +135,14 @@ export interface ManualEntry {
 
 export interface AnalysisResult {
   driver_info: DriverInfo;
-  vehicles: { plate: string; first_use: string; last_use: string }[];
+  vehicles: {
+    plate: string;
+    first_use: string;
+    last_use: string;
+    odometer_begin_km?: number;
+    odometer_end_km?: number;
+    distance_km?: number;
+  }[];
   summary: AnalysisSummary;
   shift_details: ShiftDetail[];
   calendar_days?: Record<string, CalendarDayWork>;

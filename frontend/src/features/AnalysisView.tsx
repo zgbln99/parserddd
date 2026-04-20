@@ -520,6 +520,63 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
         ))}
       </div>
 
+      {/* Vehicles with odometer / kilometers */}
+      {data.vehicles && data.vehicles.length > 0 && (() => {
+        const totalKm = data.vehicles.reduce((sum, v) => sum + (v.distance_km ?? Math.max(0, (v.odometer_end_km || 0) - (v.odometer_begin_km || 0))), 0);
+        const fmtNum = (n: number) => n.toLocaleString(locale === 'de' ? 'de-DE' : 'pl-PL');
+        const fmtDt = (s: string) => s ? s.slice(0, 16).replace('T', ' ') : '—';
+        return (
+          <div className="rounded-xl bg-[#f5f5f7] dark:bg-[#272729] p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-sm font-semibold uppercase tracking-wider text-muted">
+                {locale === 'de' ? 'Fahrzeuge & Kilometer' : 'Pojazdy i kilometry'}
+              </h3>
+              <div className="text-right">
+                <p className="text-[10px] font-medium uppercase tracking-wider text-muted">
+                  {locale === 'de' ? 'Gesamt' : 'Razem'}
+                </p>
+                <p className="text-xl font-bold text-ink">{fmtNum(totalKm)} km</p>
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-black/[0.08] dark:border-[#424245] text-left text-[11px] uppercase tracking-wider text-muted">
+                    <th className="px-2 py-2 font-medium">{locale === 'de' ? 'Kennzeichen' : 'Numer rej.'}</th>
+                    <th className="px-2 py-2 font-medium">{locale === 'de' ? 'Erste Nutzung' : 'Pierwsze użycie'}</th>
+                    <th className="px-2 py-2 font-medium">{locale === 'de' ? 'Letzte Nutzung' : 'Ostatnie użycie'}</th>
+                    <th className="px-2 py-2 font-medium text-right">{locale === 'de' ? 'Stand Beginn' : 'Stan początkowy'}</th>
+                    <th className="px-2 py-2 font-medium text-right">{locale === 'de' ? 'Stand Ende' : 'Stan końcowy'}</th>
+                    <th className="px-2 py-2 font-medium text-right">{locale === 'de' ? 'Strecke' : 'Przejechane'}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-black/[0.05] dark:divide-[#424245]">
+                  {data.vehicles.map((v, i) => {
+                    const dist = v.distance_km ?? Math.max(0, (v.odometer_end_km || 0) - (v.odometer_begin_km || 0));
+                    return (
+                      <tr key={i} className="hover:bg-black/[0.02] dark:hover:bg-white/[0.03]">
+                        <td className="px-2 py-2 font-semibold text-ink">{v.plate}</td>
+                        <td className="px-2 py-2 text-muted">{fmtDt(v.first_use)}</td>
+                        <td className="px-2 py-2 text-muted">{fmtDt(v.last_use)}</td>
+                        <td className="px-2 py-2 text-right tabular-nums text-muted">
+                          {v.odometer_begin_km ? `${fmtNum(v.odometer_begin_km)} km` : '—'}
+                        </td>
+                        <td className="px-2 py-2 text-right tabular-nums text-muted">
+                          {v.odometer_end_km ? `${fmtNum(v.odometer_end_km)} km` : '—'}
+                        </td>
+                        <td className="px-2 py-2 text-right tabular-nums font-semibold text-ink">
+                          {fmtNum(dist)} km
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Monthly grid copy block (hidden on mobile - 31-col table) */}
       {fv('monthly_grid') && shifts.length > 0 && hasDateFilter && dateFrom && (
         <div className="hidden sm:block rounded-xl bg-[#f5f5f7] dark:bg-[#272729] p-4 dark:bg-white/5">
