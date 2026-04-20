@@ -153,22 +153,6 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
     }, 0);
   }, [data.vehicles, dateFrom, dateTo]);
 
-  // Per-shift km: sum distance_km from vehicle records whose usage period
-  // overlaps with this shift's time window.
-  const shiftKm = useMemo(() => {
-    return (sh: ShiftDetail): number => {
-      let total = 0;
-      for (const v of (data.vehicles || [])) {
-        if (!v.first_use || !v.last_use) continue;
-        // Overlap: v.start <= sh.end AND v.end >= sh.start
-        if (v.first_use <= sh.shift_end && v.last_use >= sh.shift_start) {
-          total += v.distance_km ?? Math.max(0, (v.odometer_end_km || 0) - (v.odometer_begin_km || 0));
-        }
-      }
-      return total;
-    };
-  }, [data.vehicles]);
-
   // VMA calculation
   const vma = useMemo(() => {
     const dietRate = driverConfig?.diet_rate ?? 14.0;
@@ -314,6 +298,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
   const [showDietReport, setShowDietReport] = useState(false);
   const [showManual, setShowManual] = useState(false);
   const [selectedShiftReport, setSelectedShiftReport] = useState<number | null>(null);
+  const [showVehicleKm, setShowVehicleKm] = useState(false);
   const printRef = useRef<HTMLDivElement>(null);
 
   // Chart data: per-shift stacked bars
@@ -834,12 +819,12 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
         {/* Desktop shifts table */}
         <div className="hidden sm:block -mx-6 overflow-x-auto px-6">
           <div className="rounded-xl border border-border">
-          <table className="w-full min-w-[1200px] text-sm">
+          <table className="w-full min-w-[1100px] text-sm">
             <thead>
               <tr className="border-b border-border">
                 {[t('analysisWeekday'), t('analysisStart'), t('analysisEnd'), t('analysisTime'), t('analysisVehicle'),
                   t('analysisWorkTime'), t('analysisDriving'), t('analysisWork'), t('analysisAvailability'), t('analysisBreaks'),
-                  t('analysisNight25'), t('analysisNight40'), t('analysisDiet'), 'km',
+                  t('analysisNight25'), t('analysisNight40'), t('analysisDiet'),
                 ].map((h) => (
                   <th key={h} className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold text-muted">
                     {h}
@@ -884,16 +869,10 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
                       ? <Badge variant="green">{t('yes')}</Badge>
                       : <span className="text-muted">{t('no')}</span>}
                   </td>
-                  <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums font-medium">
-                    {(() => {
-                      const km = shiftKm(sh);
-                      return km > 0 ? `${km.toLocaleString(locale === 'de' ? 'de-DE' : 'pl-PL')} km` : <span className="text-muted">—</span>;
-                    })()}
-                  </td>
                 </tr>
                 {selectedShiftReport === i && (
                   <tr key={`report-${i}`}>
-                    <td colSpan={14} className="p-4 bg-surface">
+                    <td colSpan={13} className="p-4 bg-surface">
                       <ArbeitszeitReport shift={sh} />
                     </td>
                   </tr>
@@ -960,13 +939,20 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
         const totalDistance = filtered.reduce((sum, v) => sum + (v.distance_km ?? Math.max(0, (v.odometer_end_km || 0) - (v.odometer_begin_km || 0))), 0);
 
         return (
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold uppercase tracking-wider text-muted">
+          <div className="space-y-0">
+            <button
+              onClick={() => setShowVehicleKm(!showVehicleKm)}
+              className="flex w-full items-center gap-2 rounded-xl bg-[#f5f5f7] dark:bg-[#272729] px-4 py-3 text-left transition hover:opacity-80"
+            >
+              <span className={`text-muted transition-transform ${showVehicleKm ? 'rotate-90' : ''}`}>▶</span>
+              <span className="text-sm font-semibold uppercase tracking-wider text-muted">
                 {locale === 'de' ? `Fahrzeugnutzung (${filtered.length} Aufzeichnungen)` : `Wykorzystanie pojazdów (${filtered.length} rekordów)`}
-              </h3>
-            </div>
-            <div className="rounded-xl border border-border overflow-x-auto">
+              </span>
+              <span className="ml-auto text-sm font-bold text-ink">
+                {fmtNum(totalDistance)} KM
+              </span>
+            </button>
+            {showVehicleKm && <div className="rounded-xl border border-border overflow-x-auto mt-2">
               <table className="w-full min-w-[900px] text-sm">
                 <thead>
                   <tr className="border-b border-border bg-[#f5f5f7] dark:bg-[#272729]">
@@ -1014,7 +1000,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
                   </tr>
                 </tfoot>
               </table>
-            </div>
+            </div>}
           </div>
         );
       })()}
