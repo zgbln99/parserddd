@@ -190,6 +190,9 @@ export function exportTollToXlsx(
   period: string,
   companyName: string,
   showMonthDiff = false,
+  addExtras = false,
+  dailyRate = 8,
+  kmRate = 0.30,
 ) {
   const wb = XLSX.utils.book_new();
 
@@ -236,10 +239,21 @@ export function exportTollToXlsx(
     return `${monthNames[parseInt(m, 10) - 1]} ${y}`;
   };
 
-  // Value columns = months + gesamt (no diff inline — diff goes to separate sheet)
-  const valCols = hasMultiMonths ? monthPeriods.length + 1 : 1;
+  // Value columns = months + gesamt + optional extras (3 extra cols: Tage, Zusatz €, Maut+Zusatz)
+  const extrasCols = addExtras ? 3 : 0;
+  const valCols = (hasMultiMonths ? monthPeriods.length + 1 : 1) + extrasCols;
   const colCount_ov = 4 + valCols; // 4 fixed + value columns
   const valStart = 4; // first value column index
+
+  // Count working days per vehicle (unique dates with activity)
+  const vehicleDays = new Map<string, number>();
+  if (addExtras) {
+    for (const v of vehicles) {
+      const dates = new Set<string>();
+      for (const r of v.rows) dates.add(r.date);
+      vehicleDays.set(v.plate, dates.size);
+    }
+  }
 
   // Header row 1: Maut labels
   const hdrRow1: string[] = ['Nr.', 'Kennzeichen', 'Tour', 'Fahrten'];
@@ -247,6 +261,11 @@ export function exportTollToXlsx(
     for (const mp of monthPeriods) hdrRow1.push(`Maut ${fmtMonth(mp)}`);
   }
   hdrRow1.push('Maut Gesamt (€)');
+  if (addExtras) {
+    hdrRow1.push('Arbeitstage');
+    hdrRow1.push(`Zusatz (${dailyRate.toFixed(2)} €/Tag + ${kmRate.toFixed(2)} €/km)`);
+    hdrRow1.push('Maut + Zusatz (€)');
+  }
 
   // Header row 2: km labels
   const hdrRow2: string[] = ['', '', '', ''];
@@ -254,9 +273,17 @@ export function exportTollToXlsx(
     for (const mp of monthPeriods) hdrRow2.push(`km ${fmtMonth(mp)}`);
   }
   hdrRow2.push('km Gesamt');
+  if (addExtras) {
+    hdrRow2.push('');
+    hdrRow2.push('');
+    hdrRow2.push('');
+  }
 
   // Build data: each vehicle = 2 rows (maut row + km row)
   const dataRows: (string | number)[][] = [];
+  let grandTotalDays = 0;
+  let grandTotalZusatz = 0;
+  let grandTotalWithZusatz = 0;
   for (let i = 0; i < vehicles.length; i++) {
     const v = vehicles[i];
     // Row 1: maut values
@@ -266,6 +293,17 @@ export function exportTollToXlsx(
       for (const mp of monthPeriods) mautRow.push(byMonthA.get(mp) || 0);
     }
     mautRow.push(v.totalAmount);
+    if (addExtras) {
+      const days = vehicleDays.get(v.plate) || 0;
+      const zusatz = days * dailyRate + v.totalKm * kmRate;
+      const withZusatz = v.totalAmount + zusatz;
+      grandTotalDays += days;
+      grandTotalZusatz += zusatz;
+      grandTotalWithZusatz += withZusatz;
+      mautRow.push(days);
+      mautRow.push(zusatz);
+      mautRow.push(withZusatz);
+    }
     dataRows.push(mautRow);
 
     // Row 2: km values
@@ -275,6 +313,11 @@ export function exportTollToXlsx(
       for (const mp of monthPeriods) kmRow.push(byMonthK.get(mp) || 0);
     }
     kmRow.push(v.totalKm);
+    if (addExtras) {
+      kmRow.push('');
+      kmRow.push('');
+      kmRow.push('');
+    }
     dataRows.push(kmRow);
   }
 
@@ -286,6 +329,11 @@ export function exportTollToXlsx(
     }
   }
   footerMaut.push(grandTotalAmount);
+  if (addExtras) {
+    footerMaut.push(grandTotalDays);
+    footerMaut.push(grandTotalZusatz);
+    footerMaut.push(grandTotalWithZusatz);
+  }
 
   const footerKm: (string | number)[] = ['', '', '', ''];
   if (hasMultiMonths) {
@@ -294,6 +342,11 @@ export function exportTollToXlsx(
     }
   }
   footerKm.push(grandTotalKm);
+  if (addExtras) {
+    footerKm.push('');
+    footerKm.push('');
+    footerKm.push('');
+  }
 
   const overviewData: (string | number)[][] = [
     [companyName],
@@ -311,7 +364,13 @@ export function exportTollToXlsx(
 
   const wsOverview = XLSX.utils.aoa_to_sheet(overviewData);
   const ovColWidths: { wch: number }[] = [{ wch: 6 }, { wch: 18 }, { wch: 22 }, { wch: 10 }];
-  for (let i = 0; i < valCols; i++) ovColWidths.push({ wch: 18 });
+  const normalValCols = valCols - extrasCols;
+  for (let i = 0; i < normalValCols; i++) ovColWidths.push({ wch: 18 });
+  if (addExtras) {
+    ovColWidths.push({ wch: 12 });  // Arbeitstage
+    ovColWidths.push({ wch: 30 });  // Zusatz (with formula in header)
+    ovColWidths.push({ wch: 18 });  // Maut + Zusatz
+  }
   wsOverview['!cols'] = ovColWidths;
 
   // Merges: title rows + header fixed cols merged 2 rows + each vehicle fixed cols merged 2 rows
@@ -385,17 +444,19 @@ export function exportTollToXlsx(
   // Data rows: style and number format
   const FILL_MAUT_LIGHT = { fgColor: { rgb: 'EEF2F9' } }; // light blue for maut rows
   const FILL_KM_LIGHT = { fgColor: { rgb: 'EDF5F0' } };   // light green for km rows
+  const FILL_TOTAL_COL = { fgColor: { rgb: 'FFF4C2' } };  // yellow highlight for final total column
   for (let i = 0; i < vehicles.length; i++) {
     const mautR = dataStart + i * 2;
     const kmR = mautR + 1;
     const isAlt = i % 2 === 1;
 
     for (let c = 0; c < colCount_ov; c++) {
+      const isFinalTotalCol = addExtras && c === colCount_ov - 1;
       // Maut row
       styleCell(wsOverview, mautR, c, {
-        font: c === 1 ? FONT_BOLD : FONT_DEFAULT,
+        font: c === 1 || isFinalTotalCol ? FONT_BOLD : FONT_DEFAULT,
         border: BORDERS_ALL,
-        fill: isAlt ? FILL_MAUT_LIGHT : undefined,
+        fill: isFinalTotalCol ? FILL_TOTAL_COL : (isAlt ? FILL_MAUT_LIGHT : undefined),
         alignment: {
           horizontal: c === 0 ? 'center' : c >= 4 ? 'right' : 'left',
           vertical: 'center',
@@ -414,8 +475,15 @@ export function exportTollToXlsx(
 
       // Number formats
       if (c >= valStart) {
-        applyNumberFormat(wsOverview, mautR, c, '#,##0.00 €');
-        applyNumberFormat(wsOverview, kmR, c, '#,##0.0');
+        // Extras columns: Tage (integer), Zusatz €, Maut+Zusatz € — last 3 cols when addExtras
+        const isTageCol = addExtras && c === colCount_ov - 3;
+        if (isTageCol) {
+          applyNumberFormat(wsOverview, mautR, c, '#,##0');
+          // km row stays blank
+        } else {
+          applyNumberFormat(wsOverview, mautR, c, '#,##0.00 €');
+          applyNumberFormat(wsOverview, kmR, c, '#,##0.0');
+        }
       }
     }
   }
@@ -435,8 +503,13 @@ export function exportTollToXlsx(
       alignment: { horizontal: c >= 4 ? 'right' : 'left', vertical: 'center' },
     });
     if (c >= valStart) {
-      applyNumberFormat(wsOverview, footerStart, c, '#,##0.00 €');
-      applyNumberFormat(wsOverview, footerStart + 1, c, '#,##0.0');
+      const isTageCol = addExtras && c === colCount_ov - 3;
+      if (isTageCol) {
+        applyNumberFormat(wsOverview, footerStart, c, '#,##0');
+      } else {
+        applyNumberFormat(wsOverview, footerStart, c, '#,##0.00 €');
+        applyNumberFormat(wsOverview, footerStart + 1, c, '#,##0.0');
+      }
     }
   }
 

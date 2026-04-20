@@ -185,6 +185,9 @@ export function TollCollectPage() {
   // Selected vehicles for Excel export
   const [selectedPlates, setSelectedPlates] = useState<Set<string>>(new Set());
   const [showMonthDiff, setShowMonthDiff] = useState(false);
+  const [addExtras, setAddExtras] = useState(false);
+  const [dailyRate, setDailyRate] = useState(8);
+  const [kmRate, setKmRate] = useState(0.30);
 
   // All rows merged from all months
   const allRows = useMemo(() => months.flatMap(m => m.rows), [months]);
@@ -427,7 +430,7 @@ export function TollCollectPage() {
       ? (periods.length === 1 ? periods[0] : `${periods[0]}_${periods[periods.length - 1]}`)
       : new Date().toISOString().slice(0, 7);
 
-    exportTollToXlsx(selected, periodStr, 'LTS Logistik GmbH', showMonthDiff);
+    exportTollToXlsx(selected, periodStr, 'LTS Logistik GmbH', showMonthDiff, addExtras, dailyRate, kmRate);
   };
 
   return (
@@ -813,6 +816,40 @@ export function TollCollectPage() {
               />
               {locale === 'de' ? 'Differenz zum Vormonat' : 'Różnica vs. poprzedni miesiąc'}
             </label>
+            <label className="inline-flex items-center gap-1.5 text-xs font-medium cursor-pointer text-ink select-none">
+              <input
+                type="checkbox"
+                checked={addExtras}
+                onChange={(e) => setAddExtras(e.target.checked)}
+                className="h-3.5 w-3.5 accent-[#0071e3]"
+              />
+              {locale === 'de' ? 'Zusatzgebühren' : 'Dodatkowe opłaty'}
+            </label>
+            {addExtras && (
+              <div className="inline-flex items-center gap-1.5 text-xs">
+                <input
+                  type="number"
+                  value={dailyRate}
+                  onChange={(e) => setDailyRate(Number(e.target.value) || 0)}
+                  step={0.01}
+                  min={0}
+                  className="w-14 input px-1.5 py-1 text-xs text-right"
+                  title={locale === 'de' ? 'EUR pro Tag' : 'EUR za dzień'}
+                />
+                <span className="text-muted">€/{locale === 'de' ? 'Tag' : 'dzień'}</span>
+                <span className="text-muted">+</span>
+                <input
+                  type="number"
+                  value={kmRate}
+                  onChange={(e) => setKmRate(Number(e.target.value) || 0)}
+                  step={0.01}
+                  min={0}
+                  className="w-14 input px-1.5 py-1 text-xs text-right"
+                  title={locale === 'de' ? 'EUR pro km' : 'EUR za km'}
+                />
+                <span className="text-muted">€/km</span>
+              </div>
+            )}
             <button
               onClick={handleExportExcel}
               disabled={selectedPlates.size === 0}
