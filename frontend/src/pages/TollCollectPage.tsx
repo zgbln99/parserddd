@@ -326,8 +326,13 @@ export function TollCollectPage() {
       }
       if (dateFrom && r.date < dateFrom) return false;
       if (dateTo && r.date > dateTo) return false;
-      if (timeFrom && r.time < timeFrom) return false;
-      if (timeTo && r.time > timeTo) return false;
+      if (timeFrom && timeTo && timeFrom > timeTo) {
+        // Overnight range (e.g. 16:01 → 04:59): include if time >= from OR time <= to
+        if (r.time < timeFrom && r.time > timeTo) return false;
+      } else {
+        if (timeFrom && r.time < timeFrom) return false;
+        if (timeTo && r.time > timeTo) return false;
+      }
       return true;
     });
   }, [allRows, searchText, dateFrom, dateTo, timeFrom, timeTo]);
