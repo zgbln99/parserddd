@@ -193,14 +193,16 @@ export function exportTollToXlsx(
   addExtras = false,
   dailyRate = 8,
   kmRate = 0.30,
-  dayNightSplit?: { nightStart: string; nightEnd: string },
+  dayNightSplit?: { nightStart: string; nightEnd: string; plates?: Set<string> },
 ) {
   const wb = XLSX.utils.book_new();
 
-  // Day/Night split: expand each vehicle into two entries (Tag + Nacht)
+  // Day/Night split: expand selected vehicles into two entries (Tag + Nacht)
+  // Only plates listed in dayNightSplit.plates are split; others stay as-is.
   if (dayNightSplit) {
     const ns = dayNightSplit.nightStart; // e.g. "22:00"
     const ne = dayNightSplit.nightEnd;   // e.g. "06:00"
+    const platesToSplit = dayNightSplit.plates;
     const isNight = (time: string) => {
       if (!time) return false;
       const t = time.slice(0, 5); // "HH:MM"
@@ -213,6 +215,12 @@ export function exportTollToXlsx(
 
     const expanded: TollVehicleGroup[] = [];
     for (const v of vehicles) {
+      // Skip splitting if this plate isn't selected for splitting
+      if (platesToSplit && !platesToSplit.has(v.plate)) {
+        expanded.push(v);
+        continue;
+      }
+
       const dayRows = v.rows.filter(r => !isNight(r.time));
       const nightRows = v.rows.filter(r => isNight(r.time));
 

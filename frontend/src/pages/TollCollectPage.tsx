@@ -191,6 +191,7 @@ export function TollCollectPage() {
   const [splitDayNight, setSplitDayNight] = useState(false);
   const [nightStart, setNightStart] = useState('22:00');
   const [nightEnd, setNightEnd] = useState('06:00');
+  const [splitPlates, setSplitPlates] = useState<Set<string>>(new Set());
 
   // All rows merged from all months
   const allRows = useMemo(() => months.flatMap(m => m.rows), [months]);
@@ -377,6 +378,15 @@ export function TollCollectPage() {
     });
   };
 
+  const toggleSplitPlate = (plate: string) => {
+    setSplitPlates(prev => {
+      const next = new Set(prev);
+      if (next.has(plate)) next.delete(plate);
+      else next.add(plate);
+      return next;
+    });
+  };
+
   const allSelected = byVehicle.length > 0 && byVehicle.every(([plate]) => selectedPlates.has(plate));
 
   const toggleSelectAll = () => {
@@ -438,7 +448,7 @@ export function TollCollectPage() {
       ? (periods.length === 1 ? periods[0] : `${periods[0]}_${periods[periods.length - 1]}`)
       : new Date().toISOString().slice(0, 7);
 
-    exportTollToXlsx(selected, periodStr, 'LTS Logistik GmbH', showMonthDiff, addExtras, dailyRate, kmRate, splitDayNight ? { nightStart, nightEnd } : undefined);
+    exportTollToXlsx(selected, periodStr, 'LTS Logistik GmbH', showMonthDiff, addExtras, dailyRate, kmRate, splitDayNight ? { nightStart, nightEnd, plates: splitPlates } : undefined);
   };
 
   return (
@@ -955,6 +965,19 @@ export function TollCollectPage() {
                             <div className="flex items-center gap-2">
                               <Truck className="w-4 h-4 text-muted" />
                               <span className="font-mono">{plate}</span>
+                              {splitDayNight && (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); toggleSplitPlate(plate); }}
+                                  title={locale === 'de' ? 'Tag/Nacht trennen' : 'Rozdziel dzień/noc'}
+                                  className={`text-[10px] font-semibold rounded-md px-2 py-0.5 transition-colors ${
+                                    splitPlates.has(plate)
+                                      ? 'bg-[#0071e3] text-white'
+                                      : 'bg-gray-200 text-muted hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600'
+                                  }`}
+                                >
+                                  ☀/☾ {splitPlates.has(plate) ? (locale === 'de' ? 'getrennt' : 'rozdziel') : (locale === 'de' ? 'trennen?' : 'rozdziel?')}
+                                </button>
+                              )}
                             </div>
                           </td>
                           <td className="px-3 py-3 hidden sm:table-cell" onClick={e => e.stopPropagation()}>
