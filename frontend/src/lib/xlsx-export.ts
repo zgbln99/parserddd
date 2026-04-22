@@ -195,6 +195,7 @@ export function exportTollToXlsx(
   kmRate = 0.30,
   dayNightSplit?: { nightStart: string; nightEnd: string; plates?: Set<string>; tours?: Record<string, { day: string; night: string }> },
   cityName = '',
+  auftragNr = '',
 ) {
   const wb = XLSX.utils.book_new();
 
@@ -914,8 +915,10 @@ export function exportTollToXlsx(
   }
 
   const safePeriod = period.replace(/[^a-zA-Z0-9_-]/g, '') || 'Maut';
-  const safeCity = cityName.trim().replace(/[^a-zA-Z0-9äöüÄÖÜßąćęłńóśźżĄĆĘŁŃÓŚŹŻ _-]/g, '').replace(/\s+/g, '_');
-  const parts = [safeCity, safePeriod, 'Maut'].filter(Boolean);
+  const sanitize = (s: string) => s.trim().replace(/[^a-zA-Z0-9äöüÄÖÜßąćęłńóśźżĄĆĘŁŃÓŚŹŻ _-]/g, '').replace(/\s+/g, '_');
+  const safeCity = sanitize(cityName);
+  const safeAuftrag = sanitize(auftragNr);
+  const parts = [safeCity, safeAuftrag, safePeriod, 'Maut'].filter(Boolean);
   XLSX.writeFile(wb, `${parts.join('_')}.xlsx`);
 }
 

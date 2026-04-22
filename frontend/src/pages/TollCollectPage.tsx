@@ -197,6 +197,7 @@ export function TollCollectPage() {
   // Per-plate excluded months (e.g. "2026-02") — only applies when > 2 months loaded
   const [excludedMonths, setExcludedMonths] = useState<Record<string, Set<string>>>({});
   const [cityName, setCityName] = useState('');
+  const [auftragNr, setAuftragNr] = useState('');
 
   // All rows merged from all months
   const allRows = useMemo(() => months.flatMap(m => m.rows), [months]);
@@ -458,7 +459,7 @@ export function TollCollectPage() {
       ? (periods.length === 1 ? periods[0] : `${periods[0]}_${periods[periods.length - 1]}`)
       : new Date().toISOString().slice(0, 7);
 
-    exportTollToXlsx(selected, periodStr, 'LTS Logistik GmbH', showMonthDiff, addExtras, dailyRate, kmRate, splitDayNight ? { nightStart, nightEnd, plates: splitPlates, tours: splitTours } : undefined, cityName);
+    exportTollToXlsx(selected, periodStr, 'LTS Logistik GmbH', showMonthDiff, addExtras, dailyRate, kmRate, splitDayNight ? { nightStart, nightEnd, plates: splitPlates, tours: splitTours } : undefined, cityName, auftragNr);
   };
 
   return (
@@ -903,6 +904,13 @@ export function TollCollectPage() {
                 value={cityName}
                 onChange={(e) => setCityName(e.target.value)}
                 placeholder={locale === 'de' ? 'Ort (optional)' : 'Miejscowość (opcjon.)'}
+                className="w-32 input px-2 py-1 text-xs"
+              />
+              <input
+                type="text"
+                value={auftragNr}
+                onChange={(e) => setAuftragNr(e.target.value)}
+                placeholder={locale === 'de' ? 'Auftrag (optional)' : 'Auftrag (opcjon.)'}
                 className="w-32 input px-2 py-1 text-xs"
               />
             </div>
