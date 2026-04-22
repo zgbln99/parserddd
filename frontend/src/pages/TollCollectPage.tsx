@@ -194,6 +194,8 @@ export function TollCollectPage() {
   const [splitPlates, setSplitPlates] = useState<Set<string>>(new Set());
   // Per-plate day/night tour numbers when split is active
   const [splitTours, setSplitTours] = useState<Record<string, { day: string; night: string }>>({});
+  // Per-plate excluded months (e.g. "2026-02") — only applies when > 2 months loaded
+  const [excludedMonths, setExcludedMonths] = useState<Record<string, Set<string>>>({});
 
   // All rows merged from all months
   const allRows = useMemo(() => months.flatMap(m => m.rows), [months]);
@@ -414,6 +416,11 @@ export function TollCollectPage() {
               return true;
             })
           : data.rows; // no custom range — use globally filtered rows
+        // Apply per-vehicle month exclusions
+        const excluded = excludedMonths[plate];
+        if (excluded && excluded.size > 0) {
+          exportRows = exportRows.filter(r => !excluded.has(r.date.slice(0, 7)));
+        }
         const totalKm = exportRows.reduce((s, r) => s + r.km, 0);
         const totalAmount = exportRows.reduce((s, r) => s + r.amount, 0);
         return {
@@ -964,22 +971,66 @@ export function TollCollectPage() {
                             </button>
                           </td>
                           <td className="px-3 py-3 text-gray-900 dark:text-white">
-                            <div className="flex items-center gap-2">
-                              <Truck className="w-4 h-4 text-muted" />
-                              <span className="font-mono">{plate}</span>
-                              {splitDayNight && (
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); toggleSplitPlate(plate); }}
-                                  title={locale === 'de' ? 'Tag/Nacht trennen' : 'Rozdziel dzień/noc'}
-                                  className={`text-[10px] font-semibold rounded-md px-2 py-0.5 transition-colors ${
-                                    splitPlates.has(plate)
-                                      ? 'bg-[#0071e3] text-white'
-                                      : 'bg-gray-200 text-muted hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600'
-                                  }`}
-                                >
-                                  ☀/☾ {splitPlates.has(plate) ? (locale === 'de' ? 'getrennt' : 'rozdziel') : (locale === 'de' ? 'trennen?' : 'rozdziel?')}
-                                </button>
-                              )}
+                            <div className="flex flex-col gap-1.5">
+                              <div className="flex items-center gap-2">
+                                <Truck className="w-4 h-4 text-muted" />
+                                <span className="font-mono">{plate}</span>
+                                {splitDayNight && (
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); toggleSplitPlate(plate); }}
+                                    title={locale === 'de' ? 'Tag/Nacht trennen' : 'Rozdziel dzień/noc'}
+                                    className={`text-[10px] font-semibold rounded-md px-2 py-0.5 transition-colors ${
+                                      splitPlates.has(plate)
+                                        ? 'bg-[#0071e3] text-white'
+                                        : 'bg-gray-200 text-muted hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600'
+                                    }`}
+                                  >
+                                    ☀/☾ {splitPlates.has(plate) ? (locale === 'de' ? 'getrennt' : 'rozdziel') : (locale === 'de' ? 'trennen?' : 'rozdziel?')}
+                                  </button>
+                                )}
+                              </div>
+                              {months.length > 2 && (() => {
+                                const periods = months.map(m => m.period).sort();
+                                const exc = excludedMonths[plate] || new Set<string>();
+                                const monthNames = locale === 'de'
+                                  ? ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez']
+                                  : ['sty', 'lut', 'mar', 'kwi', 'maj', 'cze', 'lip', 'sie', 'wrz', 'paź', 'lis', 'gru'];
+                                return (
+                                  <div className="flex flex-wrap items-center gap-1 ml-6">
+                                    <span className="text-[9px] uppercase tracking-wider text-muted">
+                                      {locale === 'de' ? 'Ausschließen:' : 'Wyklucz:'}
+                                    </span>
+                                    {periods.map(p => {
+                                      const isExc = exc.has(p);
+                                      const mName = monthNames[parseInt(p.slice(5, 7), 10) - 1];
+                                      return (
+                                        <button
+                                          key={p}
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setExcludedMonths(prev => {
+                                              const next = { ...prev };
+                                              const set = new Set(next[plate] || []);
+                                              if (set.has(p)) set.delete(p);
+                                              else set.add(p);
+                                              if (set.size === 0) delete next[plate];
+                                              else next[plate] = set;
+                                              return next;
+                                            });
+                                          }}
+                                          className={`text-[10px] font-medium rounded px-1.5 py-0.5 transition-colors ${
+                                            isExc
+                                              ? 'bg-rose-500 text-white line-through'
+                                              : 'bg-gray-100 text-muted hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600'
+                                          }`}
+                                        >
+                                          {mName}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                );
+                              })()}
                             </div>
                           </td>
                           <td className="px-3 py-3 hidden sm:table-cell" onClick={e => e.stopPropagation()}>
