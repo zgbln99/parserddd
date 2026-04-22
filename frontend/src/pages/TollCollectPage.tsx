@@ -196,6 +196,7 @@ export function TollCollectPage() {
   const [splitTours, setSplitTours] = useState<Record<string, { day: string; night: string }>>({});
   // Per-plate excluded months (e.g. "2026-02") — only applies when > 2 months loaded
   const [excludedMonths, setExcludedMonths] = useState<Record<string, Set<string>>>({});
+  const [cityName, setCityName] = useState('');
 
   // All rows merged from all months
   const allRows = useMemo(() => months.flatMap(m => m.rows), [months]);
@@ -457,7 +458,7 @@ export function TollCollectPage() {
       ? (periods.length === 1 ? periods[0] : `${periods[0]}_${periods[periods.length - 1]}`)
       : new Date().toISOString().slice(0, 7);
 
-    exportTollToXlsx(selected, periodStr, 'LTS Logistik GmbH', showMonthDiff, addExtras, dailyRate, kmRate, splitDayNight ? { nightStart, nightEnd, plates: splitPlates, tours: splitTours } : undefined);
+    exportTollToXlsx(selected, periodStr, 'LTS Logistik GmbH', showMonthDiff, addExtras, dailyRate, kmRate, splitDayNight ? { nightStart, nightEnd, plates: splitPlates, tours: splitTours } : undefined, cityName);
   };
 
   return (
@@ -896,6 +897,15 @@ export function TollCollectPage() {
                   className="w-20 input px-1.5 py-1 text-xs" />
               </div>
             )}
+            <div className="inline-flex items-center gap-1.5 text-xs">
+              <input
+                type="text"
+                value={cityName}
+                onChange={(e) => setCityName(e.target.value)}
+                placeholder={locale === 'de' ? 'Ort (optional)' : 'Miejscowość (opcjon.)'}
+                className="w-32 input px-2 py-1 text-xs"
+              />
+            </div>
             <button
               onClick={handleExportExcel}
               disabled={selectedPlates.size === 0}
