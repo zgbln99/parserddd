@@ -192,6 +192,8 @@ export function TollCollectPage() {
   const [nightStart, setNightStart] = useState('22:00');
   const [nightEnd, setNightEnd] = useState('06:00');
   const [splitPlates, setSplitPlates] = useState<Set<string>>(new Set());
+  // Per-plate day/night tour numbers when split is active
+  const [splitTours, setSplitTours] = useState<Record<string, { day: string; night: string }>>({});
 
   // All rows merged from all months
   const allRows = useMemo(() => months.flatMap(m => m.rows), [months]);
@@ -448,7 +450,7 @@ export function TollCollectPage() {
       ? (periods.length === 1 ? periods[0] : `${periods[0]}_${periods[periods.length - 1]}`)
       : new Date().toISOString().slice(0, 7);
 
-    exportTollToXlsx(selected, periodStr, 'LTS Logistik GmbH', showMonthDiff, addExtras, dailyRate, kmRate, splitDayNight ? { nightStart, nightEnd, plates: splitPlates } : undefined);
+    exportTollToXlsx(selected, periodStr, 'LTS Logistik GmbH', showMonthDiff, addExtras, dailyRate, kmRate, splitDayNight ? { nightStart, nightEnd, plates: splitPlates, tours: splitTours } : undefined);
   };
 
   return (
@@ -981,13 +983,38 @@ export function TollCollectPage() {
                             </div>
                           </td>
                           <td className="px-3 py-3 hidden sm:table-cell" onClick={e => e.stopPropagation()}>
-                            <input
-                              type="text"
-                              value={tours[plate] || ''}
-                              onChange={e => setTours(prev => ({ ...prev, [plate]: e.target.value }))}
-                              placeholder={t('tollTourPlaceholder')}
-                              className="w-full rounded border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 px-2 py-1 text-xs text-gray-900 dark:text-white placeholder-gray-400 focus:border-blue-400 focus:outline-none"
-                            />
+                            {splitDayNight && splitPlates.has(plate) ? (
+                              <div className="flex flex-col gap-1">
+                                <div className="flex items-center gap-1">
+                                  <span className="text-[10px] font-semibold text-amber-600 w-7">☀</span>
+                                  <input
+                                    type="text"
+                                    value={splitTours[plate]?.day || ''}
+                                    onChange={e => setSplitTours(prev => ({ ...prev, [plate]: { day: e.target.value, night: prev[plate]?.night || '' } }))}
+                                    placeholder={locale === 'de' ? 'Tour Tag' : 'Tura dzień'}
+                                    className="w-full rounded border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 px-2 py-1 text-xs text-gray-900 dark:text-white placeholder-gray-400 focus:border-blue-400 focus:outline-none"
+                                  />
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <span className="text-[10px] font-semibold text-indigo-600 w-7">☾</span>
+                                  <input
+                                    type="text"
+                                    value={splitTours[plate]?.night || ''}
+                                    onChange={e => setSplitTours(prev => ({ ...prev, [plate]: { day: prev[plate]?.day || '', night: e.target.value } }))}
+                                    placeholder={locale === 'de' ? 'Tour Nacht' : 'Tura noc'}
+                                    className="w-full rounded border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 px-2 py-1 text-xs text-gray-900 dark:text-white placeholder-gray-400 focus:border-blue-400 focus:outline-none"
+                                  />
+                                </div>
+                              </div>
+                            ) : (
+                              <input
+                                type="text"
+                                value={tours[plate] || ''}
+                                onChange={e => setTours(prev => ({ ...prev, [plate]: e.target.value }))}
+                                placeholder={t('tollTourPlaceholder')}
+                                className="w-full rounded border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 px-2 py-1 text-xs text-gray-900 dark:text-white placeholder-gray-400 focus:border-blue-400 focus:outline-none"
+                              />
+                            )}
                           </td>
                           <td className="px-3 py-3 text-muted text-xs" colSpan={2}>
                             {data.rows.length} {t('tollTripsCount')}

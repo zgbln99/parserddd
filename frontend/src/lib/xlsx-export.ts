@@ -193,7 +193,7 @@ export function exportTollToXlsx(
   addExtras = false,
   dailyRate = 8,
   kmRate = 0.30,
-  dayNightSplit?: { nightStart: string; nightEnd: string; plates?: Set<string> },
+  dayNightSplit?: { nightStart: string; nightEnd: string; plates?: Set<string>; tours?: Record<string, { day: string; night: string }> },
 ) {
   const wb = XLSX.utils.book_new();
 
@@ -203,6 +203,7 @@ export function exportTollToXlsx(
     const ns = dayNightSplit.nightStart; // e.g. "22:00"
     const ne = dayNightSplit.nightEnd;   // e.g. "06:00"
     const platesToSplit = dayNightSplit.plates;
+    const tourMap = dayNightSplit.tours || {};
     const isNight = (time: string) => {
       if (!time) return false;
       const t = time.slice(0, 5); // "HH:MM"
@@ -224,10 +225,14 @@ export function exportTollToXlsx(
       const dayRows = v.rows.filter(r => !isNight(r.time));
       const nightRows = v.rows.filter(r => isNight(r.time));
 
+      const dayTour = tourMap[v.plate]?.day || v.tour || '';
+      const nightTour = tourMap[v.plate]?.night || v.tour || '';
+
       if (dayRows.length > 0) {
         expanded.push({
           ...v,
           plate: `${v.plate} (Tag)`,
+          tour: dayTour,
           rows: dayRows,
           totalKm: dayRows.reduce((s, r) => s + r.km, 0),
           totalAmount: dayRows.reduce((s, r) => s + r.amount, 0),
@@ -237,6 +242,7 @@ export function exportTollToXlsx(
         expanded.push({
           ...v,
           plate: `${v.plate} (Nacht)`,
+          tour: nightTour,
           rows: nightRows,
           totalKm: nightRows.reduce((s, r) => s + r.km, 0),
           totalAmount: nightRows.reduce((s, r) => s + r.amount, 0),
