@@ -188,6 +188,9 @@ export function TollCollectPage() {
   const [addExtras, setAddExtras] = useState(false);
   const [dailyRate, setDailyRate] = useState(8);
   const [kmRate, setKmRate] = useState(0.30);
+  const [splitDayNight, setSplitDayNight] = useState(false);
+  const [nightStart, setNightStart] = useState('22:00');
+  const [nightEnd, setNightEnd] = useState('06:00');
 
   // All rows merged from all months
   const allRows = useMemo(() => months.flatMap(m => m.rows), [months]);
@@ -435,7 +438,7 @@ export function TollCollectPage() {
       ? (periods.length === 1 ? periods[0] : `${periods[0]}_${periods[periods.length - 1]}`)
       : new Date().toISOString().slice(0, 7);
 
-    exportTollToXlsx(selected, periodStr, 'LTS Logistik GmbH', showMonthDiff, addExtras, dailyRate, kmRate);
+    exportTollToXlsx(selected, periodStr, 'LTS Logistik GmbH', showMonthDiff, addExtras, dailyRate, kmRate, splitDayNight ? { nightStart, nightEnd } : undefined);
   };
 
   return (
@@ -853,6 +856,25 @@ export function TollCollectPage() {
                   title={locale === 'de' ? 'EUR pro km' : 'EUR za km'}
                 />
                 <span className="text-muted">€/km</span>
+              </div>
+            )}
+            <label className="inline-flex items-center gap-1.5 text-xs font-medium cursor-pointer text-ink select-none">
+              <input
+                type="checkbox"
+                checked={splitDayNight}
+                onChange={(e) => setSplitDayNight(e.target.checked)}
+                className="h-3.5 w-3.5 accent-[#0071e3]"
+              />
+              {locale === 'de' ? 'Tag/Nacht trennen' : 'Rozdziel dzień/noc'}
+            </label>
+            {splitDayNight && (
+              <div className="inline-flex items-center gap-1.5 text-xs">
+                <span className="text-muted">{locale === 'de' ? 'Nacht' : 'Noc'}:</span>
+                <input type="time" value={nightStart} onChange={(e) => setNightStart(e.target.value)}
+                  className="w-20 input px-1.5 py-1 text-xs" />
+                <span className="text-muted">–</span>
+                <input type="time" value={nightEnd} onChange={(e) => setNightEnd(e.target.value)}
+                  className="w-20 input px-1.5 py-1 text-xs" />
               </div>
             )}
             <button

@@ -193,8 +193,54 @@ export function exportTollToXlsx(
   addExtras = false,
   dailyRate = 8,
   kmRate = 0.30,
+  dayNightSplit?: { nightStart: string; nightEnd: string },
 ) {
   const wb = XLSX.utils.book_new();
+
+  // Day/Night split: expand each vehicle into two entries (Tag + Nacht)
+  if (dayNightSplit) {
+    const ns = dayNightSplit.nightStart; // e.g. "22:00"
+    const ne = dayNightSplit.nightEnd;   // e.g. "06:00"
+    const isNight = (time: string) => {
+      if (!time) return false;
+      const t = time.slice(0, 5); // "HH:MM"
+      if (ns > ne) {
+        // Overnight: 22:00-06:00 → night if time >= 22:00 OR time < 06:00
+        return t >= ns || t < ne;
+      }
+      return t >= ns && t < ne;
+    };
+
+    const expanded: TollVehicleGroup[] = [];
+    for (const v of vehicles) {
+      const dayRows = v.rows.filter(r => !isNight(r.time));
+      const nightRows = v.rows.filter(r => isNight(r.time));
+
+      if (dayRows.length > 0) {
+        expanded.push({
+          ...v,
+          plate: `${v.plate} (Tag)`,
+          rows: dayRows,
+          totalKm: dayRows.reduce((s, r) => s + r.km, 0),
+          totalAmount: dayRows.reduce((s, r) => s + r.amount, 0),
+        });
+      }
+      if (nightRows.length > 0) {
+        expanded.push({
+          ...v,
+          plate: `${v.plate} (Nacht)`,
+          rows: nightRows,
+          totalKm: nightRows.reduce((s, r) => s + r.km, 0),
+          totalAmount: nightRows.reduce((s, r) => s + r.amount, 0),
+        });
+      }
+      // If no rows in either, keep original
+      if (dayRows.length === 0 && nightRows.length === 0) {
+        expanded.push(v);
+      }
+    }
+    vehicles = expanded;
+  }
 
   const grandTotalKm = vehicles.reduce((s, v) => s + v.totalKm, 0);
   const grandTotalAmount = vehicles.reduce((s, v) => s + v.totalAmount, 0);
