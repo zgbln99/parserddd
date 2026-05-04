@@ -127,15 +127,20 @@ export function PayrollPage() {
   const navigate = useNavigate();
 
   const handlePreloadAll = useCallback(async () => {
-    const withFiles = drivers.filter(d => d.files.length > 0);
-    if (withFiles.length === 0) return;
+    const pending = drivers.filter(d => {
+      if (d.files.length === 0) return false;
+      const key = d.card_number || d.name;
+      const st = statuses[key] || '';
+      return st !== 'policzony' && st !== 'stundenzettel';
+    });
+    if (pending.length === 0) return;
     setPreloading(true);
     preloadCancelRef.current = false;
     let done = 0;
-    for (const d of withFiles) {
+    for (const d of pending) {
       if (preloadCancelRef.current) break;
       done++;
-      setPreloadProgress({ done, total: withFiles.length, current: d.name });
+      setPreloadProgress({ done, total: pending.length, current: d.name });
       try {
         await analyzeDropboxFile(d.files[0].path);
       } catch { /* skip errors */ }
