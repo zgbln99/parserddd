@@ -126,6 +126,7 @@ export function AnalysisPage() {
             onDateFromChange={setDateFrom}
             onDateToChange={setDateTo}
             onReanalyze={runAnalysis}
+            filePath={filePath}
           />
         </Card>
       )}

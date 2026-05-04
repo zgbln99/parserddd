@@ -7,7 +7,7 @@ import type { DriverConfig, MonthlyDays } from '../lib/api';
 import { Badge } from '../components/Badge';
 import { Spinner } from '../components/Spinner';
 import { BarChart } from '../components/BarChart';
-import { Download, FileText, ClipboardCopy, Check, Printer, BarChart3, UtensilsCrossed, Table2, Settings, CalendarDays, Sheet, Scale, Clock } from 'lucide-react';
+import { Download, FileText, ClipboardCopy, Check, Printer, BarChart3, UtensilsCrossed, Table2, Settings, CalendarDays, Sheet, Scale, Clock, ChevronDown, HardDrive } from 'lucide-react';
 import type { AnalysisResult, ShiftDetail } from '../types';
 import { DriverConfigEditor } from './DriverConfigEditor';
 import { ArbeitszeitReport } from './ArbeitszeitReport';
@@ -55,9 +55,10 @@ interface AnalysisViewProps {
   onDateToChange?: (v: string) => void;
   vacationRanges?: VacationRange[];
   onReanalyze?: () => void;
+  filePath?: string;
 }
 
-export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateToChange, vacationRanges, onReanalyze }: AnalysisViewProps) {
+export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateToChange, vacationRanges, onReanalyze, filePath }: AnalysisViewProps) {
   const { t, locale } = useI18n();
   const { isAdmin, isFeatureVisible } = useAuth();
   const fv = isFeatureVisible;
@@ -300,7 +301,25 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
   const [showManual, setShowManual] = useState(false);
   const [selectedShiftReport, setSelectedShiftReport] = useState<number | null>(null);
   const [showVehicleKm, setShowVehicleKm] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
+  const exportRef = useRef<HTMLDivElement>(null);
   const printRef = useRef<HTMLDivElement>(null);
+
+  // Close export dropdown on outside click
+  useEffect(() => {
+    if (!exportOpen) return;
+    function handleClick(e: MouseEvent) {
+      if (exportRef.current && !exportRef.current.contains(e.target as Node)) setExportOpen(false);
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [exportOpen]);
+
+  const handleDownloadDdd = useCallback(() => {
+    if (!filePath) return;
+    window.open(`/api/download/dropbox?path=${encodeURIComponent(filePath)}`, '_blank');
+    setExportOpen(false);
+  }, [filePath]);
 
   // Chart data: per-shift stacked bars
   const chartBars = useMemo(() => {
@@ -1054,64 +1073,50 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
         </div>
       )}
 
-      {/* Export */}
-      <div className="flex flex-wrap justify-center gap-3 pt-2">
-        {fv('export_xlsx') && <button
-          onClick={handleXlsxExport}
-          className="flex min-h-[44px] items-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-primary-700 dark:hover:bg-primary-600"
-        >
-          <Download size={16} />
-          {t('analysisExportXlsx')}
-        </button>}
-        {fv('export_csv') && <button
-          onClick={handleExport}
-          className="flex min-h-[44px] items-center gap-2 rounded-xl border border-primary-200 px-5 py-2.5 text-sm font-semibold text-primary-600 transition hover:bg-primary-50 dark:border-primary-800"
-        >
-          <Download size={16} />
-          {t('analysisExportCsv')}
-        </button>}
-        {fv('export_pdf') && <button
-          onClick={handlePdfExport}
-          className="flex min-h-[44px] items-center gap-2 rounded-xl border border-primary-200 px-5 py-2.5 text-sm font-semibold text-primary-600 transition hover:bg-primary-50 dark:border-primary-800"
-        >
-          <FileText size={16} />
-          {t('analysisExportPdf')}
-        </button>}
-        {fv('export_arbeitszeitnachweis') && <button
-          onClick={handleArbeitszeitPdf}
-          className="flex min-h-[44px] items-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 px-5 py-2.5 text-sm font-semibold text-indigo-700 transition hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-900/20 dark:text-indigo-400 dark:hover:bg-indigo-900/30"
-        >
-          <Scale size={16} />
-          {t('analysisExportArbeitszeitnachweis')}
-        </button>}
-        {fv('export_datev') && <button
-          onClick={handleDatevExport}
-          className="flex min-h-[44px] items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-2.5 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-400 dark:hover:bg-emerald-900/30"
-        >
-          <Table2 size={16} />
-          {t('analysisExportDatev')}
-        </button>}
-        {fv('export_gsheets') && <button
-          onClick={handleGoogleSheetsExport}
-          className="flex min-h-[44px] items-center gap-2 rounded-xl border border-green-200 bg-green-50 px-5 py-2.5 text-sm font-semibold text-green-700 transition hover:bg-green-100 dark:border-green-800 dark:bg-green-900/20 dark:text-green-400 dark:hover:bg-green-900/30"
-        >
-          <Sheet size={16} />
-          {t('analysisExportGSheets')}
-        </button>}
-        {fv('export_stundenzettel') && <button
-          onClick={handleStundenzettel}
-          className="flex min-h-[44px] items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-5 py-2.5 text-sm font-semibold text-amber-700 transition hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-400 dark:hover:bg-amber-900/30"
-        >
-          <Clock size={16} />
-          Stundenzettel
-        </button>}
-        {fv('print') && <button
-          onClick={handlePrint}
-          className="flex min-h-[44px] items-center gap-2 rounded-xl border border-border px-5 py-2.5 text-sm font-semibold text-muted transition hover:bg-surface"
-        >
-          <Printer size={16} />
-          {t('analysisPrint')}
-        </button>}
+      {/* Export dropdown */}
+      <div className="flex justify-center pt-2" ref={exportRef}>
+        <div className="relative">
+          <button
+            onClick={() => setExportOpen(!exportOpen)}
+            className="flex min-h-[44px] items-center gap-2 rounded-xl bg-[#0071e3] px-6 py-2.5 text-sm font-semibold text-white transition hover:opacity-90"
+          >
+            <Download size={16} />
+            {locale === 'de' ? 'Exportieren' : 'Eksportuj'}
+            <ChevronDown size={14} className={`transition-transform ${exportOpen ? 'rotate-180' : ''}`} />
+          </button>
+          {exportOpen && (
+            <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 z-50 w-64 rounded-xl bg-white dark:bg-[#272729] border border-border py-1 animate-scale-in" style={{ boxShadow: 'rgba(0,0,0,0.12) 0px 4px 24px' }}>
+              {fv('export_xlsx') && <button onClick={() => { handleXlsxExport(); setExportOpen(false); }} className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-ink hover:bg-[#f5f5f7] dark:hover:bg-white/5 transition">
+                <Download size={15} className="text-[#0071e3]" /> {t('analysisExportXlsx')}
+              </button>}
+              {fv('export_csv') && <button onClick={() => { handleExport(); setExportOpen(false); }} className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-ink hover:bg-[#f5f5f7] dark:hover:bg-white/5 transition">
+                <Download size={15} className="text-muted" /> {t('analysisExportCsv')}
+              </button>}
+              {fv('export_pdf') && <button onClick={() => { handlePdfExport(); setExportOpen(false); }} className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-ink hover:bg-[#f5f5f7] dark:hover:bg-white/5 transition">
+                <FileText size={15} className="text-muted" /> {t('analysisExportPdf')}
+              </button>}
+              {fv('export_arbeitszeitnachweis') && <button onClick={() => { handleArbeitszeitPdf(); setExportOpen(false); }} className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-ink hover:bg-[#f5f5f7] dark:hover:bg-white/5 transition">
+                <Scale size={15} className="text-indigo-500" /> {t('analysisExportArbeitszeitnachweis')}
+              </button>}
+              {fv('export_datev') && <button onClick={() => { handleDatevExport(); setExportOpen(false); }} className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-ink hover:bg-[#f5f5f7] dark:hover:bg-white/5 transition">
+                <Table2 size={15} className="text-emerald-500" /> {t('analysisExportDatev')}
+              </button>}
+              {fv('export_gsheets') && <button onClick={() => { handleGoogleSheetsExport(); setExportOpen(false); }} className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-ink hover:bg-[#f5f5f7] dark:hover:bg-white/5 transition">
+                <Sheet size={15} className="text-green-500" /> {t('analysisExportGSheets')}
+              </button>}
+              {fv('export_stundenzettel') && <button onClick={() => { handleStundenzettel(); setExportOpen(false); }} className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-ink hover:bg-[#f5f5f7] dark:hover:bg-white/5 transition">
+                <Clock size={15} className="text-amber-500" /> Stundenzettel
+              </button>}
+              <div className="mx-3 my-1 h-px bg-border" />
+              {filePath && <button onClick={handleDownloadDdd} className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-ink hover:bg-[#f5f5f7] dark:hover:bg-white/5 transition">
+                <HardDrive size={15} className="text-muted" /> {locale === 'de' ? 'DDD-Datei herunterladen' : 'Pobierz plik DDD'}
+              </button>}
+              {fv('print') && <button onClick={() => { handlePrint(); setExportOpen(false); }} className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-ink hover:bg-[#f5f5f7] dark:hover:bg-white/5 transition">
+                <Printer size={15} className="text-muted" /> {t('analysisPrint')}
+              </button>}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

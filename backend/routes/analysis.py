@@ -8,7 +8,7 @@ import os
 import tempfile
 import time
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, send_file
 
 from auth.decorators import login_required
 from auth.helpers import _log_activity, _get_db, _load_config
@@ -336,6 +336,30 @@ def api_preview_ddd():
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/download/dropbox')
+@login_required
+def api_download_dropbox():
+    """Download a raw DDD file from Dropbox for local use (e.g. GloboFleet)."""
+    from io import BytesIO
+    dbx = get_server_dropbox_client()
+    if not dbx:
+        return jsonify({'error': 'Brak polaczenia z Dropbox'}), 500
+    file_path = request.args.get('path')
+    if not file_path:
+        return jsonify({'error': 'Brak sciezki pliku'}), 400
+    try:
+        metadata, response = dbx.files_download(file_path)
+        filename = metadata.name if hasattr(metadata, 'name') else file_path.split('/')[-1]
+        return send_file(
+            BytesIO(response.content),
+            as_attachment=True,
+            download_name=filename,
+            mimetype='application/octet-stream',
+        )
+    except Exception as exc:
+        return jsonify({'error': str(exc)}), 500
 
 
 @bp.route('/api/analyze/dropbox')
