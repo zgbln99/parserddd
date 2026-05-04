@@ -2,11 +2,8 @@
 Analysis Blueprint — file upload analysis, preview, Dropbox analysis, compare.
 """
 
-import hashlib
-import json as _json
 import os
 import tempfile
-import time
 
 from flask import Blueprint, request, jsonify, send_file
 
@@ -25,38 +22,6 @@ from services.dropbox_service import get_server_dropbox_client
 bp = Blueprint('analysis', __name__)
 
 # ---------------------------------------------------------------------------
-# In-memory analysis cache: key = hash(file_content + flags) → result dict
-# ---------------------------------------------------------------------------
-_analysis_cache: dict[str, tuple[float, dict]] = {}
-_CACHE_MAX_AGE = 7200  # 2 hours
-_CACHE_MAX_SIZE = 200
-
-# Path-based quick cache: key = (dropbox_path, content_hash) → result
-# Avoids re-downloading file from Dropbox when the file hasn't changed.
-_path_cache: dict[str, tuple[float, str, dict]] = {}  # path → (ts, content_hash, result)
-
-
-def _cache_key(file_content: bytes, flags: dict) -> str:
-    h = hashlib.md5(file_content, usedforsecurity=False)
-    h.update(_json.dumps(flags, sort_keys=True).encode())
-    return h.hexdigest()
-
-
-def _cache_get(key: str) -> dict | None:
-    entry = _analysis_cache.get(key)
-    if entry and (time.time() - entry[0]) < _CACHE_MAX_AGE:
-        return entry[1]
-    if entry:
-        _analysis_cache.pop(key, None)
-    return None
-
-
-def _cache_set(key: str, result: dict):
-    if len(_analysis_cache) >= _CACHE_MAX_SIZE:
-        oldest = min(_analysis_cache, key=lambda k: _analysis_cache[k][0])
-        _analysis_cache.pop(oldest, None)
-    _analysis_cache[key] = (time.time(), result)
-
 
 def _get_driver_analysis_flags(data):
     """Look up analysis flags from driver_config (per-driver) and global config."""
@@ -120,17 +85,6 @@ def api_analyze_upload():
         return jsonify({'error': 'Nie wybrano pliku'}), 400
     try:
         file_content = file.read()
-        cfg = _load_config()
-        global_flags = {
-            'night_start_hour': int(cfg.get('night_start_hour', 22)),
-            'pause_cap_enabled': bool(cfg.get('pause_cap_enabled', False)),
-            'weekend_diet': bool(cfg.get('weekend_diet', False)),
-            'night_includes_breaks': bool(cfg.get('night_includes_breaks', False)),
-        }
-        ck = _cache_key(file_content, global_flags)
-        cached = _cache_get(ck)
-        if cached:
-            return jsonify(cached)
 
         with tempfile.NamedTemporaryFile(suffix='.ddd', delete=False) as tmp:
             tmp.write(file_content)
@@ -141,10 +95,6 @@ def api_analyze_upload():
         _log_activity('analyze_upload', result.get('driver_info', {}).get('driver_name', ''))
         di = result.get('driver_info', {})
         _cache_card_expiry(di.get('card_number'), di.get('card_expiry_date'), di.get('driver_name', ''))
-        # Update cache key with per-driver flags
-        ck_full = _cache_key(file_content, {**global_flags, **_flags})
-        _cache_set(ck_full, result)
-        _cache_set(ck, result)
         return jsonify(result)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -377,37 +327,9 @@ def api_analyze_dropbox():
     if not file_path:
         return jsonify({'error': 'Brak sciezki pliku'}), 400
     try:
-        # Fast path: check if we have a cached result for this exact path + content_hash
-        # Uses Dropbox metadata (no file download needed) to verify the file hasn't changed.
-        path_entry = _path_cache.get(file_path)
-        if path_entry:
-            ts, cached_hash, cached_result = path_entry
-            if (time.time() - ts) < _CACHE_MAX_AGE:
-                try:
-                    meta_only = dbx.files_get_metadata(file_path)
-                    if hasattr(meta_only, 'content_hash') and meta_only.content_hash == cached_hash:
-                        cached_result['source_file'] = meta_only.name
-                        return jsonify(cached_result)
-                except Exception:
-                    pass  # fall through to full download
-
         metadata, response = dbx.files_download(file_path)
         file_content = response.content
         cfg = _load_config()
-        global_flags = {
-            'night_start_hour': int(cfg.get('night_start_hour', 22)),
-            'pause_cap_enabled': bool(cfg.get('pause_cap_enabled', False)),
-            'weekend_diet': bool(cfg.get('weekend_diet', False)),
-            'night_includes_breaks': bool(cfg.get('night_includes_breaks', False)),
-        }
-        ck = _cache_key(file_content, global_flags)
-        cached = _cache_get(ck)
-        if cached:
-            cached['source_file'] = metadata.name
-            # Save to path cache for fast lookup next time
-            if hasattr(metadata, 'content_hash'):
-                _path_cache[file_path] = (time.time(), metadata.content_hash, cached)
-            return jsonify(cached)
 
         with tempfile.NamedTemporaryFile(suffix='.ddd', delete=False) as tmp:
             tmp.write(file_content)
@@ -419,11 +341,6 @@ def api_analyze_dropbox():
         _log_activity('analyze_dropbox', f"{result.get('driver_info', {}).get('driver_name', '')} — {metadata.name}")
         di = result.get('driver_info', {})
         _cache_card_expiry(di.get('card_number'), di.get('card_expiry_date'), di.get('driver_name', ''))
-        ck_full = _cache_key(file_content, {**global_flags, **_flags})
-        _cache_set(ck_full, result)
-        _cache_set(ck, result)
-        if hasattr(metadata, 'content_hash'):
-            _path_cache[file_path] = (time.time(), metadata.content_hash, result)
         return jsonify(result)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
