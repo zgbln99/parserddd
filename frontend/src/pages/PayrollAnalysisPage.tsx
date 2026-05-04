@@ -106,6 +106,7 @@ export function PayrollAnalysisPage() {
             dateTo={dateTo}
             onDateFromChange={setDateFrom}
             onDateToChange={setDateTo}
+            filePath={filePath}
             vacationRanges={vacationRanges}
           />
         </Suspense>

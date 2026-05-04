@@ -462,31 +462,33 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
       </div>
 
       {/* Date filter */}
-      {hasDateFilter && (
-        <div className="flex flex-wrap items-center gap-3 rounded-xl bg-[#f5f5f7] dark:bg-[#272729] px-4 py-3 dark:bg-white/5">
+      {(hasDateFilter || filePath) && (
+        <div className="flex flex-wrap items-center gap-3 rounded-xl bg-[#f5f5f7] dark:bg-[#272729] px-4 py-3">
+          {hasDateFilter && <>
           <span className="text-xs font-semibold uppercase tracking-wider text-muted">{t('analysisDateFilter')}:</span>
           <label className="text-xs text-muted">{t('detailFrom')}:</label>
           <input
             type="date"
             value={dateFrom || ''}
-            onChange={(e) => onDateFromChange(e.target.value)}
+            onChange={(e) => onDateFromChange!(e.target.value)}
             className="input rounded-xl px-2.5 py-1.5 text-xs outline-none dark:[color-scheme:dark]"
           />
           <label className="text-xs text-muted">{t('detailTo')}:</label>
           <input
             type="date"
             value={dateTo || ''}
-            onChange={(e) => onDateToChange(e.target.value)}
+            onChange={(e) => onDateToChange!(e.target.value)}
             className="input rounded-xl px-2.5 py-1.5 text-xs outline-none dark:[color-scheme:dark]"
           />
           {(dateFrom || dateTo) && (
             <button
-              onClick={() => { onDateFromChange(''); onDateToChange(''); }}
+              onClick={() => { onDateFromChange!(''); onDateToChange!(''); }}
               className="rounded-lg px-2 py-1 text-xs font-medium text-danger transition hover:bg-rose-500/10 dark:hover:bg-rose-500/10"
             >
               {t('clear')}
             </button>
           )}
+          </>}
           <div className="flex-1" />
           {filePath && (
             <button
