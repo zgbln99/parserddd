@@ -1,6 +1,7 @@
 import { useMemo, useState, useCallback, useRef, useEffect } from 'react';
 import { useI18n } from '../i18n';
 import { formatDate } from '../lib/format';
+import { getHolidayMap } from '../lib/holidays';
 import { exportCsv, exportDatev, fetchDriverConfig, fetchMonthlyDays, saveMonthlyDays } from '../lib/api';
 import type { DriverConfig, MonthlyDays } from '../lib/api';
 import { Badge } from '../components/Badge';
@@ -1223,6 +1224,9 @@ function MonthlyGridCopy({
   const month = parseInt(refDate.slice(5, 7), 10) || (new Date().getMonth() + 1); // 1-indexed
   const daysInMonth = new Date(year, month, 0).getDate();
 
+  // German public holidays for this month
+  const holidayMap = useMemo(() => getHolidayMap(year), [year]);
+
   // Build a map: day number -> total duration minutes for that day (from shifts)
   // Uses grid_date (midpoint-based) so overnight shifts land on the correct day.
   const dayWorkMap = useMemo(() => {
@@ -1368,6 +1372,7 @@ function MonthlyGridCopy({
           <span className="ml-auto flex items-center gap-2 text-[10px] text-muted">
             <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-sm bg-blue-500" /> Ur</span>
             <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-sm bg-orange-500" /> Kr</span>
+            <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-sm bg-purple-500" /> {locale === 'de' ? 'Feiertag' : 'Święto'}</span>
           </span>
         )}
       </div>
@@ -1387,8 +1392,17 @@ function MonthlyGridCopy({
             <tr>
               {weekdays.map((wd, i) => {
                 const isWeekend = wd === 'So' || wd === 'Sa' || wd === 'Nd';
+                const dayNum = i + 1;
+                const dISO = `${year}-${String(month).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
+                const isHoliday = holidayMap.has(dISO);
                 return (
-                  <th key={i} className={`${thCls} ${isWeekend ? '!text-red-400 !bg-red-50 dark:!bg-red-900/20' : ''}`}>{wd}</th>
+                  <th
+                    key={i}
+                    className={`${thCls} ${isWeekend ? '!text-red-400 !bg-red-50 dark:!bg-red-900/20' : ''} ${isHoliday && !isWeekend ? '!text-purple-600 !bg-purple-50 dark:!bg-purple-900/20 dark:!text-purple-400' : ''}`}
+                    title={isHoliday ? (holidayMap.get(dISO)!.name) : undefined}
+                  >
+                    {wd}{isHoliday && !isWeekend ? '*' : ''}
+                  </th>
                 );
               })}
               {summaryHeaders.map((h) => (
@@ -1407,9 +1421,12 @@ function MonthlyGridCopy({
                   const wd = weekdays[d - 1];
                   return wd === 'So' || wd === 'Sa' || wd === 'Nd';
                 })();
+                const dateISO = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                const holiday = holidayMap.get(dateISO);
 
                 let cellContent: React.ReactNode = '';
                 let cellClass = tdCls;
+                let cellTitle = '';
 
                 if (absence === 'Ur') {
                   cellContent = 'Ur';
@@ -1417,11 +1434,21 @@ function MonthlyGridCopy({
                 } else if (absence === 'Kr') {
                   cellContent = 'Kr';
                   cellClass = `${tdCls} !bg-orange-100 !text-orange-700 font-bold cursor-pointer dark:!bg-orange-900/40 dark:!text-orange-300`;
+                } else if (holiday && !work) {
+                  cellContent = 'F';
+                  cellClass = `${tdCls} !bg-purple-100 !text-purple-700 font-bold dark:!bg-purple-900/40 dark:!text-purple-300`;
+                  cellTitle = `${holiday.name} / ${holiday.namePl}`;
                 } else if (work) {
                   cellContent = fmtWork(work);
                   cellClass = `${tdCls} font-semibold text-gray-800 dark:text-gray-200`;
+                  if (holiday) cellTitle = `${holiday.name} / ${holiday.namePl}`;
                 } else if (isClickable) {
                   cellClass = `${tdCls} cursor-pointer hover:!bg-gray-100 dark:hover:!bg-gray-800 ${isWeekendDay ? '!bg-red-50/50 dark:!bg-red-900/10' : ''}`;
+                }
+
+                // Holiday indicator: thin top border
+                if (holiday && work) {
+                  cellClass += ' !border-t-2 !border-t-purple-500';
                 }
 
                 return (
@@ -1429,6 +1456,7 @@ function MonthlyGridCopy({
                     key={d}
                     className={`${cellClass} select-none`}
                     onClick={(isClickable || absence) ? () => handleCellClick(d) : undefined}
+                    title={cellTitle || undefined}
                   >
                     {cellContent}
                   </td>
