@@ -2,11 +2,11 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   Users, RefreshCw, CheckCircle, Circle, AlertCircle,
   FileText, Clock, CheckSquare, Square, Filter, BarChart3,
-  Upload, Palmtree, X,
+  Upload, Palmtree, X, Zap,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useI18n } from '../i18n';
-import { fetchDrivers, parseVacationPdf, fetchPayrollStatus, setPayrollStatus, type VacationEntry, type PayrollStatusValue } from '../lib/api';
+import { fetchDrivers, parseVacationPdf, fetchPayrollStatus, setPayrollStatus, analyzeDropboxFile, type VacationEntry, type PayrollStatusValue } from '../lib/api';
 import { Card, StatCard } from '../components/Card';
 import { Badge } from '../components/Badge';
 import { Spinner } from '../components/Spinner';
@@ -47,7 +47,7 @@ function nextStatus(current: PayrollStatusValue): PayrollStatusValue {
 }
 
 export function PayrollPage() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [period, setPeriodState] = useState(getSavedPeriod);
 
   const setPeriod = (p: string) => {
@@ -63,6 +63,11 @@ export function PayrollPage() {
   const [searchText, setSearchText] = useState('');
   // Keys that were recently changed - delay their sort for 2.5s
   const [recentlyChanged, setRecentlyChanged] = useState<Set<string>>(new Set());
+
+  // Preload analysis in background
+  const [preloading, setPreloading] = useState(false);
+  const [preloadProgress, setPreloadProgress] = useState({ done: 0, total: 0, current: '' });
+  const preloadCancelRef = useRef(false);
 
   // Vacation PDF — persisted in localStorage
   const vacFileRef = useRef<HTMLInputElement>(null);
@@ -120,6 +125,23 @@ export function PayrollPage() {
   }, []);
 
   const navigate = useNavigate();
+
+  const handlePreloadAll = useCallback(async () => {
+    const withFiles = drivers.filter(d => d.files.length > 0);
+    if (withFiles.length === 0) return;
+    setPreloading(true);
+    preloadCancelRef.current = false;
+    let done = 0;
+    for (const d of withFiles) {
+      if (preloadCancelRef.current) break;
+      done++;
+      setPreloadProgress({ done, total: withFiles.length, current: d.name });
+      try {
+        await analyzeDropboxFile(d.files[0].path);
+      } catch { /* skip errors */ }
+    }
+    setPreloading(false);
+  }, [drivers]);
 
   useEffect(() => { loadDrivers(); }, [loadDrivers]);
 
@@ -267,6 +289,23 @@ export function PayrollPage() {
           >
             <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
           </button>
+          {preloading ? (
+            <div className="flex items-center gap-2 text-xs text-muted">
+              <Spinner size="sm" />
+              <span>{preloadProgress.done}/{preloadProgress.total} — {preloadProgress.current}</span>
+              <button onClick={() => { preloadCancelRef.current = true; }} className="text-danger text-xs font-medium">Stop</button>
+            </div>
+          ) : (
+            <button
+              onClick={handlePreloadAll}
+              disabled={drivers.length === 0}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-xs font-medium text-muted transition hover:text-ink hover:bg-surface disabled:opacity-40"
+              title={locale === 'de' ? 'Alle Dateien vorab analysieren (Cache)' : 'Preanalizuj wszystkie pliki (cache)'}
+            >
+              <Zap size={13} />
+              {locale === 'de' ? 'Vorab laden' : 'Załaduj w tle'}
+            </button>
+          )}
         </div>
       </div>
 
@@ -361,7 +400,6 @@ export function PayrollPage() {
                 <th className="text-left px-3 py-3 font-semibold text-muted hidden md:table-cell">{t('payrollLastDownload')}</th>
                 <th className="text-center px-3 py-3 font-semibold text-muted hidden sm:table-cell">{t('payrollVacation')}</th>
                 <th className="text-center px-3 py-3 font-semibold text-muted">{t('payrollStatus')}</th>
-                <th className="w-10 px-3 py-3" />
               </tr>
             </thead>
             <tbody>
@@ -371,7 +409,13 @@ export function PayrollPage() {
                 return (
                   <tr
                     key={key}
-                    onClick={() => toggleStatus(key)}
+                    onClick={() => {
+                      if (d.files.length > 0) {
+                        const vacParam = vacation ? `&vacation=${encodeURIComponent(JSON.stringify(vacation.ranges))}` : '';
+                        const fileInfo = `&fileDate=${d.files[0].file_date || ''}&fileModified=${d.files[0].modified || ''}`;
+                        navigate(`/payroll/${encodeURIComponent(d.card_number || d.name)}?period=${period}&path=${encodeURIComponent(d.files[0].path)}&name=${encodeURIComponent(d.name)}${vacParam}${fileInfo}`);
+                      }
+                    }}
                     className={`border-b border-border cursor-pointer transition-colors min-h-[44px] ${
                       status === 'stundenzettel'
                         ? 'bg-blue-50/50 dark:bg-blue-900/10 hover:bg-blue-100/50 dark:hover:bg-blue-900/20'
@@ -382,12 +426,12 @@ export function PayrollPage() {
                         : 'hover:bg-surface'
                     }`}
                   >
-                    <td className="px-3 py-3 text-center">
+                    <td className="px-3 py-3 text-center" onClick={(e) => { e.stopPropagation(); toggleStatus(key); }}>
                       {status === 'stundenzettel'
-                        ? <FileText size={18} className="text-blue-500 mx-auto" />
+                        ? <FileText size={18} className="text-blue-500 mx-auto cursor-pointer hover:opacity-70" />
                         : status === 'policzony'
-                        ? <CheckSquare size={18} className="text-success mx-auto" />
-                        : <Square size={18} className="text-muted mx-auto" />
+                        ? <CheckSquare size={18} className="text-success mx-auto cursor-pointer hover:opacity-70" />
+                        : <Square size={18} className="text-muted mx-auto cursor-pointer hover:opacity-70" />
                       }
                     </td>
                     <td className="px-3 py-3">
@@ -427,22 +471,6 @@ export function PayrollPage() {
                         <Badge variant="orange" dot>{t('payrollPending')}</Badge>
                       ) : (
                         <span className="text-xs text-muted">—</span>
-                      )}
-                    </td>
-                    <td className="px-3 py-3 text-center">
-                      {d.files.length > 0 && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            const vacParam = vacation ? `&vacation=${encodeURIComponent(JSON.stringify(vacation.ranges))}` : '';
-                            const fileInfo = `&fileDate=${d.files[0].file_date || ''}&fileModified=${d.files[0].modified || ''}`;
-                            navigate(`/payroll/${encodeURIComponent(d.card_number || d.name)}?period=${period}&path=${encodeURIComponent(d.files[0].path)}&name=${encodeURIComponent(d.name)}${vacParam}${fileInfo}`);
-                          }}
-                          className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors"
-                          title={t('payrollAnalyze')}
-                        >
-                          <BarChart3 size={14} />
-                        </button>
                       )}
                     </td>
                   </tr>
