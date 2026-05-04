@@ -487,6 +487,16 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
               {t('clear')}
             </button>
           )}
+          <div className="flex-1" />
+          {filePath && (
+            <button
+              onClick={handleDownloadDdd}
+              className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted transition hover:bg-surface hover:text-ink"
+            >
+              <HardDrive size={13} />
+              {locale === 'de' ? 'DDD herunterladen' : 'Pobierz DDD'}
+            </button>
+          )}
           {/* Excel copy – inline (hidden on mobile, too wide) */}
           {shifts.length > 0 && (
             <div className="hidden sm:block ml-auto">
@@ -836,6 +846,49 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
           })}
         </div>
 
+        {/* Export dropdown */}
+        <div className="flex justify-end" ref={exportRef}>
+          <div className="relative">
+            <button
+              onClick={() => setExportOpen(!exportOpen)}
+              className="flex items-center gap-2 rounded-lg bg-[#0071e3] px-4 py-2 text-sm font-medium text-white transition hover:opacity-90"
+            >
+              <Download size={14} />
+              {locale === 'de' ? 'Exportieren' : 'Eksportuj'}
+              <ChevronDown size={13} className={`transition-transform ${exportOpen ? 'rotate-180' : ''}`} />
+            </button>
+            {exportOpen && (
+              <div className="absolute right-0 top-full mt-1 z-50 w-60 rounded-xl bg-white dark:bg-[#272729] border border-border py-1 animate-scale-in" style={{ boxShadow: 'rgba(0,0,0,0.12) 0px 4px 24px' }}>
+                {fv('export_xlsx') && <button onClick={() => { handleXlsxExport(); setExportOpen(false); }} className="flex w-full items-center gap-3 px-4 py-2 text-[13px] text-ink hover:bg-[#f5f5f7] dark:hover:bg-white/5 transition">
+                  <Download size={14} className="text-[#0071e3]" /> {t('analysisExportXlsx')}
+                </button>}
+                {fv('export_csv') && <button onClick={() => { handleExport(); setExportOpen(false); }} className="flex w-full items-center gap-3 px-4 py-2 text-[13px] text-ink hover:bg-[#f5f5f7] dark:hover:bg-white/5 transition">
+                  <Download size={14} className="text-muted" /> {t('analysisExportCsv')}
+                </button>}
+                {fv('export_pdf') && <button onClick={() => { handlePdfExport(); setExportOpen(false); }} className="flex w-full items-center gap-3 px-4 py-2 text-[13px] text-ink hover:bg-[#f5f5f7] dark:hover:bg-white/5 transition">
+                  <FileText size={14} className="text-muted" /> {t('analysisExportPdf')}
+                </button>}
+                {fv('export_arbeitszeitnachweis') && <button onClick={() => { handleArbeitszeitPdf(); setExportOpen(false); }} className="flex w-full items-center gap-3 px-4 py-2 text-[13px] text-ink hover:bg-[#f5f5f7] dark:hover:bg-white/5 transition">
+                  <Scale size={14} className="text-indigo-500" /> {t('analysisExportArbeitszeitnachweis')}
+                </button>}
+                {fv('export_datev') && <button onClick={() => { handleDatevExport(); setExportOpen(false); }} className="flex w-full items-center gap-3 px-4 py-2 text-[13px] text-ink hover:bg-[#f5f5f7] dark:hover:bg-white/5 transition">
+                  <Table2 size={14} className="text-emerald-500" /> {t('analysisExportDatev')}
+                </button>}
+                {fv('export_gsheets') && <button onClick={() => { handleGoogleSheetsExport(); setExportOpen(false); }} className="flex w-full items-center gap-3 px-4 py-2 text-[13px] text-ink hover:bg-[#f5f5f7] dark:hover:bg-white/5 transition">
+                  <Sheet size={14} className="text-green-500" /> {t('analysisExportGSheets')}
+                </button>}
+                {fv('export_stundenzettel') && <button onClick={() => { handleStundenzettel(); setExportOpen(false); }} className="flex w-full items-center gap-3 px-4 py-2 text-[13px] text-ink hover:bg-[#f5f5f7] dark:hover:bg-white/5 transition">
+                  <Clock size={14} className="text-amber-500" /> Stundenzettel
+                </button>}
+                <div className="mx-3 my-1 h-px bg-border" />
+                {fv('print') && <button onClick={() => { handlePrint(); setExportOpen(false); }} className="flex w-full items-center gap-3 px-4 py-2 text-[13px] text-ink hover:bg-[#f5f5f7] dark:hover:bg-white/5 transition">
+                  <Printer size={14} className="text-muted" /> {t('analysisPrint')}
+                </button>}
+              </div>
+            )}
+          </div>
+        </div>
+
         {/* Desktop shifts table */}
         <div className="hidden sm:block -mx-6 overflow-x-auto px-6">
           <div className="rounded-xl border border-border">
@@ -1073,51 +1126,6 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
         </div>
       )}
 
-      {/* Export dropdown */}
-      <div className="flex justify-center pt-2" ref={exportRef}>
-        <div className="relative">
-          <button
-            onClick={() => setExportOpen(!exportOpen)}
-            className="flex min-h-[44px] items-center gap-2 rounded-xl bg-[#0071e3] px-6 py-2.5 text-sm font-semibold text-white transition hover:opacity-90"
-          >
-            <Download size={16} />
-            {locale === 'de' ? 'Exportieren' : 'Eksportuj'}
-            <ChevronDown size={14} className={`transition-transform ${exportOpen ? 'rotate-180' : ''}`} />
-          </button>
-          {exportOpen && (
-            <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 z-50 w-64 rounded-xl bg-white dark:bg-[#272729] border border-border py-1 animate-scale-in" style={{ boxShadow: 'rgba(0,0,0,0.12) 0px 4px 24px' }}>
-              {fv('export_xlsx') && <button onClick={() => { handleXlsxExport(); setExportOpen(false); }} className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-ink hover:bg-[#f5f5f7] dark:hover:bg-white/5 transition">
-                <Download size={15} className="text-[#0071e3]" /> {t('analysisExportXlsx')}
-              </button>}
-              {fv('export_csv') && <button onClick={() => { handleExport(); setExportOpen(false); }} className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-ink hover:bg-[#f5f5f7] dark:hover:bg-white/5 transition">
-                <Download size={15} className="text-muted" /> {t('analysisExportCsv')}
-              </button>}
-              {fv('export_pdf') && <button onClick={() => { handlePdfExport(); setExportOpen(false); }} className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-ink hover:bg-[#f5f5f7] dark:hover:bg-white/5 transition">
-                <FileText size={15} className="text-muted" /> {t('analysisExportPdf')}
-              </button>}
-              {fv('export_arbeitszeitnachweis') && <button onClick={() => { handleArbeitszeitPdf(); setExportOpen(false); }} className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-ink hover:bg-[#f5f5f7] dark:hover:bg-white/5 transition">
-                <Scale size={15} className="text-indigo-500" /> {t('analysisExportArbeitszeitnachweis')}
-              </button>}
-              {fv('export_datev') && <button onClick={() => { handleDatevExport(); setExportOpen(false); }} className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-ink hover:bg-[#f5f5f7] dark:hover:bg-white/5 transition">
-                <Table2 size={15} className="text-emerald-500" /> {t('analysisExportDatev')}
-              </button>}
-              {fv('export_gsheets') && <button onClick={() => { handleGoogleSheetsExport(); setExportOpen(false); }} className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-ink hover:bg-[#f5f5f7] dark:hover:bg-white/5 transition">
-                <Sheet size={15} className="text-green-500" /> {t('analysisExportGSheets')}
-              </button>}
-              {fv('export_stundenzettel') && <button onClick={() => { handleStundenzettel(); setExportOpen(false); }} className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-ink hover:bg-[#f5f5f7] dark:hover:bg-white/5 transition">
-                <Clock size={15} className="text-amber-500" /> Stundenzettel
-              </button>}
-              <div className="mx-3 my-1 h-px bg-border" />
-              {filePath && <button onClick={handleDownloadDdd} className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-ink hover:bg-[#f5f5f7] dark:hover:bg-white/5 transition">
-                <HardDrive size={15} className="text-muted" /> {locale === 'de' ? 'DDD-Datei herunterladen' : 'Pobierz plik DDD'}
-              </button>}
-              {fv('print') && <button onClick={() => { handlePrint(); setExportOpen(false); }} className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-ink hover:bg-[#f5f5f7] dark:hover:bg-white/5 transition">
-                <Printer size={15} className="text-muted" /> {t('analysisPrint')}
-              </button>}
-            </div>
-          )}
-        </div>
-      </div>
     </div>
   );
 }
