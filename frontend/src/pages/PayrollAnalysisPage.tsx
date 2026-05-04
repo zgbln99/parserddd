@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
+import { createPortal } from 'react-dom';
 import { useSearchParams, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, AlertCircle, CheckSquare, FileText, X } from 'lucide-react';
 import { useI18n } from '../i18n';
@@ -123,10 +124,10 @@ export function PayrollAnalysisPage() {
         </Suspense>
       )}
 
-      {/* Back confirmation dialog */}
-      {showBackDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 animate-fade-in" onClick={() => setShowBackDialog(false)}>
-          <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-[#272729] p-6 mx-4 animate-scale-in" style={{ boxShadow: 'rgba(0,0,0,0.15) 0px 8px 40px' }} onClick={e => e.stopPropagation()}>
+      {/* Back confirmation dialog — portal to body for correct centering */}
+      {showBackDialog && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 animate-fade-in" onClick={() => setShowBackDialog(false)}>
+          <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-[#272729] p-6 mx-4 animate-scale-in" style={{ boxShadow: 'rgba(0,0,0,0.2) 0px 12px 48px' }} onClick={e => e.stopPropagation()}>
             <h3 className="text-lg font-semibold text-ink mb-1">
               {locale === 'de' ? 'Status setzen?' : 'Ustawić status?'}
             </h3>
@@ -159,7 +160,8 @@ export function PayrollAnalysisPage() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

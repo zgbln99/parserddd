@@ -28,8 +28,12 @@ bp = Blueprint('analysis', __name__)
 # In-memory analysis cache: key = hash(file_content + flags) → result dict
 # ---------------------------------------------------------------------------
 _analysis_cache: dict[str, tuple[float, dict]] = {}
-_CACHE_MAX_AGE = 3600  # 1 hour
-_CACHE_MAX_SIZE = 50
+_CACHE_MAX_AGE = 7200  # 2 hours
+_CACHE_MAX_SIZE = 200
+
+# Path-based quick cache: key = (dropbox_path, content_hash) → result
+# Avoids re-downloading file from Dropbox when the file hasn't changed.
+_path_cache: dict[str, tuple[float, str, dict]] = {}  # path → (ts, content_hash, result)
 
 
 def _cache_key(file_content: bytes, flags: dict) -> str:
@@ -373,6 +377,20 @@ def api_analyze_dropbox():
     if not file_path:
         return jsonify({'error': 'Brak sciezki pliku'}), 400
     try:
+        # Fast path: check if we have a cached result for this exact path + content_hash
+        # Uses Dropbox metadata (no file download needed) to verify the file hasn't changed.
+        path_entry = _path_cache.get(file_path)
+        if path_entry:
+            ts, cached_hash, cached_result = path_entry
+            if (time.time() - ts) < _CACHE_MAX_AGE:
+                try:
+                    meta_only = dbx.files_get_metadata(file_path)
+                    if hasattr(meta_only, 'content_hash') and meta_only.content_hash == cached_hash:
+                        cached_result['source_file'] = meta_only.name
+                        return jsonify(cached_result)
+                except Exception:
+                    pass  # fall through to full download
+
         metadata, response = dbx.files_download(file_path)
         file_content = response.content
         cfg = _load_config()
@@ -386,6 +404,9 @@ def api_analyze_dropbox():
         cached = _cache_get(ck)
         if cached:
             cached['source_file'] = metadata.name
+            # Save to path cache for fast lookup next time
+            if hasattr(metadata, 'content_hash'):
+                _path_cache[file_path] = (time.time(), metadata.content_hash, cached)
             return jsonify(cached)
 
         with tempfile.NamedTemporaryFile(suffix='.ddd', delete=False) as tmp:
@@ -401,6 +422,8 @@ def api_analyze_dropbox():
         ck_full = _cache_key(file_content, {**global_flags, **_flags})
         _cache_set(ck_full, result)
         _cache_set(ck, result)
+        if hasattr(metadata, 'content_hash'):
+            _path_cache[file_path] = (time.time(), metadata.content_hash, result)
         return jsonify(result)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
