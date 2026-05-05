@@ -153,13 +153,13 @@ export function Layout({ children }: { children: ReactNode }) {
                   title={collapsed && !sidebarOpen ? t(labelKey) : undefined}
                   className={({ isActive }) =>
                     clsx(
-                      'group relative flex items-center text-[14px] transition-all duration-200',
+                      'group relative flex items-center rounded-lg px-3.5 font-medium text-[#4b5563] transition-all duration-200 dark:text-[#9ca3af]',
                       collapsed && !sidebarOpen
-                        ? 'justify-center px-2 py-2.5 rounded-lg'
-                        : 'gap-3 px-3.5 py-2.5 rounded-lg',
+                        ? 'justify-center px-2 py-2.5'
+                        : 'gap-3 py-3',
                       isActive
-                        ? 'bg-[rgba(87,80,241,0.07)] text-primary-500 font-medium'
-                        : 'text-[#4b5563] dark:text-[#9ca3af] hover:bg-gray-100 hover:text-ink dark:hover:bg-[rgba(255,255,255,0.1)] dark:hover:text-white',
+                        ? 'bg-[rgba(87,80,241,0.07)] !text-primary-500 hover:bg-[rgba(87,80,241,0.07)] dark:bg-[#FFFFFF1A] dark:!text-white'
+                        : 'hover:bg-gray-100 hover:text-[#111928] dark:hover:bg-[#FFFFFF1A] dark:hover:text-white',
                     )
                   }
                 >

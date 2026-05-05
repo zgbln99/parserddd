@@ -463,7 +463,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
 
       {/* Date filter */}
       {(hasDateFilter || filePath) && (
-        <div className="flex flex-wrap items-center gap-3 rounded-xl bg-[#f7f9fc] dark:bg-[#1f2a37] px-4 py-3">
+        <div className="flex flex-wrap items-center gap-3 rounded-[10px] bg-white shadow-1 dark:bg-[#122031] dark:shadow-card px-4 py-3">
           {hasDateFilter && <>
           <span className="text-xs font-semibold uppercase tracking-wider text-muted">{t('analysisDateFilter')}:</span>
           <label className="text-xs text-muted">{t('detailFrom')}:</label>
@@ -510,23 +510,23 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
 
       {/* Key metrics - highlighted */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-xl bg-primary-500 p-5 text-center">
+        <div className="rounded-[10px] bg-[#5750f1] p-5 shadow-1 text-center">
           <p className="text-[12px] font-semibold uppercase tracking-wide text-white/70">{t('analysisWorkTime')}</p>
           <p className="mt-1.5 text-3xl font-semibold text-white" style={{ letterSpacing: '-0.28px' }}>{monthlyDays?.override_work_hm || s.total_work_hm}</p>
           <p className="mt-1 text-[12px] text-white/50">{monthlyDays?.override_work_hm ? '' : `${s.total_work_decimal}h`}</p>
         </div>
-        {fv('night_hours_cards') && <div className="rounded-xl bg-[#f7f9fc] p-5 text-center dark:bg-[#1f2a37]" title={locale === 'de' ? `Nachtarbeit ab ${nightH}:00 (25%)` : `Nocne od ${nightH}:00 (25%)`}>
+        {fv('night_hours_cards') && <div className="rounded-[10px] bg-white p-5 shadow-1 text-center dark:bg-[#1f2a37]" title={locale === 'de' ? `Nachtarbeit ab ${nightH}:00 (25%)` : `Nocne od ${nightH}:00 (25%)`}>
           <p className="text-[12px] font-semibold uppercase tracking-wide text-muted">{t('analysisNight25')}</p>
           <p className="mt-1.5 text-3xl font-semibold text-ink" style={{ letterSpacing: '-0.28px' }}>{monthlyDays?.override_n25 || (s.night_25_minutes / 60).toFixed(2)}</p>
           <p className="mt-1 text-[12px] text-muted">{monthlyDays?.override_n25 ? '' : s.night_25_hm}</p>
           <p className="mt-0.5 text-[11px] text-muted/50">{locale === 'de' ? 'ab' : 'od'} {nightH}:00</p>
         </div>}
-        {fv('night_hours_cards') && <div className="rounded-xl bg-[#f7f9fc] p-5 text-center dark:bg-[#1f2a37]" title={locale === 'de' ? `Nachtarbeit ab ${nightH}:00 (40%)` : `Nocne od ${nightH}:00 (40%)`}>
+        {fv('night_hours_cards') && <div className="rounded-[10px] bg-white p-5 shadow-1 text-center dark:bg-[#1f2a37]" title={locale === 'de' ? `Nachtarbeit ab ${nightH}:00 (40%)` : `Nocne od ${nightH}:00 (40%)`}>
           <p className="text-[12px] font-semibold uppercase tracking-wide text-muted">{t('analysisNight40')}</p>
           <p className="mt-1.5 text-3xl font-semibold text-ink" style={{ letterSpacing: '-0.28px' }}>{monthlyDays?.override_n40 || (s.night_40_minutes / 60).toFixed(2)}</p>
           <p className="mt-1 text-[12px] text-muted">{monthlyDays?.override_n40 ? '' : s.night_40_hm}</p>
         </div>}
-        <div className="rounded-xl bg-[#f7f9fc] p-5 text-center dark:bg-[#1f2a37]" title="Verpflegungsmehraufwand - dieta za podróż służbową">
+        <div className="rounded-[10px] bg-white p-5 shadow-1 text-center dark:bg-[#1f2a37]" title="Verpflegungsmehraufwand - dieta za podróż służbową">
           <p className="text-[12px] font-semibold uppercase tracking-wide text-muted">{t('analysisDietCount')}</p>
           <p className="mt-1.5 text-3xl font-semibold text-ink" style={{ letterSpacing: '-0.28px' }}>{s.diet_count}</p>
           <p className="mt-1 text-[12px] font-medium text-muted">
@@ -538,22 +538,22 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
 
       {/* Duration breakdown + total km */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-xl bg-[#f7f9fc] dark:bg-[#1f2a37] p-3 text-center">
+        <div className="rounded-[10px] bg-white shadow-1 dark:bg-[#122031] dark:shadow-card p-3 text-center">
           <p className="text-xs font-bold uppercase tracking-wider text-muted">{locale === 'de' ? 'Gesamtzeit mit Pausen' : 'Czas łącznie z przerwami'}</p>
           <p className="mt-0.5 text-xl font-extrabold">{(s as any).total_duration_hm || '—'}</p>
         </div>
-        <div className="rounded-xl bg-[#f7f9fc] dark:bg-[#1f2a37] p-3 text-center">
+        <div className="rounded-[10px] bg-white shadow-1 dark:bg-[#122031] dark:shadow-card p-3 text-center">
           <p className="text-xs font-bold uppercase tracking-wider text-muted">{locale === 'de' ? 'Arbeitszeit ohne Pausen' : 'Czas pracy bez przerw'}</p>
           <p className="mt-0.5 text-xl font-extrabold">{monthlyDays?.override_work_hm || s.total_work_hm}</p>
         </div>
-        <div className="rounded-xl bg-[#f7f9fc] dark:bg-[#1f2a37] p-3 text-center">
+        <div className="rounded-[10px] bg-white shadow-1 dark:bg-[#122031] dark:shadow-card p-3 text-center">
           <p className="text-xs font-bold uppercase tracking-wider text-muted">{locale === 'de' ? 'Pausen gesamt' : 'Przerwy łącznie'}</p>
           <p className="mt-0.5 text-xl font-extrabold">{s.total_break_hm}</p>
         </div>
         {(() => {
           const fmtNum = (n: number) => n.toLocaleString(locale === 'de' ? 'de-DE' : 'pl-PL');
           return (
-            <div className="rounded-xl bg-[#f7f9fc] dark:bg-[#1f2a37] p-3 text-center">
+            <div className="rounded-[10px] bg-white shadow-1 dark:bg-[#122031] dark:shadow-card p-3 text-center">
               <p className="text-xs font-bold uppercase tracking-wider text-muted">{locale === 'de' ? 'Kilometer' : 'Kilometry'}</p>
               <p className="mt-0.5 text-xl font-extrabold">{fmtNum(totalKm)} km</p>
             </div>
@@ -570,7 +570,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
           { label: t('analysisTotalShifts'), value: String(s.total_shifts) },
           { label: t('analysisNight25') + ' + ' + t('analysisNight40'), value: (monthlyDays?.override_n25 || monthlyDays?.override_n40) ? `${monthlyDays?.override_n25 || (s.night_25_minutes / 60).toFixed(2)} + ${monthlyDays?.override_n40 || (s.night_40_minutes / 60).toFixed(2)}` : fmtNight(s.night_25_minutes + s.night_40_minutes, s.total_night_hm) },
         ].map(({ label, value }) => (
-          <div key={label} className="rounded-xl bg-[#f7f9fc] dark:bg-[#1f2a37] p-3 text-center dark:bg-white/5">
+          <div key={label} className="rounded-[10px] bg-white shadow-1 dark:bg-[#122031] dark:shadow-card p-3 text-center ">
             <p className="text-xs font-bold uppercase tracking-wider text-muted">{label}</p>
             <p className="mt-0.5 text-xl font-extrabold">{value}</p>
           </div>
@@ -580,7 +580,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
 
       {/* Monthly grid copy block (hidden on mobile - 31-col table) */}
       {fv('monthly_grid') && shifts.length > 0 && hasDateFilter && dateFrom && (
-        <div className="hidden sm:block rounded-xl bg-[#f7f9fc] dark:bg-[#1f2a37] p-4 dark:bg-white/5">
+        <div className="hidden sm:block rounded-[10px] bg-white shadow-1 dark:bg-[#122031] dark:shadow-card p-4 ">
           <MonthlyGridCopy
             shifts={shifts}
             summary={s as unknown as Record<string, unknown>}
@@ -695,7 +695,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
 
       {/* Monthly days (vacation/sick) */}
       {di.card_number && period && monthlyDays && (
-        <div className="rounded-xl bg-[#f7f9fc] dark:bg-[#1f2a37] p-4 dark:bg-white/5">
+        <div className="rounded-[10px] bg-white shadow-1 dark:bg-[#122031] dark:shadow-card p-4 ">
           <div className="mb-3 flex items-center gap-2">
             <CalendarDays size={14} className="text-muted" />
             <span className="text-xs font-semibold uppercase tracking-wider text-muted">
@@ -803,7 +803,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
       {data.card_places && data.card_places.length > 0 && (
         <div className="flex flex-wrap items-center gap-2">
           {Array.from(new Set(data.card_places.map(p => p.country).filter(Boolean))).map(c => (
-            <span key={c} className="inline-flex items-center gap-1 rounded-full border border-border bg-white/60 px-2.5 py-0.5 text-xs font-medium dark:bg-white/5">
+            <span key={c} className="inline-flex items-center gap-1 rounded-full border border-border bg-white/60 px-2.5 py-0.5 text-xs font-medium ">
               {countryFlag(c)} {c}
             </span>
           ))}
@@ -818,7 +818,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
             const isWeekend = sh.weekday === 'So' || sh.weekday === 'Nd';
             const wd = localizeWeekday(sh.weekday, locale);
             return (
-              <div key={i} className={`rounded-xl border p-3 ${isWeekend ? 'border-border bg-rose-50/30 dark:bg-rose-900/10' : 'border-border bg-white/50 dark:bg-white/5'}`}>
+              <div key={i} className={`rounded-xl border p-3 ${isWeekend ? 'border-border bg-rose-50/30 dark:bg-rose-900/10' : 'border-border bg-white/50 '}`}>
                 <div className="flex items-center justify-between mb-2">
                   <span className={`text-sm font-bold ${isWeekend ? 'text-danger' : ''}`}>{wd} {sh.shift_date?.slice(5)}</span>
                   <span className="text-sm font-bold">{sh.duration_hm}</span>
@@ -1017,7 +1017,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
           <div className="space-y-0">
             <button
               onClick={() => setShowVehicleKm(!showVehicleKm)}
-              className="flex w-full items-center gap-2 rounded-xl bg-[#f7f9fc] dark:bg-[#1f2a37] px-4 py-3 text-left transition hover:opacity-80"
+              className="flex w-full items-center gap-2 rounded-[10px] bg-white shadow-1 dark:bg-[#122031] dark:shadow-card px-4 py-3 text-left transition hover:opacity-80"
             >
               <span className={`text-muted transition-transform ${showVehicleKm ? 'rotate-90' : ''}`}>▶</span>
               <span className="text-sm font-semibold uppercase tracking-wider text-muted">
@@ -1178,7 +1178,7 @@ function ExcelCopyBlock({ summary, monthlyDays }: { summary: ReturnType<typeof O
         <tbody>
           <tr>
             {cols.map((c) => (
-              <td key={c.header} className="border border-border bg-white/50 px-2 py-1 text-center font-mono dark:bg-white/5">
+              <td key={c.header} className="border border-border bg-white/50 px-2 py-1 text-center font-mono ">
                 {c.value || <span className="text-muted">&mdash;</span>}
               </td>
             ))}

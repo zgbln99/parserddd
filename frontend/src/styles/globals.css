@@ -1,16 +1,20 @@
 @import "tailwindcss";
 
 /* ==========================================================================
-   NextAdmin-Inspired Design System
-   Primary: #5750f1 (indigo), Sidebar: white/#122031, Content: #f3f4f6/#020d1a
-   Font: system-ui (Satoshi-like), Cards: white with subtle shadow
+   NextAdmin Dashboard — exact design tokens from their style.css
    ========================================================================== */
 
 @theme {
-  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  /* Font */
+  --font-sans: 'Satoshi', 'Inter', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
 
-  /* NextAdmin primary */
-  --color-primary-50: #eeedfe;
+  /* Breakpoints */
+  --breakpoint-2xsm: 375px;
+  --breakpoint-xsm: 425px;
+  --breakpoint-3xl: 2000px;
+
+  /* Primary */
+  --color-primary-50: rgba(87, 80, 241, 0.07);
   --color-primary-100: #d5d3fd;
   --color-primary-200: #b3b0fa;
   --color-primary-300: #8a85f5;
@@ -21,7 +25,7 @@
   --color-primary-800: #2e2a8c;
   --color-primary-900: #201e68;
 
-  /* NextAdmin neutrals */
+  /* NextAdmin exact neutrals */
   --color-surface: #f3f4f6;
   --color-surface-dark: #020d1a;
   --color-card: #ffffff;
@@ -33,19 +37,20 @@
   --color-border: #e6ebf1;
   --color-border-dark: #27303e;
 
-  /* Accent = same primary */
   --color-accent: #5750f1;
-  --color-accent-light: #eeedfe;
+  --color-accent-light: rgba(87, 80, 241, 0.07);
   --color-accent-dark: #4a44d4;
 
-  /* Status */
+  /* NextAdmin exact status colors */
   --color-success: #22ad5c;
   --color-warning: #f59e0b;
   --color-danger: #f23030;
   --color-info: #3c50e0;
 
-  /* Shadows — NextAdmin scale */
+  /* NextAdmin exact shadows */
   --shadow-1: 0px 1px 2px 0px rgba(84, 87, 118, 0.12);
+  --shadow-2: 0px 2px 3px 0px rgba(84, 87, 118, 0.15);
+  --shadow-3: 0px 8px 8.466px 0px rgba(113, 116, 152, 0.05), 0px 8px 16.224px 0px rgba(113, 116, 152, 0.07), 0px 18px 31px 0px rgba(113, 116, 152, 0.1);
   --shadow-card: 0px 1px 2px 0px rgba(0, 0, 0, 0.12);
   --shadow-card-2: 0px 8px 13px -3px rgba(0, 0, 0, 0.07);
 
@@ -73,7 +78,7 @@
 .page-enter { animation: page-enter 0.2s cubic-bezier(0.16, 1, 0.3, 1) both; }
 .page-exit { animation: page-exit 0.12s cubic-bezier(0.4, 0, 1, 1) both; pointer-events: none; }
 
-/* === BASE === */
+/* === BASE — NextAdmin uses #f3f4f6 bg, #111928 text, Satoshi font === */
 html, body { overflow-x: hidden; max-width: 100vw; }
 
 body {
@@ -84,10 +89,9 @@ body {
   color: #111928;
   font-size: 14px;
   font-weight: 400;
-  line-height: 1.57;
+  line-height: 22px;
 }
 
-/* Dark mode */
 .dark {
   color-scheme: dark;
   --color-surface: #020d1a;
@@ -95,9 +99,8 @@ body {
   --color-ink: #ffffff;
   --color-muted: #9ca3af;
   --color-border: #27303e;
-  --color-accent-light: #1e1b4b;
-  --color-accent-dark: #8a85f5;
-  --color-primary-50: rgba(87, 80, 241, 0.08);
+  --color-accent-light: rgba(255, 255, 255, 0.1);
+  --color-primary-50: rgba(87, 80, 241, 0.12);
   --color-success: #2cd673;
   --color-warning: #fcd34d;
   --color-danger: #f56060;
@@ -107,34 +110,25 @@ body {
 .dark body { background: #020d1a; color: #ffffff; }
 
 ::selection { background: rgba(87, 80, 241, 0.15); }
-.dark ::selection { background: rgba(87, 80, 241, 0.25); }
+.dark ::selection { background: rgba(87, 80, 241, 0.3); }
 
-/* === CARD — NextAdmin: white bg, rounded-[10px], shadow-1 === */
+/* === CARD — NextAdmin: rounded-[10px] bg-white shadow-1 dark:bg-gray-dark === */
 .card {
-  background: var(--color-card);
+  background: #ffffff;
   border: none;
   border-radius: 10px;
-  box-shadow: var(--shadow-1);
-  transition: box-shadow 0.2s ease;
-}
-
-.card:hover {
-  box-shadow: var(--shadow-card-2);
+  box-shadow: 0px 1px 2px 0px rgba(84, 87, 118, 0.12);
 }
 
 .dark .card {
   background: #122031;
-  box-shadow: var(--shadow-card);
+  box-shadow: 0px 1px 2px 0px rgba(0, 0, 0, 0.12);
 }
 
-.dark .card:hover {
-  box-shadow: var(--shadow-card);
-}
-
-/* === INPUT — NextAdmin: rounded-lg, 1.5px border === */
+/* === INPUT — NextAdmin: rounded-lg border-[1.5px] border-stroke bg-transparent === */
 .input {
   background: transparent;
-  border: 1.5px solid var(--color-border);
+  border: 1.5px solid #e6ebf1;
   border-radius: 8px;
   transition: border-color 0.2s;
   font-family: inherit;
@@ -157,7 +151,7 @@ body {
   border-color: #5750f1;
 }
 
-/* === SIDEBAR — NextAdmin: white / #122031 dark === */
+/* === SIDEBAR — NextAdmin: bg-white border-r border-gray-200 dark:bg-gray-dark === */
 .sidebar {
   background: #ffffff;
   border-right: 1px solid #e5e7eb;
@@ -165,25 +159,23 @@ body {
 
 .dark .sidebar {
   background: #122031;
-  border-right-color: #27303e;
+  border-right-color: #374151;
 }
 
-/* === TOPBAR — NextAdmin: white / dark, subtle shadow === */
+/* === TOPBAR — NextAdmin: bg-white shadow-1 border-b border-stroke sticky === */
 .topbar {
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(8px);
-  border-bottom: 1px solid #e5e7eb;
-  box-shadow: 0px 1px 2px rgba(0, 0, 0, 0.04);
+  background: #ffffff;
+  border-bottom: 1px solid #e6ebf1;
+  box-shadow: 0px 1px 2px 0px rgba(84, 87, 118, 0.12);
 }
 
 .dark .topbar {
-  background: rgba(18, 32, 49, 0.95);
-  backdrop-filter: blur(8px);
+  background: #122031;
   border-bottom-color: #27303e;
   box-shadow: none;
 }
 
-/* === TABLE === */
+/* === TABLE — NextAdmin style === */
 .clean-table {
   border-collapse: separate;
   border-spacing: 0;
@@ -192,18 +184,19 @@ body {
 
 .clean-table thead th {
   background: #f7f9fc;
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid #e6ebf1;
   position: sticky;
   top: 0;
   z-index: 10;
   font-weight: 500;
   font-size: 14px;
-  color: var(--color-ink);
+  color: #111928;
 }
 
 .dark .clean-table thead th {
   background: #1f2a37;
   border-bottom-color: #374151;
+  color: #ffffff;
 }
 
 .clean-table tbody tr {
@@ -215,23 +208,20 @@ body {
 }
 
 .clean-table td {
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid #eeeeee;
 }
 
 .dark .clean-table td {
   border-bottom-color: #374151;
 }
 
-/* === BUTTON === */
+/* === BUTTONS — NextAdmin: primary #5750f1, rounded-[5px] === */
 .btn-press {
   transition: background-color 0.2s, color 0.2s, opacity 0.2s;
 }
 
-.btn-press:active {
-  opacity: 0.8;
-}
+.btn-press:active { opacity: 0.8; }
 
-/* Primary button helper */
 .btn-primary {
   background: #5750f1;
   color: #ffffff;
@@ -242,16 +232,14 @@ body {
 }
 
 .btn-primary:hover { background: #4a44d4; }
-.btn-primary:active { background: #3c37b0; }
 
-/* Secondary button */
 .btn-secondary {
   background: transparent;
   color: var(--color-ink);
   font-weight: 500;
-  border: 1.5px solid var(--color-border);
+  border: 1.5px solid #e6ebf1;
   border-radius: 5px;
-  transition: border-color 0.2s, background-color 0.2s;
+  transition: border-color 0.2s, background-color 0.2s, color 0.2s;
 }
 
 .btn-secondary:hover {
@@ -277,7 +265,7 @@ body {
 
 /* === SKELETON === */
 .skeleton-shimmer {
-  background: linear-gradient(90deg, rgba(0, 0, 0, 0.04) 25%, rgba(0, 0, 0, 0.08) 50%, rgba(0, 0, 0, 0.04) 75%);
+  background: linear-gradient(90deg, rgba(0,0,0,0.04) 25%, rgba(0,0,0,0.08) 50%, rgba(0,0,0,0.04) 75%);
   background-size: 200% 100%;
   animation: shimmer 2s linear infinite;
 }
@@ -295,5 +283,5 @@ body {
 }
 
 @media (hover: none) {
-  .card:hover { box-shadow: var(--shadow-1); }
+  .card:hover { box-shadow: 0px 1px 2px 0px rgba(84, 87, 118, 0.12); }
 }
