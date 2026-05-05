@@ -2,8 +2,10 @@
 Analysis Blueprint — file upload analysis, preview, Dropbox analysis, compare.
 """
 
+import json as _json
 import os
 import tempfile
+import time
 
 from flask import Blueprint, request, jsonify, send_file
 
@@ -20,6 +22,32 @@ from core.analysis import analyze_card
 from services.dropbox_service import get_server_dropbox_client
 
 bp = Blueprint('analysis', __name__)
+
+# ---------------------------------------------------------------------------
+# Smart cache: keyed by Dropbox content_hash (changes when file changes).
+# Does NOT download the file to check cache — uses metadata API only.
+# Invalidates automatically when a new file is uploaded to Dropbox.
+# ---------------------------------------------------------------------------
+_dbx_cache: dict[str, tuple[float, dict]] = {}   # content_hash → (timestamp, result)
+_DBX_CACHE_TTL = 7200   # 2 hours
+_DBX_CACHE_MAX = 200
+
+
+def _dbx_cache_get(content_hash: str) -> dict | None:
+    entry = _dbx_cache.get(content_hash)
+    if entry and (time.time() - entry[0]) < _DBX_CACHE_TTL:
+        return entry[1]
+    if entry:
+        _dbx_cache.pop(content_hash, None)
+    return None
+
+
+def _dbx_cache_set(content_hash: str, result: dict):
+    if len(_dbx_cache) >= _DBX_CACHE_MAX:
+        oldest = min(_dbx_cache, key=lambda k: _dbx_cache[k][0])
+        _dbx_cache.pop(oldest, None)
+    _dbx_cache[content_hash] = (time.time(), result)
+
 
 # ---------------------------------------------------------------------------
 
@@ -327,9 +355,23 @@ def api_analyze_dropbox():
     if not file_path:
         return jsonify({'error': 'Brak sciezki pliku'}), 400
     try:
+        # Step 1: Get metadata (fast, no download) to check content_hash cache
+        try:
+            meta = dbx.files_get_metadata(file_path)
+            c_hash = getattr(meta, 'content_hash', None)
+            if c_hash:
+                cached = _dbx_cache_get(c_hash)
+                if cached:
+                    cached['source_file'] = meta.name
+                    return jsonify(cached)
+        except Exception:
+            c_hash = None
+
+        # Step 2: Cache miss — download and analyze
         metadata, response = dbx.files_download(file_path)
         file_content = response.content
-        cfg = _load_config()
+        if not c_hash:
+            c_hash = getattr(metadata, 'content_hash', None)
 
         with tempfile.NamedTemporaryFile(suffix='.ddd', delete=False) as tmp:
             tmp.write(file_content)
@@ -341,6 +383,11 @@ def api_analyze_dropbox():
         _log_activity('analyze_dropbox', f"{result.get('driver_info', {}).get('driver_name', '')} — {metadata.name}")
         di = result.get('driver_info', {})
         _cache_card_expiry(di.get('card_number'), di.get('card_expiry_date'), di.get('driver_name', ''))
+
+        # Step 3: Save to cache
+        if c_hash:
+            _dbx_cache_set(c_hash, result)
+
         return jsonify(result)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
