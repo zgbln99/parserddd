@@ -75,6 +75,30 @@ export function Layout({ children }: { children: ReactNode }) {
   // Filter by permissions
   const navItems = allNavItems.filter((item) => hasPermission(item.permission));
 
+  // Group nav items into sections (NextAdmin-style)
+  type NavItem = typeof navItems[number];
+  const navSections: { label: string; items: NavItem[] }[] = [];
+
+  // Main menu: dashboard, drivers, reader, violations, live
+  const mainKeys = new Set(['/', '/drivers', '/reader', '/verstosse', '/live']);
+  const mainItems = navItems.filter(i => mainKeys.has(i.to));
+  if (mainItems.length > 0) navSections.push({ label: 'Menu', items: mainItems });
+
+  // Payroll: settlement, payroll, stundenzettel, bulk-grid, compare, arbeitszeitbericht
+  const payrollKeys = new Set(['/settlement', '/payroll', '/stundenzettel', '/bulk-grid', '/compare', '/arbeitszeitbericht']);
+  const payrollItems = navItems.filter(i => payrollKeys.has(i.to));
+  if (payrollItems.length > 0) navSections.push({ label: locale === 'de' ? 'Abrechnung' : 'Rozliczenia', items: payrollItems });
+
+  // Vehicles: vehicles, driver-km, toll, samsara-km
+  const vehicleKeys = new Set(['/vehicles', '/driver-km', '/toll', '/samsara-km']);
+  const vehicleItems = navItems.filter(i => vehicleKeys.has(i.to));
+  if (vehicleItems.length > 0) navSections.push({ label: locale === 'de' ? 'Fahrzeuge & Maut' : 'Pojazdy i maut', items: vehicleItems });
+
+  // Admin: config, night-sim, admin, sync
+  const adminKeys = new Set(['/config', '/night-sim', '/admin', '/sync']);
+  const adminItems = navItems.filter(i => adminKeys.has(i.to));
+  if (adminItems.length > 0) navSections.push({ label: locale === 'de' ? 'Einstellungen' : 'Ustawienia', items: adminItems });
+
   const handleLogout = async () => {
     await logout();
     navigate('/login');
@@ -138,36 +162,47 @@ export function Layout({ children }: { children: ReactNode }) {
           {/* Divider */}
           <div className="mx-4 h-px bg-border" />
 
-          {/* Navigation */}
+          {/* Navigation — grouped sections like NextAdmin */}
           <nav className="flex-1 overflow-y-auto px-3 py-4">
-            {(!collapsed || sidebarOpen) && (
-              <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-widest text-muted">Menu</p>
-            )}
-            <div className="space-y-0.5">
-              {navItems.map(({ to, icon: Icon, labelKey }) => (
-                <NavLink
-                  key={to}
-                  to={to}
-                  end={to === '/'}
-                  onClick={() => setSidebarOpen(false)}
-                  title={collapsed && !sidebarOpen ? t(labelKey) : undefined}
-                  className={({ isActive }) =>
-                    clsx(
-                      'group relative flex items-center rounded-lg px-3.5 font-medium text-[#4b5563] transition-all duration-200 dark:text-[#9ca3af]',
-                      collapsed && !sidebarOpen
-                        ? 'justify-center px-2 py-2.5'
-                        : 'gap-3 py-3',
-                      isActive
-                        ? 'bg-[rgba(87,80,241,0.07)] !text-primary-500 hover:bg-[rgba(87,80,241,0.07)] dark:bg-[#FFFFFF1A] dark:!text-white'
-                        : 'hover:bg-gray-100 hover:text-[#111928] dark:hover:bg-[#FFFFFF1A] dark:hover:text-white',
-                    )
-                  }
-                >
-                  <Icon size={18} />
-                  {(!collapsed || sidebarOpen) && <span>{t(labelKey)}</span>}
-                </NavLink>
-              ))}
-            </div>
+            {navSections.map((section, si) => (
+              <div key={section.label} className={si > 0 ? 'mt-4' : ''}>
+                {(!collapsed || sidebarOpen) && (
+                  <p className="mb-2 px-3.5 text-[11px] font-semibold uppercase tracking-wider text-[#9ca3af] dark:text-[#6b7280]">
+                    {section.label}
+                  </p>
+                )}
+                {collapsed && !sidebarOpen && si > 0 && (
+                  <div className="mx-3 mb-2 h-px bg-[#e5e7eb] dark:bg-[#374151]" />
+                )}
+                <div className="space-y-0.5">
+                  {section.items.map(({ to, icon: Icon, labelKey }) => (
+                    <NavLink
+                      key={to}
+                      to={to}
+                      end={to === '/'}
+                      onClick={() => setSidebarOpen(false)}
+                      title={collapsed && !sidebarOpen ? t(labelKey) : undefined}
+                      className={({ isActive }) =>
+                        clsx(
+                          'group relative flex items-center rounded-lg font-medium text-[#4b5563] transition-all duration-200 dark:text-[#9ca3af]',
+                          collapsed && !sidebarOpen
+                            ? 'justify-center px-2 py-2.5'
+                            : 'gap-3 px-3.5 py-2',
+                          isActive
+                            ? 'bg-[rgba(87,80,241,0.07)] !text-[#5750f1] dark:bg-[#FFFFFF1A] dark:!text-white'
+                            : 'hover:bg-[#f3f4f6] hover:text-[#111928] dark:hover:bg-[#FFFFFF1A] dark:hover:text-white',
+                        )
+                      }
+                    >
+                      <Icon size={18} />
+                      {(!collapsed || sidebarOpen) && (
+                        <span className="text-[14px]">{t(labelKey)}</span>
+                      )}
+                    </NavLink>
+                  ))}
+                </div>
+              </div>
+            ))}
           </nav>
 
           {/* Recent analyses */}
