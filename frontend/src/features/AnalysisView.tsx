@@ -7,7 +7,7 @@ import type { DriverConfig, MonthlyDays } from '../lib/api';
 import { Badge } from '../components/Badge';
 import { Spinner } from '../components/Spinner';
 import { BarChart } from '../components/BarChart';
-import { Download, FileText, ClipboardCopy, Check, Printer, BarChart3, UtensilsCrossed, Table2, Settings, CalendarDays, Sheet, Scale, Clock, ChevronDown, HardDrive } from 'lucide-react';
+import { ClipboardCopy, Check, Printer, BarChart3, UtensilsCrossed, FileText, Settings, CalendarDays, HardDrive } from 'lucide-react';
 import type { AnalysisResult, ShiftDetail } from '../types';
 import { DriverConfigEditor } from './DriverConfigEditor';
 import { ArbeitszeitReport } from './ArbeitszeitReport';
@@ -16,6 +16,9 @@ import { minutesToHm } from '../lib/utils';
 import { exportToXlsx, generateGoogleSheetsUrl } from '../lib/xlsx-export';
 import { useToast } from '../components/Toast';
 import { generateAnalysisPdf, generateArbeitszeitnachweisePdf } from '../lib/pdf-generator';
+import { MetricCards } from './analysis/MetricCards';
+import { VehicleUsageTable } from './analysis/VehicleUsageTable';
+import { ExportDropdown } from './analysis/ExportDropdown';
 
 function fmtNight(minutes: number, hm: string) {
   const decimal = (minutes / 60).toFixed(2);
@@ -300,20 +303,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
   const [showDietReport, setShowDietReport] = useState(false);
   const [showManual, setShowManual] = useState(false);
   const [selectedShiftReport, setSelectedShiftReport] = useState<number | null>(null);
-  const [showVehicleKm, setShowVehicleKm] = useState(false);
-  const [exportOpen, setExportOpen] = useState(false);
-  const exportRef = useRef<HTMLDivElement>(null);
   const printRef = useRef<HTMLDivElement>(null);
-
-  // Close export dropdown on outside click
-  useEffect(() => {
-    if (!exportOpen) return;
-    function handleClick(e: MouseEvent) {
-      if (exportRef.current && !exportRef.current.contains(e.target as Node)) setExportOpen(false);
-    }
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, [exportOpen]);
 
   const handleDownloadDdd = useCallback(() => {
     if (!filePath) return;
@@ -508,74 +498,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
         </div>
       )}
 
-      {/* Key metrics - highlighted */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-[10px] bg-[#5750f1] p-5 shadow-1 text-center">
-          <p className="text-[12px] font-semibold uppercase tracking-wide text-white/70">{t('analysisWorkTime')}</p>
-          <p className="mt-1.5 text-3xl font-semibold text-white" style={{ letterSpacing: '-0.28px' }}>{monthlyDays?.override_work_hm || s.total_work_hm}</p>
-          <p className="mt-1 text-[12px] text-white/50">{monthlyDays?.override_work_hm ? '' : `${s.total_work_decimal}h`}</p>
-        </div>
-        {fv('night_hours_cards') && <div className="rounded-[10px] bg-white p-5 shadow-1 text-center dark:bg-[#1f2a37]" title={locale === 'de' ? `Nachtarbeit ab ${nightH}:00 (25%)` : `Nocne od ${nightH}:00 (25%)`}>
-          <p className="text-[12px] font-semibold uppercase tracking-wide text-muted">{t('analysisNight25')}</p>
-          <p className="mt-1.5 text-3xl font-semibold text-ink" style={{ letterSpacing: '-0.28px' }}>{monthlyDays?.override_n25 || (s.night_25_minutes / 60).toFixed(2)}</p>
-          <p className="mt-1 text-[12px] text-muted">{monthlyDays?.override_n25 ? '' : s.night_25_hm}</p>
-          <p className="mt-0.5 text-[11px] text-muted/50">{locale === 'de' ? 'ab' : 'od'} {nightH}:00</p>
-        </div>}
-        {fv('night_hours_cards') && <div className="rounded-[10px] bg-white p-5 shadow-1 text-center dark:bg-[#1f2a37]" title={locale === 'de' ? `Nachtarbeit ab ${nightH}:00 (40%)` : `Nocne od ${nightH}:00 (40%)`}>
-          <p className="text-[12px] font-semibold uppercase tracking-wide text-muted">{t('analysisNight40')}</p>
-          <p className="mt-1.5 text-3xl font-semibold text-ink" style={{ letterSpacing: '-0.28px' }}>{monthlyDays?.override_n40 || (s.night_40_minutes / 60).toFixed(2)}</p>
-          <p className="mt-1 text-[12px] text-muted">{monthlyDays?.override_n40 ? '' : s.night_40_hm}</p>
-        </div>}
-        <div className="rounded-[10px] bg-white p-5 shadow-1 text-center dark:bg-[#1f2a37]" title="Verpflegungsmehraufwand - dieta za podróż służbową">
-          <p className="text-[12px] font-semibold uppercase tracking-wide text-muted">{t('analysisDietCount')}</p>
-          <p className="mt-1.5 text-3xl font-semibold text-ink" style={{ letterSpacing: '-0.28px' }}>{s.diet_count}</p>
-          <p className="mt-1 text-[12px] font-medium text-muted">
-            {vma.amount.toFixed(2).replace('.', ',')} €
-            {vma.doubleDiet && <span className="ml-1 text-[11px] font-normal opacity-60">(2×{vma.ratePerDay / 2}€)</span>}
-          </p>
-        </div>
-      </div>
-
-      {/* Duration breakdown + total km */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-[10px] bg-white shadow-1 dark:bg-[#122031] dark:shadow-card p-3 text-center">
-          <p className="text-xs font-bold uppercase tracking-wider text-muted">{locale === 'de' ? 'Gesamtzeit mit Pausen' : 'Czas łącznie z przerwami'}</p>
-          <p className="mt-0.5 text-xl font-extrabold">{(s as any).total_duration_hm || '—'}</p>
-        </div>
-        <div className="rounded-[10px] bg-white shadow-1 dark:bg-[#122031] dark:shadow-card p-3 text-center">
-          <p className="text-xs font-bold uppercase tracking-wider text-muted">{locale === 'de' ? 'Arbeitszeit ohne Pausen' : 'Czas pracy bez przerw'}</p>
-          <p className="mt-0.5 text-xl font-extrabold">{monthlyDays?.override_work_hm || s.total_work_hm}</p>
-        </div>
-        <div className="rounded-[10px] bg-white shadow-1 dark:bg-[#122031] dark:shadow-card p-3 text-center">
-          <p className="text-xs font-bold uppercase tracking-wider text-muted">{locale === 'de' ? 'Pausen gesamt' : 'Przerwy łącznie'}</p>
-          <p className="mt-0.5 text-xl font-extrabold">{s.total_break_hm}</p>
-        </div>
-        {(() => {
-          const fmtNum = (n: number) => n.toLocaleString(locale === 'de' ? 'de-DE' : 'pl-PL');
-          return (
-            <div className="rounded-[10px] bg-white shadow-1 dark:bg-[#122031] dark:shadow-card p-3 text-center">
-              <p className="text-xs font-bold uppercase tracking-wider text-muted">{locale === 'de' ? 'Kilometer' : 'Kilometry'}</p>
-              <p className="mt-0.5 text-xl font-extrabold">{fmtNum(totalKm)} km</p>
-            </div>
-          );
-        })()}
-      </div>
-
-      {/* Secondary metrics */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        {[
-          { label: t('analysisDriving'), value: s.total_driving_hm },
-          { label: t('analysisBreaks'), value: s.total_break_hm },
-          { label: t('analysisAvailability'), value: s.total_avail_hm },
-          { label: t('analysisTotalShifts'), value: String(s.total_shifts) },
-          { label: t('analysisNight25') + ' + ' + t('analysisNight40'), value: (monthlyDays?.override_n25 || monthlyDays?.override_n40) ? `${monthlyDays?.override_n25 || (s.night_25_minutes / 60).toFixed(2)} + ${monthlyDays?.override_n40 || (s.night_40_minutes / 60).toFixed(2)}` : fmtNight(s.night_25_minutes + s.night_40_minutes, s.total_night_hm) },
-        ].map(({ label, value }) => (
-          <div key={label} className="rounded-[10px] bg-white shadow-1 dark:bg-[#122031] dark:shadow-card p-3 text-center ">
-            <p className="text-xs font-bold uppercase tracking-wider text-muted">{label}</p>
-            <p className="mt-0.5 text-xl font-extrabold">{value}</p>
-          </div>
-        ))}
-      </div>
+      <MetricCards s={s} nightH={nightH} totalKm={totalKm} vma={vma} monthlyDays={monthlyDays} fv={fv} />
 
 
       {/* Monthly grid copy block (hidden on mobile - 31-col table) */}
@@ -849,47 +772,17 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
         </div>
 
         {/* Export dropdown */}
-        <div className="flex justify-end" ref={exportRef}>
-          <div className="relative">
-            <button
-              onClick={() => setExportOpen(!exportOpen)}
-              className="flex items-center gap-2 rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white transition hover:opacity-90"
-            >
-              <Download size={14} />
-              {locale === 'de' ? 'Exportieren' : 'Eksportuj'}
-              <ChevronDown size={13} className={`transition-transform ${exportOpen ? 'rotate-180' : ''}`} />
-            </button>
-            {exportOpen && (
-              <div className="absolute right-0 top-full mt-1 z-50 w-60 rounded-xl bg-white dark:bg-[#1f2a37] border border-border py-1 animate-scale-in" style={{ boxShadow: 'rgba(0,0,0,0.12) 0px 4px 24px' }}>
-                {fv('export_xlsx') && <button onClick={() => { handleXlsxExport(); setExportOpen(false); }} className="flex w-full items-center gap-3 px-4 py-2 text-[13px] text-ink hover:bg-[#f7f9fc] dark:hover:bg-white/5 transition">
-                  <Download size={14} className="text-[#5750f1]" /> {t('analysisExportXlsx')}
-                </button>}
-                {fv('export_csv') && <button onClick={() => { handleExport(); setExportOpen(false); }} className="flex w-full items-center gap-3 px-4 py-2 text-[13px] text-ink hover:bg-[#f7f9fc] dark:hover:bg-white/5 transition">
-                  <Download size={14} className="text-muted" /> {t('analysisExportCsv')}
-                </button>}
-                {fv('export_pdf') && <button onClick={() => { handlePdfExport(); setExportOpen(false); }} className="flex w-full items-center gap-3 px-4 py-2 text-[13px] text-ink hover:bg-[#f7f9fc] dark:hover:bg-white/5 transition">
-                  <FileText size={14} className="text-muted" /> {t('analysisExportPdf')}
-                </button>}
-                {fv('export_arbeitszeitnachweis') && <button onClick={() => { handleArbeitszeitPdf(); setExportOpen(false); }} className="flex w-full items-center gap-3 px-4 py-2 text-[13px] text-ink hover:bg-[#f7f9fc] dark:hover:bg-white/5 transition">
-                  <Scale size={14} className="text-indigo-500" /> {t('analysisExportArbeitszeitnachweis')}
-                </button>}
-                {fv('export_datev') && <button onClick={() => { handleDatevExport(); setExportOpen(false); }} className="flex w-full items-center gap-3 px-4 py-2 text-[13px] text-ink hover:bg-[#f7f9fc] dark:hover:bg-white/5 transition">
-                  <Table2 size={14} className="text-emerald-500" /> {t('analysisExportDatev')}
-                </button>}
-                {fv('export_gsheets') && <button onClick={() => { handleGoogleSheetsExport(); setExportOpen(false); }} className="flex w-full items-center gap-3 px-4 py-2 text-[13px] text-ink hover:bg-[#f7f9fc] dark:hover:bg-white/5 transition">
-                  <Sheet size={14} className="text-green-500" /> {t('analysisExportGSheets')}
-                </button>}
-                {fv('export_stundenzettel') && <button onClick={() => { handleStundenzettel(); setExportOpen(false); }} className="flex w-full items-center gap-3 px-4 py-2 text-[13px] text-ink hover:bg-[#f7f9fc] dark:hover:bg-white/5 transition">
-                  <Clock size={14} className="text-amber-500" /> Stundenzettel
-                </button>}
-                <div className="mx-3 my-1 h-px bg-border" />
-                {fv('print') && <button onClick={() => { handlePrint(); setExportOpen(false); }} className="flex w-full items-center gap-3 px-4 py-2 text-[13px] text-ink hover:bg-[#f7f9fc] dark:hover:bg-white/5 transition">
-                  <Printer size={14} className="text-muted" /> {t('analysisPrint')}
-                </button>}
-              </div>
-            )}
-          </div>
-        </div>
+        <ExportDropdown
+          onXlsx={handleXlsxExport}
+          onCsv={handleExport}
+          onPdf={handlePdfExport}
+          onArbeitszeitPdf={handleArbeitszeitPdf}
+          onDatev={handleDatevExport}
+          onGoogleSheets={handleGoogleSheetsExport}
+          onStundenzettel={handleStundenzettel}
+          onPrint={handlePrint}
+          fv={fv}
+        />
 
         {/* Desktop shifts table */}
         <div className="hidden sm:block -mx-6 overflow-x-auto px-6">
@@ -961,124 +854,8 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
         </>
       )}
 
-      {/* Vehicle usage (GloboFleet-style): Tacho begin / end / distance per vehicle record */}
-      {(() => {
-        const allV = data.vehicles || [];
-        if (allV.length === 0) return null;
-        // Filter by date range
-        const filtered = allV.filter((v) => {
-          if (!dateFrom && !dateTo) return true;
-          const fromIso = (v.first_use || '').slice(0, 10);
-          const toIso = (v.last_use || '').slice(0, 10);
-          if (dateTo && fromIso && fromIso > dateTo) return false;
-          if (dateFrom && toIso && toIso < dateFrom) return false;
-          return true;
-        });
-        if (filtered.length === 0) return null;
-
-        const fmtNum = (n: number) => n.toLocaleString(locale === 'de' ? 'de-DE' : 'pl-PL');
-        // Format "02. März 2026"
-        const months = locale === 'de'
-          ? ['Jan.', 'Feb.', 'März', 'Apr.', 'Mai', 'Juni', 'Juli', 'Aug.', 'Sep.', 'Okt.', 'Nov.', 'Dez.']
-          : ['sty', 'lut', 'mar', 'kwi', 'maj', 'cze', 'lip', 'sie', 'wrz', 'paź', 'lis', 'gru'];
-        const fmtDate = (s: string) => {
-          if (!s || s.length < 10) return '—';
-          const d = parseInt(s.slice(8, 10), 10);
-          const m = parseInt(s.slice(5, 7), 10) - 1;
-          const y = s.slice(0, 4);
-          return `${String(d).padStart(2, '0')}. ${months[m]} ${y}`;
-        };
-        const fmtTime = (s: string) => s && s.length >= 16 ? s.slice(11, 16) : '—';
-        // ISO week
-        const isoWeek = (isoDate: string) => {
-          if (!isoDate) return '';
-          const d = new Date(isoDate.slice(0, 10));
-          const target = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
-          const dayNum = target.getUTCDay() || 7;
-          target.setUTCDate(target.getUTCDate() + 4 - dayNum);
-          const yearStart = new Date(Date.UTC(target.getUTCFullYear(), 0, 1));
-          return String(Math.ceil((((target.getTime() - yearStart.getTime()) / 86400000) + 1) / 7));
-        };
-        // Duration between first_use and last_use → HH:MM
-        const fmtDuration = (from: string, to: string) => {
-          if (!from || !to) return '—';
-          const f = new Date(from.replace(' ', 'T'));
-          const t = new Date(to.replace(' ', 'T'));
-          if (isNaN(f.getTime()) || isNaN(t.getTime())) return '—';
-          let mins = Math.max(0, Math.round((t.getTime() - f.getTime()) / 60000));
-          const h = Math.floor(mins / 60);
-          const m = mins % 60;
-          return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-        };
-
-        const totalDistance = filtered.reduce((sum, v) => sum + (v.distance_km ?? Math.max(0, (v.odometer_end_km || 0) - (v.odometer_begin_km || 0))), 0);
-
-        return (
-          <div className="space-y-0">
-            <button
-              onClick={() => setShowVehicleKm(!showVehicleKm)}
-              className="flex w-full items-center gap-2 rounded-[10px] bg-white shadow-1 dark:bg-[#122031] dark:shadow-card px-4 py-3 text-left transition hover:opacity-80"
-            >
-              <span className={`text-muted transition-transform ${showVehicleKm ? 'rotate-90' : ''}`}>▶</span>
-              <span className="text-sm font-semibold uppercase tracking-wider text-muted">
-                {locale === 'de' ? `Fahrzeugnutzung (${filtered.length} Aufzeichnungen)` : `Wykorzystanie pojazdów (${filtered.length} rekordów)`}
-              </span>
-              <span className="ml-auto text-sm font-bold text-ink">
-                {fmtNum(totalDistance)} KM
-              </span>
-            </button>
-            {showVehicleKm && <div className="rounded-xl border border-border overflow-x-auto mt-2">
-              <table className="w-full min-w-[900px] text-sm">
-                <thead>
-                  <tr className="border-b border-border bg-[#f7f9fc] dark:bg-[#1f2a37]">
-                    <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold text-muted">KW</th>
-                    <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold text-muted">{locale === 'de' ? 'Datum' : 'Data'}</th>
-                    <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold text-muted">{locale === 'de' ? 'Zeitraum' : 'Godziny'}</th>
-                    <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold text-muted">{locale === 'de' ? 'Dauer' : 'Czas'}</th>
-                    <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold text-muted">{locale === 'de' ? 'Fahrzeug' : 'Pojazd'}</th>
-                    <th className="whitespace-nowrap px-3 py-2.5 text-right text-xs font-semibold text-muted">Tacho {locale === 'de' ? 'Anfang' : 'początek'}</th>
-                    <th className="whitespace-nowrap px-3 py-2.5 text-right text-xs font-semibold text-muted">Tacho {locale === 'de' ? 'Ende' : 'koniec'}</th>
-                    <th className="whitespace-nowrap px-3 py-2.5 text-right text-xs font-semibold text-muted">{locale === 'de' ? 'Entfernung' : 'Przejechane'}</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {filtered.map((v, i) => {
-                    const dist = v.distance_km ?? Math.max(0, (v.odometer_end_km || 0) - (v.odometer_begin_km || 0));
-                    return (
-                      <tr key={i} className="hover:bg-surface">
-                        <td className="whitespace-nowrap px-3 py-2 text-muted">{isoWeek(v.first_use)}</td>
-                        <td className="whitespace-nowrap px-3 py-2 text-muted">{fmtDate(v.first_use)}</td>
-                        <td className="whitespace-nowrap px-3 py-2 tabular-nums">{fmtTime(v.first_use)} – {fmtTime(v.last_use)}</td>
-                        <td className="whitespace-nowrap px-3 py-2 tabular-nums">{fmtDuration(v.first_use, v.last_use)}</td>
-                        <td className="whitespace-nowrap px-3 py-2 font-semibold">{v.plate}</td>
-                        <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-muted">
-                          {v.odometer_begin_km ? `${fmtNum(v.odometer_begin_km)} KM` : '—'}
-                        </td>
-                        <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-muted">
-                          {v.odometer_end_km ? `${fmtNum(v.odometer_end_km)} KM` : '—'}
-                        </td>
-                        <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums font-semibold text-ink">
-                          {fmtNum(dist)} KM
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-                <tfoot>
-                  <tr className="border-t-2 border-border bg-[#f7f9fc] dark:bg-[#1f2a37]">
-                    <td colSpan={7} className="px-3 py-2.5 text-right text-sm font-bold text-ink">
-                      {locale === 'de' ? 'Gesamt' : 'Suma'}:
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums text-base font-bold text-ink">
-                      {fmtNum(totalDistance)} KM
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>}
-          </div>
-        );
-      })()}
+      {/* Vehicle usage (GloboFleet-style) */}
+      <VehicleUsageTable vehicles={data.vehicles || []} dateFrom={dateFrom} dateTo={dateTo} />
 
       {shifts.length === 0 && (
         <p className="py-8 text-center text-sm text-muted">{t('noData')}</p>
