@@ -18,7 +18,7 @@ interface DriverStatus {
 
 const STATUS_CONFIG: Record<string, { icon: typeof Truck; color: string; bg: string; borderColor: string; gradientFrom: string; label: string }> = {
   driving: { icon: Truck, color: 'text-emerald-600', bg: 'bg-emerald-50 border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-800', borderColor: 'border-l-emerald-500', gradientFrom: 'bg-[#30d158]', label: 'Jazda' },
-  work: { icon: Wrench, color: 'text-blue-600', bg: 'bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800', borderColor: 'border-l-blue-500', gradientFrom: 'bg-[#0071e3]', label: 'Praca' },
+  work: { icon: Wrench, color: 'text-blue-600', bg: 'bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800', borderColor: 'border-l-blue-500', gradientFrom: 'bg-[#5750f1]', label: 'Praca' },
   rest: { icon: Coffee, color: 'text-gray-500', bg: 'bg-gray-50 border-gray-200 dark:bg-gray-800/50 dark:border-gray-700', borderColor: 'border-l-gray-400', gradientFrom: 'bg-[#86868b]', label: 'Przerwa / Wolne' },
   unknown: { icon: Users, color: 'text-gray-400', bg: 'bg-gray-50/50 border-gray-100 dark:bg-gray-800/30 dark:border-gray-700', borderColor: 'border-l-gray-300', gradientFrom: 'bg-[#aeaeb2]', label: 'Brak danych' },
 };

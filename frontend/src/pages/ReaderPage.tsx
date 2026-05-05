@@ -267,14 +267,14 @@ export function ReaderPage() {
           onClick={() => fileRef.current?.click()}
         >
           <div className="flex flex-col items-center gap-4 py-16">
-            <div className={`rounded-xl bg-[#0071e3] p-5 text-white transition-all duration-300 ${dragging ? 'scale-125 rotate-6' : ''}`}>
+            <div className={`rounded-xl bg-[#5750f1] p-5 text-white transition-all duration-300 ${dragging ? 'scale-125 rotate-6' : ''}`}>
               <Upload size={32} />
             </div>
             <div className="text-center">
               <p className="text-base font-bold text-ink">{t('readerMultiDrop')}</p>
               <p className="mt-1.5 text-sm text-muted">{t('readerSelectFile')}</p>
             </div>
-            <button className="btn-press rounded-xl bg-[#0071e3] px-8 py-3 text-sm font-semibold text-white transition hover:opacity-90">
+            <button className="btn-press rounded-xl bg-[#5750f1] px-8 py-3 text-sm font-semibold text-white transition hover:opacity-90">
               {t('readerUploadBtn')}
             </button>
           </div>
@@ -326,7 +326,7 @@ export function ReaderPage() {
               <button
                 onClick={handleMerge}
                 disabled={!mergeFile1 || !mergeFile2 || loading}
-                className="btn-press mt-4 flex items-center gap-2 rounded-xl bg-[#0071e3] px-6 py-2.5 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
+                className="btn-press mt-4 flex items-center gap-2 rounded-xl bg-[#5750f1] px-6 py-2.5 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
               >
                 <Merge size={16} />
                 {t('mergeAnalyze')}

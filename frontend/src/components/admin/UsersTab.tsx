@@ -88,7 +88,7 @@ export function UsersTab() {
       {error && <p className="mb-3 text-sm text-danger">{error}</p>}
 
       {showForm && (
-        <div className="mb-4 flex flex-wrap items-end gap-3 rounded-lg bg-[#f5f5f7] p-4 dark:bg-[#272729]">
+        <div className="mb-4 flex flex-wrap items-end gap-3 rounded-lg bg-[#f7f9fc] p-4 dark:bg-[#1f2a37]">
           <div>
             <label className="mb-1 block text-xs font-semibold text-muted">{t('adminUserName')}</label>
             <input

@@ -95,7 +95,7 @@ export function ArbeitszeitReport({ shift }: { shift: ShiftDetail }) {
       <div className="w-full">
         <div
           ref={barRef}
-          className="relative w-full bg-[#f5f5f7] dark:bg-[#272729]"
+          className="relative w-full bg-[#f7f9fc] dark:bg-[#1f2a37]"
           style={{ height: BAR_H }}
         >
           {/* Activity blocks — bottom-aligned */}
@@ -153,7 +153,7 @@ export function ArbeitszeitReport({ shift }: { shift: ShiftDetail }) {
                 className="absolute z-50 pointer-events-none"
                 style={{ left: tooltipLeft, bottom: BAR_H + 8 }}
               >
-                <div className="rounded-xl bg-white dark:bg-[#272729] px-4 py-3 min-w-[170px]" style={{ boxShadow: 'rgba(0,0,0,0.22) 3px 5px 30px 0px' }}>
+                <div className="rounded-xl bg-white dark:bg-[#1f2a37] px-4 py-3 min-w-[170px]" style={{ boxShadow: 'rgba(0,0,0,0.22) 3px 5px 30px 0px' }}>
                   <p className="text-[13px] font-semibold text-ink mb-2">
                     {a.start.slice(8, 10)}.{a.start.slice(5, 7)}.{a.start.slice(0, 4)} {fmtTime(a.start)}
                   </p>
@@ -173,7 +173,7 @@ export function ArbeitszeitReport({ shift }: { shift: ShiftDetail }) {
                   </div>
                 </div>
                 <div className="flex justify-center">
-                  <div className="h-2.5 w-2.5 rotate-45 bg-white dark:bg-[#272729] -mt-1.5" style={{ boxShadow: '2px 2px 4px rgba(0,0,0,0.08)' }} />
+                  <div className="h-2.5 w-2.5 rotate-45 bg-white dark:bg-[#1f2a37] -mt-1.5" style={{ boxShadow: '2px 2px 4px rgba(0,0,0,0.08)' }} />
                 </div>
               </div>
             );

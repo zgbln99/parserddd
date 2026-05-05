@@ -127,7 +127,7 @@ export function PayrollAnalysisPage() {
       {/* Back confirmation dialog — portal to body for correct centering */}
       {showBackDialog && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 animate-fade-in" onClick={() => setShowBackDialog(false)}>
-          <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-[#272729] p-6 mx-4 animate-scale-in" style={{ boxShadow: 'rgba(0,0,0,0.2) 0px 12px 48px' }} onClick={e => e.stopPropagation()}>
+          <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-[#1f2a37] p-6 mx-4 animate-scale-in" style={{ boxShadow: 'rgba(0,0,0,0.2) 0px 12px 48px' }} onClick={e => e.stopPropagation()}>
             <h3 className="text-lg font-semibold text-ink mb-1">
               {locale === 'de' ? 'Status setzen?' : 'Ustawić status?'}
             </h3>
@@ -146,14 +146,14 @@ export function PayrollAnalysisPage() {
               </button>
               <button
                 onClick={() => handleMarkAndBack('stundenzettel')}
-                className="flex items-center gap-3 rounded-xl bg-[#0071e3]/10 px-4 py-3 text-sm font-medium text-[#0071e3] transition hover:bg-[#0071e3]/20"
+                className="flex items-center gap-3 rounded-xl bg-[#5750f1]/10 px-4 py-3 text-sm font-medium text-[#5750f1] transition hover:bg-[#5750f1]/20"
               >
                 <FileText size={18} />
                 Stundenzettel
               </button>
               <button
                 onClick={() => navigate(-1)}
-                className="flex items-center gap-3 rounded-xl bg-[#f5f5f7] dark:bg-white/5 px-4 py-3 text-sm font-medium text-muted transition hover:bg-gray-200 dark:hover:bg-white/10"
+                className="flex items-center gap-3 rounded-xl bg-[#f7f9fc] dark:bg-white/5 px-4 py-3 text-sm font-medium text-muted transition hover:bg-gray-200 dark:hover:bg-white/10"
               >
                 <X size={18} />
                 {locale === 'de' ? 'Ohne Änderung zurück' : 'Wróć bez zmiany'}

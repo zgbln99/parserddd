@@ -426,7 +426,7 @@ export function CompareDriversPage() {
     <div className="animate-slide-up space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#0071e3] text-white">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#5750f1] text-white">
           <GitCompareArrows size={20} />
         </div>
         <div>
@@ -463,7 +463,7 @@ export function CompareDriversPage() {
         </div>
 
         <div className="max-h-[280px] overflow-y-auto rounded-lg border border-border">
-          <div className="grid grid-cols-1 gap-1 bg-[#f5f5f7] sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 dark:bg-[#272729]">
+          <div className="grid grid-cols-1 gap-1 bg-[#f7f9fc] sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 dark:bg-[#1f2a37]">
             {filtered.map((d) => (
               <label
                 key={d.name}
@@ -538,7 +538,7 @@ export function CompareDriversPage() {
                       const sh = shiftLookup.get(r.driver_name)?.get(date);
                       if (!sh) return null;
                       return (
-                        <div key={r.driver_name} className="flex items-center justify-between gap-2 rounded-lg bg-[#f5f5f7] px-3 py-1.5 dark:bg-[#272729]">
+                        <div key={r.driver_name} className="flex items-center justify-between gap-2 rounded-lg bg-[#f7f9fc] px-3 py-1.5 dark:bg-[#1f2a37]">
                           <span className="text-xs font-medium truncate">{r.driver_name}</span>
                           <div className="flex items-center gap-3 text-xs shrink-0">
                             <span className="font-semibold text-emerald-600 dark:text-emerald-400">{sh.start}</span>

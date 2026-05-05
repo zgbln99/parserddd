@@ -30,7 +30,7 @@ export function InstallPrompt() {
   return (
     <div className="fixed bottom-20 left-4 right-4 z-40 mx-auto max-w-sm animate-slide-up lg:bottom-4">
       <div className="flex items-start gap-3 rounded-xl border border-primary-200 bg-white/95 p-4 backdrop-blur-lg dark:border-primary-800 dark:bg-gray-900/95">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#0071e3] text-white">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#5750f1] text-white">
           <Share size={18} />
         </div>
         <div className="flex-1 min-w-0">

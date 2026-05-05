@@ -463,7 +463,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
 
       {/* Date filter */}
       {(hasDateFilter || filePath) && (
-        <div className="flex flex-wrap items-center gap-3 rounded-xl bg-[#f5f5f7] dark:bg-[#272729] px-4 py-3">
+        <div className="flex flex-wrap items-center gap-3 rounded-xl bg-[#f7f9fc] dark:bg-[#1f2a37] px-4 py-3">
           {hasDateFilter && <>
           <span className="text-xs font-semibold uppercase tracking-wider text-muted">{t('analysisDateFilter')}:</span>
           <label className="text-xs text-muted">{t('detailFrom')}:</label>
@@ -510,23 +510,23 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
 
       {/* Key metrics - highlighted */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-xl bg-[#0071e3] p-5 text-center">
+        <div className="rounded-xl bg-primary-500 p-5 text-center">
           <p className="text-[12px] font-semibold uppercase tracking-wide text-white/70">{t('analysisWorkTime')}</p>
           <p className="mt-1.5 text-3xl font-semibold text-white" style={{ letterSpacing: '-0.28px' }}>{monthlyDays?.override_work_hm || s.total_work_hm}</p>
           <p className="mt-1 text-[12px] text-white/50">{monthlyDays?.override_work_hm ? '' : `${s.total_work_decimal}h`}</p>
         </div>
-        {fv('night_hours_cards') && <div className="rounded-xl bg-[#f5f5f7] p-5 text-center dark:bg-[#272729]" title={locale === 'de' ? `Nachtarbeit ab ${nightH}:00 (25%)` : `Nocne od ${nightH}:00 (25%)`}>
+        {fv('night_hours_cards') && <div className="rounded-xl bg-[#f7f9fc] p-5 text-center dark:bg-[#1f2a37]" title={locale === 'de' ? `Nachtarbeit ab ${nightH}:00 (25%)` : `Nocne od ${nightH}:00 (25%)`}>
           <p className="text-[12px] font-semibold uppercase tracking-wide text-muted">{t('analysisNight25')}</p>
           <p className="mt-1.5 text-3xl font-semibold text-ink" style={{ letterSpacing: '-0.28px' }}>{monthlyDays?.override_n25 || (s.night_25_minutes / 60).toFixed(2)}</p>
           <p className="mt-1 text-[12px] text-muted">{monthlyDays?.override_n25 ? '' : s.night_25_hm}</p>
           <p className="mt-0.5 text-[11px] text-muted/50">{locale === 'de' ? 'ab' : 'od'} {nightH}:00</p>
         </div>}
-        {fv('night_hours_cards') && <div className="rounded-xl bg-[#f5f5f7] p-5 text-center dark:bg-[#272729]" title={locale === 'de' ? `Nachtarbeit ab ${nightH}:00 (40%)` : `Nocne od ${nightH}:00 (40%)`}>
+        {fv('night_hours_cards') && <div className="rounded-xl bg-[#f7f9fc] p-5 text-center dark:bg-[#1f2a37]" title={locale === 'de' ? `Nachtarbeit ab ${nightH}:00 (40%)` : `Nocne od ${nightH}:00 (40%)`}>
           <p className="text-[12px] font-semibold uppercase tracking-wide text-muted">{t('analysisNight40')}</p>
           <p className="mt-1.5 text-3xl font-semibold text-ink" style={{ letterSpacing: '-0.28px' }}>{monthlyDays?.override_n40 || (s.night_40_minutes / 60).toFixed(2)}</p>
           <p className="mt-1 text-[12px] text-muted">{monthlyDays?.override_n40 ? '' : s.night_40_hm}</p>
         </div>}
-        <div className="rounded-xl bg-[#f5f5f7] p-5 text-center dark:bg-[#272729]" title="Verpflegungsmehraufwand - dieta za podróż służbową">
+        <div className="rounded-xl bg-[#f7f9fc] p-5 text-center dark:bg-[#1f2a37]" title="Verpflegungsmehraufwand - dieta za podróż służbową">
           <p className="text-[12px] font-semibold uppercase tracking-wide text-muted">{t('analysisDietCount')}</p>
           <p className="mt-1.5 text-3xl font-semibold text-ink" style={{ letterSpacing: '-0.28px' }}>{s.diet_count}</p>
           <p className="mt-1 text-[12px] font-medium text-muted">
@@ -538,22 +538,22 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
 
       {/* Duration breakdown + total km */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-xl bg-[#f5f5f7] dark:bg-[#272729] p-3 text-center">
+        <div className="rounded-xl bg-[#f7f9fc] dark:bg-[#1f2a37] p-3 text-center">
           <p className="text-xs font-bold uppercase tracking-wider text-muted">{locale === 'de' ? 'Gesamtzeit mit Pausen' : 'Czas łącznie z przerwami'}</p>
           <p className="mt-0.5 text-xl font-extrabold">{(s as any).total_duration_hm || '—'}</p>
         </div>
-        <div className="rounded-xl bg-[#f5f5f7] dark:bg-[#272729] p-3 text-center">
+        <div className="rounded-xl bg-[#f7f9fc] dark:bg-[#1f2a37] p-3 text-center">
           <p className="text-xs font-bold uppercase tracking-wider text-muted">{locale === 'de' ? 'Arbeitszeit ohne Pausen' : 'Czas pracy bez przerw'}</p>
           <p className="mt-0.5 text-xl font-extrabold">{monthlyDays?.override_work_hm || s.total_work_hm}</p>
         </div>
-        <div className="rounded-xl bg-[#f5f5f7] dark:bg-[#272729] p-3 text-center">
+        <div className="rounded-xl bg-[#f7f9fc] dark:bg-[#1f2a37] p-3 text-center">
           <p className="text-xs font-bold uppercase tracking-wider text-muted">{locale === 'de' ? 'Pausen gesamt' : 'Przerwy łącznie'}</p>
           <p className="mt-0.5 text-xl font-extrabold">{s.total_break_hm}</p>
         </div>
         {(() => {
           const fmtNum = (n: number) => n.toLocaleString(locale === 'de' ? 'de-DE' : 'pl-PL');
           return (
-            <div className="rounded-xl bg-[#f5f5f7] dark:bg-[#272729] p-3 text-center">
+            <div className="rounded-xl bg-[#f7f9fc] dark:bg-[#1f2a37] p-3 text-center">
               <p className="text-xs font-bold uppercase tracking-wider text-muted">{locale === 'de' ? 'Kilometer' : 'Kilometry'}</p>
               <p className="mt-0.5 text-xl font-extrabold">{fmtNum(totalKm)} km</p>
             </div>
@@ -570,7 +570,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
           { label: t('analysisTotalShifts'), value: String(s.total_shifts) },
           { label: t('analysisNight25') + ' + ' + t('analysisNight40'), value: (monthlyDays?.override_n25 || monthlyDays?.override_n40) ? `${monthlyDays?.override_n25 || (s.night_25_minutes / 60).toFixed(2)} + ${monthlyDays?.override_n40 || (s.night_40_minutes / 60).toFixed(2)}` : fmtNight(s.night_25_minutes + s.night_40_minutes, s.total_night_hm) },
         ].map(({ label, value }) => (
-          <div key={label} className="rounded-xl bg-[#f5f5f7] dark:bg-[#272729] p-3 text-center dark:bg-white/5">
+          <div key={label} className="rounded-xl bg-[#f7f9fc] dark:bg-[#1f2a37] p-3 text-center dark:bg-white/5">
             <p className="text-xs font-bold uppercase tracking-wider text-muted">{label}</p>
             <p className="mt-0.5 text-xl font-extrabold">{value}</p>
           </div>
@@ -580,7 +580,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
 
       {/* Monthly grid copy block (hidden on mobile - 31-col table) */}
       {fv('monthly_grid') && shifts.length > 0 && hasDateFilter && dateFrom && (
-        <div className="hidden sm:block rounded-xl bg-[#f5f5f7] dark:bg-[#272729] p-4 dark:bg-white/5">
+        <div className="hidden sm:block rounded-xl bg-[#f7f9fc] dark:bg-[#1f2a37] p-4 dark:bg-white/5">
           <MonthlyGridCopy
             shifts={shifts}
             summary={s as unknown as Record<string, unknown>}
@@ -695,7 +695,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
 
       {/* Monthly days (vacation/sick) */}
       {di.card_number && period && monthlyDays && (
-        <div className="rounded-xl bg-[#f5f5f7] dark:bg-[#272729] p-4 dark:bg-white/5">
+        <div className="rounded-xl bg-[#f7f9fc] dark:bg-[#1f2a37] p-4 dark:bg-white/5">
           <div className="mb-3 flex items-center gap-2">
             <CalendarDays size={14} className="text-muted" />
             <span className="text-xs font-semibold uppercase tracking-wider text-muted">
@@ -853,37 +853,37 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
           <div className="relative">
             <button
               onClick={() => setExportOpen(!exportOpen)}
-              className="flex items-center gap-2 rounded-lg bg-[#0071e3] px-4 py-2 text-sm font-medium text-white transition hover:opacity-90"
+              className="flex items-center gap-2 rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white transition hover:opacity-90"
             >
               <Download size={14} />
               {locale === 'de' ? 'Exportieren' : 'Eksportuj'}
               <ChevronDown size={13} className={`transition-transform ${exportOpen ? 'rotate-180' : ''}`} />
             </button>
             {exportOpen && (
-              <div className="absolute right-0 top-full mt-1 z-50 w-60 rounded-xl bg-white dark:bg-[#272729] border border-border py-1 animate-scale-in" style={{ boxShadow: 'rgba(0,0,0,0.12) 0px 4px 24px' }}>
-                {fv('export_xlsx') && <button onClick={() => { handleXlsxExport(); setExportOpen(false); }} className="flex w-full items-center gap-3 px-4 py-2 text-[13px] text-ink hover:bg-[#f5f5f7] dark:hover:bg-white/5 transition">
-                  <Download size={14} className="text-[#0071e3]" /> {t('analysisExportXlsx')}
+              <div className="absolute right-0 top-full mt-1 z-50 w-60 rounded-xl bg-white dark:bg-[#1f2a37] border border-border py-1 animate-scale-in" style={{ boxShadow: 'rgba(0,0,0,0.12) 0px 4px 24px' }}>
+                {fv('export_xlsx') && <button onClick={() => { handleXlsxExport(); setExportOpen(false); }} className="flex w-full items-center gap-3 px-4 py-2 text-[13px] text-ink hover:bg-[#f7f9fc] dark:hover:bg-white/5 transition">
+                  <Download size={14} className="text-[#5750f1]" /> {t('analysisExportXlsx')}
                 </button>}
-                {fv('export_csv') && <button onClick={() => { handleExport(); setExportOpen(false); }} className="flex w-full items-center gap-3 px-4 py-2 text-[13px] text-ink hover:bg-[#f5f5f7] dark:hover:bg-white/5 transition">
+                {fv('export_csv') && <button onClick={() => { handleExport(); setExportOpen(false); }} className="flex w-full items-center gap-3 px-4 py-2 text-[13px] text-ink hover:bg-[#f7f9fc] dark:hover:bg-white/5 transition">
                   <Download size={14} className="text-muted" /> {t('analysisExportCsv')}
                 </button>}
-                {fv('export_pdf') && <button onClick={() => { handlePdfExport(); setExportOpen(false); }} className="flex w-full items-center gap-3 px-4 py-2 text-[13px] text-ink hover:bg-[#f5f5f7] dark:hover:bg-white/5 transition">
+                {fv('export_pdf') && <button onClick={() => { handlePdfExport(); setExportOpen(false); }} className="flex w-full items-center gap-3 px-4 py-2 text-[13px] text-ink hover:bg-[#f7f9fc] dark:hover:bg-white/5 transition">
                   <FileText size={14} className="text-muted" /> {t('analysisExportPdf')}
                 </button>}
-                {fv('export_arbeitszeitnachweis') && <button onClick={() => { handleArbeitszeitPdf(); setExportOpen(false); }} className="flex w-full items-center gap-3 px-4 py-2 text-[13px] text-ink hover:bg-[#f5f5f7] dark:hover:bg-white/5 transition">
+                {fv('export_arbeitszeitnachweis') && <button onClick={() => { handleArbeitszeitPdf(); setExportOpen(false); }} className="flex w-full items-center gap-3 px-4 py-2 text-[13px] text-ink hover:bg-[#f7f9fc] dark:hover:bg-white/5 transition">
                   <Scale size={14} className="text-indigo-500" /> {t('analysisExportArbeitszeitnachweis')}
                 </button>}
-                {fv('export_datev') && <button onClick={() => { handleDatevExport(); setExportOpen(false); }} className="flex w-full items-center gap-3 px-4 py-2 text-[13px] text-ink hover:bg-[#f5f5f7] dark:hover:bg-white/5 transition">
+                {fv('export_datev') && <button onClick={() => { handleDatevExport(); setExportOpen(false); }} className="flex w-full items-center gap-3 px-4 py-2 text-[13px] text-ink hover:bg-[#f7f9fc] dark:hover:bg-white/5 transition">
                   <Table2 size={14} className="text-emerald-500" /> {t('analysisExportDatev')}
                 </button>}
-                {fv('export_gsheets') && <button onClick={() => { handleGoogleSheetsExport(); setExportOpen(false); }} className="flex w-full items-center gap-3 px-4 py-2 text-[13px] text-ink hover:bg-[#f5f5f7] dark:hover:bg-white/5 transition">
+                {fv('export_gsheets') && <button onClick={() => { handleGoogleSheetsExport(); setExportOpen(false); }} className="flex w-full items-center gap-3 px-4 py-2 text-[13px] text-ink hover:bg-[#f7f9fc] dark:hover:bg-white/5 transition">
                   <Sheet size={14} className="text-green-500" /> {t('analysisExportGSheets')}
                 </button>}
-                {fv('export_stundenzettel') && <button onClick={() => { handleStundenzettel(); setExportOpen(false); }} className="flex w-full items-center gap-3 px-4 py-2 text-[13px] text-ink hover:bg-[#f5f5f7] dark:hover:bg-white/5 transition">
+                {fv('export_stundenzettel') && <button onClick={() => { handleStundenzettel(); setExportOpen(false); }} className="flex w-full items-center gap-3 px-4 py-2 text-[13px] text-ink hover:bg-[#f7f9fc] dark:hover:bg-white/5 transition">
                   <Clock size={14} className="text-amber-500" /> Stundenzettel
                 </button>}
                 <div className="mx-3 my-1 h-px bg-border" />
-                {fv('print') && <button onClick={() => { handlePrint(); setExportOpen(false); }} className="flex w-full items-center gap-3 px-4 py-2 text-[13px] text-ink hover:bg-[#f5f5f7] dark:hover:bg-white/5 transition">
+                {fv('print') && <button onClick={() => { handlePrint(); setExportOpen(false); }} className="flex w-full items-center gap-3 px-4 py-2 text-[13px] text-ink hover:bg-[#f7f9fc] dark:hover:bg-white/5 transition">
                   <Printer size={14} className="text-muted" /> {t('analysisPrint')}
                 </button>}
               </div>
@@ -1017,7 +1017,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
           <div className="space-y-0">
             <button
               onClick={() => setShowVehicleKm(!showVehicleKm)}
-              className="flex w-full items-center gap-2 rounded-xl bg-[#f5f5f7] dark:bg-[#272729] px-4 py-3 text-left transition hover:opacity-80"
+              className="flex w-full items-center gap-2 rounded-xl bg-[#f7f9fc] dark:bg-[#1f2a37] px-4 py-3 text-left transition hover:opacity-80"
             >
               <span className={`text-muted transition-transform ${showVehicleKm ? 'rotate-90' : ''}`}>▶</span>
               <span className="text-sm font-semibold uppercase tracking-wider text-muted">
@@ -1030,7 +1030,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
             {showVehicleKm && <div className="rounded-xl border border-border overflow-x-auto mt-2">
               <table className="w-full min-w-[900px] text-sm">
                 <thead>
-                  <tr className="border-b border-border bg-[#f5f5f7] dark:bg-[#272729]">
+                  <tr className="border-b border-border bg-[#f7f9fc] dark:bg-[#1f2a37]">
                     <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold text-muted">KW</th>
                     <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold text-muted">{locale === 'de' ? 'Datum' : 'Data'}</th>
                     <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold text-muted">{locale === 'de' ? 'Zeitraum' : 'Godziny'}</th>
@@ -1065,7 +1065,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
                   })}
                 </tbody>
                 <tfoot>
-                  <tr className="border-t-2 border-border bg-[#f5f5f7] dark:bg-[#272729]">
+                  <tr className="border-t-2 border-border bg-[#f7f9fc] dark:bg-[#1f2a37]">
                     <td colSpan={7} className="px-3 py-2.5 text-right text-sm font-bold text-ink">
                       {locale === 'de' ? 'Gesamt' : 'Suma'}:
                     </td>

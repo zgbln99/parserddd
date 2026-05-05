@@ -33,7 +33,7 @@ export function AdminPage() {
       </div>
 
       {/* Tab bar */}
-      <div className="flex gap-1 rounded-xl bg-[#f5f5f7] p-1 dark:bg-[#272729]">
+      <div className="flex gap-1 rounded-xl bg-[#f7f9fc] p-1 dark:bg-[#1f2a37]">
         {tabs.map(({ key, icon: Icon, labelKey, color }) => (
           <button
             key={key}

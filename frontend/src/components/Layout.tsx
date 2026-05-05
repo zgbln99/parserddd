@@ -109,7 +109,7 @@ export function Layout({ children }: { children: ReactNode }) {
           <div className={clsx('pb-4 pt-6', collapsed && !sidebarOpen ? 'px-3' : 'px-5')}>
             <div className="flex items-center gap-3">
               <img src="/logo.png" alt="LTS" className="h-10 w-10 shrink-0 rounded-lg object-contain" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).nextElementSibling!.classList.remove('hidden'); }} />
-              <div className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#1d1d1f] text-white dark:bg-[#f5f5f7] dark:text-[#1d1d1f]">
+              <div className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary-500 text-white">
                 <Truck size={20} />
               </div>
               {(!collapsed || sidebarOpen) && (
@@ -126,9 +126,9 @@ export function Layout({ children }: { children: ReactNode }) {
               </button>
             </div>
             {(!collapsed || sidebarOpen) && (role === 'admin' || role === 'dispatcher') && (
-              <div className="mt-3 flex items-center gap-2 rounded-lg px-3 py-1.5 bg-[#f5f5f7] dark:bg-white/[0.06]">
+              <div className="mt-3 flex items-center gap-2 rounded-lg px-3 py-1.5 bg-[rgba(87,80,241,0.07)] dark:bg-[rgba(87,80,241,0.12)]">
                 <Shield size={12} className="text-primary-500" />
-                <span className="text-[11px] font-semibold text-[rgba(0,0,0,0.56)] dark:text-[rgba(255,255,255,0.56)]">
+                <span className="text-[11px] font-medium text-primary-500">
                   {role === 'admin' ? 'Administrator' : t('roleDispatcher')}
                 </span>
               </div>
@@ -153,13 +153,13 @@ export function Layout({ children }: { children: ReactNode }) {
                   title={collapsed && !sidebarOpen ? t(labelKey) : undefined}
                   className={({ isActive }) =>
                     clsx(
-                      'group relative flex items-center text-[14px] transition-all duration-300',
+                      'group relative flex items-center text-[14px] transition-all duration-200',
                       collapsed && !sidebarOpen
                         ? 'justify-center px-2 py-2.5 rounded-lg'
-                        : 'gap-3 px-3 py-2.5 rounded-lg',
+                        : 'gap-3 px-3.5 py-2.5 rounded-lg',
                       isActive
-                        ? 'bg-primary-500 text-white font-semibold'
-                        : 'text-[rgba(0,0,0,0.56)] font-normal hover:bg-black/[0.04] hover:text-ink dark:text-[rgba(255,255,255,0.56)] dark:hover:bg-white/[0.06] dark:hover:text-white',
+                        ? 'bg-[rgba(87,80,241,0.07)] text-primary-500 font-medium'
+                        : 'text-[#4b5563] dark:text-[#9ca3af] hover:bg-gray-100 hover:text-ink dark:hover:bg-[rgba(255,255,255,0.1)] dark:hover:text-white',
                     )
                   }
                 >
@@ -184,7 +184,7 @@ export function Layout({ children }: { children: ReactNode }) {
                         key={i}
                         to={r.url}
                         onClick={() => setSidebarOpen(false)}
-                        className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-[12px] text-muted transition-colors duration-300 hover:bg-black/[0.04] hover:text-ink dark:hover:bg-white/[0.06]"
+                        className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-[12px] text-[#6b7280] transition-colors duration-200 hover:bg-gray-100 hover:text-ink dark:text-[#9ca3af] dark:hover:bg-[rgba(255,255,255,0.1)]"
                       >
                         <Clock size={12} />
                         <span className="truncate">{r.name}</span>
