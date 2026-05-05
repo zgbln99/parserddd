@@ -26,11 +26,8 @@ export function GlobalSearch() {
     { label: t('navReader'), to: '/reader', icon: FileText, keywords: ['reader', 'czytnik', 'kartenleser', 'upload', 'ddd'] },
     { label: t('navSync'), to: '/sync', icon: RefreshCw, keywords: ['sync', 'synchronizacja', 'monitor'] },
     ...(isAdmin ? [
-      { label: t('navCompare'), to: '/compare', icon: GitCompareArrows, keywords: ['compare', 'porównanie', 'vergleich'] },
-      { label: t('navSettlement'), to: '/settlement', icon: Receipt, keywords: ['settlement', 'rozliczenie', 'abrechnung', 'datev'] },
       { label: t('navVehicles'), to: '/vehicles', icon: Truck, keywords: ['vehicles', 'pojazdy', 'fahrzeuge', 'samsara', 'controlling'] },
       { label: t('navDriverConfig'), to: '/config', icon: UserCog, keywords: ['config', 'konfiguracja', 'pracownicy', 'mitarbeiter'] },
-      { label: t('navNightSim'), to: '/night-sim', icon: MoonStar, keywords: ['night', 'nocne', 'nacht', 'symulator', 'simulator', 'nachtschicht'] },
       { label: t('navAdmin'), to: '/admin', icon: Shield, keywords: ['admin', 'panel', 'users', 'logs'] },
       { label: t('navArbeitszeitbericht'), to: '/arbeitszeitbericht', icon: Clock, keywords: ['arbeitszeitbericht', 'raport', 'arbeitszeit', 'czas pracy', 'timeline', 'woche', 'tydzień'] },
     ] : []),

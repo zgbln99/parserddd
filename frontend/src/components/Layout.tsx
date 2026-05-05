@@ -2,9 +2,9 @@ import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Users, FileText, RefreshCw, Sun, Moon, Globe, LogOut,
-  Calendar, X, Shield, UserCog, GitCompareArrows, Receipt, Truck, Gauge, Coins, ClipboardCheck,
-  Menu, ChevronLeft, ChevronRight, ShieldAlert, Route, MoonStar, PanelLeftClose, PanelLeftOpen,
-  Palette, Radio, Clock,
+  Calendar, X, Shield, UserCog, Truck, Gauge, Coins, ClipboardCheck,
+  Menu, ChevronLeft, ChevronRight, Route, PanelLeftClose, PanelLeftOpen,
+  Palette, Clock,
 } from 'lucide-react';
 import { useI18n, type Locale } from '../i18n';
 import { useTheme } from '../hooks/useTheme';
@@ -19,8 +19,6 @@ const baseNavItems = [
   { to: '/', icon: LayoutDashboard, labelKey: 'navDashboard' as const, permission: 'dashboard' },
   { to: '/drivers', icon: Users, labelKey: 'navDrivers' as const, permission: 'drivers' },
   { to: '/reader', icon: FileText, labelKey: 'navReader' as const, permission: 'reader' },
-  { to: '/verstosse', icon: ShieldAlert, labelKey: 'navVerstosse' as const, permission: 'verstosse' },
-  { to: '/live', icon: Radio, labelKey: 'navLive' as const, permission: 'dashboard' },
 ];
 
 export function Layout({ children }: { children: ReactNode }) {
@@ -45,8 +43,6 @@ export function Layout({ children }: { children: ReactNode }) {
     ...baseNavItems,
     ...(isDispatcher
       ? [
-          { to: '/compare', icon: GitCompareArrows, labelKey: 'navCompare' as const, permission: 'compare' },
-          { to: '/settlement', icon: Receipt, labelKey: 'navSettlement' as const, permission: 'settlement' },
           { to: '/payroll', icon: ClipboardCheck, labelKey: 'navPayroll' as const, permission: 'settlement' },
           { to: '/stundenzettel', icon: FileText, labelKey: 'navStundenzettel' as const, permission: 'settlement' },
           { to: '/bulk-grid', icon: Users, labelKey: 'navBulkGrid' as const, permission: 'settlement' },
@@ -61,7 +57,6 @@ export function Layout({ children }: { children: ReactNode }) {
     ...(isAdmin
       ? [
           { to: '/config', icon: UserCog, labelKey: 'navDriverConfig' as const, permission: 'config' },
-          { to: '/night-sim', icon: MoonStar, labelKey: 'navNightSim' as const, permission: 'night_sim' },
           { to: '/admin', icon: Shield, labelKey: 'navAdmin' as const, permission: 'admin' },
         ]
       : []
@@ -75,27 +70,23 @@ export function Layout({ children }: { children: ReactNode }) {
   // Filter by permissions
   const navItems = allNavItems.filter((item) => hasPermission(item.permission));
 
-  // Group nav items into sections (NextAdmin-style)
+  // Group nav items into compact sections
   type NavItem = typeof navItems[number];
   const navSections: { label: string; items: NavItem[] }[] = [];
 
-  // Main menu: dashboard, drivers, reader, violations, live
-  const mainKeys = new Set(['/', '/drivers', '/reader', '/verstosse', '/live']);
+  const mainKeys = new Set(['/', '/drivers', '/reader']);
   const mainItems = navItems.filter(i => mainKeys.has(i.to));
   if (mainItems.length > 0) navSections.push({ label: 'Menu', items: mainItems });
 
-  // Payroll: settlement, payroll, stundenzettel, bulk-grid, compare, arbeitszeitbericht
-  const payrollKeys = new Set(['/settlement', '/payroll', '/stundenzettel', '/bulk-grid', '/compare', '/arbeitszeitbericht']);
+  const payrollKeys = new Set(['/payroll', '/stundenzettel', '/bulk-grid', '/arbeitszeitbericht']);
   const payrollItems = navItems.filter(i => payrollKeys.has(i.to));
   if (payrollItems.length > 0) navSections.push({ label: locale === 'de' ? 'Abrechnung' : 'Rozliczenia', items: payrollItems });
 
-  // Vehicles: vehicles, driver-km, toll, samsara-km
   const vehicleKeys = new Set(['/vehicles', '/driver-km', '/toll', '/samsara-km']);
   const vehicleItems = navItems.filter(i => vehicleKeys.has(i.to));
   if (vehicleItems.length > 0) navSections.push({ label: locale === 'de' ? 'Fahrzeuge & Maut' : 'Pojazdy i maut', items: vehicleItems });
 
-  // Admin: config, night-sim, admin, sync
-  const adminKeys = new Set(['/config', '/night-sim', '/admin', '/sync']);
+  const adminKeys = new Set(['/config', '/admin', '/sync']);
   const adminItems = navItems.filter(i => adminKeys.has(i.to));
   if (adminItems.length > 0) navSections.push({ label: locale === 'de' ? 'Einstellungen' : 'Ustawienia', items: adminItems });
 
