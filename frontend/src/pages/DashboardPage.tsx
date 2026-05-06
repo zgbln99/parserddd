@@ -7,8 +7,8 @@ import {
 } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { useAuth } from '../hooks/useAuth';
-import { fetchDashboard, fetchConnectionStatus, scanCardExpiry, fetchPayrollStatus, fetchDrivers } from '../lib/api';
-import type { StaleDriver, ExpiringCard, PayrollStatusValue } from '../lib/api';
+import { fetchDashboard, fetchConnectionStatus, scanCardExpiry, fetchPayrollStatus, fetchDrivers, fetchLiveStatus } from '../lib/api';
+import type { StaleDriver, ExpiringCard, PayrollStatusValue, LiveDriverStatus } from '../lib/api';
 import type { Driver } from '../types';
 import { formatDateTime, formatDate } from '../lib/format';
 import { StatCard, Card } from '../components/Card';
@@ -87,6 +87,7 @@ export function DashboardPage() {
   }, []);
   const [payrollStatuses, setPayrollStatuses] = useState<Record<string, PayrollStatusValue>>({});
   const [drivers, setDrivers] = useState<Driver[]>([]);
+  const [liveDrivers, setLiveDrivers] = useState<LiveDriverStatus[]>([]);
 
   const refreshRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -107,6 +108,9 @@ export function DashboardPage() {
       .catch(() => {});
     fetchDrivers()
       .then(r => setDrivers(r.drivers || []))
+      .catch(() => {});
+    fetchLiveStatus()
+      .then(r => setLiveDrivers(r.drivers || []))
       .catch(() => {});
 
     // Auto-refresh every 60s
@@ -360,7 +364,75 @@ export function DashboardPage() {
         </Card>
       </div>
 
-      {/* Bottom row: sync + quick actions */}
+      {/* Live HOS status */}
+      {liveDrivers.length > 0 && (
+        <div className="mt-6">
+          <Card className="p-0 overflow-hidden">
+            <div className="flex items-center gap-3 border-b border-[#e6ebf1] dark:border-[#374151] px-5 py-4">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[rgba(87,80,241,0.08)] text-[#5750f1]">
+                <Gauge size={16} />
+              </div>
+              <h3 className="text-sm font-semibold uppercase tracking-wider text-[#6b7280]">
+                {locale === 'de' ? 'Live Fahrerstatus' : 'Status kierowców na żywo'}
+              </h3>
+              <span className="ml-auto flex items-center gap-1.5 text-xs text-[#22ad5c]">
+                <span className="h-2 w-2 rounded-full bg-[#22ad5c] animate-pulse" />
+                Live
+              </span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-[#f7f9fc] dark:bg-[#1f2a37] text-left">
+                    <th className="px-5 py-3 font-medium text-[#6b7280]">{locale === 'de' ? 'Fahrer' : 'Kierowca'}</th>
+                    <th className="px-3 py-3 font-medium text-[#6b7280]">Status</th>
+                    <th className="px-3 py-3 font-medium text-[#6b7280]">{locale === 'de' ? 'Fahrzeug' : 'Pojazd'}</th>
+                    <th className="px-3 py-3 font-medium text-[#6b7280] text-right">{locale === 'de' ? 'Fahrzeit übrig' : 'Jazda pozostała'}</th>
+                    <th className="px-3 py-3 font-medium text-[#6b7280] text-right">{locale === 'de' ? 'Schicht übrig' : 'Zmiana pozostała'}</th>
+                    <th className="px-3 py-3 font-medium text-[#6b7280] text-right">{locale === 'de' ? 'Bis Pause' : 'Do przerwy'}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#e6ebf1] dark:divide-[#374151]">
+                  {liveDrivers.filter(d => d.status !== 'unknown').map(d => {
+                    const fmtMin = (m: number) => m > 0 ? `${Math.floor(m / 60)}h ${m % 60}m` : '—';
+                    const statusCfg: Record<string, { label: string; bg: string; text: string }> = {
+                      driving: { label: locale === 'de' ? 'Fährt' : 'Jazda', bg: 'bg-[#21965314]', text: 'text-[#219653]' },
+                      work: { label: locale === 'de' ? 'Arbeit' : 'Praca', bg: 'bg-[#FFA70B14]', text: 'text-[#FFA70B]' },
+                      rest: { label: locale === 'de' ? 'Ruhe' : 'Odpoczynek', bg: 'bg-[#3c50e014]', text: 'text-[#3c50e0]' },
+                    };
+                    const st = statusCfg[d.status] || { label: d.status, bg: 'bg-[#f3f4f6]', text: 'text-[#6b7280]' };
+                    const driveWarn = d.drive_remaining_min > 0 && d.drive_remaining_min <= 60;
+                    const breakWarn = d.break_in_min > 0 && d.break_in_min <= 30;
+                    return (
+                      <tr key={d.id} className="hover:bg-[rgba(87,80,241,0.02)]">
+                        <td className="px-5 py-3 font-medium text-[#111928] dark:text-white">{d.name}</td>
+                        <td className="px-3 py-3">
+                          <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${st.bg} ${st.text}`}>
+                            <span className={`h-1.5 w-1.5 rounded-full ${d.status === 'driving' ? 'bg-[#219653]' : d.status === 'work' ? 'bg-[#FFA70B]' : 'bg-[#3c50e0]'}`} />
+                            {st.label}
+                          </span>
+                        </td>
+                        <td className="px-3 py-3 text-[#6b7280]">{d.vehicle || '—'}</td>
+                        <td className={`px-3 py-3 text-right tabular-nums font-medium ${driveWarn ? 'text-[#f23030]' : 'text-[#111928] dark:text-white'}`}>
+                          {fmtMin(d.drive_remaining_min)}
+                        </td>
+                        <td className="px-3 py-3 text-right tabular-nums text-[#6b7280]">
+                          {fmtMin(d.shift_remaining_min)}
+                        </td>
+                        <td className={`px-3 py-3 text-right tabular-nums font-medium ${breakWarn ? 'text-[#f23030]' : 'text-[#6b7280]'}`}>
+                          {fmtMin(d.break_in_min)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* Bottom row: sync */}
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
         {/* Sync info */}
         <Card className="p-4 sm:p-6">

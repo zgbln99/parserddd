@@ -261,6 +261,21 @@ export const previewDddFile = async (file: File) => {
 export const fetchConnectionStatus = () =>
   request<{ dropbox: boolean; samsara: boolean }>('/api/status/connections');
 
+// Samsara live HOS status
+export interface LiveDriverStatus {
+  id: string;
+  name: string;
+  status: 'driving' | 'work' | 'rest' | 'unknown';
+  hos_status: string;
+  vehicle: string;
+  drive_remaining_min: number;
+  shift_remaining_min: number;
+  break_in_min: number;
+}
+
+export const fetchLiveStatus = () =>
+  request<{ drivers: LiveDriverStatus[]; timestamp: string }>('/api/samsara/live-status');
+
 // Sync
 export const fetchSyncStatus = () =>
   request<{ last_sync: string; synced_count: number }>('/api/sync/status');
