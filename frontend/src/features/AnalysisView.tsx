@@ -7,7 +7,7 @@ import type { DriverConfig, MonthlyDays } from '../lib/api';
 import { Badge } from '../components/Badge';
 import { Spinner } from '../components/Spinner';
 import { BarChart } from '../components/BarChart';
-import { ClipboardCopy, Check, Printer, BarChart3, UtensilsCrossed, FileText, Settings, CalendarDays, HardDrive, Pencil, RotateCcw } from 'lucide-react';
+import { ClipboardCopy, Check, Printer, BarChart3, UtensilsCrossed, FileText, Settings, CalendarDays, HardDrive, Pencil, RotateCcw, Scissors, Trash2, Plus } from 'lucide-react';
 import type { AnalysisResult, ShiftDetail } from '../types';
 import { DriverConfigEditor } from './DriverConfigEditor';
 import { ArbeitszeitReport } from './ArbeitszeitReport';
@@ -94,6 +94,52 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
   // Manual shift overrides (local edits — e.g. driver made tachograph error)
   const [editingShift, setEditingShift] = useState<number | null>(null);
   const [shiftOverrides, setShiftOverrides] = useState<Record<number, Partial<ShiftDetail>>>({});
+  // Manually added shifts (e.g. missing day) and deleted shift indices
+  const [addedShifts, setAddedShifts] = useState<ShiftDetail[]>([]);
+  const [deletedShifts, setDeletedShifts] = useState<Set<number>>(new Set());
+  const [showAddShift, setShowAddShift] = useState(false);
+
+  // Build working shifts: original (minus deleted) + added, sorted by date
+  const workingShifts = useMemo(() => {
+    const kept = shifts.filter((_, i) => !deletedShifts.has(i));
+    const all = [...kept, ...addedShifts];
+    all.sort((a, b) => (a.shift_start || '').localeCompare(b.shift_start || ''));
+    return all;
+  }, [shifts, deletedShifts, addedShifts]);
+
+  // Helper: create empty ShiftDetail for manual entry
+  function makeEmptyShift(date: string): ShiftDetail {
+    const dayOfWeek = new Date(date + 'T00:00:00').getDay();
+    const wdPl = ['Nd', 'Pn', 'Wt', 'Śr', 'Cz', 'Pt', 'So'];
+    return {
+      shift_start: `${date} 06:00`,
+      shift_end: `${date} 14:00`,
+      shift_date: date,
+      grid_date: date,
+      weekday: wdPl[dayOfWeek],
+      duration_minutes: 480,
+      duration_hm: '8h 00m',
+      work_minutes: 480,
+      work_hm: '8h 00m',
+      work_decimal: 8.0,
+      driving_minutes: 0,
+      driving_hm: '0h 00m',
+      work_only_minutes: 480,
+      work_only_hm: '8h 00m',
+      avail_minutes: 0,
+      avail_hm: '0h 00m',
+      break_minutes: 0,
+      break_hm: '0h 00m',
+      night_25_minutes: 0,
+      night_25_hm: '0h 00m',
+      night_40_minutes: 0,
+      night_40_hm: '0h 00m',
+      has_diet: false,
+      vehicles: [],
+      manual_minutes: 0,
+      manual_hm: '0h 00m',
+    };
+  }
 
   // Helper: get shift with override applied
   function applyOverride(sh: ShiftDetail, i: number): ShiftDetail {
@@ -111,9 +157,10 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
     return m;
   }
 
-  // Recalculate summary based on filtered shifts (with overrides applied)
+  // Recalculate summary — always recalculate when manual changes exist
+  const hasManualChanges = addedShifts.length > 0 || deletedShifts.size > 0 || Object.keys(shiftOverrides).length > 0;
   const s = useMemo(() => {
-    if (!dateFrom && !dateTo) {
+    if (!dateFrom && !dateTo && !hasManualChanges) {
       const totalDur = (data.shift_details || []).reduce((sum, sh) => sum + (sh.duration_minutes || 0), 0);
       return { ...data.summary, total_duration_minutes: totalDur, total_duration_hm: minutesToHm(totalDur) };
     }
@@ -121,8 +168,8 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
     let totalWork = 0, totalDriving = 0, totalBreak = 0, totalAvail = 0;
     let night25 = 0, night40 = 0, dietCount = 0, totalManual = 0, totalDuration = 0;
 
-    for (let _i = 0; _i < shifts.length; _i++) {
-      const sh = applyOverride(shifts[_i], _i);
+    for (let _i = 0; _i < workingShifts.length; _i++) {
+      const sh = applyOverride(workingShifts[_i], _i);
       totalWork += sh.work_minutes;
       totalDriving += sh.driving_minutes;
       totalBreak += sh.break_minutes;
@@ -156,13 +203,13 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
       total_night_decimal: parseFloat(minutesToDecimal(totalNight)),
       total_night_minutes: totalNight,
       diet_count: dietCount,
-      total_shifts: shifts.length,
+      total_shifts: workingShifts.length,
       total_manual_hm: minutesToHm(totalManual),
       total_manual_minutes: totalManual,
       total_duration_minutes: totalDuration,
       total_duration_hm: minutesToHm(totalDuration),
     };
-  }, [data.summary, shifts, shiftOverrides, dateFrom, dateTo]);
+  }, [data.summary, workingShifts, shiftOverrides, hasManualChanges, dateFrom, dateTo]);
 
   // Total km: sum distance_km from all vehicle records whose usage period
   // overlaps with the selected date range (GloboFleet-style per-record sum).
@@ -822,7 +869,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {shifts.map((rawSh, i) => {
+              {workingShifts.map((rawSh, i) => {
                 const sh = applyOverride(rawSh, i);
                 const isWeekend = sh.weekday === 'So' || sh.weekday === 'Nd';
                 const wd = localizeWeekday(sh.weekday, locale);
@@ -861,6 +908,58 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
                           <RotateCcw size={11} />
                         </button>
                       )}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          // Split: create two shifts from one, each with half the time
+                          const half = Math.floor(sh.work_minutes / 2);
+                          const rest = sh.work_minutes - half;
+                          const dHalf = Math.floor(sh.driving_minutes / 2);
+                          const dRest = sh.driving_minutes - dHalf;
+                          const bHalf = Math.floor(sh.break_minutes / 2);
+                          const nextDate = (() => {
+                            const d = new Date(sh.shift_date + 'T00:00:00');
+                            d.setDate(d.getDate() + 1);
+                            return d.toISOString().slice(0, 10);
+                          })();
+                          // Override current shift to first half
+                          setShiftOverrides(prev => ({ ...prev, [i]: { ...prev[i], work_minutes: half, driving_minutes: dHalf, break_minutes: bHalf, duration_minutes: half + bHalf } }));
+                          // Add second half as new shift on next day
+                          const newSh = makeEmptyShift(nextDate);
+                          newSh.work_minutes = rest;
+                          newSh.work_hm = minutesToHm(rest);
+                          newSh.driving_minutes = dRest;
+                          newSh.driving_hm = minutesToHm(dRest);
+                          newSh.break_minutes = sh.break_minutes - bHalf;
+                          newSh.break_hm = minutesToHm(sh.break_minutes - bHalf);
+                          newSh.duration_minutes = rest + (sh.break_minutes - bHalf);
+                          newSh.duration_hm = minutesToHm(newSh.duration_minutes);
+                          newSh.has_diet = sh.has_diet;
+                          newSh.vehicles = [...sh.vehicles];
+                          setAddedShifts(prev => [...prev, newSh]);
+                        }}
+                        className="rounded p-0.5 text-[#d1d5db] hover:text-[#5750f1] transition"
+                        title={locale === 'de' ? 'In 2 Tage teilen' : 'Rozdziel na 2 dni'}
+                      >
+                        <Scissors size={11} />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          // Find index in original shifts array
+                          const origIdx = shifts.indexOf(rawSh);
+                          if (origIdx >= 0) {
+                            setDeletedShifts(prev => new Set([...prev, origIdx]));
+                          } else {
+                            // It's an added shift — remove from addedShifts
+                            setAddedShifts(prev => prev.filter(s => s !== rawSh));
+                          }
+                        }}
+                        className="rounded p-0.5 text-[#d1d5db] hover:text-[#D34053] transition"
+                        title={locale === 'de' ? 'Löschen' : 'Usuń'}
+                      >
+                        <Trash2 size={11} />
+                      </button>
                     </div>
                   </td>
                   <td className="whitespace-nowrap px-3 py-2 font-medium">{sh.shift_start}</td>
@@ -954,6 +1053,99 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
             </tbody>
           </table>
           </div>
+
+          {/* Add shift button + form */}
+          <div className="mt-2 flex items-center gap-2">
+            <button
+              onClick={() => setShowAddShift(!showAddShift)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-[#d1d5db] px-3 py-2 text-xs font-medium text-[#6b7280] transition hover:border-[#5750f1] hover:text-[#5750f1] dark:border-[#374151]"
+            >
+              <Plus size={13} />
+              {locale === 'de' ? 'Tag hinzufügen' : 'Dodaj dzień'}
+            </button>
+            {(addedShifts.length > 0 || deletedShifts.size > 0) && (
+              <button
+                onClick={() => { setAddedShifts([]); setDeletedShifts(new Set()); setShiftOverrides({}); }}
+                className="inline-flex items-center gap-1 text-xs text-[#D34053] hover:underline"
+              >
+                <RotateCcw size={11} />
+                {locale === 'de' ? 'Alle Änderungen zurücksetzen' : 'Resetuj wszystkie zmiany'}
+              </button>
+            )}
+          </div>
+          {showAddShift && (
+            <div className="mt-2 rounded-lg bg-[#f7f9fc] dark:bg-[#1f2a37] p-4">
+              <div className="flex flex-wrap items-end gap-3">
+                <div className="w-36">
+                  <label className="block text-[10px] font-medium text-[#6b7280] mb-0.5">{locale === 'de' ? 'Datum' : 'Data'}</label>
+                  <input
+                    id="add-shift-date"
+                    type="date"
+                    defaultValue={dateFrom || new Date().toISOString().slice(0, 10)}
+                    className="input w-full px-2 py-1 text-xs dark:[color-scheme:dark]"
+                  />
+                </div>
+                {([
+                  ['work', locale === 'de' ? 'Arbeitszeit' : 'Czas pracy'],
+                  ['driving', locale === 'de' ? 'Lenkzeit' : 'Jazda'],
+                  ['break', locale === 'de' ? 'Pausen' : 'Przerwy'],
+                ] as const).map(([key, label]) => (
+                  <div key={key} className="w-[72px]">
+                    <label className="block text-[10px] font-medium text-[#6b7280] mb-0.5">{label}</label>
+                    <input
+                      id={`add-shift-${key}`}
+                      type="text"
+                      defaultValue={key === 'work' ? '08:00' : key === 'break' ? '00:45' : '00:00'}
+                      placeholder="HH:MM"
+                      className="input w-full px-2 py-1 text-xs text-center font-mono"
+                    />
+                  </div>
+                ))}
+                <div className="w-16">
+                  <label className="block text-[10px] font-medium text-[#6b7280] mb-0.5">{locale === 'de' ? 'Diät' : 'Dieta'}</label>
+                  <select id="add-shift-diet" defaultValue="0" className="input w-full px-1 py-1 text-xs">
+                    <option value="1">{t('yes')}</option>
+                    <option value="0">{t('no')}</option>
+                  </select>
+                </div>
+                <button
+                  onClick={() => {
+                    const dateEl = document.getElementById('add-shift-date') as HTMLInputElement;
+                    const parseHM = (id: string) => {
+                      const v = (document.getElementById(id) as HTMLInputElement)?.value || '00:00';
+                      const [h, m] = v.split(':').map(Number);
+                      return (h || 0) * 60 + (m || 0);
+                    };
+                    const date = dateEl?.value || new Date().toISOString().slice(0, 10);
+                    const work = parseHM('add-shift-work');
+                    const driving = parseHM('add-shift-driving');
+                    const brk = parseHM('add-shift-break');
+                    const diet = (document.getElementById('add-shift-diet') as HTMLSelectElement)?.value === '1';
+                    const newSh = makeEmptyShift(date);
+                    newSh.work_minutes = work;
+                    newSh.work_hm = minutesToHm(work);
+                    newSh.driving_minutes = driving;
+                    newSh.driving_hm = minutesToHm(driving);
+                    newSh.work_only_minutes = Math.max(0, work - driving);
+                    newSh.work_only_hm = minutesToHm(newSh.work_only_minutes);
+                    newSh.break_minutes = brk;
+                    newSh.break_hm = minutesToHm(brk);
+                    newSh.duration_minutes = work + brk;
+                    newSh.duration_hm = minutesToHm(newSh.duration_minutes);
+                    newSh.has_diet = diet;
+                    setAddedShifts(prev => [...prev, newSh]);
+                    setShowAddShift(false);
+                  }}
+                  className="rounded-lg bg-[#5750f1] px-4 py-1.5 text-xs font-medium text-white hover:bg-[#4a44d4]"
+                >
+                  {locale === 'de' ? 'Hinzufügen' : 'Dodaj'}
+                </button>
+                <button onClick={() => setShowAddShift(false)} className="text-xs text-[#6b7280] hover:text-[#111928]">
+                  {t('cancel')}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
         </>
       )}
