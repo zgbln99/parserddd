@@ -558,7 +558,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
             </button>
           )}
           {/* Excel copy – inline (hidden on mobile, too wide) */}
-          {shifts.length > 0 && (
+          {workingShifts.length > 0 && (
             <div className="hidden sm:block ml-auto">
               <ExcelCopyBlock summary={s} monthlyDays={monthlyDays} />
             </div>
@@ -570,10 +570,10 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
 
 
       {/* Monthly grid copy block (hidden on mobile - 31-col table) */}
-      {fv('monthly_grid') && shifts.length > 0 && hasDateFilter && dateFrom && (
+      {fv('monthly_grid') && workingShifts.length > 0 && hasDateFilter && dateFrom && (
         <div className="hidden sm:block rounded-[10px] bg-white shadow-1 dark:bg-[#122031] dark:shadow-card p-4 ">
           <MonthlyGridCopy
-            shifts={shifts}
+            shifts={workingShifts}
             summary={s as unknown as Record<string, unknown>}
             dateFrom={dateFrom}
             locale={locale}
@@ -801,7 +801,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
         </div>
       )}
 
-      {shifts.length > 0 && (
+      {workingShifts.length > 0 && (
         <>
         {/* Mobile shifts cards */}
         <div className="block sm:hidden space-y-2">
@@ -1004,6 +1004,28 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
                   <tr key={`edit-${i}`} onClick={e => e.stopPropagation()}>
                     <td colSpan={13} className="px-4 py-3 bg-[#f7f9fc] dark:bg-[#1f2a37]">
                       <div className="flex flex-wrap items-end gap-3">
+                        <div className="w-28">
+                          <label className="block text-[10px] font-medium text-[#6b7280] mb-0.5">{locale === 'de' ? 'Datum' : 'Data'}</label>
+                          <input
+                            type="date"
+                            value={sh.shift_date}
+                            onChange={(e) => {
+                              const newDate = e.target.value;
+                              if (!newDate) return;
+                              const dayOfWeek = new Date(newDate + 'T00:00:00').getDay();
+                              const wdPl = ['Nd', 'Pn', 'Wt', 'Śr', 'Cz', 'Pt', 'So'];
+                              if (isAddedShift) {
+                                setAddedShifts(prev => prev.map(s => s === rawSh
+                                  ? { ...s, shift_date: newDate, grid_date: newDate, weekday: wdPl[dayOfWeek], shift_start: `${newDate} ${s.shift_start.slice(11)}`, shift_end: `${newDate} ${s.shift_end.slice(11)}` }
+                                  : s
+                                ));
+                              } else {
+                                setShiftOverrides(prev => ({ ...prev, [i]: { ...prev[i], shift_date: newDate, grid_date: newDate, weekday: wdPl[dayOfWeek] } as any }));
+                              }
+                            }}
+                            className="input w-full px-2 py-1 text-xs dark:[color-scheme:dark]"
+                          />
+                        </div>
                         {([
                           ['work_minutes', locale === 'de' ? 'Arbeitszeit' : 'Czas pracy'],
                           ['driving_minutes', locale === 'de' ? 'Lenkzeit' : 'Jazda'],
@@ -1174,7 +1196,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
       {/* Vehicle usage (GloboFleet-style) */}
       <VehicleUsageTable vehicles={data.vehicles || []} dateFrom={dateFrom} dateTo={dateTo} />
 
-      {shifts.length === 0 && (
+      {workingShifts.length === 0 && (
         <p className="py-8 text-center text-sm text-muted">{t('noData')}</p>
       )}
 
