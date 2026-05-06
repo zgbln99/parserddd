@@ -577,7 +577,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
       {fv('monthly_grid') && workingShifts.length > 0 && hasDateFilter && dateFrom && (
         <div className="hidden sm:block rounded-[10px] bg-white shadow-1 dark:bg-[#122031] dark:shadow-card p-4 ">
           <MonthlyGridCopy
-            shifts={workingShifts}
+            shifts={workingShifts.map((sh, i) => applyOverride(sh, i))}
             summary={s as unknown as Record<string, unknown>}
             dateFrom={dateFrom}
             locale={locale}
