@@ -1035,25 +1035,42 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
                           ['night_40_minutes', 'Nacht 40%'],
                         ] as const).map(([field, label]) => {
                           const mins = shiftOverrides[i]?.[field] ?? (sh as any)[field] as number;
-                          const hh = String(Math.floor(mins / 60)).padStart(2, '0');
-                          const mm = String(mins % 60).padStart(2, '0');
+                          const hVal = Math.floor(mins / 60);
+                          const mVal = mins % 60;
                           return (
                           <div key={field} className="w-[80px]">
                             <label className="block text-[10px] font-medium text-[#6b7280] mb-0.5">{label}</label>
-                            <input
-                              type="time"
-                              value={`${hh}:${mm}`}
-                              onChange={(e) => {
-                                const val = e.target.value || '00:00';
-                                const [h, m] = val.split(':').map(Number);
-                                setShiftOverrides(prev => ({
-                                  ...prev,
-                                  [i]: { ...prev[i], [field]: (h || 0) * 60 + (m || 0) },
-                                }));
-                              }}
-                              className="input w-full px-1 py-1 text-xs text-center font-mono"
-                              title={label}
-                            />
+                            <div className="flex items-center gap-0.5">
+                              <input
+                                type="number"
+                                min={0} max={99}
+                                value={hVal}
+                                onChange={(e) => {
+                                  const h = parseInt(e.target.value) || 0;
+                                  setShiftOverrides(prev => ({
+                                    ...prev,
+                                    [i]: { ...prev[i], [field]: h * 60 + mVal },
+                                  }));
+                                }}
+                                className="input w-9 px-1 py-1 text-xs text-center font-mono"
+                                title={`${label} h`}
+                              />
+                              <span className="text-[10px] text-[#9ca3af]">:</span>
+                              <input
+                                type="number"
+                                min={0} max={59}
+                                value={mVal}
+                                onChange={(e) => {
+                                  const m = Math.min(59, parseInt(e.target.value) || 0);
+                                  setShiftOverrides(prev => ({
+                                    ...prev,
+                                    [i]: { ...prev[i], [field]: hVal * 60 + m },
+                                  }));
+                                }}
+                                className="input w-9 px-1 py-1 text-xs text-center font-mono"
+                                title={`${label} min`}
+                              />
+                            </div>
                           </div>
                           );
                         })}
@@ -1132,12 +1149,23 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
                 ] as const).map(([key, label]) => (
                   <div key={key} className="w-[80px]">
                     <label className="block text-[10px] font-medium text-[#6b7280] mb-0.5">{label}</label>
-                    <input
-                      id={`add-shift-${key}`}
-                      type="time"
-                      defaultValue={key === 'work' ? '08:00' : key === 'break' ? '00:45' : '00:00'}
-                      className="input w-full px-1 py-1 text-xs text-center font-mono"
-                    />
+                    <div className="flex items-center gap-0.5">
+                      <input
+                        id={`add-shift-${key}-h`}
+                        type="number"
+                        min={0} max={99}
+                        defaultValue={key === 'work' ? 8 : 0}
+                        className="input w-9 px-1 py-1 text-xs text-center font-mono"
+                      />
+                      <span className="text-[10px] text-[#9ca3af]">:</span>
+                      <input
+                        id={`add-shift-${key}-m`}
+                        type="number"
+                        min={0} max={59}
+                        defaultValue={key === 'break' ? 45 : 0}
+                        className="input w-9 px-1 py-1 text-xs text-center font-mono"
+                      />
+                    </div>
                   </div>
                 ))}
                 <div className="w-16">
@@ -1150,15 +1178,15 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
                 <button
                   onClick={() => {
                     const dateEl = document.getElementById('add-shift-date') as HTMLInputElement;
-                    const parseHM = (id: string) => {
-                      const v = (document.getElementById(id) as HTMLInputElement)?.value || '00:00';
-                      const [h, m] = v.split(':').map(Number);
-                      return (h || 0) * 60 + (m || 0);
+                    const getHM = (base: string) => {
+                      const h = parseInt((document.getElementById(`${base}-h`) as HTMLInputElement)?.value) || 0;
+                      const m = parseInt((document.getElementById(`${base}-m`) as HTMLInputElement)?.value) || 0;
+                      return h * 60 + m;
                     };
                     const date = dateEl?.value || new Date().toISOString().slice(0, 10);
-                    const work = parseHM('add-shift-work');
-                    const driving = parseHM('add-shift-driving');
-                    const brk = parseHM('add-shift-break');
+                    const work = getHM('add-shift-work');
+                    const driving = getHM('add-shift-driving');
+                    const brk = getHM('add-shift-break');
                     const diet = (document.getElementById('add-shift-diet') as HTMLSelectElement)?.value === '1';
                     const newSh = makeEmptyShift(date);
                     newSh.work_minutes = work;
