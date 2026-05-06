@@ -91,23 +91,25 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
     });
   }, [allShifts, dateFrom, dateTo]);
 
-  // Apply manual overrides to shifts (local edits)
-  const getEffectiveShift = useCallback((sh: ShiftDetail, i: number): ShiftDetail => {
+  // Manual shift overrides (local edits — e.g. driver made tachograph error)
+  const [editingShift, setEditingShift] = useState<number | null>(null);
+  const [shiftOverrides, setShiftOverrides] = useState<Record<number, Partial<ShiftDetail>>>({});
+
+  // Helper: get shift with override applied
+  function applyOverride(sh: ShiftDetail, i: number): ShiftDetail {
     const ov = shiftOverrides[i];
     if (!ov) return sh;
-    const merged = { ...sh, ...ov };
-    if (ov.work_minutes !== undefined) merged.work_hm = minutesToHm(ov.work_minutes);
-    if (ov.driving_minutes !== undefined) merged.driving_hm = minutesToHm(ov.driving_minutes);
-    if (ov.break_minutes !== undefined) merged.break_hm = minutesToHm(ov.break_minutes);
-    if (ov.avail_minutes !== undefined) merged.avail_hm = minutesToHm(ov.avail_minutes);
-    if (ov.duration_minutes !== undefined) merged.duration_hm = minutesToHm(ov.duration_minutes);
-    if (ov.work_only_minutes !== undefined) merged.work_only_hm = minutesToHm(ov.work_only_minutes);
-    if (ov.night_25_minutes !== undefined) merged.night_25_hm = minutesToHm(ov.night_25_minutes);
-    if (ov.night_40_minutes !== undefined) merged.night_40_hm = minutesToHm(ov.night_40_minutes);
-    return merged;
-  }, [shiftOverrides]);
-
-  const effectiveShifts = useMemo(() => shifts.map((sh, i) => getEffectiveShift(sh, i)), [shifts, getEffectiveShift]);
+    const m = { ...sh, ...ov };
+    if (ov.work_minutes !== undefined) m.work_hm = minutesToHm(ov.work_minutes);
+    if (ov.driving_minutes !== undefined) m.driving_hm = minutesToHm(ov.driving_minutes);
+    if (ov.break_minutes !== undefined) m.break_hm = minutesToHm(ov.break_minutes);
+    if (ov.avail_minutes !== undefined) m.avail_hm = minutesToHm(ov.avail_minutes);
+    if (ov.duration_minutes !== undefined) m.duration_hm = minutesToHm(ov.duration_minutes);
+    if (ov.work_only_minutes !== undefined) m.work_only_hm = minutesToHm(ov.work_only_minutes);
+    if (ov.night_25_minutes !== undefined) m.night_25_hm = minutesToHm(ov.night_25_minutes);
+    if (ov.night_40_minutes !== undefined) m.night_40_hm = minutesToHm(ov.night_40_minutes);
+    return m;
+  }
 
   // Recalculate summary based on filtered shifts (with overrides applied)
   const s = useMemo(() => {
@@ -119,7 +121,8 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
     let totalWork = 0, totalDriving = 0, totalBreak = 0, totalAvail = 0;
     let night25 = 0, night40 = 0, dietCount = 0, totalManual = 0, totalDuration = 0;
 
-    for (const sh of effectiveShifts) {
+    for (let _i = 0; _i < shifts.length; _i++) {
+      const sh = applyOverride(shifts[_i], _i);
       totalWork += sh.work_minutes;
       totalDriving += sh.driving_minutes;
       totalBreak += sh.break_minutes;
@@ -153,13 +156,13 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
       total_night_decimal: parseFloat(minutesToDecimal(totalNight)),
       total_night_minutes: totalNight,
       diet_count: dietCount,
-      total_shifts: effectiveShifts.length,
+      total_shifts: shifts.length,
       total_manual_hm: minutesToHm(totalManual),
       total_manual_minutes: totalManual,
       total_duration_minutes: totalDuration,
       total_duration_hm: minutesToHm(totalDuration),
     };
-  }, [data.summary, effectiveShifts, dateFrom, dateTo]);
+  }, [data.summary, shifts, shiftOverrides, dateFrom, dateTo]);
 
   // Total km: sum distance_km from all vehicle records whose usage period
   // overlaps with the selected date range (GloboFleet-style per-record sum).
@@ -321,8 +324,6 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
   const [showDietReport, setShowDietReport] = useState(false);
   const [showManual, setShowManual] = useState(false);
   const [selectedShiftReport, setSelectedShiftReport] = useState<number | null>(null);
-  const [editingShift, setEditingShift] = useState<number | null>(null);
-  const [shiftOverrides, setShiftOverrides] = useState<Record<number, Partial<ShiftDetail>>>({});
   const printRef = useRef<HTMLDivElement>(null);
 
   const handleDownloadDdd = useCallback(() => {
@@ -821,7 +822,8 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {effectiveShifts.map((sh, i) => {
+              {shifts.map((rawSh, i) => {
+                const sh = applyOverride(rawSh, i);
                 const isWeekend = sh.weekday === 'So' || sh.weekday === 'Nd';
                 const wd = localizeWeekday(sh.weekday, locale);
                 const hasOverride = !!shiftOverrides[i];
