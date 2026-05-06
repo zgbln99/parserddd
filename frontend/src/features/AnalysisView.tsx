@@ -150,10 +150,14 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
     if (ov.driving_minutes !== undefined) m.driving_hm = minutesToHm(ov.driving_minutes);
     if (ov.break_minutes !== undefined) m.break_hm = minutesToHm(ov.break_minutes);
     if (ov.avail_minutes !== undefined) m.avail_hm = minutesToHm(ov.avail_minutes);
-    if (ov.duration_minutes !== undefined) m.duration_hm = minutesToHm(ov.duration_minutes);
     if (ov.work_only_minutes !== undefined) m.work_only_hm = minutesToHm(ov.work_only_minutes);
     if (ov.night_25_minutes !== undefined) m.night_25_hm = minutesToHm(ov.night_25_minutes);
     if (ov.night_40_minutes !== undefined) m.night_40_hm = minutesToHm(ov.night_40_minutes);
+    // Auto-recalculate duration = work + break, and work_only = work - driving
+    m.duration_minutes = m.work_minutes + m.break_minutes;
+    m.duration_hm = minutesToHm(m.duration_minutes);
+    m.work_only_minutes = Math.max(0, m.work_minutes - m.driving_minutes);
+    m.work_only_hm = minutesToHm(m.work_only_minutes);
     return m;
   }
 
