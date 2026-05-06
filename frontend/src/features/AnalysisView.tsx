@@ -7,7 +7,7 @@ import type { DriverConfig, MonthlyDays } from '../lib/api';
 import { Badge } from '../components/Badge';
 import { Spinner } from '../components/Spinner';
 import { BarChart } from '../components/BarChart';
-import { ClipboardCopy, Check, Printer, BarChart3, UtensilsCrossed, FileText, Settings, CalendarDays, HardDrive, Pencil, X, RotateCcw } from 'lucide-react';
+import { ClipboardCopy, Check, Printer, BarChart3, UtensilsCrossed, FileText, Settings, CalendarDays, HardDrive, Pencil, RotateCcw } from 'lucide-react';
 import type { AnalysisResult, ShiftDetail } from '../types';
 import { DriverConfigEditor } from './DriverConfigEditor';
 import { ArbeitszeitReport } from './ArbeitszeitReport';
@@ -92,24 +92,22 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
   }, [allShifts, dateFrom, dateTo]);
 
   // Apply manual overrides to shifts (local edits)
-  const effectiveShifts = useMemo(() => {
-    if (Object.keys(shiftOverrides).length === 0) return shifts;
-    return shifts.map((sh, i) => {
-      const ov = shiftOverrides[i];
-      if (!ov) return sh;
-      const merged = { ...sh, ...ov };
-      // Recalculate hm strings from overridden minutes
-      if (ov.work_minutes !== undefined) merged.work_hm = minutesToHm(ov.work_minutes);
-      if (ov.driving_minutes !== undefined) merged.driving_hm = minutesToHm(ov.driving_minutes);
-      if (ov.break_minutes !== undefined) merged.break_hm = minutesToHm(ov.break_minutes);
-      if (ov.avail_minutes !== undefined) merged.avail_hm = minutesToHm(ov.avail_minutes);
-      if (ov.duration_minutes !== undefined) merged.duration_hm = minutesToHm(ov.duration_minutes);
-      if (ov.work_only_minutes !== undefined) merged.work_only_hm = minutesToHm(ov.work_only_minutes);
-      if (ov.night_25_minutes !== undefined) merged.night_25_hm = minutesToHm(ov.night_25_minutes);
-      if (ov.night_40_minutes !== undefined) merged.night_40_hm = minutesToHm(ov.night_40_minutes);
-      return merged;
-    });
-  }, [shifts, shiftOverrides]);
+  const getEffectiveShift = useCallback((sh: ShiftDetail, i: number): ShiftDetail => {
+    const ov = shiftOverrides[i];
+    if (!ov) return sh;
+    const merged = { ...sh, ...ov };
+    if (ov.work_minutes !== undefined) merged.work_hm = minutesToHm(ov.work_minutes);
+    if (ov.driving_minutes !== undefined) merged.driving_hm = minutesToHm(ov.driving_minutes);
+    if (ov.break_minutes !== undefined) merged.break_hm = minutesToHm(ov.break_minutes);
+    if (ov.avail_minutes !== undefined) merged.avail_hm = minutesToHm(ov.avail_minutes);
+    if (ov.duration_minutes !== undefined) merged.duration_hm = minutesToHm(ov.duration_minutes);
+    if (ov.work_only_minutes !== undefined) merged.work_only_hm = minutesToHm(ov.work_only_minutes);
+    if (ov.night_25_minutes !== undefined) merged.night_25_hm = minutesToHm(ov.night_25_minutes);
+    if (ov.night_40_minutes !== undefined) merged.night_40_hm = minutesToHm(ov.night_40_minutes);
+    return merged;
+  }, [shiftOverrides]);
+
+  const effectiveShifts = useMemo(() => shifts.map((sh, i) => getEffectiveShift(sh, i)), [shifts, getEffectiveShift]);
 
   // Recalculate summary based on filtered shifts (with overrides applied)
   const s = useMemo(() => {
