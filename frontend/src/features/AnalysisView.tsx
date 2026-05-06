@@ -875,12 +875,15 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
                 const wd = localizeWeekday(sh.weekday, locale);
                 const hasOverride = !!shiftOverrides[i];
                 const isEditing = editingShift === i;
+                const isAddedShift = addedShifts.includes(rawSh);
                 return (<>
                 <tr
                   key={i}
                   onClick={() => { if (!isEditing) setSelectedShiftReport(selectedShiftReport === i ? null : i); }}
                   className={`hover:bg-surface cursor-pointer transition ${
-                    hasOverride
+                    isAddedShift
+                      ? 'bg-emerald-50/60 dark:bg-emerald-900/10 border-l-2 border-l-[#22ad5c]'
+                      : hasOverride
                       ? 'bg-amber-50/60 dark:bg-amber-900/10'
                       : selectedShiftReport === i
                       ? 'bg-primary-50/50 dark:bg-primary-900/10'
@@ -891,7 +894,8 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
                 >
                   <td className={`whitespace-nowrap px-3 py-2 font-bold ${isWeekend ? 'text-danger' : ''}`}>
                     <div className="flex items-center gap-1">
-                      {wd}
+                      <span>{wd}</span>
+                      {isAddedShift && <span className="text-[10px] font-normal text-[#22ad5c]">{sh.shift_date?.slice(5)}</span>}
                       <button
                         onClick={(e) => { e.stopPropagation(); setEditingShift(isEditing ? null : i); }}
                         className={`ml-1 rounded p-0.5 transition ${isEditing ? 'text-[#5750f1]' : 'text-[#d1d5db] hover:text-[#6b7280]'}`}
@@ -911,32 +915,49 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          // Split: create two shifts from one, each with half the time
-                          const half = Math.floor(sh.work_minutes / 2);
-                          const rest = sh.work_minutes - half;
-                          const dHalf = Math.floor(sh.driving_minutes / 2);
-                          const dRest = sh.driving_minutes - dHalf;
-                          const bHalf = Math.floor(sh.break_minutes / 2);
+                          // Split: delete original, create 2 new shifts user can edit
                           const nextDate = (() => {
                             const d = new Date(sh.shift_date + 'T00:00:00');
                             d.setDate(d.getDate() + 1);
                             return d.toISOString().slice(0, 10);
                           })();
-                          // Override current shift to first half
-                          setShiftOverrides(prev => ({ ...prev, [i]: { ...prev[i], work_minutes: half, driving_minutes: dHalf, break_minutes: bHalf, duration_minutes: half + bHalf } }));
-                          // Add second half as new shift on next day
-                          const newSh = makeEmptyShift(nextDate);
-                          newSh.work_minutes = rest;
-                          newSh.work_hm = minutesToHm(rest);
-                          newSh.driving_minutes = dRest;
-                          newSh.driving_hm = minutesToHm(dRest);
-                          newSh.break_minutes = sh.break_minutes - bHalf;
-                          newSh.break_hm = minutesToHm(sh.break_minutes - bHalf);
-                          newSh.duration_minutes = rest + (sh.break_minutes - bHalf);
-                          newSh.duration_hm = minutesToHm(newSh.duration_minutes);
-                          newSh.has_diet = sh.has_diet;
-                          newSh.vehicles = [...sh.vehicles];
-                          setAddedShifts(prev => [...prev, newSh]);
+                          const half1 = Math.floor(sh.work_minutes / 2);
+                          const half2 = sh.work_minutes - half1;
+                          const dHalf1 = Math.floor(sh.driving_minutes / 2);
+                          const dHalf2 = sh.driving_minutes - dHalf1;
+                          const bHalf1 = Math.floor(sh.break_minutes / 2);
+                          const bHalf2 = sh.break_minutes - bHalf1;
+
+                          // Remove original
+                          const origIdx = shifts.indexOf(rawSh);
+                          if (origIdx >= 0) {
+                            setDeletedShifts(prev => new Set([...prev, origIdx]));
+                          } else {
+                            setAddedShifts(prev => prev.filter(s => s !== rawSh));
+                          }
+
+                          // Create two new shifts
+                          const sh1 = makeEmptyShift(sh.shift_date);
+                          sh1.shift_start = sh.shift_start;
+                          sh1.work_minutes = half1; sh1.work_hm = minutesToHm(half1);
+                          sh1.driving_minutes = dHalf1; sh1.driving_hm = minutesToHm(dHalf1);
+                          sh1.work_only_minutes = Math.max(0, half1 - dHalf1); sh1.work_only_hm = minutesToHm(sh1.work_only_minutes);
+                          sh1.break_minutes = bHalf1; sh1.break_hm = minutesToHm(bHalf1);
+                          sh1.duration_minutes = half1 + bHalf1; sh1.duration_hm = minutesToHm(sh1.duration_minutes);
+                          sh1.has_diet = sh.has_diet; sh1.vehicles = [...sh.vehicles];
+                          sh1.night_25_minutes = sh.night_25_minutes; sh1.night_25_hm = sh.night_25_hm;
+                          sh1.night_40_minutes = sh.night_40_minutes; sh1.night_40_hm = sh.night_40_hm;
+
+                          const sh2 = makeEmptyShift(nextDate);
+                          sh2.work_minutes = half2; sh2.work_hm = minutesToHm(half2);
+                          sh2.driving_minutes = dHalf2; sh2.driving_hm = minutesToHm(dHalf2);
+                          sh2.work_only_minutes = Math.max(0, half2 - dHalf2); sh2.work_only_hm = minutesToHm(sh2.work_only_minutes);
+                          sh2.break_minutes = bHalf2; sh2.break_hm = minutesToHm(bHalf2);
+                          sh2.duration_minutes = half2 + bHalf2; sh2.duration_hm = minutesToHm(sh2.duration_minutes);
+                          sh2.has_diet = sh.has_diet; sh2.vehicles = [...sh.vehicles];
+
+                          setAddedShifts(prev => [...prev, sh1, sh2]);
+                          // Auto-open edit on both (next render will show them)
                         }}
                         className="rounded p-0.5 text-[#d1d5db] hover:text-[#5750f1] transition"
                         title={locale === 'de' ? 'In 2 Tage teilen' : 'Rozdziel na 2 dni'}
