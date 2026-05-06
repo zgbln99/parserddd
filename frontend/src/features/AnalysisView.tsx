@@ -891,25 +891,33 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
                           ['avail_minutes', locale === 'de' ? 'Bereitschaft' : 'Dysp.'],
                           ['night_25_minutes', 'Nacht 25%'],
                           ['night_40_minutes', 'Nacht 40%'],
-                        ] as const).map(([field, label]) => (
-                          <div key={field} className="w-20">
+                        ] as const).map(([field, label]) => {
+                          const mins = shiftOverrides[i]?.[field] ?? (sh as any)[field] as number;
+                          const hh = String(Math.floor(mins / 60)).padStart(2, '0');
+                          const mm = String(mins % 60).padStart(2, '0');
+                          return (
+                          <div key={field} className="w-[72px]">
                             <label className="block text-[10px] font-medium text-[#6b7280] mb-0.5">{label}</label>
                             <input
-                              type="number"
-                              min={0}
-                              value={shiftOverrides[i]?.[field] ?? (sh as any)[field]}
+                              type="text"
+                              value={`${hh}:${mm}`}
                               onChange={(e) => {
-                                const val = parseInt(e.target.value) || 0;
+                                const raw = e.target.value.replace(/[^0-9:]/g, '');
+                                const parts = raw.split(':');
+                                const h = parseInt(parts[0]) || 0;
+                                const m = parseInt(parts[1]) || 0;
                                 setShiftOverrides(prev => ({
                                   ...prev,
-                                  [i]: { ...prev[i], [field]: val },
+                                  [i]: { ...prev[i], [field]: h * 60 + m },
                                 }));
                               }}
                               className="input w-full px-2 py-1 text-xs text-center font-mono"
-                              title={`${label} (min)`}
+                              title={label}
+                              placeholder="HH:MM"
                             />
                           </div>
-                        ))}
+                          );
+                        })}
                         <div className="w-16">
                           <label className="block text-[10px] font-medium text-[#6b7280] mb-0.5">{locale === 'de' ? 'Diät' : 'Dieta'}</label>
                           <select
@@ -929,7 +937,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
                         </button>
                       </div>
                       <p className="mt-1.5 text-[10px] text-[#9ca3af]">
-                        {locale === 'de' ? 'Werte in Minuten. Änderungen wirken sich auf die Zusammenfassung aus.' : 'Wartości w minutach. Zmiany wpływają na podsumowanie.'}
+                        {locale === 'de' ? 'Format HH:MM — Änderungen wirken sich auf die Zusammenfassung aus.' : 'Format GG:MM — zmiany wpływają na podsumowanie.'}
                       </p>
                     </td>
                   </tr>
