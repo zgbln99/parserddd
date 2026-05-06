@@ -1,14 +1,15 @@
-import { useEffect, useState, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useState, useRef, useMemo } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   Users, FileText, RefreshCw, AlertCircle, ArrowRight, Upload,
   Cloud, Truck, Clock, CreditCard, AlertTriangle,
-  Sun, Moon, Sunrise, Sunset,
+  Sun, Moon, Sunrise, Sunset, ClipboardCheck, CheckCircle, Coins, Gauge,
 } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { useAuth } from '../hooks/useAuth';
-import { fetchDashboard, fetchConnectionStatus, scanCardExpiry } from '../lib/api';
-import type { StaleDriver, ExpiringCard } from '../lib/api';
+import { fetchDashboard, fetchConnectionStatus, scanCardExpiry, fetchPayrollStatus, fetchDrivers } from '../lib/api';
+import type { StaleDriver, ExpiringCard, PayrollStatusValue } from '../lib/api';
+import type { Driver } from '../types';
 import { formatDateTime, formatDate } from '../lib/format';
 import { StatCard, Card } from '../components/Card';
 import { Badge } from '../components/Badge';
@@ -77,6 +78,15 @@ export function DashboardPage() {
   const [showAllStale, setShowAllStale] = useState(false);
   const [showAllExpiring, setShowAllExpiring] = useState(false);
   const [scanning, setScanning] = useState(false);
+  const navigate = useNavigate();
+
+  // Payroll summary for current period
+  const currentPeriod = useMemo(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  }, []);
+  const [payrollStatuses, setPayrollStatuses] = useState<Record<string, PayrollStatusValue>>({});
+  const [drivers, setDrivers] = useState<Driver[]>([]);
 
   const refreshRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -90,6 +100,13 @@ export function DashboardPage() {
     loadDashboard();
     fetchConnectionStatus()
       .then(setConnections)
+      .catch(() => {});
+    // Load payroll
+    fetchPayrollStatus(currentPeriod)
+      .then(r => setPayrollStatuses(r.statuses || {}))
+      .catch(() => {});
+    fetchDrivers()
+      .then(r => setDrivers(r.drivers || []))
       .catch(() => {});
 
     // Auto-refresh every 60s
@@ -384,30 +401,74 @@ export function DashboardPage() {
           )}
         </Card>
 
-        {/* Quick actions */}
+        {/* Payroll overview */}
         <Card className="p-4 sm:p-6">
-          <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-muted">
-            {t('dashQuickActions')}
-          </h3>
-          <div className="space-y-1">
-            {[
-              { to: '/drivers', label: t('dashViewDrivers'), icon: Users, bg: 'bg-primary-50 text-primary-600' },
-              { to: '/reader', label: t('dashOpenReader'), icon: FileText, bg: 'bg-accent-light text-accent-dark' },
-              { to: '/sync', label: t('dashViewSync'), icon: RefreshCw, bg: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400' },
-            ].map(({ to, label, icon: Icon, bg }) => (
-              <Link
-                key={to}
-                to={to}
-                className="flex items-center gap-3 rounded-xl px-4 py-3 min-h-[44px] text-sm font-medium transition-all hover:bg-surface"
-              >
-                <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${bg}`}>
-                  <Icon size={16} />
-                </div>
-                <span className="flex-1 text-ink">{label}</span>
-                <ArrowRight size={16} className="text-muted" />
-              </Link>
-            ))}
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-semibold uppercase tracking-wider text-muted">
+              {locale === 'de' ? 'Lohnabrechnung' : 'Wypłaty'} — {currentPeriod}
+            </h3>
+            <Link to="/payroll" className="text-xs font-medium text-[#5750f1] hover:underline">
+              {locale === 'de' ? 'Öffnen' : 'Otwórz'} →
+            </Link>
           </div>
+          {(() => {
+            const sinceDate = (() => {
+              const [y, m] = currentPeriod.split('-').map(Number);
+              const next = m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`;
+              return `${next}-01`;
+            })();
+            const driversWithNewFiles = drivers.filter(d =>
+              d.files.some(f => f.modified >= sinceDate)
+            );
+            const totalToProcess = driversWithNewFiles.length;
+            const done = driversWithNewFiles.filter(d => {
+              const key = d.card_number || d.name;
+              return payrollStatuses[key] === 'policzony';
+            }).length;
+            const stz = driversWithNewFiles.filter(d => {
+              const key = d.card_number || d.name;
+              return payrollStatuses[key] === 'stundenzettel';
+            }).length;
+            const remaining = totalToProcess - done - stz;
+
+            return (
+              <div className="space-y-3">
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="rounded-lg bg-[rgba(34,173,92,0.06)] p-3 text-center">
+                    <p className="text-2xl font-bold text-[#22ad5c]">{done}</p>
+                    <p className="text-[11px] text-[#6b7280]">{locale === 'de' ? 'Geprüft' : 'Policzony'}</p>
+                  </div>
+                  <div className="rounded-lg bg-[rgba(60,80,224,0.06)] p-3 text-center">
+                    <p className="text-2xl font-bold text-[#3c50e0]">{stz}</p>
+                    <p className="text-[11px] text-[#6b7280]">Stundenzettel</p>
+                  </div>
+                  <div className="rounded-lg bg-[rgba(245,158,11,0.06)] p-3 text-center">
+                    <p className="text-2xl font-bold text-[#f59e0b]">{remaining}</p>
+                    <p className="text-[11px] text-[#6b7280]">{locale === 'de' ? 'Offen' : 'Do zrobienia'}</p>
+                  </div>
+                </div>
+                {totalToProcess > 0 && (
+                  <div>
+                    <div className="flex h-2 w-full overflow-hidden rounded-full bg-[#f3f4f6] dark:bg-[#1f2a37]">
+                      {done > 0 && <div className="bg-[#22ad5c] transition-all" style={{ width: `${(done / totalToProcess) * 100}%` }} />}
+                      {stz > 0 && <div className="bg-[#3c50e0] transition-all" style={{ width: `${(stz / totalToProcess) * 100}%` }} />}
+                    </div>
+                    <p className="mt-1.5 text-xs text-[#6b7280]">
+                      {done + stz}/{totalToProcess} ({Math.round(((done + stz) / totalToProcess) * 100)}%)
+                    </p>
+                  </div>
+                )}
+                {remaining > 0 && (
+                  <button
+                    onClick={() => navigate('/payroll')}
+                    className="w-full rounded-lg bg-[#5750f1] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-[#4a44d4]"
+                  >
+                    {locale === 'de' ? `${remaining} Fahrer offen — jetzt prüfen` : `${remaining} kierowców do policzenia`}
+                  </button>
+                )}
+              </div>
+            );
+          })()}
         </Card>
       </div>
     </div>
