@@ -1038,24 +1038,21 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
                           const hh = String(Math.floor(mins / 60)).padStart(2, '0');
                           const mm = String(mins % 60).padStart(2, '0');
                           return (
-                          <div key={field} className="w-[72px]">
+                          <div key={field} className="w-[80px]">
                             <label className="block text-[10px] font-medium text-[#6b7280] mb-0.5">{label}</label>
                             <input
-                              type="text"
+                              type="time"
                               value={`${hh}:${mm}`}
                               onChange={(e) => {
-                                const raw = e.target.value.replace(/[^0-9:]/g, '');
-                                const parts = raw.split(':');
-                                const h = parseInt(parts[0]) || 0;
-                                const m = parseInt(parts[1]) || 0;
+                                const val = e.target.value || '00:00';
+                                const [h, m] = val.split(':').map(Number);
                                 setShiftOverrides(prev => ({
                                   ...prev,
-                                  [i]: { ...prev[i], [field]: h * 60 + m },
+                                  [i]: { ...prev[i], [field]: (h || 0) * 60 + (m || 0) },
                                 }));
                               }}
-                              className="input w-full px-2 py-1 text-xs text-center font-mono"
+                              className="input w-full px-1 py-1 text-xs text-center font-mono"
                               title={label}
-                              placeholder="HH:MM"
                             />
                           </div>
                           );
@@ -1133,14 +1130,13 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
                   ['driving', locale === 'de' ? 'Lenkzeit' : 'Jazda'],
                   ['break', locale === 'de' ? 'Pausen' : 'Przerwy'],
                 ] as const).map(([key, label]) => (
-                  <div key={key} className="w-[72px]">
+                  <div key={key} className="w-[80px]">
                     <label className="block text-[10px] font-medium text-[#6b7280] mb-0.5">{label}</label>
                     <input
                       id={`add-shift-${key}`}
-                      type="text"
+                      type="time"
                       defaultValue={key === 'work' ? '08:00' : key === 'break' ? '00:45' : '00:00'}
-                      placeholder="HH:MM"
-                      className="input w-full px-2 py-1 text-xs text-center font-mono"
+                      className="input w-full px-1 py-1 text-xs text-center font-mono"
                     />
                   </div>
                 ))}
