@@ -7,7 +7,7 @@ import type { DriverConfig, MonthlyDays } from '../lib/api';
 import { Badge } from '../components/Badge';
 import { Spinner } from '../components/Spinner';
 import { BarChart } from '../components/BarChart';
-import { ClipboardCopy, Check, Printer, BarChart3, UtensilsCrossed, FileText, Settings, CalendarDays, HardDrive } from 'lucide-react';
+import { ClipboardCopy, Check, Printer, BarChart3, UtensilsCrossed, FileText, Settings, CalendarDays, HardDrive, Pencil, X, RotateCcw } from 'lucide-react';
 import type { AnalysisResult, ShiftDetail } from '../types';
 import { DriverConfigEditor } from './DriverConfigEditor';
 import { ArbeitszeitReport } from './ArbeitszeitReport';
@@ -91,7 +91,27 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
     });
   }, [allShifts, dateFrom, dateTo]);
 
-  // Recalculate summary based on filtered shifts
+  // Apply manual overrides to shifts (local edits)
+  const effectiveShifts = useMemo(() => {
+    if (Object.keys(shiftOverrides).length === 0) return shifts;
+    return shifts.map((sh, i) => {
+      const ov = shiftOverrides[i];
+      if (!ov) return sh;
+      const merged = { ...sh, ...ov };
+      // Recalculate hm strings from overridden minutes
+      if (ov.work_minutes !== undefined) merged.work_hm = minutesToHm(ov.work_minutes);
+      if (ov.driving_minutes !== undefined) merged.driving_hm = minutesToHm(ov.driving_minutes);
+      if (ov.break_minutes !== undefined) merged.break_hm = minutesToHm(ov.break_minutes);
+      if (ov.avail_minutes !== undefined) merged.avail_hm = minutesToHm(ov.avail_minutes);
+      if (ov.duration_minutes !== undefined) merged.duration_hm = minutesToHm(ov.duration_minutes);
+      if (ov.work_only_minutes !== undefined) merged.work_only_hm = minutesToHm(ov.work_only_minutes);
+      if (ov.night_25_minutes !== undefined) merged.night_25_hm = minutesToHm(ov.night_25_minutes);
+      if (ov.night_40_minutes !== undefined) merged.night_40_hm = minutesToHm(ov.night_40_minutes);
+      return merged;
+    });
+  }, [shifts, shiftOverrides]);
+
+  // Recalculate summary based on filtered shifts (with overrides applied)
   const s = useMemo(() => {
     if (!dateFrom && !dateTo) {
       const totalDur = (data.shift_details || []).reduce((sum, sh) => sum + (sh.duration_minutes || 0), 0);
@@ -101,7 +121,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
     let totalWork = 0, totalDriving = 0, totalBreak = 0, totalAvail = 0;
     let night25 = 0, night40 = 0, dietCount = 0, totalManual = 0, totalDuration = 0;
 
-    for (const sh of shifts) {
+    for (const sh of effectiveShifts) {
       totalWork += sh.work_minutes;
       totalDriving += sh.driving_minutes;
       totalBreak += sh.break_minutes;
@@ -135,13 +155,13 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
       total_night_decimal: parseFloat(minutesToDecimal(totalNight)),
       total_night_minutes: totalNight,
       diet_count: dietCount,
-      total_shifts: shifts.length,
+      total_shifts: effectiveShifts.length,
       total_manual_hm: minutesToHm(totalManual),
       total_manual_minutes: totalManual,
       total_duration_minutes: totalDuration,
       total_duration_hm: minutesToHm(totalDuration),
     };
-  }, [data.summary, shifts, dateFrom, dateTo]);
+  }, [data.summary, effectiveShifts, dateFrom, dateTo]);
 
   // Total km: sum distance_km from all vehicle records whose usage period
   // overlaps with the selected date range (GloboFleet-style per-record sum).
@@ -303,6 +323,8 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
   const [showDietReport, setShowDietReport] = useState(false);
   const [showManual, setShowManual] = useState(false);
   const [selectedShiftReport, setSelectedShiftReport] = useState<number | null>(null);
+  const [editingShift, setEditingShift] = useState<number | null>(null);
+  const [shiftOverrides, setShiftOverrides] = useState<Record<number, Partial<ShiftDetail>>>({});
   const printRef = useRef<HTMLDivElement>(null);
 
   const handleDownloadDdd = useCallback(() => {
@@ -801,26 +823,46 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {shifts.map((sh, i) => {
+              {effectiveShifts.map((sh, i) => {
                 const isWeekend = sh.weekday === 'So' || sh.weekday === 'Nd';
                 const wd = localizeWeekday(sh.weekday, locale);
-                const hasManualError = (sh as any).manual_errors?.length > 0;
-                const manualErrorTitle = hasManualError
-                  ? (sh as any).manual_errors.map((e: any) => `${e.declared_type}: ${e.start} → ${e.end} (${e.duration_minutes}min)`).join('\n')
-                  : '';
+                const hasOverride = !!shiftOverrides[i];
+                const isEditing = editingShift === i;
                 return (<>
                 <tr
                   key={i}
-                  onClick={() => setSelectedShiftReport(selectedShiftReport === i ? null : i)}
+                  onClick={() => { if (!isEditing) setSelectedShiftReport(selectedShiftReport === i ? null : i); }}
                   className={`hover:bg-surface cursor-pointer transition ${
-                    selectedShiftReport === i
+                    hasOverride
+                      ? 'bg-amber-50/60 dark:bg-amber-900/10'
+                      : selectedShiftReport === i
                       ? 'bg-primary-50/50 dark:bg-primary-900/10'
                       : isWeekend
                       ? 'bg-rose-50/40 dark:bg-rose-900/10'
                       : ''
                   }`}
                 >
-                  <td className={`whitespace-nowrap px-3 py-2 font-bold ${isWeekend ? 'text-danger' : ''}`}>{wd}</td>
+                  <td className={`whitespace-nowrap px-3 py-2 font-bold ${isWeekend ? 'text-danger' : ''}`}>
+                    <div className="flex items-center gap-1">
+                      {wd}
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setEditingShift(isEditing ? null : i); }}
+                        className={`ml-1 rounded p-0.5 transition ${isEditing ? 'text-[#5750f1]' : 'text-[#d1d5db] hover:text-[#6b7280]'}`}
+                        title={locale === 'de' ? 'Bearbeiten' : 'Edytuj'}
+                      >
+                        <Pencil size={12} />
+                      </button>
+                      {hasOverride && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setShiftOverrides(prev => { const n = { ...prev }; delete n[i]; return n; }); }}
+                          className="rounded p-0.5 text-[#D34053] hover:text-[#f23030] transition"
+                          title={locale === 'de' ? 'Zurücksetzen' : 'Resetuj'}
+                        >
+                          <RotateCcw size={11} />
+                        </button>
+                      )}
+                    </div>
+                  </td>
                   <td className="whitespace-nowrap px-3 py-2 font-medium">{sh.shift_start}</td>
                   <td className="whitespace-nowrap px-3 py-2 text-muted">{sh.shift_end}</td>
                   <td className="whitespace-nowrap px-3 py-2 font-bold">{sh.duration_hm}</td>
@@ -838,7 +880,61 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
                       : <span className="text-muted">{t('no')}</span>}
                   </td>
                 </tr>
-                {selectedShiftReport === i && (
+                {isEditing && (
+                  <tr key={`edit-${i}`} onClick={e => e.stopPropagation()}>
+                    <td colSpan={13} className="px-4 py-3 bg-[#f7f9fc] dark:bg-[#1f2a37]">
+                      <div className="flex flex-wrap items-end gap-3">
+                        {([
+                          ['work_minutes', locale === 'de' ? 'Arbeitszeit' : 'Czas pracy'],
+                          ['driving_minutes', locale === 'de' ? 'Lenkzeit' : 'Jazda'],
+                          ['break_minutes', locale === 'de' ? 'Pausen' : 'Przerwy'],
+                          ['avail_minutes', locale === 'de' ? 'Bereitschaft' : 'Dysp.'],
+                          ['night_25_minutes', 'Nacht 25%'],
+                          ['night_40_minutes', 'Nacht 40%'],
+                        ] as const).map(([field, label]) => (
+                          <div key={field} className="w-20">
+                            <label className="block text-[10px] font-medium text-[#6b7280] mb-0.5">{label}</label>
+                            <input
+                              type="number"
+                              min={0}
+                              value={shiftOverrides[i]?.[field] ?? (sh as any)[field]}
+                              onChange={(e) => {
+                                const val = parseInt(e.target.value) || 0;
+                                setShiftOverrides(prev => ({
+                                  ...prev,
+                                  [i]: { ...prev[i], [field]: val },
+                                }));
+                              }}
+                              className="input w-full px-2 py-1 text-xs text-center font-mono"
+                              title={`${label} (min)`}
+                            />
+                          </div>
+                        ))}
+                        <div className="w-16">
+                          <label className="block text-[10px] font-medium text-[#6b7280] mb-0.5">{locale === 'de' ? 'Diät' : 'Dieta'}</label>
+                          <select
+                            value={shiftOverrides[i]?.has_diet !== undefined ? (shiftOverrides[i]!.has_diet ? '1' : '0') : (sh.has_diet ? '1' : '0')}
+                            onChange={(e) => setShiftOverrides(prev => ({ ...prev, [i]: { ...prev[i], has_diet: e.target.value === '1' } }))}
+                            className="input w-full px-1 py-1 text-xs"
+                          >
+                            <option value="1">{t('yes')}</option>
+                            <option value="0">{t('no')}</option>
+                          </select>
+                        </div>
+                        <button
+                          onClick={() => setEditingShift(null)}
+                          className="rounded-lg bg-[#5750f1] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#4a44d4]"
+                        >
+                          OK
+                        </button>
+                      </div>
+                      <p className="mt-1.5 text-[10px] text-[#9ca3af]">
+                        {locale === 'de' ? 'Werte in Minuten. Änderungen wirken sich auf die Zusammenfassung aus.' : 'Wartości w minutach. Zmiany wpływają na podsumowanie.'}
+                      </p>
+                    </td>
+                  </tr>
+                )}
+                {selectedShiftReport === i && !isEditing && (
                   <tr key={`report-${i}`}>
                     <td colSpan={13} className="p-4 bg-surface">
                       <ArbeitszeitReport shift={sh} />
