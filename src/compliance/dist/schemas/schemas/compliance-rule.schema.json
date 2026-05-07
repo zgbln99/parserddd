@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://parserddd.local/schemas/compliance-rule.schema.json",
+  "title": "Compliance Rule Set",
+  "description": "Deterministic compliance rule set definition for tachograph compliance evaluation.",
+  "type": "object",
+  "required": ["rule_set", "version", "rules"],
+  "additionalProperties": false,
+  "properties": {
+    "rule_set": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Z0-9_]+$"
+    },
+    "version": {
+      "oneOf": [
+        { "type": "string", "minLength": 1 },
+        { "type": "number" }
+      ]
+    },
+    "jurisdiction": {
+      "type": "string",
+      "enum": ["EU", "DE", "PL", "AT", "FR", "IT", "ES", "NL"]
+    },
+    "rules": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/rule" }
+    }
+  },
+  "$defs": {
+    "multilingualText": {
+      "type": "object",
+      "required": ["de", "en", "pl"],
+      "additionalProperties": false,
+      "properties": {
+        "de": { "type": "string", "minLength": 1 },
+        "en": { "type": "string", "minLength": 1 },
+        "pl": { "type": "string", "minLength": 1 }
+      }
+    },
+    "rule": {
+      "type": "object",
+      "required": ["rule_id", "category", "legal_basis", "title"],
+      "additionalProperties": false,
+      "properties": {
+        "rule_id": {
+          "type": "string",
+          "pattern": "^[A-Z0-9_]+$",
+          "minLength": 3
+        },
+        "category": {
+          "type": "string",
+          "enum": [
+            "DRIVING_TIME",
+            "BREAKS",
+            "REST",
+            "WORKING_TIME",
+            "TACHOGRAPH",
+            "MANUAL_ENTRY",
+            "COUNTRY_ENTRY",
+            "CARD",
+            "ACTIVITY_SELECTION",
+            "DOWNLOAD",
+            "PRINTOUT",
+            "EVENT_FAULT",
+            "MANIPULATION",
+            "MULTI_MANNING",
+            "NIGHT_WORK"
+          ]
+        },
+        "legal_basis": { "$ref": "#/$defs/multilingualText" },
+        "title": { "$ref": "#/$defs/multilingualText" },
+        "explanation": { "$ref": "#/$defs/multilingualText" },
+        "severity": {
+          "type": "string",
+          "enum": ["MINOR", "SERIOUS", "VERY_SERIOUS", "MOST_SERIOUS"]
+        },
+        "logic": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://parserddd.local/schemas/fine-mapping.schema.json",
+  "title": "Fine Mapping Set",
+  "description": "Mapping from rule_id to driver/company fine amounts. Unknown amounts MUST stay null.",
+  "type": "object",
+  "required": ["rule_set", "version", "fines"],
+  "additionalProperties": false,
+  "properties": {
+    "rule_set": { "type": "string", "minLength": 1 },
+    "version": {
+      "oneOf": [
+        { "type": "string", "minLength": 1 },
+        { "type": "number" }
+      ]
+    },
+    "currency": {
+      "type": "string",
+      "default": "EUR",
+      "pattern": "^[A-Z]{3}$"
+    },
+    "fines": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["violation_reference"],
+        "additionalProperties": false,
+        "properties": {
+          "violation_reference": {
+            "type": "string",
+            "pattern": "^[A-Z0-9_]+$"
+          },
+          "source": { "type": "string" },
+          "notes": { "type": "string" },
+          "driver": { "$ref": "#/$defs/fineEntry" },
+          "company": { "$ref": "#/$defs/fineEntry" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "fineEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "amount_eur": {
+          "oneOf": [
+            { "type": "number", "minimum": 0 },
+            { "type": "null" }
+          ]
+        },
+        "min_eur": { "type": "number", "minimum": 0 },
+        "max_eur": { "type": "number", "minimum": 0 },
+        "per_hour_eur": { "type": "number", "minimum": 0 },
+        "todo": { "type": "boolean" }
+      }
+    }
+  }
+}
