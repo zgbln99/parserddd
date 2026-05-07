@@ -212,7 +212,7 @@ def init_db():
                 sick_days     REAL NOT NULL DEFAULT 0,
                 overtime_hm   TEXT NOT NULL DEFAULT '',
                 notes         TEXT NOT NULL DEFAULT '',
-                absence_days  TEXT NOT NULL DEFAULT '{}',
+                absence_days  TEXT NOT NULL DEFAULT '{{}}',
                 updated_at    TEXT NOT NULL,
                 UNIQUE(card_number, period)
             );
@@ -249,6 +249,37 @@ def init_db():
                 permissions   TEXT NOT NULL DEFAULT '[]',
                 created_at    TEXT NOT NULL,
                 updated_at    TEXT NOT NULL
+            );
+        '''.format(
+            'SERIAL' if engine == 'postgresql' else 'INTEGER',
+            '' if engine == 'postgresql' else 'AUTOINCREMENT',
+        ))
+
+        # signing_tokens — one-time public links sent to drivers so they can
+        # sign a bundle of violations. `payload_json` stores a frozen
+        # snapshot of the violations as produced by the compliance engine,
+        # so the document the driver signs is exactly the document the
+        # office sees. Tokens expire (TTL ≈ 14 days, configurable).
+        db.executescript('''
+            CREATE TABLE IF NOT EXISTS signing_tokens (
+                id              {} PRIMARY KEY {},
+                token           TEXT NOT NULL UNIQUE,
+                driver_card     TEXT NOT NULL,
+                driver_name     TEXT NOT NULL DEFAULT '',
+                payload_json    TEXT NOT NULL,
+                payload_hash    TEXT NOT NULL,
+                locale          TEXT NOT NULL DEFAULT 'de',
+                created_by      TEXT NOT NULL DEFAULT 'admin',
+                created_at      TEXT NOT NULL,
+                expires_at      TEXT NOT NULL,
+                used_at         TEXT,
+                used_ip         TEXT,
+                used_ua         TEXT,
+                signature_png   TEXT,
+                signer_name     TEXT,
+                driver_remark   TEXT,
+                pdf_dropbox_path TEXT,
+                status          TEXT NOT NULL DEFAULT 'pending'
             );
         '''.format(
             'SERIAL' if engine == 'postgresql' else 'INTEGER',

@@ -1,17 +1,19 @@
 import { useState } from 'react';
-import { Shield, Users, Key, Settings, Activity } from 'lucide-react';
+import { Shield, Users, Key, Settings, Activity, Send } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { UsersTab } from '../components/admin/UsersTab';
 import { SecurityTab } from '../components/admin/SecurityTab';
 import { SyncConfigTab } from '../components/admin/SyncConfigTab';
 import { LogsTab } from '../components/admin/LogsTab';
+import { SignLinksTab } from '../components/admin/SignLinksTab';
 
-type AdminTab = 'users' | 'security' | 'sync' | 'logs';
+type AdminTab = 'users' | 'security' | 'sync' | 'sign' | 'logs';
 
 const tabs: { key: AdminTab; icon: typeof Users; labelKey: string; color: string }[] = [
   { key: 'users', icon: Users, labelKey: 'adminUsers', color: 'text-blue-500' },
   { key: 'security', icon: Key, labelKey: 'adminChangePassword', color: 'text-amber-500' },
   { key: 'sync', icon: Settings, labelKey: 'adminSyncConfig', color: 'text-muted' },
+  { key: 'sign', icon: Send, labelKey: 'adminSignLinks', color: 'text-emerald-500' },
   { key: 'logs', icon: Activity, labelKey: 'adminActivityLog', color: 'text-violet-500' },
 ];
 
@@ -55,6 +57,7 @@ export function AdminPage() {
         {activeTab === 'users' && <UsersTab />}
         {activeTab === 'security' && <SecurityTab />}
         {activeTab === 'sync' && <SyncConfigTab />}
+        {activeTab === 'sign' && <SignLinksTab />}
         {activeTab === 'logs' && <LogsTab />}
       </div>
     </div>

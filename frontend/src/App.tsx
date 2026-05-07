@@ -3,6 +3,8 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
 import { Layout } from './components/Layout';
 import { LoginPage } from './pages/LoginPage';
+import { LandingPage } from './pages/LandingPage';
+import { SignPage } from './pages/SignPage';
 import { Spinner } from './components/Spinner';
 import { GlobalSearch } from './components/GlobalSearch';
 import { OfflineBanner } from './components/OfflineBanner';
@@ -46,7 +48,9 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
       </div>
     );
   }
-  if (!loggedIn) return <Navigate to="/login" replace />;
+  // Anyone who isn't logged in lands on the public marketing site rather
+  // than seeing the dispatcher login as the front door.
+  if (!loggedIn) return <LandingPage />;
   return <Layout>{children}</Layout>;
 }
 
@@ -104,6 +108,8 @@ export function App() {
       {loggedIn && <NewFilesNotification />}
       <Suspense fallback={<PageFallback />}>
         <Routes>
+          {/* Public driver-signing flow — no auth, token-bearer */}
+          <Route path="/sign/:token" element={<SignPage />} />
           <Route path="/login" element={loggedIn ? <Navigate to="/" replace /> : <LoginPage />} />
           <Route path="/" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
           <Route path="/drivers" element={<PermissionRoute permission="drivers"><DriversPage /></PermissionRoute>} />

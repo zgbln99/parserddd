@@ -156,6 +156,7 @@ export const pl = {
   adminAdminPassword: 'Hasło admina',
   adminNewPassword: 'Nowe hasło',
   adminSyncConfig: 'Konfiguracja synchronizacji',
+  adminSignLinks: 'Linki do podpisu',
   adminConfigSet: 'Ustawiony',
   adminConfigNotSet: 'Nie ustawiony',
   adminNewToken: 'Nowy token...',

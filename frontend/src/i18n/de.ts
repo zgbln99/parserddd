@@ -158,6 +158,7 @@ export const de: Record<TranslationKey, string> = {
   adminAdminPassword: 'Admin-Passwort',
   adminNewPassword: 'Neues Passwort',
   adminSyncConfig: 'Synchronisierungskonfiguration',
+  adminSignLinks: 'Signatur-Links',
   adminConfigSet: 'Eingestellt',
   adminConfigNotSet: 'Nicht eingestellt',
   adminNewToken: 'Neuer Token...',
