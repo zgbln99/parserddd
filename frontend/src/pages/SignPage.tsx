@@ -597,8 +597,8 @@ function Hero({
         </div>
       </div>
 
-      {/* bottom: 3-tile compact summary */}
-      <div className="grid grid-cols-3 divide-x divide-black/5">
+      {/* bottom: compact summary — meaningless tiles render to null */}
+      <div className="grid auto-cols-fr grid-flow-col divide-x divide-black/5">
         <SummaryTile
           label={t.summaryTotal}
           value={String(data.payload.summary.total)}
@@ -629,10 +629,13 @@ function SummaryTile({
   mono = false,
 }: {
   label: string;
-  value: string;
+  value: string | null;
   big?: boolean;
   mono?: boolean;
 }) {
+  // Skip rendering for empty / placeholder values — the page is more
+  // useful when blank tiles disappear instead of showing "—".
+  if (value === null || value === '' || value === '—') return null;
   return (
     <div className="px-3 py-3 text-center sm:px-4 sm:py-4">
       <div className="text-[10px] font-medium uppercase tracking-wider text-black/45">
@@ -662,21 +665,24 @@ function ViolationsList({
   lang: UiLang;
 }) {
   const t = STR[lang];
-  const allRows = useMemo(
-    () => payload.sections.flatMap((s) => s.rows.map((r) => ({ row: r, heading: s.heading }))),
+  // Drop sections that have no rows AND skip rendering entirely if the
+  // whole report is empty. The driver shouldn't see "no violations" UI —
+  // the absence of the list is information enough, and the hero already
+  // shows total = 0.
+  const sections = useMemo(
+    () => payload.sections.filter((s) => (s.rows?.length ?? 0) > 0),
     [payload],
   );
+  const totalRows = useMemo(
+    () => sections.reduce((acc, s) => acc + s.rows.length, 0),
+    [sections],
+  );
 
-  if (allRows.length === 0) {
-    return (
-      <div className="rounded-3xl border border-black/5 bg-white p-8 text-center shadow-[0_1px_2px_rgba(15,15,20,0.04)]">
-        <div className="mx-auto grid size-12 place-items-center rounded-full bg-emerald-50 text-emerald-600">
-          <CheckCircle2 size={20} />
-        </div>
-        <p className="mt-5 text-base text-black/70">{t.listEmpty}</p>
-      </div>
-    );
-  }
+  if (totalRows === 0) return null;
+
+  const allRows = sections.flatMap((s) =>
+    s.rows.map((r) => ({ row: r, heading: s.heading })),
+  );
 
   return (
     <section className="overflow-hidden rounded-3xl border border-black/5 bg-white shadow-[0_1px_2px_rgba(15,15,20,0.04)]">
@@ -685,7 +691,7 @@ function ViolationsList({
           {t.listTitle}
         </h2>
         <span className="rounded-full bg-black/[0.04] px-2.5 py-0.5 text-xs font-medium text-black/65">
-          {allRows.length}
+          {totalRows}
         </span>
       </header>
       <ul className="divide-y divide-black/5">

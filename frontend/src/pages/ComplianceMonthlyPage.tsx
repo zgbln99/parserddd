@@ -658,32 +658,78 @@ function AnalyzingBanner() {
 
 function SummaryCards({ report }: { report: ReportPayload }) {
   const { t } = useI18n();
-  return (
-    <div className="grid gap-3 md:grid-cols-4">
+  // Build the tile list dynamically. Each card is dropped when its value
+  // would be the "nothing happened" placeholder (0 / null) — operators
+  // shouldn't have to scan past empty cards to find the real numbers.
+  const cards: { node: React.ReactNode; key: string }[] = [];
+
+  // Total is always shown — explicit 0 is meaningful info.
+  cards.push({
+    key: 'total',
+    node: (
       <SummaryCard
         icon={<FileText size={16} />}
         label={t('complianceTotal')}
         value={String(report.summary.total)}
         tone={report.summary.total === 0 ? 'good' : 'warn'}
       />
-      <SummaryCard
-        icon={<AlertTriangle size={16} />}
-        label={t('complianceFineDriver')}
-        value={fmtEuro(report.summary.driver_fine_total_eur)}
-        tone="neutral"
-      />
-      <SummaryCard
-        icon={<AlertTriangle size={16} />}
-        label={t('complianceFineCompany')}
-        value={fmtEuro(report.summary.company_fine_total_eur)}
-        tone="neutral"
-      />
-      <SummaryCard
-        icon={<RefreshCcw size={16} />}
-        label={t('complianceNotEvaluableShort')}
-        value={String(report.summary.not_evaluable_rule_ids.length)}
-        tone={report.summary.not_evaluable_rule_ids.length > 0 ? 'warn' : 'good'}
-      />
+    ),
+  });
+
+  if ((report.summary.driver_fine_total_eur ?? 0) > 0) {
+    cards.push({
+      key: 'fineDriver',
+      node: (
+        <SummaryCard
+          icon={<AlertTriangle size={16} />}
+          label={t('complianceFineDriver')}
+          value={fmtEuro(report.summary.driver_fine_total_eur)}
+          tone="neutral"
+        />
+      ),
+    });
+  }
+  if ((report.summary.company_fine_total_eur ?? 0) > 0) {
+    cards.push({
+      key: 'fineCompany',
+      node: (
+        <SummaryCard
+          icon={<AlertTriangle size={16} />}
+          label={t('complianceFineCompany')}
+          value={fmtEuro(report.summary.company_fine_total_eur)}
+          tone="neutral"
+        />
+      ),
+    });
+  }
+  if (report.summary.not_evaluable_rule_ids.length > 0) {
+    cards.push({
+      key: 'notEvaluable',
+      node: (
+        <SummaryCard
+          icon={<RefreshCcw size={16} />}
+          label={t('complianceNotEvaluableShort')}
+          value={String(report.summary.not_evaluable_rule_ids.length)}
+          tone="warn"
+        />
+      ),
+    });
+  }
+
+  // grid columns adapt: 1 / 2 / 3 / 4 cards
+  const cols =
+    cards.length === 1
+      ? 'md:grid-cols-1'
+      : cards.length === 2
+        ? 'md:grid-cols-2'
+        : cards.length === 3
+          ? 'md:grid-cols-3'
+          : 'md:grid-cols-4';
+  return (
+    <div className={`grid gap-3 ${cols}`}>
+      {cards.map((c) => (
+        <div key={c.key}>{c.node}</div>
+      ))}
     </div>
   );
 }

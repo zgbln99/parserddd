@@ -300,10 +300,14 @@ def render_signed_pdf(
     ))
     elements.append(Spacer(1, 5 * mm))
 
-    sections = payload.get("sections") or []
-    if not sections:
-        elements.append(Paragraph(L["no_violations"], styles["body"]))
-    else:
+    # Drop sections that have zero rows up-front so we never render an
+    # empty table (and never render a "no violations" placeholder either —
+    # the absence of a table is the message).
+    sections = [
+        s for s in (payload.get("sections") or [])
+        if (s.get("rows") or [])
+    ]
+    if sections:
         elements.append(_violation_table(
             sections,
             L=L,
