@@ -21,6 +21,7 @@ import logging
 import os
 import re
 import tempfile
+import traceback
 from collections import defaultdict
 from datetime import datetime, timezone
 from typing import Any
@@ -65,9 +66,20 @@ def api_list_months():
         return _api_list_months_impl()
     except Exception as exc:
         _log.exception("compliance/months failed")
+        # Last frame of the traceback is the most useful for the operator —
+        # it's where the exception was raised. We don't expose the full stack
+        # trace (might leak filesystem layout or env hints) but the file +
+        # line + exception class are enough to diagnose 90% of failures.
+        tb = traceback.extract_tb(exc.__traceback__)
+        last = tb[-1] if tb else None
         return jsonify({
             "error": "compliance/months failed",
+            "exception_type": type(exc).__name__,
             "detail": str(exc),
+            "where": (
+                f"{os.path.basename(last.filename)}:{last.lineno} in {last.name}"
+                if last else None
+            ),
         }), 500
 
 
@@ -100,24 +112,36 @@ def _api_list_months_impl():
         return jsonify({"error": f"driver not found: {driver_name}"}), 404
 
     files = target.get("files", []) or []
-    months: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    months = defaultdict(list)
     for f in files:
-        path = f.get("path") or f.get("path_lower") or ""
-        name = f.get("name") or os.path.basename(path)
-        m = _DDD_NAME_RE.search(name)
-        if not m:
+        # build_drivers_data already extracts file_date — prefer it.
+        date_str = (f.get("file_date") or "").strip()
+        if not date_str:
+            name = f.get("name") or ""
+            m = _DDD_NAME_RE.search(name)
+            if not m:
+                continue
+            date_str = m.group("date")
+        if len(date_str) < 10:
             continue
-        date_str = m.group("date")
         ym = date_str[:7]  # YYYY-MM
+        size_val = f.get("size")
+        try:
+            size_val = int(size_val) if size_val is not None else None
+        except (TypeError, ValueError):
+            size_val = None
         months[ym].append({
-            "path": path,
-            "name": name,
+            "path": f.get("path") or f.get("path_lower") or "",
+            "name": f.get("name") or "",
             "date": date_str,
-            "size": f.get("size"),
+            "size": size_val,
         })
 
     out = [
-        {"month": ym, "files": sorted(items, key=lambda x: x["date"])}
+        {
+            "month": ym,
+            "files": sorted(months[ym], key=lambda x: x["date"]),
+        }
         for ym in sorted(months.keys(), reverse=True)
     ]
     return jsonify(

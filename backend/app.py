@@ -96,8 +96,18 @@ def create_app() -> Flask:
             }), 404
 
         abs_frontend = os.path.abspath(FRONTEND_DIR)
+        # Primary: serve the file from the production build directory.
         if path and os.path.isfile(os.path.join(abs_frontend, path)):
             return send_from_directory(abs_frontend, path)
+        # Fallback: also serve files dropped into `frontend/public/` even
+        # without running `npm run build`. This is intentional — drop a JPG
+        # into public/ and it serves immediately, no rebuild step. Vite's
+        # build copies public/ into dist/ anyway, so prod stays correct.
+        public_dir = os.path.abspath(
+            os.path.join(os.path.dirname(__file__), '..', 'frontend', 'public'),
+        )
+        if path and os.path.isfile(os.path.join(public_dir, path)):
+            return send_from_directory(public_dir, path)
         index_path = os.path.join(abs_frontend, 'index.html')
         if os.path.isfile(index_path):
             return send_from_directory(abs_frontend, 'index.html')
