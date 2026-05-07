@@ -72,13 +72,17 @@ def api_list_months():
     cfg = _load_config()
     sync_folder = cfg.get("sync_folder") or os.environ.get("SYNC_DEST_FOLDER", "/Samsara-DDD")
     drivers = build_drivers_data(dbx, sync_folder)
-    by_name = {d.get("driver_name", "").strip(): d for d in drivers}
-
-    # Loose match: case-insensitive contains, then exact preferred.
-    target = by_name.get(driver_name)
+    # Each entry has the shape produced by build_drivers_data: {name, path,
+    # card_number, files, ...}. Match by name (preferred) or card_number.
+    target = None
+    needle = driver_name.lower()
+    for d in drivers:
+        if (d.get("name") or "").strip().lower() == needle:
+            target = d
+            break
     if target is None:
-        for name, d in by_name.items():
-            if name.lower() == driver_name.lower():
+        for d in drivers:
+            if (d.get("card_number") or "").strip() == driver_name.strip():
                 target = d
                 break
     if target is None:
@@ -107,7 +111,7 @@ def api_list_months():
     ]
     return jsonify(
         {
-            "driver_name": target.get("driver_name", ""),
+            "driver_name": target.get("name", ""),
             "card_number": target.get("card_number", ""),
             "months": out,
         },
