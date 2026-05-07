@@ -39,19 +39,41 @@ def month_range_utc(year: int, month: int) -> tuple[datetime, datetime]:
     return start, end
 
 
-def _to_utc(dt: datetime) -> datetime:
-    if dt.tzinfo is None:
-        return dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone(timezone.utc)
+def _to_utc(dt: Any) -> datetime | None:
+    """Best-effort coerce to a UTC-aware datetime.
+
+    Returns ``None`` if the input cannot be normalised — caller decides
+    what to do (typically: drop the activity). Without this guard a single
+    bad record would crash the whole month with the classic
+    "'<' not supported between instances of 'str' and 'NoneType'".
+    """
+    if dt is None:
+        return None
+    if isinstance(dt, datetime):
+        if dt.tzinfo is None:
+            return dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(timezone.utc)
+    if isinstance(dt, str):
+        return _normalize_event_dt(dt)
+    return None
 
 
 def _iso(dt: datetime) -> str:
     return _to_utc(dt).isoformat().replace("+00:00", "Z")
 
 
-def _clip(start: datetime, end: datetime, lo: datetime, hi: datetime) -> tuple[datetime, datetime] | None:
-    s = max(_to_utc(start), lo)
-    e = min(_to_utc(end), hi)
+def _clip(
+    start: Any,
+    end: Any,
+    lo: datetime,
+    hi: datetime,
+) -> tuple[datetime, datetime] | None:
+    s_utc = _to_utc(start)
+    e_utc = _to_utc(end)
+    if s_utc is None or e_utc is None:
+        return None
+    s = max(s_utc, lo)
+    e = min(e_utc, hi)
     if s >= e:
         return None
     return s, e
@@ -77,8 +99,15 @@ def build_engine_payload(
     lifted from the matching `card_places` entries (start_country attached
     to the day boundary, end_country to the day end).
     """
-    range_start = _to_utc(range_start)
-    range_end = _to_utc(range_end)
+    range_start_utc = _to_utc(range_start)
+    range_end_utc = _to_utc(range_end)
+    if range_start_utc is None or range_end_utc is None:
+        raise ValueError(
+            "build_engine_payload: range_start/range_end must coerce to "
+            f"UTC datetimes (got {range_start!r} / {range_end!r})",
+        )
+    range_start = range_start_utc
+    range_end = range_end_utc
 
     activity_candidates: list[dict[str, Any]] = []
     last_country_at_minute_zero: dict[str, str | None] = {}

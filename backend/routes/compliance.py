@@ -140,7 +140,10 @@ def _api_list_months_impl():
     out = [
         {
             "month": ym,
-            "files": sorted(months[ym], key=lambda x: x["date"]),
+            "files": sorted(
+                months[ym],
+                key=lambda x: (x.get("date") or ""),
+            ),
         }
         for ym in sorted(months.keys(), reverse=True)
     ]
@@ -216,8 +219,12 @@ def _api_evaluate_monthly_impl():
             # Pick activity records that overlap the padded range.
             recs_in_range: list[dict[str, Any]] = []
             for rec in get_activity_records(parsed):
-                ds = rec.get("activity_record_date", "")[:10]
-                if not ds:
+                # Defensive: `activity_record_date` may be missing OR present
+                # with a None/empty value on corrupt DDD records. Coerce to
+                # "" so the next slice + filter never crashes.
+                ds_raw = rec.get("activity_record_date") or ""
+                ds = str(ds_raw)[:10]
+                if not ds or len(ds) != 10:
                     continue
                 # Deduplicate across files by date (keep first encountered).
                 if ds in seen_record_dates:
@@ -261,10 +268,17 @@ def _api_evaluate_monthly_impl():
         ), 404
 
     # Pick the most-recently-used vehicle plate as the canonical vehicle id.
+    # Defensive sort: coerce missing/None timestamps to "" so sort never sees
+    # mixed str/None and crashes with "'<' not supported between instances".
     vehicle = None
     if vehicles:
-        sorted_vehicles = sorted(vehicles, key=lambda v: v.get("last_use", ""), reverse=True)
-        vehicle = sorted_vehicles[0].get("plate") or None
+        sorted_vehicles = sorted(
+            vehicles,
+            key=lambda v: (v.get("last_use") or ""),
+            reverse=True,
+        )
+        first = sorted_vehicles[0] if sorted_vehicles else {}
+        vehicle = first.get("plate") or None
 
     rules_root = os.environ.get("COMPLIANCE_RULES_ROOT")
     if not rules_root:
