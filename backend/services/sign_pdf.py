@@ -142,8 +142,6 @@ def _violation_table(row: Mapping[str, Any], body, small) -> "Table":
     allowed = row.get("allowed_value")
     excess = row.get("excess_value")
     unit = row.get("unit", "")
-    fine_d = row.get("driver_fine_eur")
-    fine_c = row.get("company_fine_eur")
     severity = row.get("severity") or "—"
     start_t = str(row.get("start_time", ""))[:19].replace("T", " ")
     end_t = str(row.get("end_time", ""))[:19].replace("T", " ")
@@ -162,9 +160,10 @@ def _violation_table(row: Mapping[str, Any], body, small) -> "Table":
             "",
         ],
         [
+            # Driver-facing PDF intentionally OMITS fines — those are an
+            # internal accounting concern between dispatch and HR, not
+            # something the driver can act on at signing time.
             Paragraph(
-                f"<b>Bußgeld Fahrer:</b> {_fmt_eur(fine_d)} · "
-                f"<b>Unternehmen:</b> {_fmt_eur(fine_c)} · "
                 f"<b>Schwere:</b> {severity} · "
                 f"<b>Regel:</b> {rule}",
                 small,
