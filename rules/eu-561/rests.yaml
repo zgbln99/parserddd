@@ -1,0 +1,31 @@
+rule_set: EU_561_RESTS
+version: 2026.01
+rules:
+  - rule_id: EU_561_ART8_DAILY_REST
+    category: REST
+    legal_basis:
+      de: "Art. 8 VO (EG) 561/2006"
+      en: "Art. 8 Regulation (EC) 561/2006"
+      pl: "Art. 8 Rozporządzenia 561/2006"
+    title:
+      de: "Tägliche Ruhezeit verkürzt"
+      en: "Daily rest reduced"
+      pl: "Skrócony odpoczynek dzienny"
+    logic:
+      regular_daily_rest_minutes: 660
+      reduced_daily_rest_minutes: 540
+      reduced_allowed_between_weekly_rests: 3
+
+  - rule_id: EU_561_ART8_WEEKLY_REST
+    category: REST
+    legal_basis:
+      de: "Art. 8 VO (EG) 561/2006"
+      en: "Art. 8 Regulation (EC) 561/2006"
+      pl: "Art. 8 Rozporządzenia 561/2006"
+    title:
+      de: "Wöchentliche Ruhezeit verkürzt"
+      en: "Weekly rest reduced"
+      pl: "Skrócony odpoczynek tygodniowy"
+    logic:
+      regular_weekly_rest_minutes: 2700
+      reduced_weekly_rest_minutes: 1440

@@ -446,6 +446,425 @@
         .shift-time .d { font-weight: 600; }
         .shift-time .t { color: var(--text-secondary); font-weight: 500; }
 
+        /* Monthly view */
+        .month-group { margin-bottom: 2px; }
+        .month-header {
+            background: linear-gradient(135deg, #1e3a5f, #1e40af);
+            color: white;
+            padding: 10px 18px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 0.88em;
+            font-weight: 600;
+            user-select: none;
+        }
+        .month-header:hover { opacity: 0.92; }
+        .month-header .arrow { transition: transform 0.2s; }
+        .month-header .arrow.collapsed { transform: rotate(-90deg); }
+        .month-stats {
+            display: flex; gap: 16px;
+            font-size: 0.85em; font-weight: 400; opacity: 0.85;
+        }
+        .month-body { display: block; }
+        .month-body.collapsed { display: none; }
+
+        /* Card history */
+        .history-section {
+            margin-top: 20px;
+            display: none;
+        }
+        .history-section.visible { display: block; }
+        .history-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+        .history-title {
+            font-size: 0.82em;
+            font-weight: 700;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .history-clear {
+            font-size: 0.72em;
+            color: var(--text-muted);
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-family: inherit;
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+        .history-clear:hover { color: var(--red); background: #fef2f2; }
+        .history-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+            gap: 10px;
+        }
+        .hi-card {
+            background: var(--surface);
+            border: 1.5px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 14px;
+            cursor: pointer;
+            transition: all 0.15s;
+            position: relative;
+        }
+        .hi-card:hover { border-color: var(--primary); box-shadow: var(--shadow-lg); transform: translateY(-1px); }
+        .hi-card-top {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+        .hi-card .hi-name {
+            font-weight: 700;
+            font-size: 0.92em;
+            color: var(--text);
+            line-height: 1.3;
+        }
+        .hi-card .hi-cardno {
+            font-size: 0.72em;
+            color: var(--text-muted);
+            font-family: monospace;
+        }
+        .hi-card .hi-remove {
+            color: var(--text-muted);
+            font-size: 1.2em;
+            padding: 0 4px;
+            border-radius: 4px;
+            line-height: 1;
+            flex-shrink: 0;
+        }
+        .hi-card .hi-remove:hover { background: #fef2f2; color: var(--red); }
+        .hi-card .hi-dates {
+            font-size: 0.75em;
+            color: var(--text-muted);
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .hi-card .hi-ago {
+            background: var(--surface-hover);
+            padding: 1px 6px;
+            border-radius: 4px;
+            font-size: 0.92em;
+        }
+        .hi-stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 6px;
+        }
+        .hi-stat {
+            text-align: center;
+            padding: 5px 4px;
+            border-radius: 6px;
+            background: var(--surface-hover);
+        }
+        .hi-stat-val {
+            font-size: 0.88em;
+            font-weight: 700;
+            line-height: 1.2;
+        }
+        .hi-stat-label {
+            font-size: 0.6em;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+
+        /* History modal for toolbar access */
+        .history-modal-body {
+            padding: 16px 20px;
+            max-height: 60vh;
+            overflow-y: auto;
+        }
+        .history-modal-empty {
+            text-align: center;
+            padding: 30px;
+            color: var(--text-muted);
+            font-size: 0.88em;
+        }
+
+        /* View toggle */
+        .view-toggle {
+            display: inline-flex;
+            border: 1.5px solid var(--border);
+            border-radius: 6px;
+            overflow: hidden;
+        }
+        .view-toggle button {
+            padding: 4px 10px;
+            border: none;
+            background: transparent;
+            font-size: 0.78em;
+            font-weight: 600;
+            cursor: pointer;
+            font-family: inherit;
+            color: var(--text-secondary);
+        }
+        .view-toggle button.active {
+            background: var(--primary);
+            color: white;
+        }
+
+        /* Violations */
+        .violation-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            background: #dc2626;
+            color: white;
+            font-size: 0.65em;
+            font-weight: 700;
+            padding: 2px 6px;
+            border-radius: 4px;
+            margin-left: 4px;
+            vertical-align: middle;
+            cursor: pointer;
+        }
+        .violation-badge.warning { background: #d97706; }
+        tr.has-violation { cursor: pointer; }
+        tr.has-violation td { background: #fef2f2 !important; }
+        tr.has-violation:hover td { background: #fee2e2 !important; }
+
+        /* Violations toolbar badge */
+        .violations-toolbar-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 5px 12px;
+            border-radius: 6px;
+            font-size: 0.82em;
+            font-weight: 600;
+            cursor: default;
+            border: 1.5px solid;
+        }
+        .violations-toolbar-badge.has-violations {
+            background: #fef2f2;
+            color: #dc2626;
+            border-color: #dc2626;
+        }
+        .violations-toolbar-badge.no-violations {
+            background: #f0fdf4;
+            color: #16a34a;
+            border-color: #16a34a;
+        }
+        .vtb-dot {
+            width: 7px; height: 7px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        .vtb-dot.red { background: #dc2626; }
+        .vtb-dot.green { background: #16a34a; }
+
+        /* Violation detail modal */
+        .violation-modal {
+            width: 580px;
+            max-width: 96vw;
+        }
+        .vm-shift-summary {
+            padding: 16px 20px;
+            background: #f8f9fb;
+            border-bottom: 1px solid var(--border);
+        }
+        .vm-shift-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        .vm-shift-item {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .vm-shift-label {
+            font-size: 0.68em;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            color: var(--text-muted);
+        }
+        .vm-shift-value {
+            font-size: 0.92em;
+            font-weight: 600;
+            color: var(--text);
+            font-variant-numeric: tabular-nums;
+        }
+        .vm-violations-list {
+            padding: 16px 20px;
+        }
+        .vm-violations-title {
+            font-size: 0.75em;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            color: var(--text-muted);
+            margin-bottom: 12px;
+        }
+        .vm-violation-card {
+            display: flex;
+            gap: 12px;
+            padding: 12px;
+            border-radius: 10px;
+            margin-bottom: 8px;
+        }
+        .vm-violation-card:last-child { margin-bottom: 0; }
+        .vm-violation-card.critical {
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+        }
+        .vm-violation-card.warning {
+            background: #fffbeb;
+            border: 1px solid #fde68a;
+        }
+        .vm-severity-icon {
+            flex-shrink: 0;
+            width: 32px; height: 32px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.85em;
+            font-weight: 800;
+        }
+        .vm-severity-icon.critical { background: #dc2626; color: white; }
+        .vm-severity-icon.warning { background: #d97706; color: white; }
+        .vm-violation-content { flex: 1; }
+        .vm-violation-type {
+            font-size: 0.78em;
+            font-weight: 700;
+            margin-bottom: 2px;
+        }
+        .vm-violation-type.critical { color: #991b1b; }
+        .vm-violation-type.warning { color: #92400e; }
+        .vm-violation-desc {
+            font-size: 0.82em;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+        .vm-regulation {
+            font-size: 0.72em;
+            color: var(--text-muted);
+            margin-top: 4px;
+            font-style: italic;
+        }
+        .vm-no-violations {
+            text-align: center;
+            padding: 24px 20px;
+            color: #16a34a;
+            font-size: 0.88em;
+            font-weight: 600;
+        }
+
+        /* Samsara */
+        .samsara-btn {
+            background: #1a73e8; color: white;
+            padding: 7px 14px; border-radius: 8px;
+            font-size: 0.8em; font-weight: 600;
+            border: none; cursor: pointer;
+            font-family: inherit;
+            transition: all 0.15s;
+            display: inline-flex; align-items: center; gap: 6px;
+        }
+        .samsara-btn:hover { background: #1557b0; }
+        .samsara-btn.connected { background: #16a34a; }
+        .samsara-btn.connected:hover { background: #15803d; }
+        .samsara-search {
+            width: 100%; padding: 10px 14px; border: 1.5px solid var(--border);
+            border-radius: 8px; font-family: inherit; font-size: 0.88em;
+            margin-bottom: 12px; outline: none; transition: border-color 0.15s;
+        }
+        .samsara-search:focus { border-color: var(--primary); }
+        .samsara-driver-list { list-style: none; margin: 0; padding: 0; }
+        .samsara-driver-item {
+            padding: 10px 16px;
+            border-bottom: 1px solid var(--border-light);
+            cursor: pointer;
+            transition: background 0.1s;
+        }
+        .samsara-driver-item:hover { background: var(--surface-hover); }
+        .samsara-driver-item.expanded { background: #f0f7ff; border-left: 3px solid var(--primary); }
+        .samsara-driver-top {
+            display: flex; align-items: center; justify-content: space-between;
+        }
+        .samsara-driver-name {
+            font-weight: 600; font-size: 0.9em;
+            display: flex; align-items: center; gap: 8px;
+        }
+        .samsara-driver-meta {
+            font-size: 0.74em; color: var(--text-muted); margin-top: 2px;
+        }
+        .samsara-file-count {
+            font-size: 0.7em; background: var(--surface-hover);
+            padding: 2px 8px; border-radius: 10px; color: var(--text-secondary);
+        }
+        .samsara-driver-actions {
+            display: flex; gap: 6px; align-items: center;
+        }
+        .samsara-btn-sm {
+            padding: 4px 10px; border-radius: 5px;
+            font-size: 0.76em; font-weight: 600;
+            border: none; cursor: pointer; font-family: inherit;
+            transition: all 0.12s;
+        }
+        .samsara-btn-analyze { background: var(--primary); color: white; }
+        .samsara-btn-analyze:hover { background: var(--primary-dark); }
+        .samsara-btn-dbx { background: #0061fe; color: white; }
+        .samsara-btn-dbx:hover { background: #004dc7; }
+        .samsara-btn-sm:disabled { opacity: 0.5; cursor: default; }
+        .samsara-files-list {
+            padding: 0 16px 10px 16px;
+            display: none; background: #fafbfd;
+        }
+        .samsara-files-list.open { display: block; }
+        .samsara-file-item {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 7px 12px; background: white;
+            border: 1px solid var(--border-light); border-radius: 6px;
+            margin-top: 5px; font-size: 0.8em;
+        }
+        .samsara-file-item:hover { border-color: var(--primary); }
+        .samsara-file-date { font-weight: 500; }
+        .samsara-file-card { color: var(--text-muted); font-size: 0.88em; font-family: monospace; }
+        .samsara-import-btn {
+            background: var(--primary); color: white;
+            border: none; padding: 3px 10px; border-radius: 5px;
+            font-size: 0.8em; font-weight: 600;
+            cursor: pointer; font-family: inherit;
+        }
+        .samsara-import-btn:hover { background: var(--primary-dark); }
+        .samsara-import-btn:disabled { opacity: 0.5; cursor: default; }
+        .samsara-loading {
+            text-align: center; padding: 24px;
+            color: var(--text-muted); font-size: 0.88em;
+        }
+        .samsara-status-bar {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 8px 14px; background: #f0f7ff; border-radius: 8px;
+            margin-bottom: 10px; font-size: 0.8em; color: var(--text-secondary);
+        }
+        .samsara-badge-new {
+            background: #dcfce7; color: #166534; padding: 1px 7px;
+            border-radius: 8px; font-size: 0.72em; font-weight: 600;
+        }
+        .dbx-search-wrap {
+            padding: 10px 16px 4px; position: sticky; top: 0;
+            background: white; z-index: 1;
+        }
+        .dbx-search {
+            width: 100%; padding: 8px 12px; border: 1.5px solid var(--border);
+            border-radius: 8px; font-family: inherit; font-size: 0.86em;
+            outline: none; transition: border-color 0.15s;
+        }
+        .dbx-search:focus { border-color: var(--primary); }
+
         tfoot td {
             font-weight: 700 !important;
             background: #f8f9fb !important;
@@ -462,6 +881,8 @@
             .driver-card .driver-meta { text-align: center; }
         }
     </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.4/jspdf.plugin.autotable.min.js"></script>
 </head>
 <body>
     <div class="container">
@@ -474,6 +895,10 @@
                 </div>
             </div>
             <div style="display:flex;align-items:center;gap:8px">
+                <button class="samsara-btn" id="samsara-btn" onclick="openSamsaraModal()" style="font-size:0.76em;padding:5px 12px">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+                    Samsara
+                </button>
                 <button class="dbx-btn dbx-btn-sm" id="dbx-connect-btn" onclick="dropboxConnect()">
                     <svg width="16" height="16" viewBox="0 0 43 40" fill="currentColor"><path d="M12.5 0L0 8.1l8.6 6.9 12.5-8.1L12.5 0zm17.9 0L18 8.1l12.5 8.1 8.6-6.9L30.4 0zM0 21.9l12.5 8.1 8.6-6.9-12.5-8.1L0 21.9zm30.4 1.2l-12.5 8.1 8.6 6.9 12.5-8.1-8.6-6.9zM12.5 33.1l8.6 6.9 8.6-6.9-8.6-5.7-8.6 5.7z"/></svg>
                     Dropbox
@@ -490,6 +915,13 @@
             <p>Przeciagnij plik .ddd tutaj lub kliknij aby wybrac</p>
             <button class="btn" onclick="document.getElementById('file-input').click()">Wybierz plik</button>
             <input type="file" id="file-input" accept=".ddd,.DDD">
+            <div class="history-section" id="history-section">
+                <div class="history-header">
+                    <div class="history-title">Ostatnio pobrane karty</div>
+                    <button class="history-clear" onclick="event.stopPropagation();clearHistory()">Wyczysc wszystko</button>
+                </div>
+                <div class="history-grid" id="history-list"></div>
+            </div>
         </div>
 
         <div class="loading" id="loading">
@@ -500,62 +932,95 @@
         <div class="error-msg" id="error-msg"></div>
 
         <div class="results" id="results">
-            <div class="driver-card" id="driver-info"></div>
-            <div class="summary-strip" id="summary-big"></div>
-            <div class="summary-strip-small" id="summary-small"></div>
+            <div id="single-view">
+                <div class="driver-card" id="driver-info"></div>
+                <div class="summary-strip" id="summary-big"></div>
+                <div class="summary-strip-small" id="summary-small"></div>
 
-            <div class="toolbar">
-                <label>Zakres:</label>
-                <input type="date" id="date-from">
-                <span class="sep">—</span>
-                <input type="date" id="date-to">
-                <button class="pill pill-primary" onclick="applyDateFilter()">Filtruj</button>
-                <button class="pill pill-ghost" onclick="resetDateFilter()">Reset</button>
-                <div class="toolbar-spacer"></div>
-                <button class="pill pill-upload" id="dbx-import-btn" onclick="openDropboxBrowser()" style="display:none;background:#eff4ff;color:#0061fe;border-color:#0061fe">Importuj z Dropbox</button>
-                <button class="pill pill-upload" id="dbx-export-btn" onclick="openExportModal()" style="display:none;background:#eff4ff;color:#16a34a;border-color:#16a34a">Eksportuj do Dropbox</button>
-                <button class="pill pill-upload" onclick="document.getElementById('file-input-toolbar').click()">Wgraj nowy plik</button>
-                <input type="file" id="file-input-toolbar" accept=".ddd,.DDD">
+                <div class="toolbar">
+                    <label>Zakres:</label>
+                    <input type="date" id="date-from">
+                    <span class="sep">—</span>
+                    <input type="date" id="date-to">
+                    <button class="pill pill-primary" onclick="applyDateFilter()">Filtruj</button>
+                    <button class="pill pill-ghost" onclick="resetDateFilter()">Reset</button>
+                    <div class="toolbar-spacer"></div>
+                    <div class="view-toggle" id="view-toggle">
+                        <button class="active" onclick="setView('list')">Lista</button>
+                        <button onclick="setView('month')">Miesiace</button>
+                    </div>
+                    <button class="pill pill-upload" onclick="openHistoryModal()" style="background:#f5f3ff;color:#7c3aed;border:1.5px solid #7c3aed" id="toolbar-history-btn">Historia</button>
+                    <button class="pill pill-upload" onclick="downloadCSV()" style="background:#f0fdf4;color:#16a34a;border:1.5px solid #16a34a">Pobierz CSV</button>
+                    <button class="pill pill-upload" onclick="downloadPDF()" style="background:#fff7ed;color:#ea580c;border:1.5px solid #ea580c">Pobierz PDF</button>
+                    <span class="violations-toolbar-badge no-violations" id="violations-badge" style="display:none"><span class="vtb-dot green"></span> <span id="violations-badge-text">Brak naruszen</span></span>
+                    <button class="pill pill-upload" id="dbx-import-btn" onclick="openDropboxBrowser()" style="display:none;background:#eff4ff;color:#0061fe;border-color:#0061fe">Importuj z Dropbox</button>
+                    <button class="pill pill-upload" id="dbx-export-btn" onclick="openExportModal()" style="display:none;background:#eff4ff;color:#16a34a;border-color:#16a34a">Eksportuj do Dropbox</button>
+                    <button class="pill pill-upload" onclick="document.getElementById('file-input-toolbar').click()">Wgraj nowy plik</button>
+                    <input type="file" id="file-input-toolbar" accept=".ddd,.DDD">
+                </div>
+
+                <div id="list-view">
+                    <div class="table-card">
+                        <div class="table-top">
+                            <h3 id="shifts-header">Zmiany</h3>
+                        </div>
+                        <div class="table-scroll">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Start</th>
+                                    <th>Koniec</th>
+                                    <th>Czas trwania</th>
+                                    <th>Pojazd</th>
+                                    <th>Jazda</th>
+                                    <th>Praca</th>
+                                    <th>Przerwy</th>
+                                    <th>Czas pracy</th>
+                                    <th>25% (dzies.)</th>
+                                    <th>40% (dzies.)</th>
+                                    <th>Dieta</th>
+                                </tr>
+                            </thead>
+                            <tbody id="daily-tbody"></tbody>
+                            <tfoot id="daily-tfoot"></tfoot>
+                        </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="month-view" style="display:none"></div>
             </div>
+        </div>
+    </div>
 
-            <div class="table-card">
-                <div class="table-top">
-                    <h3 id="shifts-header">Zmiany</h3>
-                </div>
-                <div class="table-scroll">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Start</th>
-                            <th>Koniec</th>
-                            <th>Czas trwania</th>
-                            <th>Pojazd</th>
-                            <th>Jazda</th>
-                            <th>Praca</th>
-                            <th>Przerwy</th>
-                            <th>Czas pracy</th>
-                            <th>25% (dzies.)</th>
-                            <th>40% (dzies.)</th>
-                            <th>Dieta</th>
-                        </tr>
-                    </thead>
-                    <tbody id="daily-tbody"></tbody>
-                    <tfoot id="daily-tfoot"></tfoot>
-                </table>
-                </div>
+    <!-- History Modal -->
+    <div class="modal-overlay" id="history-modal">
+        <div class="modal" style="width:640px">
+            <div class="modal-header">
+                <h3>Historia kart</h3>
+                <button class="modal-close" onclick="closeModal('history-modal')">&times;</button>
+            </div>
+            <div class="history-modal-body" id="history-modal-body"></div>
+            <div class="modal-footer">
+                <button class="pill pill-ghost" id="history-modal-clear" onclick="clearHistory();renderHistoryModal()" style="color:var(--red)">Wyczysc wszystko</button>
+                <div class="toolbar-spacer"></div>
+                <button class="pill pill-ghost" onclick="closeModal('history-modal')">Zamknij</button>
             </div>
         </div>
     </div>
 
     <!-- Dropbox Browser Modal -->
     <div class="modal-overlay" id="dbx-browser-modal">
-        <div class="modal">
+        <div class="modal" style="width:600px">
             <div class="modal-header">
                 <h3>Importuj z Dropbox</h3>
                 <button class="modal-close" onclick="closeModal('dbx-browser-modal')">&times;</button>
             </div>
+            <div class="dbx-search-wrap">
+                <input type="text" class="dbx-search" id="dbx-search" placeholder="Filtruj pliki i foldery..." oninput="filterDropboxFiles()">
+            </div>
             <div class="modal-breadcrumb" id="dbx-breadcrumb"></div>
-            <div class="modal-body">
+            <div class="modal-body" style="max-height:55vh;overflow-y:auto">
                 <ul class="file-list" id="dbx-file-list"></ul>
             </div>
             <div class="modal-footer">
@@ -601,6 +1066,49 @@
         </div>
     </div>
 
+    <!-- Samsara Modal -->
+    <div class="modal-overlay" id="samsara-modal">
+        <div class="modal" style="width:660px">
+            <div class="modal-header">
+                <h3>Samsara - Karty kierowcow</h3>
+                <button class="modal-close" onclick="closeModal('samsara-modal')">&times;</button>
+            </div>
+            <div style="padding:12px 16px 0">
+                <input type="text" class="samsara-search" id="samsara-search" placeholder="Szukaj kierowcy..." oninput="filterSamsaraDrivers()">
+                <div class="samsara-status-bar" id="samsara-status-bar" style="display:none">
+                    <span id="samsara-status-text"></span>
+                    <button class="samsara-btn-sm samsara-btn-dbx" id="samsara-export-all-btn" onclick="exportAllSamsaraToDropbox()" style="display:none">Wszystko do Dropbox</button>
+                </div>
+            </div>
+            <div class="modal-body" id="samsara-modal-body" style="max-height:58vh;overflow-y:auto">
+                <div class="samsara-loading">Ladowanie kierowcow...</div>
+            </div>
+            <div class="modal-footer">
+                <button class="pill pill-ghost" onclick="closeModal('samsara-modal')">Zamknij</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Violation Detail Modal -->
+    <div class="modal-overlay" id="violation-modal">
+        <div class="modal violation-modal">
+            <div class="modal-header">
+                <h3 id="vm-title">Szczegoly zmiany</h3>
+                <button class="modal-close" onclick="closeModal('violation-modal')">&times;</button>
+            </div>
+            <div class="vm-shift-summary" id="vm-shift-summary"></div>
+            <div class="vm-violations-list" id="vm-violations-list"></div>
+            <div class="modal-footer">
+                <button class="pill pill-ghost" id="vm-prev" onclick="navigateViolation(-1)">Poprzednie</button>
+                <div class="toolbar-spacer"></div>
+                <span id="vm-nav-info" style="font-size:0.78em;color:var(--text-muted);align-self:center"></span>
+                <div class="toolbar-spacer"></div>
+                <button class="pill pill-ghost" id="vm-next" onclick="navigateViolation(1)">Nastepne</button>
+                <button class="pill pill-primary" onclick="closeModal('violation-modal')">Zamknij</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         const uploadArea = document.getElementById('upload-area');
         const fileInput = document.getElementById('file-input');
@@ -635,7 +1143,7 @@
                 .then(data => {
                     loading.style.display = 'none';
                     if (data.error) { showError(data.error); return; }
-                    renderResults(data);
+                    addCard(data);
                 })
                 .catch(err => { loading.style.display = 'none'; showError('Blad: ' + err.message); });
         }
@@ -646,18 +1154,28 @@
             uploadArea.style.display = 'block';
         }
 
+        // ===== State =====
         let currentData = null;
+        let currentView = 'list'; // 'list' or 'month'
+        let lastFilteredDetails = [];
 
-        function renderResults(data) {
+        function addCard(data) {
+            currentData = data;
+            saveToHistory(data);
+            showSingleView(data);
+        }
+
+        function showSingleView(data) {
             currentData = data;
             results.style.display = 'block';
             navUploadBtn.style.display = 'inline-block';
+            document.getElementById('single-view').style.display = '';
 
             const di = data.driver_info || {};
             document.getElementById('driver-info').innerHTML = `
                 <div>
-                    <h2>${di.driver_name || 'Nieznany kierowca'}</h2>
-                    <div class="detail">Nr karty: ${di.card_number || '-'}</div>
+                    <h2>${esc(di.driver_name || 'Nieznany kierowca')}</h2>
+                    <div class="detail">Nr karty: ${esc(di.card_number || '-')}</div>
                 </div>
                 <div class="driver-meta">
                     ${di.card_issue_date ? `<div>Wydana: ${formatDate(di.card_issue_date)}</div>` : ''}
@@ -665,21 +1183,20 @@
                 </div>
             `;
 
-            // Only set dates if inputs are empty (don't overwrite user's filter)
             const details = data.shift_details || [];
             const dateFrom = document.getElementById('date-from');
             const dateTo = document.getElementById('date-to');
-            if (!dateFrom.value && details.length > 0) {
-                dateFrom.value = details[0].shift_date;
+            // Only set dates if they are empty (first load) - keep sticky for switching drivers
+            if (!dateFrom.value && !dateTo.value) {
+                dateFrom.value = details.length > 0 ? details[0].shift_date : '';
+                dateTo.value = details.length > 0 ? details[details.length - 1].shift_date : '';
             }
-            if (!dateTo.value && details.length > 0) {
-                dateTo.value = details[details.length - 1].shift_date;
-            }
-
             applyDateFilter();
         }
 
+        // ===== Rendering =====
         function renderFiltered(details) {
+            lastFilteredDetails = details;
             const hm = m => Math.floor(m/60) + ':' + String(m%60).padStart(2,'0');
             const dec = m => (m/60).toFixed(2);
 
@@ -725,22 +1242,43 @@
 
             document.getElementById('shifts-header').textContent = `Zmiany (${details.length})`;
 
+            // Violation detection
+            const violations = detectViolations(details);
+            currentViolations = violations;
+            const violationMap = {};
+            for (const v of violations) violationMap[v.index] = v;
+            const violationIndexes = new Set(violations.map(v => v.index));
+            updateViolationsBadge(violations);
+
+            // List view
             const tbody = document.getElementById('daily-tbody');
             tbody.innerHTML = '';
-            for (const d of details) {
+            for (let i = 0; i < details.length; i++) {
+                const d = details[i];
                 const tr = document.createElement('tr');
+                if (violationIndexes.has(i)) {
+                    tr.classList.add('has-violation');
+                    tr.onclick = () => showViolationModal(i);
+                }
                 const plates = (d.vehicles || []).join(', ');
+                const viol = violationMap[i];
+                let badge = '';
+                if (viol) {
+                    const hasCritical = viol.items.some(it => it.type.includes('critical'));
+                    const cls = hasCritical ? '' : ' warning';
+                    badge = `<span class="violation-badge${cls}">${viol.items.length}</span>`;
+                }
                 tr.innerHTML = `
-                    <td class="shift-time">${fmtDt(d.shift_start)}</td>
+                    <td class="shift-time">${fmtDt(d.shift_start)}${badge}</td>
                     <td class="shift-time">${fmtDt(d.shift_end)}</td>
                     <td class="c-muted">${d.duration_hm}</td>
-                    <td class="c-primary">${plates || '-'}</td>
+                    <td class="c-primary">${esc(plates) || '-'}</td>
                     <td class="c-blue">${d.driving_hm}</td>
                     <td>${d.work_only_hm}</td>
                     <td class="c-slate">${d.break_hm}</td>
                     <td class="c-bold">${d.work_hm} <span class="c-muted" style="font-size:0.85em;font-weight:400">(${d.work_decimal}h)</span></td>
-                    <td class="c-orange">${d.night_25_minutes > 0 ? dec(d.night_25_minutes) : '-'}</td>
-                    <td class="c-red">${d.night_40_minutes > 0 ? dec(d.night_40_minutes) : '-'}</td>
+                    <td class="c-orange">${d.night_25_minutes > 0 ? dec(d.night_25_minutes) + ' <span class="c-muted" style="font-size:0.85em;font-weight:400">(' + hm(d.night_25_minutes) + ')</span>' : '-'}</td>
+                    <td class="c-red">${d.night_40_minutes > 0 ? dec(d.night_40_minutes) + ' <span class="c-muted" style="font-size:0.85em;font-weight:400">(' + hm(d.night_40_minutes) + ')</span>' : '-'}</td>
                     <td>${d.has_diet ? '<span class="diet-tag yes">TAK</span>' : '<span class="diet-tag no">-</span>'}</td>
                 `;
                 tbody.appendChild(tr);
@@ -753,13 +1291,318 @@
                     <td></td>
                     <td class="c-slate">${hm(totBreak)}</td>
                     <td class="c-bold">${hm(totWork)} <span class="c-muted" style="font-size:0.85em;font-weight:400">(${dec(totWork)}h)</span></td>
-                    <td class="c-orange">${dec(totN25)}</td>
-                    <td class="c-red">${dec(totN40)}</td>
+                    <td class="c-orange">${dec(totN25)} <span class="c-muted" style="font-size:0.85em;font-weight:400">(${hm(totN25)})</span></td>
+                    <td class="c-red">${dec(totN40)} <span class="c-muted" style="font-size:0.85em;font-weight:400">(${hm(totN40)})</span></td>
                     <td style="color:var(--green);font-weight:700">${dietCount}</td>
                 </tr>
             `;
+
+            // Monthly view
+            renderMonthlyView(details);
         }
 
+        // ===== Monthly archive =====
+        const MONTH_NAMES = ['Styczen','Luty','Marzec','Kwiecien','Maj','Czerwiec','Lipiec','Sierpien','Wrzesien','Pazdziernik','Listopad','Grudzien'];
+
+        function renderMonthlyView(details) {
+            const hm = m => Math.floor(m/60) + ':' + String(m%60).padStart(2,'0');
+            const dec = m => (m/60).toFixed(2);
+
+            const months = {};
+            for (const d of details) {
+                const key = d.shift_date.substring(0, 7);
+                if (!months[key]) months[key] = [];
+                months[key].push(d);
+            }
+
+            const sortedKeys = Object.keys(months).sort();
+            let html = '';
+            for (const key of sortedKeys) {
+                const shifts = months[key];
+                const [y, m] = key.split('-');
+                const label = `${MONTH_NAMES[parseInt(m)-1]} ${y}`;
+
+                let mWork=0, mDriving=0, mBreak=0, mN25=0, mN40=0, mDiet=0;
+                for (const d of shifts) {
+                    mWork += d.work_minutes;
+                    mDriving += d.driving_minutes;
+                    mBreak += d.break_minutes;
+                    mN25 += d.night_25_minutes;
+                    mN40 += d.night_40_minutes;
+                    if (d.has_diet) mDiet++;
+                }
+
+                html += `
+                <div class="month-group">
+                    <div class="month-header" onclick="toggleMonth(this)">
+                        <div>
+                            <span class="arrow">&#9660;</span> ${label} (${shifts.length} zmian)
+                        </div>
+                        <div class="month-stats">
+                            <span>Praca: ${hm(mWork)}</span>
+                            <span style="color:#fbbf24">25%: ${dec(mN25)}h</span>
+                            <span style="color:#f87171">40%: ${dec(mN40)}h</span>
+                            <span style="color:#4ade80">Diety: ${mDiet}</span>
+                        </div>
+                    </div>
+                    <div class="month-body">
+                        <div class="table-card" style="border-radius:0">
+                            <div class="table-scroll">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Start</th><th>Koniec</th><th>Czas trwania</th><th>Pojazd</th>
+                                        <th>Jazda</th><th>Praca</th><th>Przerwy</th><th>Czas pracy</th>
+                                        <th>25%</th><th>40%</th><th>Dieta</th>
+                                    </tr>
+                                </thead>
+                                <tbody>`;
+                for (const d of shifts) {
+                    const plates = (d.vehicles || []).join(', ');
+                    html += `<tr>
+                        <td class="shift-time">${fmtDt(d.shift_start)}</td>
+                        <td class="shift-time">${fmtDt(d.shift_end)}</td>
+                        <td class="c-muted">${d.duration_hm}</td>
+                        <td class="c-primary">${esc(plates) || '-'}</td>
+                        <td class="c-blue">${d.driving_hm}</td>
+                        <td>${d.work_only_hm}</td>
+                        <td class="c-slate">${d.break_hm}</td>
+                        <td class="c-bold">${d.work_hm}</td>
+                        <td class="c-orange">${d.night_25_minutes > 0 ? dec(d.night_25_minutes) + ' <span class="c-muted" style="font-size:0.85em;font-weight:400">(' + hm(d.night_25_minutes) + ')</span>' : '-'}</td>
+                        <td class="c-red">${d.night_40_minutes > 0 ? dec(d.night_40_minutes) + ' <span class="c-muted" style="font-size:0.85em;font-weight:400">(' + hm(d.night_40_minutes) + ')</span>' : '-'}</td>
+                        <td>${d.has_diet ? '<span class="diet-tag yes">TAK</span>' : '<span class="diet-tag no">-</span>'}</td>
+                    </tr>`;
+                }
+                html += `</tbody>
+                            <tfoot><tr>
+                                <td colspan="4" style="text-align:right;color:var(--text-muted)">SUMA</td>
+                                <td class="c-blue">${hm(mDriving)}</td><td></td>
+                                <td class="c-slate">${hm(mBreak)}</td>
+                                <td class="c-bold">${hm(mWork)}</td>
+                                <td class="c-orange">${dec(mN25)} (${hm(mN25)})</td>
+                                <td class="c-red">${dec(mN40)} (${hm(mN40)})</td>
+                                <td style="color:var(--green);font-weight:700">${mDiet}</td>
+                            </tr></tfoot>
+                            </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
+            }
+            document.getElementById('month-view').innerHTML = html;
+        }
+
+        function toggleMonth(header) {
+            const body = header.nextElementSibling;
+            const arrow = header.querySelector('.arrow');
+            body.classList.toggle('collapsed');
+            arrow.classList.toggle('collapsed');
+        }
+
+        function setView(view) {
+            currentView = view;
+            const btns = document.querySelectorAll('#view-toggle button');
+            btns.forEach(b => b.classList.remove('active'));
+            if (view === 'list') {
+                btns[0].classList.add('active');
+                document.getElementById('list-view').style.display = '';
+                document.getElementById('month-view').style.display = 'none';
+            } else {
+                btns[1].classList.add('active');
+                document.getElementById('list-view').style.display = 'none';
+                document.getElementById('month-view').style.display = '';
+            }
+        }
+
+        // ===== Local CSV export =====
+        function downloadCSV() {
+            if (!currentData || !lastFilteredDetails.length) return;
+            const di = currentData.driver_info || {};
+            const details = lastFilteredDetails;
+            const dec = m => (m/60).toFixed(2);
+
+            const rows = [['Start','Koniec','Czas trwania','Pojazd','Jazda','Praca','Przerwy','Czas pracy','Nocne 25%','Nocne 40%','Dieta']];
+            for (const d of details) {
+                rows.push([
+                    d.shift_start, d.shift_end, d.duration_hm,
+                    (d.vehicles || []).join(', '),
+                    d.driving_hm, d.work_only_hm, d.break_hm, d.work_hm,
+                    dec(d.night_25_minutes), dec(d.night_40_minutes),
+                    d.has_diet ? 'TAK' : 'NIE'
+                ]);
+            }
+            const csv = rows.map(r => r.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(';')).join('\r\n');
+            const bom = '\uFEFF';
+            const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            const safeName = (di.driver_name || 'kierowca').replace(/[^a-zA-Z0-9_ -]/g, '');
+            a.href = url;
+            a.download = `${safeName}_${new Date().toISOString().slice(0,10)}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        // ===== Card history (LocalStorage) =====
+        const HISTORY_KEY = 'ddd_card_history';
+        const MAX_HISTORY = 10;
+
+        function getHistory() {
+            try { return JSON.parse(localStorage.getItem(HISTORY_KEY)) || []; }
+            catch { return []; }
+        }
+
+        function saveToHistory(data) {
+            const di = data.driver_info || {};
+            const s = data.summary || {};
+            const details = data.shift_details || [];
+            const entry = {
+                id: Date.now(),
+                driver_name: di.driver_name || 'Nieznany',
+                card_number: di.card_number || '',
+                loaded_at: new Date().toISOString(),
+                date_range: details.length > 0 ? `${details[0].shift_date} - ${details[details.length-1].shift_date}` : '',
+                total_shifts: s.total_shifts || 0,
+                total_work_hm: s.total_work_hm || '0:00',
+                total_work_decimal: s.total_work_decimal || 0,
+                night_25_decimal: s.night_25_decimal || 0,
+                night_40_decimal: s.night_40_decimal || 0,
+                diet_count: s.diet_count || 0,
+                total_driving_hm: s.total_driving_hm || '0:00',
+                data: data
+            };
+            let history = getHistory();
+            if (entry.card_number) {
+                history = history.filter(h => h.card_number !== entry.card_number);
+            }
+            history.unshift(entry);
+            if (history.length > MAX_HISTORY) history = history.slice(0, MAX_HISTORY);
+            try { localStorage.setItem(HISTORY_KEY, JSON.stringify(history)); } catch {}
+            renderHistory();
+        }
+
+        function timeAgo(isoStr) {
+            const diff = Date.now() - new Date(isoStr).getTime();
+            const min = Math.floor(diff / 60000);
+            if (min < 1) return 'przed chwila';
+            if (min < 60) return `${min} min temu`;
+            const hrs = Math.floor(min / 60);
+            if (hrs < 24) return `${hrs} godz. temu`;
+            const days = Math.floor(hrs / 24);
+            if (days === 1) return 'wczoraj';
+            if (days < 7) return `${days} dni temu`;
+            return new Date(isoStr).toLocaleDateString('pl-PL');
+        }
+
+        function buildHistoryCardHTML(h, i, context) {
+            const loadFn = context === 'modal' ? 'loadFromHistoryModal' : 'loadFromHistory';
+            const removeFn = context === 'modal' ? 'removeHistoryModal' : 'removeHistory';
+            return `
+            <div class="hi-card" onclick="${loadFn}(${i})">
+                <div class="hi-card-top">
+                    <div>
+                        <div class="hi-name">${esc(h.driver_name)}</div>
+                        ${h.card_number ? `<div class="hi-cardno">${esc(h.card_number)}</div>` : ''}
+                    </div>
+                    <span class="hi-remove" onclick="event.stopPropagation();${removeFn}(${i})">&times;</span>
+                </div>
+                <div class="hi-dates">
+                    <span>${esc(h.date_range)}</span>
+                    <span class="hi-ago">${timeAgo(h.loaded_at)}</span>
+                </div>
+                <div class="hi-stats-grid">
+                    <div class="hi-stat">
+                        <div class="hi-stat-val" style="color:#1e40af">${h.total_work_hm}</div>
+                        <div class="hi-stat-label">Praca</div>
+                    </div>
+                    <div class="hi-stat">
+                        <div class="hi-stat-val" style="color:#f97316">${h.night_25_decimal || 0}h</div>
+                        <div class="hi-stat-label">Nocne 25%</div>
+                    </div>
+                    <div class="hi-stat">
+                        <div class="hi-stat-val" style="color:#ef4444">${h.night_40_decimal || 0}h</div>
+                        <div class="hi-stat-label">Nocne 40%</div>
+                    </div>
+                    <div class="hi-stat">
+                        <div class="hi-stat-val" style="color:#22c55e">${h.diet_count}</div>
+                        <div class="hi-stat-label">Diety</div>
+                    </div>
+                    <div class="hi-stat">
+                        <div class="hi-stat-val" style="color:#475569">${h.total_shifts}</div>
+                        <div class="hi-stat-label">Zmian</div>
+                    </div>
+                    <div class="hi-stat">
+                        <div class="hi-stat-val" style="color:#0ea5e9">${h.total_driving_hm || '0:00'}</div>
+                        <div class="hi-stat-label">Jazda</div>
+                    </div>
+                </div>
+            </div>`;
+        }
+
+        function renderHistory() {
+            const history = getHistory();
+            const section = document.getElementById('history-section');
+            const list = document.getElementById('history-list');
+            if (history.length === 0) {
+                section.classList.remove('visible');
+                return;
+            }
+            section.classList.add('visible');
+            list.innerHTML = history.map((h, i) => buildHistoryCardHTML(h, i, 'upload')).join('');
+        }
+
+        function renderHistoryModal() {
+            const history = getHistory();
+            const body = document.getElementById('history-modal-body');
+            const clearBtn = document.getElementById('history-modal-clear');
+            if (history.length === 0) {
+                body.innerHTML = '<div class="history-modal-empty">Brak historii kart. Wgraj plik .ddd aby rozpoczac.</div>';
+                clearBtn.style.display = 'none';
+                return;
+            }
+            clearBtn.style.display = '';
+            body.innerHTML = `<div class="history-grid">${history.map((h, i) => buildHistoryCardHTML(h, i, 'modal')).join('')}</div>`;
+        }
+
+        function openHistoryModal() {
+            renderHistoryModal();
+            openModal('history-modal');
+        }
+
+        function loadFromHistory(index) {
+            const history = getHistory();
+            if (!history[index] || !history[index].data) return;
+            addCard(history[index].data);
+        }
+
+        function loadFromHistoryModal(index) {
+            const history = getHistory();
+            if (!history[index] || !history[index].data) return;
+            closeModal('history-modal');
+            addCard(history[index].data);
+        }
+
+        function removeHistory(index) {
+            let history = getHistory();
+            history.splice(index, 1);
+            try { localStorage.setItem(HISTORY_KEY, JSON.stringify(history)); } catch {}
+            renderHistory();
+        }
+
+        function removeHistoryModal(index) {
+            let history = getHistory();
+            history.splice(index, 1);
+            try { localStorage.setItem(HISTORY_KEY, JSON.stringify(history)); } catch {}
+            renderHistory();
+            renderHistoryModal();
+        }
+
+        function clearHistory() {
+            try { localStorage.removeItem(HISTORY_KEY); } catch {}
+            renderHistory();
+        }
+
+        // ===== Filter & helpers =====
         function applyDateFilter() {
             if (!currentData) return;
             const from = document.getElementById('date-from').value;
@@ -793,6 +1636,408 @@
             return `<span class="d">${p[2]}.${p[1]}.${p[0]}</span> <span class="t">${time}</span>`;
         }
 
+        function esc(s) {
+            const d = document.createElement('div');
+            d.textContent = s || '';
+            return d.innerHTML;
+        }
+
+        // ===== Violation detection =====
+        function detectViolations(details) {
+            const violations = [];
+            for (let i = 0; i < details.length; i++) {
+                const d = details[i];
+                const shiftViolations = [];
+
+                // 1. Jazda dzienna > 9h (540 min), max 10h 2x/tydzien (Rozp. WE 561/2006)
+                if (d.driving_minutes > 10 * 60) {
+                    shiftViolations.push({
+                        type: 'driving_critical',
+                        msg: `Jazda ${d.driving_hm} przekracza bezwzgledny limit dzienny 10:00`
+                    });
+                } else if (d.driving_minutes > 9 * 60) {
+                    shiftViolations.push({
+                        type: 'driving',
+                        msg: `Jazda ${d.driving_hm} przekracza normalny limit dzienny 9:00 (max 10:00 dopuszczalne 2x/tydzien)`
+                    });
+                }
+
+                // 2. Czas pracy > 10h (limit dla pracy nocnej) / > 13h (bezwzgledny)
+                if (d.work_minutes > 13 * 60) {
+                    shiftViolations.push({
+                        type: 'work_critical',
+                        msg: `Czas pracy ${d.work_hm} przekracza bezwzgledny limit 13:00`
+                    });
+                } else if (d.work_minutes > 12 * 60) {
+                    shiftViolations.push({
+                        type: 'work',
+                        msg: `Czas pracy ${d.work_hm} przekracza 12:00 (sprawdz limit tygodniowy 60h)`
+                    });
+                }
+
+                // 3. Czas trwania zmiany > 15h (brak odpoczynku min 9h)
+                if (d.duration_minutes > 15 * 60) {
+                    shiftViolations.push({
+                        type: 'duration',
+                        msg: `Zmiana trwa ${d.duration_hm} - przekroczony max czas 15:00 (min. 9h odpoczynku dziennego)`
+                    });
+                }
+
+                // 4. Odpoczynek miedzy zmianami < 9h (krytyczny) / < 11h (skrocony)
+                if (i > 0) {
+                    const prev = details[i - 1];
+                    const prevEnd = new Date(prev.shift_end.replace(' ', 'T'));
+                    const currStart = new Date(d.shift_start.replace(' ', 'T'));
+                    const restMinutes = (currStart - prevEnd) / 60000;
+                    if (restMinutes < 9 * 60 && restMinutes >= 0) {
+                        const restH = Math.floor(restMinutes / 60);
+                        const restM = Math.round(restMinutes % 60);
+                        shiftViolations.push({
+                            type: 'rest_critical',
+                            msg: `Odpoczynek ${restH}:${String(restM).padStart(2,'0')} przed ta zmiana - ponizej minimum 9:00`
+                        });
+                    } else if (restMinutes < 11 * 60 && restMinutes >= 9 * 60) {
+                        const restH = Math.floor(restMinutes / 60);
+                        const restM = Math.round(restMinutes % 60);
+                        shiftViolations.push({
+                            type: 'rest',
+                            msg: `Skrocony odpoczynek ${restH}:${String(restM).padStart(2,'0')} (norma 11:00, dopuszczalne 9:00 max 3x/tydz.)`
+                        });
+                    }
+                }
+
+                if (shiftViolations.length > 0) {
+                    violations.push({
+                        index: i,
+                        date: d.shift_start,
+                        items: shiftViolations
+                    });
+                }
+            }
+            return violations;
+        }
+
+        let currentViolations = [];
+        let currentViolationViewIndex = -1; // index within currentViolations array
+
+        function updateViolationsBadge(violations) {
+            const badge = document.getElementById('violations-badge');
+            const text = document.getElementById('violations-badge-text');
+            const dot = badge.querySelector('.vtb-dot');
+            const totalItems = violations.reduce((s, v) => s + v.items.length, 0);
+
+            badge.style.display = '';
+            if (totalItems === 0) {
+                badge.className = 'violations-toolbar-badge no-violations';
+                dot.className = 'vtb-dot green';
+                text.textContent = 'Brak naruszen';
+            } else {
+                badge.className = 'violations-toolbar-badge has-violations';
+                dot.className = 'vtb-dot red';
+                text.textContent = `${totalItems} naruszen (${violations.length} zmian)`;
+            }
+        }
+
+        function getViolationMeta(type) {
+            const meta = {
+                'driving_critical': {
+                    label: 'Przekroczenie czasu jazdy',
+                    severity: 'critical',
+                    regulation: 'Rozp. (WE) nr 561/2006, art. 6 ust. 1'
+                },
+                'driving': {
+                    label: 'Wydluzony czas jazdy',
+                    severity: 'warning',
+                    regulation: 'Rozp. (WE) nr 561/2006, art. 6 ust. 1'
+                },
+                'work_critical': {
+                    label: 'Przekroczenie czasu pracy',
+                    severity: 'critical',
+                    regulation: 'Dyrektywa 2002/15/WE, art. 3'
+                },
+                'work': {
+                    label: 'Wydluzony czas pracy',
+                    severity: 'warning',
+                    regulation: 'Dyrektywa 2002/15/WE, art. 3'
+                },
+                'duration': {
+                    label: 'Przekroczenie czasu zmiany',
+                    severity: 'critical',
+                    regulation: 'Rozp. (WE) nr 561/2006, art. 8'
+                },
+                'rest_critical': {
+                    label: 'Niedostateczny odpoczynek',
+                    severity: 'critical',
+                    regulation: 'Rozp. (WE) nr 561/2006, art. 8 ust. 2'
+                },
+                'rest': {
+                    label: 'Skrocony odpoczynek',
+                    severity: 'warning',
+                    regulation: 'Rozp. (WE) nr 561/2006, art. 8 ust. 4'
+                },
+            };
+            return meta[type] || { label: 'Naruszenie', severity: 'warning', regulation: '' };
+        }
+
+        function showViolationModal(shiftIndex) {
+            const violIdx = currentViolations.findIndex(v => v.index === shiftIndex);
+            if (violIdx === -1) return;
+            currentViolationViewIndex = violIdx;
+            renderViolationModal(violIdx);
+            openModal('violation-modal');
+        }
+
+        function renderViolationModal(violIdx) {
+            const v = currentViolations[violIdx];
+            if (!v) return;
+            const d = lastFilteredDetails[v.index];
+            if (!d) return;
+
+            // Title
+            document.getElementById('vm-title').textContent = `Zmiana ${fmtDtPlain(d.shift_start)}`;
+
+            // Shift summary
+            const plates = (d.vehicles || []).join(', ') || '-';
+            document.getElementById('vm-shift-summary').innerHTML = `
+                <div class="vm-shift-grid">
+                    <div class="vm-shift-item">
+                        <span class="vm-shift-label">Start zmiany</span>
+                        <span class="vm-shift-value">${fmtDtPlain(d.shift_start)}</span>
+                    </div>
+                    <div class="vm-shift-item">
+                        <span class="vm-shift-label">Koniec zmiany</span>
+                        <span class="vm-shift-value">${fmtDtPlain(d.shift_end)}</span>
+                    </div>
+                    <div class="vm-shift-item">
+                        <span class="vm-shift-label">Czas trwania</span>
+                        <span class="vm-shift-value">${d.duration_hm}</span>
+                    </div>
+                    <div class="vm-shift-item">
+                        <span class="vm-shift-label">Pojazd</span>
+                        <span class="vm-shift-value">${esc(plates)}</span>
+                    </div>
+                    <div class="vm-shift-item">
+                        <span class="vm-shift-label">Jazda</span>
+                        <span class="vm-shift-value" style="color:var(--blue)">${d.driving_hm}</span>
+                    </div>
+                    <div class="vm-shift-item">
+                        <span class="vm-shift-label">Czas pracy</span>
+                        <span class="vm-shift-value" style="color:#1e40af">${d.work_hm} (${d.work_decimal}h)</span>
+                    </div>
+                </div>
+            `;
+
+            // Violations
+            let html = `<div class="vm-violations-title">Wykryte naruszenia (${v.items.length})</div>`;
+            for (const item of v.items) {
+                const meta = getViolationMeta(item.type);
+                html += `
+                    <div class="vm-violation-card ${meta.severity}">
+                        <div class="vm-severity-icon ${meta.severity}">${meta.severity === 'critical' ? '!!' : '!'}</div>
+                        <div class="vm-violation-content">
+                            <div class="vm-violation-type ${meta.severity}">${meta.label}</div>
+                            <div class="vm-violation-desc">${esc(item.msg)}</div>
+                            ${meta.regulation ? `<div class="vm-regulation">${meta.regulation}</div>` : ''}
+                        </div>
+                    </div>
+                `;
+            }
+            document.getElementById('vm-violations-list').innerHTML = html;
+
+            // Navigation
+            const prevBtn = document.getElementById('vm-prev');
+            const nextBtn = document.getElementById('vm-next');
+            const navInfo = document.getElementById('vm-nav-info');
+            prevBtn.style.display = currentViolations.length > 1 ? '' : 'none';
+            nextBtn.style.display = currentViolations.length > 1 ? '' : 'none';
+            prevBtn.disabled = violIdx === 0;
+            nextBtn.disabled = violIdx === currentViolations.length - 1;
+            navInfo.textContent = currentViolations.length > 1 ? `${violIdx + 1} / ${currentViolations.length}` : '';
+        }
+
+        function navigateViolation(dir) {
+            const newIdx = currentViolationViewIndex + dir;
+            if (newIdx < 0 || newIdx >= currentViolations.length) return;
+            currentViolationViewIndex = newIdx;
+            renderViolationModal(newIdx);
+        }
+
+        function fmtDtPlain(s) {
+            if (!s) return '-';
+            const [date, time] = s.split(' ');
+            if (!time) return s;
+            const p = date.split('-');
+            return `${p[2]}.${p[1]}.${p[0]} ${time}`;
+        }
+
+        // ===== PDF export =====
+        function downloadPDF() {
+            if (!currentData || !lastFilteredDetails.length) return;
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+            const di = currentData.driver_info || {};
+            const details = lastFilteredDetails;
+            const hm = m => Math.floor(m/60) + ':' + String(m%60).padStart(2,'0');
+            const dec = m => (m/60).toFixed(2);
+
+            // Totals
+            let totWork=0, totDriving=0, totBreak=0, totN25=0, totN40=0, dietCount=0;
+            for (const d of details) {
+                totWork += d.work_minutes;
+                totDriving += d.driving_minutes;
+                totBreak += d.break_minutes;
+                totN25 += d.night_25_minutes;
+                totN40 += d.night_40_minutes;
+                if (d.has_diet) dietCount++;
+            }
+
+            // Violations
+            const violations = detectViolations(details);
+            const violationIndexes = new Set(violations.map(v => v.index));
+
+            // Header
+            doc.setFontSize(16);
+            doc.setFont(undefined, 'bold');
+            doc.text('Raport karty kierowcy', 14, 15);
+
+            doc.setFontSize(9);
+            doc.setFont(undefined, 'normal');
+            doc.text(`Kierowca: ${di.driver_name || '-'}`, 14, 22);
+            doc.text(`Nr karty: ${di.card_number || '-'}`, 14, 27);
+            const fromDate = document.getElementById('date-from').value;
+            const toDate = document.getElementById('date-to').value;
+            if (fromDate || toDate) {
+                doc.text(`Zakres: ${fromDate || '...'} - ${toDate || '...'}`, 14, 32);
+            }
+            doc.text(`Wygenerowano: ${new Date().toLocaleDateString('pl-PL')} ${new Date().toLocaleTimeString('pl-PL')}`, 180, 22);
+
+            // Summary box
+            let sy = 38;
+            doc.setFillColor(240, 242, 247);
+            doc.roundedRect(14, sy, 269, 14, 2, 2, 'F');
+            doc.setFontSize(8);
+            doc.setFont(undefined, 'bold');
+            const summaryItems = [
+                `Zmian: ${details.length}`,
+                `Czas pracy: ${hm(totWork)} (${dec(totWork)}h)`,
+                `Jazda: ${hm(totDriving)}`,
+                `Przerwy: ${hm(totBreak)}`,
+                `Nocne 25%: ${dec(totN25)}h`,
+                `Nocne 40%: ${dec(totN40)}h`,
+                `Diety: ${dietCount}`,
+            ];
+            let sx = 18;
+            for (const item of summaryItems) {
+                doc.text(item, sx, sy + 9);
+                sx += 38;
+            }
+
+            // Shifts table
+            const tableData = details.map((d, i) => {
+                const p = (d.shift_start || '').split(' ');
+                const pEnd = (d.shift_end || '').split(' ');
+                const startFmt = p.length === 2 ? p[0].split('-').reverse().join('.') + ' ' + p[1] : d.shift_start;
+                const endFmt = pEnd.length === 2 ? pEnd[0].split('-').reverse().join('.') + ' ' + pEnd[1] : d.shift_end;
+                return [
+                    startFmt,
+                    endFmt,
+                    d.duration_hm,
+                    (d.vehicles || []).join(', ') || '-',
+                    d.driving_hm,
+                    d.work_only_hm,
+                    d.break_hm,
+                    `${d.work_hm} (${d.work_decimal}h)`,
+                    d.night_25_minutes > 0 ? dec(d.night_25_minutes) + ' (' + hm(d.night_25_minutes) + ')' : '-',
+                    d.night_40_minutes > 0 ? dec(d.night_40_minutes) + ' (' + hm(d.night_40_minutes) + ')' : '-',
+                    d.has_diet ? 'TAK' : '-',
+                ];
+            });
+
+            // Footer row
+            tableData.push([
+                '', '', '', 'SUMA',
+                hm(totDriving), '', hm(totBreak),
+                `${hm(totWork)} (${dec(totWork)}h)`,
+                dec(totN25) + ' (' + hm(totN25) + ')', dec(totN40) + ' (' + hm(totN40) + ')', String(dietCount)
+            ]);
+
+            doc.autoTable({
+                startY: sy + 18,
+                head: [['Start', 'Koniec', 'Czas', 'Pojazd', 'Jazda', 'Praca', 'Przerwy', 'Czas pracy', '25%', '40%', 'Dieta']],
+                body: tableData,
+                styles: { fontSize: 7, cellPadding: 1.5, font: 'helvetica' },
+                headStyles: { fillColor: [30, 64, 175], textColor: 255, fontStyle: 'bold', fontSize: 7 },
+                columnStyles: {
+                    0: { cellWidth: 30 },
+                    1: { cellWidth: 30 },
+                    3: { cellWidth: 28 },
+                    7: { fontStyle: 'bold' },
+                },
+                didParseCell: function(data) {
+                    // Last row (SUMA) bold
+                    if (data.row.index === tableData.length - 1 && data.section === 'body') {
+                        data.cell.styles.fontStyle = 'bold';
+                        data.cell.styles.fillColor = [240, 242, 247];
+                    }
+                    // Violation rows red background
+                    if (data.section === 'body' && violationIndexes.has(data.row.index)) {
+                        data.cell.styles.fillColor = [254, 242, 242];
+                    }
+                },
+                margin: { left: 14, right: 14 },
+            });
+
+            // Violations section
+            if (violations.length > 0) {
+                let vy = doc.lastAutoTable.finalY + 8;
+                if (vy > 180) {
+                    doc.addPage();
+                    vy = 15;
+                }
+                doc.setFontSize(11);
+                doc.setFont(undefined, 'bold');
+                doc.setTextColor(220, 38, 38);
+                const totalV = violations.reduce((s, v) => s + v.items.length, 0);
+                doc.text(`Wykryte naruszenia (${totalV})`, 14, vy);
+                doc.setTextColor(0, 0, 0);
+                doc.setFontSize(8);
+                doc.setFont(undefined, 'normal');
+                vy += 6;
+
+                for (const v of violations) {
+                    for (const item of v.items) {
+                        if (vy > 195) {
+                            doc.addPage();
+                            vy = 15;
+                        }
+                        doc.setFont(undefined, 'bold');
+                        doc.setTextColor(220, 38, 38);
+                        doc.text('!', 16, vy);
+                        doc.setTextColor(100, 20, 20);
+                        doc.text(fmtDtPlain(v.date), 20, vy);
+                        doc.setFont(undefined, 'normal');
+                        doc.setTextColor(60, 60, 60);
+                        doc.text(' - ' + item.msg, 20 + doc.getTextWidth(fmtDtPlain(v.date)), vy);
+                        doc.setTextColor(0, 0, 0);
+                        vy += 5;
+                    }
+                }
+            }
+
+            // Footer
+            const pageCount = doc.internal.getNumberOfPages();
+            for (let i = 1; i <= pageCount; i++) {
+                doc.setPage(i);
+                doc.setFontSize(7);
+                doc.setTextColor(150);
+                doc.text(`Strona ${i}/${pageCount}`, 270, 205, { align: 'right' });
+                doc.text('LTS - Czytnik kart kierowcow DDD', 14, 205);
+            }
+
+            const safeName = (di.driver_name || 'kierowca').replace(/[^a-zA-Z0-9_ -]/g, '');
+            doc.save(`${safeName}_${new Date().toISOString().slice(0,10)}.pdf`);
+        }
+
         // ===== Dropbox Integration =====
         let dbxConnected = false;
         let dbxCurrentPath = '';
@@ -814,11 +2059,11 @@
             const exportBtn = document.getElementById('dbx-export-btn');
             if (data.connected) {
                 btn.className = 'dbx-btn dbx-btn-sm connected';
-                btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 43 40" fill="currentColor"><path d="M12.5 0L0 8.1l8.6 6.9 12.5-8.1L12.5 0zm17.9 0L18 8.1l12.5 8.1 8.6-6.9L30.4 0zM0 21.9l12.5 8.1 8.6-6.9-12.5-8.1L0 21.9zm30.4 1.2l-12.5 8.1 8.6 6.9 12.5-8.1-8.6-6.9zM12.5 33.1l8.6 6.9 8.6-6.9-8.6-5.7-8.6 5.7z"/></svg> ${data.name || 'Dropbox'}`;
+                btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 43 40" fill="currentColor"><path d="M12.5 0L0 8.1l8.6 6.9 12.5-8.1L12.5 0zm17.9 0L18 8.1l12.5 8.1 8.6-6.9L30.4 0zM0 21.9l12.5 8.1 8.6-6.9-12.5-8.1L0 21.9zm30.4 1.2l-12.5 8.1 8.6 6.9 12.5-8.1-8.6-6.9zM12.5 33.1l8.6 6.9 8.6-6.9-8.6-5.7-8.6 5.7z"/></svg> ${esc(data.name || 'Dropbox')}`;
                 btn.onclick = () => openModal('dbx-account-modal');
                 document.getElementById('dbx-account-info').innerHTML = `
-                    <div style="font-weight:700;font-size:1.05em">${data.name}</div>
-                    <div style="color:var(--text-muted);font-size:0.85em">${data.email}</div>
+                    <div style="font-weight:700;font-size:1.05em">${esc(data.name)}</div>
+                    <div style="color:var(--text-muted);font-size:0.85em">${esc(data.email)}</div>
                 `;
                 importBtn.style.display = '';
                 exportBtn.style.display = '';
@@ -871,7 +2116,7 @@
                 .then(r => r.json())
                 .then(data => {
                     if (data.error) {
-                        list.innerHTML = `<li class="file-list-empty">${data.error}</li>`;
+                        list.innerHTML = `<li class="file-list-empty">${esc(data.error)}</li>`;
                         return;
                     }
                     const items = data.items || [];
@@ -881,21 +2126,23 @@
                         return;
                     }
                     list.innerHTML = '';
+                    document.getElementById('dbx-search').value = '';
                     for (const item of dddItems) {
                         const li = document.createElement('li');
+                        li.setAttribute('data-name', item.name);
                         if (item.type === 'folder') {
-                            li.innerHTML = `<span class="icon">&#128193;</span><span class="name">${item.name}</span>`;
+                            li.innerHTML = `<span class="icon">&#128193;</span><span class="name">${esc(item.name)}</span>`;
                             li.onclick = () => browsePath(item.path);
                         } else {
                             const size = item.size ? (item.size / 1024).toFixed(0) + ' KB' : '';
-                            li.innerHTML = `<span class="icon">&#128196;</span><span class="name">${item.name}</span><span class="meta">${size}</span>`;
+                            li.innerHTML = `<span class="icon">&#128196;</span><span class="name">${esc(item.name)}</span><span class="meta">${size}</span>`;
                             li.onclick = () => selectFile(li, item.path);
                         }
                         list.appendChild(li);
                     }
                 })
                 .catch(err => {
-                    list.innerHTML = `<li class="file-list-empty">Blad: ${err.message}</li>`;
+                    list.innerHTML = `<li class="file-list-empty">Blad: ${esc(err.message)}</li>`;
                 });
         }
 
@@ -907,7 +2154,7 @@
             for (const p of parts) {
                 curr += '/' + p;
                 const pathVal = curr;
-                html += ` <span>/</span> <a onclick="browsePath('${pathVal}')">${p}</a>`;
+                html += ` <span>/</span> <a onclick="browsePath('${pathVal}')">${esc(p)}</a>`;
             }
             bc.innerHTML = html;
         }
@@ -937,7 +2184,7 @@
                 .then(data => {
                     loading.style.display = 'none';
                     if (data.error) { showError(data.error); return; }
-                    renderResults(data);
+                    addCard(data);
                 })
                 .catch(err => { loading.style.display = 'none'; showError('Blad: ' + err.message); });
         }
@@ -994,8 +2241,291 @@
                 });
         }
 
-        // Check Dropbox status on load
+        // ===== Samsara Integration =====
+        let samsaraConnected = false;
+        let samsaraDrivers = [];
+        let samsaraLastCheck = null;
+
+        function checkSamsaraStatus() {
+            fetch('/samsara/status')
+                .then(r => r.json())
+                .then(data => {
+                    samsaraConnected = data.connected;
+                    const btn = document.getElementById('samsara-btn');
+                    if (data.connected) {
+                        btn.className = 'samsara-btn connected';
+                        btn.style.fontSize = '0.76em';
+                        btn.style.padding = '5px 12px';
+                    }
+                })
+                .catch(() => {});
+        }
+
+        function openSamsaraModal() {
+            document.getElementById('samsara-search').value = '';
+            openModal('samsara-modal');
+            loadSamsaraDrivers();
+        }
+
+        function loadSamsaraDrivers() {
+            const body = document.getElementById('samsara-modal-body');
+            body.innerHTML = '<div class="samsara-loading"><div class="spinner" style="margin:0 auto 8px;width:30px;height:30px;border:3px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin 0.7s linear infinite"></div>Ladowanie kierowcow z Samsara...</div>';
+
+            fetch('/samsara/drivers')
+                .then(r => r.json())
+                .then(data => {
+                    if (data.error) {
+                        body.innerHTML = `<div class="samsara-loading" style="color:var(--red)">${esc(data.error)}</div>`;
+                        return;
+                    }
+                    samsaraDrivers = data.drivers || [];
+                    samsaraLastCheck = new Date();
+                    if (samsaraDrivers.length === 0) {
+                        body.innerHTML = '<div class="samsara-loading">Brak plikow tachografu w Samsara (ostatnie 90 dni)</div>';
+                        document.getElementById('samsara-status-bar').style.display = 'none';
+                        return;
+                    }
+
+                    // Status bar
+                    const totalFiles = samsaraDrivers.reduce((s, d) => s + d.file_count, 0);
+                    const statusBar = document.getElementById('samsara-status-bar');
+                    statusBar.style.display = 'flex';
+                    document.getElementById('samsara-status-text').textContent =
+                        `${samsaraDrivers.length} kierowcow, ${totalFiles} plikow (90 dni)`;
+
+                    // Show "export all to Dropbox" if Dropbox is connected
+                    const exportAllBtn = document.getElementById('samsara-export-all-btn');
+                    exportAllBtn.style.display = dbxConnected ? 'inline-block' : 'none';
+
+                    renderSamsaraDrivers(body);
+                })
+                .catch(err => {
+                    body.innerHTML = `<div class="samsara-loading" style="color:var(--red)">Blad: ${esc(err.message)}</div>`;
+                });
+        }
+
+        function filterSamsaraDrivers() {
+            const q = document.getElementById('samsara-search').value.toLowerCase().trim();
+            document.querySelectorAll('.samsara-driver-item').forEach((el, i) => {
+                const filesEl = document.getElementById(`samsara-files-${i}`);
+                const name = el.getAttribute('data-name') || '';
+                const match = !q || name.toLowerCase().includes(q);
+                el.style.display = match ? '' : 'none';
+                if (filesEl && !match) { filesEl.classList.remove('open'); el.classList.remove('expanded'); }
+            });
+        }
+
+        function renderSamsaraDrivers(container) {
+            let html = '<ul class="samsara-driver-list">';
+            for (let di = 0; di < samsaraDrivers.length; di++) {
+                const d = samsaraDrivers[di];
+                const latestDate = d.latest_file ? new Date(d.latest_file).toLocaleDateString('pl-PL') : '';
+                const fileWord = d.file_count === 1 ? 'plik' : (d.file_count < 5 ? 'pliki' : 'plikow');
+                html += `
+                    <li class="samsara-driver-item" data-name="${esc(d.name)}" onclick="toggleSamsaraDriver(this, ${di})">
+                        <div class="samsara-driver-top">
+                            <div>
+                                <div class="samsara-driver-name">
+                                    <span>${esc(d.name)}</span>
+                                    <span class="samsara-file-count">${d.file_count} ${fileWord}</span>
+                                </div>
+                                <div class="samsara-driver-meta">Ostatni: ${latestDate}</div>
+                            </div>
+                            <div class="samsara-driver-actions" onclick="event.stopPropagation()">
+                                <button class="samsara-btn-sm samsara-btn-analyze" onclick="importSamsaraLatest(${di})" title="Analizuj najnowszy plik">Analizuj</button>
+                                ${dbxConnected ? `<button class="samsara-btn-sm samsara-btn-dbx" onclick="exportDriverToDropbox(${di}, this)" title="Eksportuj pliki do Dropbox">Do Dropbox</button>` : ''}
+                            </div>
+                        </div>
+                    </li>
+                    <div class="samsara-files-list" id="samsara-files-${di}"></div>
+                `;
+            }
+            html += '</ul>';
+            container.innerHTML = html;
+        }
+
+        function toggleSamsaraDriver(item, driverIndex) {
+            const filesList = document.getElementById(`samsara-files-${driverIndex}`);
+            const wasOpen = filesList.classList.contains('open');
+
+            // Close all
+            document.querySelectorAll('.samsara-files-list').forEach(el => el.classList.remove('open'));
+            document.querySelectorAll('.samsara-driver-item').forEach(el => el.classList.remove('expanded'));
+
+            if (wasOpen) return;
+
+            item.classList.add('expanded');
+            filesList.classList.add('open');
+
+            const driver = samsaraDrivers[driverIndex];
+            let html = '';
+            for (let fi = 0; fi < driver.files.length; fi++) {
+                const f = driver.files[fi];
+                const created = f.created_at ? new Date(f.created_at) : null;
+                const dateStr = created ? created.toLocaleDateString('pl-PL') + ' ' + created.toLocaleTimeString('pl-PL', {hour:'2-digit',minute:'2-digit'}) : '?';
+                html += `
+                    <div class="samsara-file-item">
+                        <div>
+                            <div class="samsara-file-date">${dateStr}</div>
+                            ${f.card_number ? `<div class="samsara-file-card">${esc(f.card_number)}</div>` : ''}
+                        </div>
+                        <button class="samsara-import-btn" onclick="event.stopPropagation();importSamsaraFile(this, ${driverIndex}, ${fi})">Analizuj</button>
+                    </div>
+                `;
+            }
+            filesList.innerHTML = html;
+        }
+
+        function importSamsaraLatest(driverIndex) {
+            const driver = samsaraDrivers[driverIndex];
+            if (!driver || !driver.files.length) return;
+            const f = driver.files[0]; // latest
+            doSamsaraImport(f.url, driver.name);
+        }
+
+        function importSamsaraFile(btn, driverIndex, fileIndex) {
+            const driver = samsaraDrivers[driverIndex];
+            const f = driver.files[fileIndex];
+            btn.disabled = true;
+            btn.textContent = 'Ladowanie...';
+            doSamsaraImport(f.url, driver.name);
+        }
+
+        function doSamsaraImport(url, driverName) {
+            closeModal('samsara-modal');
+            uploadArea.style.display = 'none';
+            loading.style.display = 'block';
+            errorMsg.style.display = 'none';
+            results.style.display = 'none';
+            navUploadBtn.style.display = 'none';
+
+            fetch('/samsara/import', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url }),
+            })
+                .then(r => r.json())
+                .then(data => {
+                    loading.style.display = 'none';
+                    if (data.error) { showError(data.error); return; }
+                    addCard(data);
+                })
+                .catch(err => {
+                    loading.style.display = 'none';
+                    showError('Blad importu Samsara: ' + err.message);
+                });
+        }
+
+        function exportDriverToDropbox(driverIndex, btn) {
+            const driver = samsaraDrivers[driverIndex];
+            if (!driver) return;
+            btn.disabled = true;
+            const origText = btn.textContent;
+            btn.textContent = 'Eksport...';
+
+            fetch('/samsara/export-to-dropbox', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    driver_name: driver.name,
+                    files: driver.files,
+                    dest_folder: '/Samsara-DDD',
+                }),
+            })
+                .then(r => r.json())
+                .then(data => {
+                    btn.disabled = false;
+                    if (data.error) {
+                        btn.textContent = 'Blad!';
+                        setTimeout(() => { btn.textContent = origText; }, 2000);
+                        return;
+                    }
+                    btn.textContent = `${data.uploaded}/${data.total}`;
+                    btn.style.background = '#16a34a';
+                    setTimeout(() => { btn.textContent = origText; btn.style.background = ''; }, 3000);
+                })
+                .catch(() => {
+                    btn.disabled = false;
+                    btn.textContent = origText;
+                });
+        }
+
+        function exportAllSamsaraToDropbox() {
+            const btn = document.getElementById('samsara-export-all-btn');
+            btn.disabled = true;
+            btn.textContent = 'Eksportowanie...';
+
+            let completed = 0;
+            const total = samsaraDrivers.length;
+
+            const doNext = (i) => {
+                if (i >= total) {
+                    btn.textContent = 'Gotowe!';
+                    btn.style.background = '#16a34a';
+                    setTimeout(() => { btn.disabled = false; btn.textContent = 'Wszystko do Dropbox'; btn.style.background = ''; }, 3000);
+                    return;
+                }
+                const driver = samsaraDrivers[i];
+                fetch('/samsara/export-to-dropbox', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        driver_name: driver.name,
+                        files: driver.files,
+                        dest_folder: '/Samsara-DDD',
+                    }),
+                })
+                    .then(r => r.json())
+                    .then(() => {
+                        completed++;
+                        btn.textContent = `${completed}/${total} kierowcow...`;
+                        doNext(i + 1);
+                    })
+                    .catch(() => doNext(i + 1));
+            };
+            doNext(0);
+        }
+
+        // ===== Dropbox search filter =====
+        let dbxAllItems = [];
+
+        function filterDropboxFiles() {
+            const q = document.getElementById('dbx-search').value.toLowerCase().trim();
+            const list = document.getElementById('dbx-file-list');
+            const items = list.querySelectorAll('li');
+            items.forEach(li => {
+                const name = (li.getAttribute('data-name') || '').toLowerCase();
+                li.style.display = (!q || name.includes(q)) ? '' : 'none';
+            });
+        }
+
+        // Init
         checkDropboxStatus();
+        checkSamsaraStatus();
+        renderHistory();
+
+        // Auto-import from Dropbox if dbx_path param is present (from portal)
+        (function() {
+            const params = new URLSearchParams(window.location.search);
+            const dbxPath = params.get('dbx_path');
+            if (dbxPath) {
+                uploadArea.style.display = 'none';
+                loading.style.display = 'block';
+                fetch('/portal/download?path=' + encodeURIComponent(dbxPath))
+                    .then(r => r.json())
+                    .then(data => {
+                        loading.style.display = 'none';
+                        if (data.error) { showError(data.error); return; }
+                        addCard(data);
+                    })
+                    .catch(err => {
+                        loading.style.display = 'none';
+                        showError('Blad importu: ' + err.message);
+                    });
+                // Clean URL
+                history.replaceState(null, '', '/reader');
+            }
+        })();
     </script>
 </body>
 </html>

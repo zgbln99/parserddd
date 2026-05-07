@@ -1,0 +1,1106 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portal DDD - Pobrania plikow z tachografu</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #f0f2f7;
+            --surface: #ffffff;
+            --surface-hover: #f8f9fb;
+            --border: #e5e7eb;
+            --border-light: #f1f3f5;
+            --text: #111827;
+            --text-secondary: #6b7280;
+            --text-muted: #9ca3af;
+            --primary: #2563eb;
+            --primary-dark: #1d4ed8;
+            --green: #22c55e;
+            --green-light: #dcfce7;
+            --orange: #f97316;
+            --orange-light: #fff7ed;
+            --red: #ef4444;
+            --red-light: #fef2f2;
+            --radius: 16px;
+            --radius-sm: 10px;
+            --shadow: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.06);
+            --shadow-lg: 0 4px 24px rgba(0,0,0,0.06);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            -webkit-font-smoothing: antialiased;
+        }
+        a { color: var(--primary); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+
+        .container { max-width: 1400px; margin: 0 auto; padding: 14px 18px; }
+
+        /* Top bar */
+        .top-bar {
+            background: var(--surface);
+            border-radius: var(--radius);
+            padding: 14px 22px;
+            margin-bottom: 14px;
+            box-shadow: var(--shadow);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+        }
+        .brand { display: flex; align-items: center; gap: 12px; }
+        .brand-logo { height: 36px; object-fit: contain; }
+        .brand h1 { font-size: 1.1em; font-weight: 700; }
+        .brand .subtitle { font-size: 0.75em; color: var(--text-muted); }
+        .top-actions { display: flex; align-items: center; gap: 10px; }
+        .btn {
+            padding: 8px 16px; border-radius: 8px;
+            font-size: 0.82em; font-weight: 600;
+            border: none; cursor: pointer;
+            font-family: inherit; transition: all 0.15s;
+            display: inline-flex; align-items: center; gap: 6px;
+        }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-primary:hover { background: var(--primary-dark); }
+        .btn-ghost { background: transparent; color: var(--text-secondary); border: 1.5px solid var(--border); }
+        .btn-ghost:hover { background: var(--surface-hover); }
+        .btn-danger { background: transparent; color: var(--red); border: 1.5px solid var(--red); }
+        .btn-danger:hover { background: var(--red-light); }
+
+        /* Page header */
+        .page-header {
+            background: var(--surface);
+            border-radius: var(--radius);
+            padding: 20px 24px;
+            margin-bottom: 14px;
+            box-shadow: var(--shadow);
+        }
+        .page-header h2 {
+            font-size: 1.25em;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+        .page-header .meta {
+            font-size: 0.78em;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        .sync-dot {
+            display: inline-block;
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: var(--green);
+            margin-right: 4px;
+        }
+        .sync-dot.stale { background: var(--orange); }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 0;
+            border-bottom: 2px solid var(--border);
+            margin-bottom: 16px;
+        }
+        .tab {
+            padding: 10px 20px;
+            font-size: 0.88em;
+            font-weight: 600;
+            color: var(--text-secondary);
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px;
+            transition: all 0.15s;
+        }
+        .tab:hover { color: var(--text); }
+        .tab.active {
+            color: var(--primary);
+            border-bottom-color: var(--primary);
+        }
+        .tab .count {
+            background: var(--surface-hover);
+            padding: 1px 8px;
+            border-radius: 10px;
+            font-size: 0.85em;
+            margin-left: 6px;
+        }
+        .tab.active .count {
+            background: #eff4ff;
+            color: var(--primary);
+        }
+
+        /* Toolbar */
+        .toolbar {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+        }
+        .search-box {
+            flex: 1;
+            min-width: 200px;
+            max-width: 360px;
+            position: relative;
+        }
+        .search-box input {
+            width: 100%;
+            padding: 9px 14px 9px 36px;
+            border: 1.5px solid var(--border);
+            border-radius: 8px;
+            font-size: 0.85em;
+            font-family: inherit;
+            outline: none;
+            color: var(--text);
+        }
+        .search-box input:focus { border-color: var(--primary); }
+        .search-box .search-icon {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+            font-size: 0.9em;
+        }
+        .spacer { flex: 1; }
+        .pagination {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.82em;
+            color: var(--text-secondary);
+        }
+        .pagination button {
+            background: var(--surface);
+            border: 1.5px solid var(--border);
+            border-radius: 6px;
+            padding: 5px 10px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 0.9em;
+            color: var(--text-secondary);
+        }
+        .pagination button:hover { background: var(--surface-hover); }
+        .pagination button:disabled { opacity: 0.4; cursor: default; }
+
+        /* Table */
+        .table-card {
+            background: var(--surface);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            overflow: hidden;
+        }
+        .table-scroll { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.88em; }
+        th {
+            padding: 12px 14px;
+            text-align: left;
+            font-weight: 600;
+            color: var(--text-secondary);
+            font-size: 0.82em;
+            border-bottom: 1px solid var(--border);
+            white-space: nowrap;
+            background: var(--surface);
+            position: sticky; top: 0;
+            cursor: pointer;
+            user-select: none;
+        }
+        th:hover { color: var(--text); }
+        th .sort-arrow { font-size: 0.7em; margin-left: 3px; opacity: 0.5; }
+        th.sorted .sort-arrow { opacity: 1; color: var(--primary); }
+        td {
+            padding: 12px 14px;
+            border-bottom: 1px solid var(--border-light);
+            white-space: nowrap;
+        }
+        tbody tr { cursor: pointer; transition: background 0.1s; }
+        tbody tr:hover td { background: var(--surface-hover); }
+        .driver-name-cell {
+            font-weight: 600;
+            color: var(--text);
+        }
+        .card-number {
+            font-family: 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
+            font-size: 0.88em;
+            color: var(--text-secondary);
+        }
+        .date-cell { color: var(--text-secondary); font-size: 0.88em; }
+        .days-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            font-weight: 600;
+            font-size: 0.88em;
+        }
+        .days-dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        .days-dot.green { background: var(--green); }
+        .days-dot.orange { background: var(--orange); }
+        .days-dot.red { background: var(--red); }
+        .file-count-badge {
+            background: var(--surface-hover);
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 0.82em;
+            color: var(--text-secondary);
+        }
+
+        /* Driver detail panel */
+        .detail-panel {
+            display: none;
+            background: var(--surface);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            margin-top: 14px;
+            overflow: hidden;
+        }
+        .detail-panel.open { display: block; }
+        .detail-header {
+            padding: 18px 24px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .detail-header h3 { font-size: 1.05em; font-weight: 700; }
+        .detail-files {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .file-row {
+            padding: 10px 24px;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            border-bottom: 1px solid var(--border-light);
+            font-size: 0.85em;
+            cursor: pointer;
+            transition: background 0.1s;
+        }
+        .file-row:hover { background: var(--surface-hover); }
+        .file-row .file-icon { color: var(--primary); font-size: 1.1em; }
+        .file-row .file-name { font-weight: 500; flex: 1; }
+        .file-row .file-date { color: var(--text-muted); font-size: 0.9em; }
+        .file-row .file-size { color: var(--text-muted); font-size: 0.82em; }
+        .file-row .file-action {
+            padding: 4px 12px;
+            border-radius: 6px;
+            font-size: 0.82em;
+            font-weight: 600;
+            border: 1.5px solid var(--primary);
+            color: var(--primary);
+            background: transparent;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        .file-row .file-action:hover { background: #eff4ff; }
+
+        /* Loading */
+        .loading-state {
+            text-align: center;
+            padding: 60px;
+            color: var(--text-muted);
+        }
+        .spinner {
+            width: 36px; height: 36px;
+            border: 3px solid var(--border);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+            margin: 0 auto 12px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .empty-state {
+            text-align: center;
+            padding: 60px;
+            color: var(--text-muted);
+            font-size: 0.92em;
+        }
+
+        /* Modal overlay for file analysis */
+        .modal-overlay {
+            display: none;
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,0.45);
+            z-index: 1000;
+            justify-content: center;
+            align-items: flex-start;
+            padding-top: 40px;
+            overflow-y: auto;
+        }
+        .modal-overlay.open { display: flex; }
+        .analysis-modal {
+            background: var(--surface);
+            border-radius: var(--radius);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+            width: 900px;
+            max-width: 96vw;
+            margin-bottom: 40px;
+        }
+        .analysis-modal-header {
+            padding: 16px 24px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .analysis-modal-header h3 { font-size: 1em; font-weight: 700; }
+        .modal-close {
+            background: none; border: none;
+            font-size: 1.3em; cursor: pointer;
+            color: var(--text-muted); padding: 4px;
+        }
+        .modal-close:hover { color: var(--text); }
+        .analysis-modal-body { padding: 20px 24px; max-height: 70vh; overflow-y: auto; }
+
+        /* Analysis results inside modal */
+        .a-driver-card {
+            background: linear-gradient(135deg, #1e3a5f, #1e40af);
+            color: white;
+            padding: 14px 20px;
+            border-radius: var(--radius-sm);
+            margin-bottom: 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .a-driver-card h4 { font-size: 1em; font-weight: 700; }
+        .a-driver-card .detail { opacity: 0.75; font-size: 0.75em; }
+        .a-summary {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+            margin-bottom: 14px;
+        }
+        .a-stat {
+            background: var(--surface-hover);
+            border-radius: 8px;
+            padding: 12px 10px;
+            text-align: center;
+        }
+        .a-stat-label {
+            font-size: 0.62em;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            margin-bottom: 2px;
+        }
+        .a-stat-value {
+            font-size: 1.2em;
+            font-weight: 800;
+            color: var(--text);
+        }
+        .a-table { font-size: 0.82em; }
+        .a-table th { font-size: 0.78em; padding: 8px 8px; }
+        .a-table td { padding: 7px 8px; font-size: 0.85em; }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .container { padding: 10px; }
+            .top-bar { flex-direction: column; align-items: stretch; gap: 10px; }
+            .toolbar { flex-direction: column; align-items: stretch; }
+            .search-box { max-width: none; }
+            .pagination { justify-content: center; }
+            .a-summary { grid-template-columns: repeat(2, 1fr); }
+            #sync-summary { grid-template-columns: repeat(2, 1fr) !important; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Top Bar -->
+        <div class="top-bar">
+            <div class="brand">
+                <img src="https://ltslog.de/logo.png" alt="LTS" class="brand-logo">
+                <div>
+                    <h1>Portal DDD</h1>
+                    <div class="subtitle">Pobrania plikow z tachografu</div>
+                </div>
+            </div>
+            <div class="top-actions">
+                <a href="/reader" class="btn btn-primary">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                    Czytnik kart
+                </a>
+                <button class="btn btn-ghost" onclick="loadDrivers(true)">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                    Odswiez
+                </button>
+                <a href="/logout" class="btn btn-danger">Wyloguj</a>
+            </div>
+        </div>
+
+        <!-- Page Header -->
+        <div class="page-header">
+            <h2>Pobrania plikow z tachografu</h2>
+            <div class="meta">
+                <span id="sync-status">
+                    <span class="sync-dot"></span>
+                    Synchronizacja co godzine
+                </span>
+                <span id="last-sync-info"></span>
+                <span id="total-files-info"></span>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="tabs">
+            <div class="tab active" id="tab-drivers" onclick="switchTab('drivers')">
+                Kierowcy <span class="count" id="drivers-count">0</span>
+            </div>
+            <div class="tab" id="tab-sync" onclick="switchTab('sync')">
+                Monitor sync
+            </div>
+        </div>
+
+        <!-- Toolbar -->
+        <div class="toolbar">
+            <div class="search-box">
+                <span class="search-icon">&#128269;</span>
+                <input type="text" id="search-input" placeholder="Wyszukaj kierowcow..." oninput="filterDrivers()">
+            </div>
+            <div class="spacer"></div>
+            <div class="pagination" id="pagination"></div>
+        </div>
+
+        <!-- Main Table -->
+        <div id="main-content">
+            <div class="loading-state" id="loading-state">
+                <div class="spinner"></div>
+                <div>Ladowanie danych z Dropbox...</div>
+            </div>
+
+            <div class="table-card" id="drivers-table" style="display:none">
+                <div class="table-scroll">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th onclick="sortBy('name')">Nazwa <span class="sort-arrow">&#9650;</span></th>
+                                <th onclick="sortBy('card_number')">Numer karty kierowcy <span class="sort-arrow">&#9650;</span></th>
+                                <th onclick="sortBy('earliest_date')">Poczatek ostatniego pliku <span class="sort-arrow">&#9650;</span></th>
+                                <th onclick="sortBy('latest_date')">Koniec ostatniego pliku <span class="sort-arrow">&#9650;</span></th>
+                                <th onclick="sortBy('latest_download')" class="sorted">Ostatnio pobrane <span class="sort-arrow">&#9660;</span></th>
+                                <th onclick="sortBy('days_since')">Od ostatniego pobrania <span class="sort-arrow">&#9650;</span></th>
+                                <th>Pliki</th>
+                            </tr>
+                        </thead>
+                        <tbody id="drivers-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="empty-state" id="empty-state" style="display:none">
+                Brak danych. Upewnij sie, ze synchronizacja Samsara-Dropbox dziala poprawnie.
+            </div>
+        </div>
+
+        <!-- Sync Monitor Panel -->
+        <div id="sync-panel" style="display:none">
+            <div class="loading-state" id="sync-loading">
+                <div class="spinner"></div>
+                <div>Ladowanie historii synchronizacji...</div>
+            </div>
+            <div id="sync-content" style="display:none">
+                <!-- Summary cards -->
+                <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:10px; margin-bottom:16px;" id="sync-summary"></div>
+                <!-- History table -->
+                <div class="table-card">
+                    <div class="table-scroll">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Data</th>
+                                    <th>Status</th>
+                                    <th>Znalezione</th>
+                                    <th>Pobrane</th>
+                                    <th>Bledy</th>
+                                    <th>Pliki</th>
+                                </tr>
+                            </thead>
+                            <tbody id="sync-tbody"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <!-- Expanded file details -->
+                <div class="detail-panel" id="sync-detail-panel">
+                    <div class="detail-header">
+                        <h3 id="sync-detail-title">Pobrane pliki</h3>
+                        <button class="btn btn-ghost" onclick="closeSyncDetail()">Zamknij</button>
+                    </div>
+                    <div class="detail-files" id="sync-detail-files"></div>
+                </div>
+            </div>
+            <div class="empty-state" id="sync-empty" style="display:none">
+                Brak historii synchronizacji. Cron jeszcze nie uruchomil synchronizacji.
+            </div>
+        </div>
+
+        <!-- Detail panel (files for a driver) -->
+        <div class="detail-panel" id="detail-panel">
+            <div class="detail-header">
+                <h3 id="detail-driver-name"></h3>
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                    <label style="font-size:0.82em;color:var(--text-secondary)">Od:</label>
+                    <input type="date" id="detail-date-from" onchange="filterDetailFiles()" style="padding:5px 8px;border:1.5px solid var(--border);border-radius:6px;font-family:inherit;font-size:0.82em">
+                    <label style="font-size:0.82em;color:var(--text-secondary)">Do:</label>
+                    <input type="date" id="detail-date-to" onchange="filterDetailFiles()" style="padding:5px 8px;border:1.5px solid var(--border);border-radius:6px;font-family:inherit;font-size:0.82em">
+                    <button class="btn btn-ghost" onclick="clearDateFilter()" style="padding:5px 10px;font-size:0.78em">Wyczysc</button>
+                    <button class="btn btn-ghost" onclick="closeDetail()">Zamknij</button>
+                </div>
+            </div>
+            <div class="detail-files" id="detail-files"></div>
+        </div>
+    </div>
+
+    <!-- Analysis Modal -->
+    <div class="modal-overlay" id="analysis-modal">
+        <div class="analysis-modal">
+            <div class="analysis-modal-header">
+                <h3 id="analysis-title">Analiza pliku</h3>
+                <button class="modal-close" onclick="closeAnalysis()">&times;</button>
+            </div>
+            <div class="analysis-modal-body" id="analysis-body">
+                <div class="loading-state">
+                    <div class="spinner"></div>
+                    <div>Analizowanie pliku...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let allDrivers = [];
+        let filteredDrivers = [];
+        let currentSort = { field: 'latest_download', dir: 'desc' };
+        let currentPage = 1;
+        const PAGE_SIZE = 20;
+        let selectedDriverIndex = -1;
+
+        function loadDrivers(force) {
+            document.getElementById('loading-state').style.display = '';
+            document.getElementById('drivers-table').style.display = 'none';
+            document.getElementById('empty-state').style.display = 'none';
+            closeDetail();
+
+            const url = force ? '/portal/drivers?refresh=1' : '/portal/drivers';
+            fetch(url)
+                .then(r => {
+                    if (r.status === 401) { window.location = '/login'; return null; }
+                    return r.json();
+                })
+                .then(data => {
+                    if (!data) return;
+                    if (data.error) {
+                        document.getElementById('loading-state').innerHTML =
+                            '<div style="color:#ef4444">' + escHtml(data.error) + '</div>';
+                        return;
+                    }
+                    allDrivers = data.drivers || [];
+                    applyFilter();
+                    document.getElementById('loading-state').style.display = 'none';
+                    if (allDrivers.length > 0) {
+                        document.getElementById('drivers-table').style.display = '';
+                    } else {
+                        document.getElementById('empty-state').style.display = '';
+                    }
+                    document.getElementById('drivers-count').textContent = allDrivers.length;
+
+                    // Total files
+                    const totalFiles = allDrivers.reduce((s, d) => s + d.file_count, 0);
+                    document.getElementById('total-files-info').textContent = totalFiles + ' plikow';
+                })
+                .catch(err => {
+                    document.getElementById('loading-state').innerHTML =
+                        '<div style="color:#ef4444">Blad: ' + escHtml(err.message) + '</div>';
+                });
+
+            // Load sync status
+            fetch('/portal/sync-status')
+                .then(r => r.json())
+                .then(data => {
+                    if (data.last_sync) {
+                        const d = new Date(data.last_sync);
+                        const now = new Date();
+                        const diffH = Math.floor((now - d) / 3600000);
+                        const dot = document.querySelector('.sync-dot');
+                        if (diffH > 2) dot.classList.add('stale');
+                        document.getElementById('last-sync-info').textContent =
+                            'Ostatnia sync: ' + formatDateTime(data.last_sync);
+                    }
+                })
+                .catch(() => {});
+        }
+
+        function applyFilter() {
+            const q = (document.getElementById('search-input').value || '').toLowerCase().trim();
+            filteredDrivers = allDrivers.filter(d => {
+                if (!q) return true;
+                return (d.name || '').toLowerCase().includes(q) ||
+                       (d.card_number || '').toLowerCase().includes(q);
+            });
+            applySorting();
+            currentPage = 1;
+            renderTable();
+            renderPagination();
+        }
+
+        function filterDrivers() { applyFilter(); }
+
+        function applySorting() {
+            const f = currentSort.field;
+            const dir = currentSort.dir === 'asc' ? 1 : -1;
+            filteredDrivers.sort((a, b) => {
+                let va = a[f] || '';
+                let vb = b[f] || '';
+                if (f === 'days_since' || f === 'file_count') {
+                    va = (va === null || va === undefined) ? 9999 : va;
+                    vb = (vb === null || vb === undefined) ? 9999 : vb;
+                    return (va - vb) * dir;
+                }
+                if (typeof va === 'string') va = va.toLowerCase();
+                if (typeof vb === 'string') vb = vb.toLowerCase();
+                if (va < vb) return -1 * dir;
+                if (va > vb) return 1 * dir;
+                return 0;
+            });
+        }
+
+        function sortBy(field) {
+            if (currentSort.field === field) {
+                currentSort.dir = currentSort.dir === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentSort.field = field;
+                currentSort.dir = field === 'days_since' ? 'asc' : 'desc';
+            }
+            // Update header arrows
+            document.querySelectorAll('th').forEach(th => {
+                th.classList.remove('sorted');
+                const arrow = th.querySelector('.sort-arrow');
+                if (arrow) arrow.innerHTML = '&#9650;';
+            });
+            const ths = document.querySelectorAll('th');
+            const fields = ['name','card_number','earliest_date','latest_date','latest_download','days_since','file_count'];
+            const idx = fields.indexOf(field);
+            if (idx >= 0 && ths[idx]) {
+                ths[idx].classList.add('sorted');
+                ths[idx].querySelector('.sort-arrow').innerHTML = currentSort.dir === 'asc' ? '&#9650;' : '&#9660;';
+            }
+            applySorting();
+            renderTable();
+        }
+
+        function renderTable() {
+            const tbody = document.getElementById('drivers-tbody');
+            const start = (currentPage - 1) * PAGE_SIZE;
+            const page = filteredDrivers.slice(start, start + PAGE_SIZE);
+
+            tbody.innerHTML = page.map((d, i) => {
+                const globalIdx = start + i;
+                const daysBadge = getDaysBadge(d.days_since);
+                return `<tr onclick="openDriver(${globalIdx})" class="${selectedDriverIndex === globalIdx ? 'selected' : ''}">
+                    <td class="driver-name-cell">${escHtml(d.name)}</td>
+                    <td class="card-number">${escHtml(d.card_number)}</td>
+                    <td class="date-cell">${formatDatePl(d.earliest_date)}</td>
+                    <td class="date-cell">${formatDatePl(d.latest_date)}</td>
+                    <td class="date-cell">${formatDateTimePl(d.latest_download)}</td>
+                    <td>${daysBadge}</td>
+                    <td><span class="file-count-badge">${d.file_count}</span></td>
+                </tr>`;
+            }).join('');
+        }
+
+        function renderPagination() {
+            const total = filteredDrivers.length;
+            const pages = Math.ceil(total / PAGE_SIZE);
+            const pg = document.getElementById('pagination');
+            if (pages <= 1) { pg.innerHTML = ''; return; }
+            pg.innerHTML = `
+                <button onclick="goPage(${currentPage - 1})" ${currentPage <= 1 ? 'disabled' : ''}>&lt;</button>
+                <span>${currentPage} z ${pages}</span>
+                <button onclick="goPage(${currentPage + 1})" ${currentPage >= pages ? 'disabled' : ''}>&gt;</button>
+            `;
+        }
+
+        function goPage(p) {
+            const pages = Math.ceil(filteredDrivers.length / PAGE_SIZE);
+            if (p < 1 || p > pages) return;
+            currentPage = p;
+            renderTable();
+            renderPagination();
+        }
+
+        function getDaysBadge(days) {
+            if (days === null || days === undefined) return '<span class="days-badge"><span class="days-dot red"></span> brak danych</span>';
+            let cls = 'green';
+            if (days > 7) cls = 'orange';
+            if (days > 30) cls = 'red';
+            const label = days === 0 ? '0 dni' : days === 1 ? '1 dzien' : days + ' dni';
+            return `<span class="days-badge"><span class="days-dot ${cls}"></span> ${label}</span>`;
+        }
+
+        let currentDriverFiles = [];
+
+        function openDriver(idx) {
+            selectedDriverIndex = idx;
+            const d = filteredDrivers[idx];
+            if (!d) return;
+
+            const panel = document.getElementById('detail-panel');
+            document.getElementById('detail-driver-name').textContent = d.name + ' (' + d.card_number + ')';
+
+            // Set default date range from driver's file dates
+            currentDriverFiles = d.files || [];
+            document.getElementById('detail-date-from').value = d.earliest_date || '';
+            document.getElementById('detail-date-to').value = d.latest_date || '';
+
+            renderDetailFiles(currentDriverFiles);
+
+            panel.classList.add('open');
+            panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            renderTable();
+        }
+
+        function filterDetailFiles() {
+            const from = document.getElementById('detail-date-from').value;
+            const to = document.getElementById('detail-date-to').value;
+            const filtered = currentDriverFiles.filter(f => {
+                const fd = f.file_date || '';
+                if (from && fd < from) return false;
+                if (to && fd > to) return false;
+                return true;
+            });
+            renderDetailFiles(filtered);
+        }
+
+        function clearDateFilter() {
+            document.getElementById('detail-date-from').value = '';
+            document.getElementById('detail-date-to').value = '';
+            renderDetailFiles(currentDriverFiles);
+        }
+
+        function renderDetailFiles(files) {
+            const filesDiv = document.getElementById('detail-files');
+            if (!files || files.length === 0) {
+                filesDiv.innerHTML = '<div class="empty-state">Brak plikow w wybranym zakresie</div>';
+            } else {
+                filesDiv.innerHTML = files.map(f => {
+                    const sizeKB = f.size ? Math.round(f.size / 1024) : '?';
+                    return `<div class="file-row" onclick="analyzeFile('${escAttr(f.path)}', '${escAttr(f.name)}')">
+                        <span class="file-icon">&#128196;</span>
+                        <span class="file-name">${escHtml(f.name)}</span>
+                        <span class="file-date">${formatDatePl(f.file_date)}</span>
+                        <span class="file-size">${sizeKB} KB</span>
+                        <button class="file-action" onclick="event.stopPropagation();analyzeFile('${escAttr(f.path)}', '${escAttr(f.name)}')">Analizuj</button>
+                    </div>`;
+                }).join('');
+            }
+        }
+
+        function closeDetail() {
+            selectedDriverIndex = -1;
+            document.getElementById('detail-panel').classList.remove('open');
+            renderTable();
+        }
+
+        function analyzeFile(path, name) {
+            // Open modal with loading spinner
+            const modal = document.getElementById('analysis-modal');
+            const body = document.getElementById('analysis-body');
+            document.getElementById('analysis-title').textContent = name || 'Analiza pliku';
+            body.innerHTML = '<div class="loading-state"><div class="spinner"></div><div>Analizowanie pliku...</div></div>';
+            modal.classList.add('open');
+
+            fetch('/portal/download?path=' + encodeURIComponent(path))
+                .then(r => {
+                    if (r.status === 401) { window.location = '/login'; return null; }
+                    return r.json();
+                })
+                .then(data => {
+                    if (!data) return;
+                    if (data.error) {
+                        body.innerHTML = '<div style="color:#ef4444;padding:20px">' + escHtml(data.error) + '</div>';
+                        return;
+                    }
+                    renderAnalysis(body, data);
+                })
+                .catch(err => {
+                    body.innerHTML = '<div style="color:#ef4444;padding:20px">Blad: ' + escHtml(err.message) + '</div>';
+                });
+        }
+
+        function renderAnalysis(container, data) {
+            const di = data.driver_info || {};
+            const s = data.summary || {};
+            const shifts = data.shift_details || [];
+
+            let html = '';
+
+            // Driver card
+            html += `<div class="a-driver-card">
+                <div>
+                    <h4>${escHtml(di.driver_name || 'Nieznany')}</h4>
+                    <div class="detail">${escHtml(di.card_number || '')}</div>
+                </div>
+                <div style="text-align:right;opacity:0.7;font-size:0.76em;line-height:1.7">
+                    <div>Wydano: ${formatDatePl(di.card_issue_date)}</div>
+                    <div>Wazna do: ${formatDatePl(di.card_expiry_date)}</div>
+                </div>
+            </div>`;
+
+            // Summary
+            html += `<div class="a-summary">
+                <div class="a-stat"><div class="a-stat-label">Czas pracy</div><div class="a-stat-value">${escHtml(s.total_work_hm || '0:00')}</div></div>
+                <div class="a-stat"><div class="a-stat-label">Jazda</div><div class="a-stat-value">${escHtml(s.total_driving_hm || '0:00')}</div></div>
+                <div class="a-stat"><div class="a-stat-label">Nocne 25%</div><div class="a-stat-value">${escHtml(s.night_25_hm || '0:00')}</div></div>
+                <div class="a-stat"><div class="a-stat-label">Nocne 40%</div><div class="a-stat-value">${escHtml(s.night_40_hm || '0:00')}</div></div>
+            </div>`;
+
+            // Shifts table
+            if (shifts.length > 0) {
+                html += `<div class="table-scroll"><table class="a-table">
+                    <thead><tr>
+                        <th>Start</th><th>Koniec</th><th>Czas</th><th>Pojazd</th>
+                        <th>Jazda</th><th>Praca</th><th>Przerwy</th><th>25%</th><th>40%</th><th>Dieta</th>
+                    </tr></thead><tbody>`;
+                for (const sh of shifts) {
+                    const diet = sh.has_diet ? '<span style="color:#16a34a;font-weight:600">TAK</span>' : '<span style="color:#9ca3af">NIE</span>';
+                    html += `<tr>
+                        <td>${fmtDt(sh.shift_start)}</td>
+                        <td>${fmtDt(sh.shift_end)}</td>
+                        <td style="font-weight:600">${escHtml(sh.duration_hm)}</td>
+                        <td>${escHtml((sh.vehicles || []).join(', '))}</td>
+                        <td>${escHtml(sh.driving_hm)}</td>
+                        <td>${escHtml(sh.work_only_hm)}</td>
+                        <td>${escHtml(sh.break_hm)}</td>
+                        <td>${escHtml(sh.night_25_hm)}</td>
+                        <td>${escHtml(sh.night_40_hm)}</td>
+                        <td>${diet}</td>
+                    </tr>`;
+                }
+                html += '</tbody></table></div>';
+            }
+
+            // Link to full reader
+            html += `<div style="padding:16px 0;text-align:center">
+                <a href="/reader" class="btn btn-primary" style="text-decoration:none">Otworz w czytniku kart</a>
+            </div>`;
+
+            container.innerHTML = html;
+        }
+
+        function closeAnalysis() {
+            document.getElementById('analysis-modal').classList.remove('open');
+        }
+
+        // Formatting helpers
+        function formatDatePl(s) {
+            if (!s) return '-';
+            try {
+                const d = new Date(s);
+                if (isNaN(d)) return s;
+                const day = d.getDate();
+                const months = ['sty','lut','mar','kwi','maj','cze','lip','sie','wrz','paz','lis','gru'];
+                const mon = months[d.getMonth()];
+                const year = d.getFullYear();
+                return `${day} ${mon} ${year}`;
+            } catch { return s; }
+        }
+
+        function formatDateTimePl(s) {
+            if (!s) return '-';
+            try {
+                const d = new Date(s);
+                if (isNaN(d)) return s;
+                const day = d.getDate();
+                const months = ['sty','lut','mar','kwi','maj','cze','lip','sie','wrz','paz','lis','gru'];
+                const mon = months[d.getMonth()];
+                const h = String(d.getHours()).padStart(2, '0');
+                const m = String(d.getMinutes()).padStart(2, '0');
+                return `${day} ${mon} ${h}:${m}`;
+            } catch { return s; }
+        }
+
+        function formatDateTime(s) {
+            if (!s) return '';
+            try {
+                const d = new Date(s);
+                return d.toLocaleString('pl-PL');
+            } catch { return s; }
+        }
+
+        function fmtDt(s) {
+            if (!s) return '-';
+            const parts = s.split(' ');
+            if (parts.length === 2) {
+                return `<span style="font-weight:600">${parts[0]}</span> <span style="color:var(--text-secondary)">${parts[1]}</span>`;
+            }
+            return escHtml(s);
+        }
+
+        function escHtml(s) {
+            if (!s) return '';
+            const div = document.createElement('div');
+            div.textContent = String(s);
+            return div.innerHTML;
+        }
+
+        function escAttr(s) {
+            return String(s || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+        }
+
+        // ===== Tab switching =====
+        let currentTab = 'drivers';
+        function switchTab(tab) {
+            currentTab = tab;
+            document.getElementById('tab-drivers').classList.toggle('active', tab === 'drivers');
+            document.getElementById('tab-sync').classList.toggle('active', tab === 'sync');
+
+            // Drivers content
+            document.getElementById('main-content').style.display = tab === 'drivers' ? '' : 'none';
+            document.querySelector('.toolbar').style.display = tab === 'drivers' ? '' : 'none';
+            document.getElementById('detail-panel').style.display = tab === 'drivers' && selectedDriverIndex >= 0 ? '' : 'none';
+
+            // Sync panel
+            document.getElementById('sync-panel').style.display = tab === 'sync' ? '' : 'none';
+            if (tab === 'sync') loadSyncLog();
+        }
+
+        // ===== Sync Monitor =====
+        let syncHistory = [];
+
+        function loadSyncLog() {
+            document.getElementById('sync-loading').style.display = '';
+            document.getElementById('sync-content').style.display = 'none';
+            document.getElementById('sync-empty').style.display = 'none';
+
+            fetch('/portal/sync-log')
+                .then(r => {
+                    if (r.status === 401) { window.location = '/login'; return null; }
+                    return r.json();
+                })
+                .then(data => {
+                    if (!data) return;
+                    document.getElementById('sync-loading').style.display = 'none';
+                    syncHistory = data.history || [];
+                    if (syncHistory.length === 0) {
+                        document.getElementById('sync-empty').style.display = '';
+                        return;
+                    }
+                    document.getElementById('sync-content').style.display = '';
+                    renderSyncSummary();
+                    renderSyncTable();
+                })
+                .catch(err => {
+                    document.getElementById('sync-loading').innerHTML =
+                        '<div style="color:#ef4444">Blad: ' + escHtml(err.message) + '</div>';
+                });
+        }
+
+        function renderSyncSummary() {
+            const last = syncHistory[0] || {};
+            const totalUploaded = syncHistory.reduce((s, h) => s + (h.uploaded || 0), 0);
+            const totalErrors = syncHistory.reduce((s, h) => s + (h.errors || 0), 0);
+            const totalRuns = syncHistory.length;
+
+            const statusLabel = last.status === 'ok' ? 'OK' : last.status === 'partial' ? 'Czesciowy' : last.status === 'error' ? 'Blad' : '-';
+            const statusColor = last.status === 'ok' ? 'var(--green)' : last.status === 'error' ? 'var(--red)' : 'var(--orange)';
+
+            document.getElementById('sync-summary').innerHTML = `
+                <div class="a-stat">
+                    <div class="a-stat-label">Ostatni status</div>
+                    <div class="a-stat-value" style="color:${statusColor}">${statusLabel}</div>
+                </div>
+                <div class="a-stat">
+                    <div class="a-stat-label">Ostatnia sync</div>
+                    <div class="a-stat-value" style="font-size:0.85em">${formatDateTimePl(last.timestamp)}</div>
+                </div>
+                <div class="a-stat">
+                    <div class="a-stat-label">Laczna pobranych</div>
+                    <div class="a-stat-value">${totalUploaded}</div>
+                </div>
+                <div class="a-stat">
+                    <div class="a-stat-label">Uruchomien</div>
+                    <div class="a-stat-value">${totalRuns}</div>
+                </div>
+            `;
+        }
+
+        function renderSyncTable() {
+            const tbody = document.getElementById('sync-tbody');
+            tbody.innerHTML = syncHistory.map((h, i) => {
+                const statusBadge = getSyncStatusBadge(h.status);
+                const hasFiles = (h.files || []).length > 0;
+                return `<tr onclick="openSyncDetail(${i})" style="cursor:${hasFiles ? 'pointer' : 'default'}">
+                    <td class="date-cell">${formatDateTimePl(h.timestamp)}</td>
+                    <td>${statusBadge}</td>
+                    <td>${h.found || 0}</td>
+                    <td style="font-weight:600">${h.uploaded || 0}</td>
+                    <td style="color:${h.errors ? 'var(--red)' : 'var(--text-muted)'}">${h.errors || 0}</td>
+                    <td>${hasFiles ? '<span class="file-count-badge">' + h.files.length + '</span>' : '-'}</td>
+                </tr>`;
+            }).join('');
+        }
+
+        function getSyncStatusBadge(status) {
+            if (status === 'ok') return '<span class="days-badge"><span class="days-dot green"></span> OK</span>';
+            if (status === 'partial') return '<span class="days-badge"><span class="days-dot orange"></span> Czesciowy</span>';
+            if (status === 'error') return '<span class="days-badge"><span class="days-dot red"></span> Blad</span>';
+            return '<span class="days-badge">-</span>';
+        }
+
+        function openSyncDetail(idx) {
+            const h = syncHistory[idx];
+            if (!h || !h.files || h.files.length === 0) return;
+
+            const panel = document.getElementById('sync-detail-panel');
+            document.getElementById('sync-detail-title').textContent =
+                'Pliki z ' + formatDateTimePl(h.timestamp) + (h.error ? ' - ' + h.error : '');
+
+            const filesDiv = document.getElementById('sync-detail-files');
+            filesDiv.innerHTML = h.files.map(f => {
+                const sizeKB = f.size ? Math.round(f.size / 1024) : '?';
+                const statusIcon = f.status === 'ok' ? '&#9989;' : '&#10060;';
+                const errorInfo = f.error ? `<span style="color:var(--red);font-size:0.82em"> ${escHtml(f.error)}</span>` : '';
+                return `<div class="file-row" style="cursor:default">
+                    <span class="file-icon">${statusIcon}</span>
+                    <span style="font-weight:500;color:var(--text-secondary);min-width:140px">${escHtml(f.driver || '')}</span>
+                    <span class="file-name">${escHtml(f.file)}</span>
+                    <span class="file-size">${f.status === 'ok' ? sizeKB + ' KB' : ''}</span>
+                    ${errorInfo}
+                </div>`;
+            }).join('');
+
+            panel.classList.add('open');
+            panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        function closeSyncDetail() {
+            document.getElementById('sync-detail-panel').classList.remove('open');
+        }
+
+        // Click outside modal to close
+        document.getElementById('analysis-modal').addEventListener('click', function(e) {
+            if (e.target === this) closeAnalysis();
+        });
+
+        // Keyboard
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') closeAnalysis();
+        });
+
+        // Init
+        loadDrivers();
+    </script>
+</body>
+</html>

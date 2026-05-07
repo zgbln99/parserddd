@@ -1,0 +1,287 @@
+@import "tailwindcss";
+
+/* ==========================================================================
+   NextAdmin Dashboard — exact design tokens from their style.css
+   ========================================================================== */
+
+@theme {
+  /* Font */
+  --font-sans: 'Satoshi', 'Inter', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+
+  /* Breakpoints */
+  --breakpoint-2xsm: 375px;
+  --breakpoint-xsm: 425px;
+  --breakpoint-3xl: 2000px;
+
+  /* Primary */
+  --color-primary-50: rgba(87, 80, 241, 0.07);
+  --color-primary-100: #d5d3fd;
+  --color-primary-200: #b3b0fa;
+  --color-primary-300: #8a85f5;
+  --color-primary-400: #6e68f3;
+  --color-primary-500: #5750f1;
+  --color-primary-600: #4a44d4;
+  --color-primary-700: #3c37b0;
+  --color-primary-800: #2e2a8c;
+  --color-primary-900: #201e68;
+
+  /* NextAdmin exact neutrals */
+  --color-surface: #f3f4f6;
+  --color-surface-dark: #020d1a;
+  --color-card: #ffffff;
+  --color-card-dark: #122031;
+  --color-ink: #111928;
+  --color-ink-dark: #ffffff;
+  --color-muted: #6b7280;
+  --color-muted-dark: #9ca3af;
+  --color-border: #e6ebf1;
+  --color-border-dark: #27303e;
+
+  --color-accent: #5750f1;
+  --color-accent-light: rgba(87, 80, 241, 0.07);
+  --color-accent-dark: #4a44d4;
+
+  /* NextAdmin exact status colors */
+  --color-success: #22ad5c;
+  --color-warning: #f59e0b;
+  --color-danger: #f23030;
+  --color-info: #3c50e0;
+
+  /* NextAdmin exact shadows */
+  --shadow-1: 0px 1px 2px 0px rgba(84, 87, 118, 0.12);
+  --shadow-2: 0px 2px 3px 0px rgba(84, 87, 118, 0.15);
+  --shadow-3: 0px 8px 8.466px 0px rgba(113, 116, 152, 0.05), 0px 8px 16.224px 0px rgba(113, 116, 152, 0.07), 0px 18px 31px 0px rgba(113, 116, 152, 0.1);
+  --shadow-card: 0px 1px 2px 0px rgba(0, 0, 0, 0.12);
+  --shadow-card-2: 0px 8px 13px -3px rgba(0, 0, 0, 0.07);
+
+  /* Animations */
+  --animate-fade-in: fade-in 0.3s ease-out;
+  --animate-slide-up: slide-up 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-slide-in-right: slide-in-right 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-slide-out-right: slide-out-right 0.25s cubic-bezier(0.4, 0, 1, 1) forwards;
+  --animate-scale-in: scale-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-toast-progress: toast-progress 4s linear forwards;
+}
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes slide-up { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes slide-in-right { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes slide-out-right { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(10px); } }
+@keyframes scale-in { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
+@keyframes toast-progress { from { width: 100%; } to { width: 0%; } }
+@keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+@keyframes page-enter { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes page-exit { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-4px); } }
+
+.page-enter { animation: page-enter 0.2s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.page-exit { animation: page-exit 0.12s cubic-bezier(0.4, 0, 1, 1) both; pointer-events: none; }
+
+/* === BASE — NextAdmin uses #f3f4f6 bg, #111928 text, Satoshi font === */
+html, body { overflow-x: hidden; max-width: 100vw; }
+
+body {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background: #f3f4f6;
+  color: #111928;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 22px;
+}
+
+.dark {
+  color-scheme: dark;
+  --color-surface: #020d1a;
+  --color-card: #122031;
+  --color-ink: #ffffff;
+  --color-muted: #9ca3af;
+  --color-border: #27303e;
+  --color-accent-light: rgba(255, 255, 255, 0.1);
+  --color-primary-50: rgba(87, 80, 241, 0.12);
+  --color-success: #2cd673;
+  --color-warning: #fcd34d;
+  --color-danger: #f56060;
+  --color-info: #5475e5;
+}
+
+.dark body { background: #020d1a; color: #ffffff; }
+
+::selection { background: rgba(87, 80, 241, 0.15); }
+.dark ::selection { background: rgba(87, 80, 241, 0.3); }
+
+/* === CARD — NextAdmin: rounded-[10px] bg-white shadow-1 dark:bg-gray-dark === */
+.card {
+  background: #ffffff;
+  border: none;
+  border-radius: 10px;
+  box-shadow: 0px 1px 2px 0px rgba(84, 87, 118, 0.12);
+}
+
+.dark .card {
+  background: #122031;
+  box-shadow: 0px 1px 2px 0px rgba(0, 0, 0, 0.12);
+}
+
+/* === INPUT — NextAdmin: rounded-lg border-[1.5px] border-stroke bg-transparent === */
+.input {
+  background: transparent;
+  border: 1.5px solid #e6ebf1;
+  border-radius: 8px;
+  transition: border-color 0.2s;
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--color-ink);
+}
+
+.input:focus {
+  border-color: #5750f1;
+  box-shadow: none;
+  outline: none;
+}
+
+.dark .input {
+  background: #1f2a37;
+  border-color: #374151;
+}
+
+.dark .input:focus {
+  border-color: #5750f1;
+}
+
+/* === SIDEBAR — NextAdmin: bg-white border-r border-gray-200 dark:bg-gray-dark === */
+.sidebar {
+  background: #ffffff;
+  border-right: 1px solid #e5e7eb;
+}
+
+.dark .sidebar {
+  background: #122031;
+  border-right-color: #374151;
+}
+
+/* === TOPBAR — NextAdmin: bg-white shadow-1 border-b border-stroke sticky === */
+.topbar {
+  background: #ffffff;
+  border-bottom: 1px solid #e6ebf1;
+  box-shadow: 0px 1px 2px 0px rgba(84, 87, 118, 0.12);
+}
+
+.dark .topbar {
+  background: #122031;
+  border-bottom-color: #27303e;
+  box-shadow: none;
+}
+
+/* === TABLE — NextAdmin style === */
+.clean-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  width: 100%;
+}
+
+.clean-table thead th {
+  background: #f7f9fc;
+  border-bottom: 1px solid #e6ebf1;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  font-weight: 500;
+  font-size: 14px;
+  color: #111928;
+}
+
+.dark .clean-table thead th {
+  background: #1f2a37;
+  border-bottom-color: #374151;
+  color: #ffffff;
+}
+
+.clean-table tbody tr {
+  transition: background-color 0.15s;
+}
+
+.clean-table tbody tr:hover {
+  background: rgba(87, 80, 241, 0.04);
+}
+
+.clean-table td {
+  border-bottom: 1px solid #eeeeee;
+}
+
+.dark .clean-table td {
+  border-bottom-color: #374151;
+}
+
+/* === BUTTONS — NextAdmin: primary #5750f1, rounded-[5px] === */
+.btn-press {
+  transition: background-color 0.2s, color 0.2s, opacity 0.2s;
+}
+
+.btn-press:active { opacity: 0.8; }
+
+.btn-primary {
+  background: #5750f1;
+  color: #ffffff;
+  font-weight: 500;
+  border: none;
+  border-radius: 5px;
+  transition: background-color 0.2s;
+}
+
+.btn-primary:hover { background: #4a44d4; }
+
+.btn-secondary {
+  background: transparent;
+  color: var(--color-ink);
+  font-weight: 500;
+  border: 1.5px solid #e6ebf1;
+  border-radius: 5px;
+  transition: border-color 0.2s, background-color 0.2s, color 0.2s;
+}
+
+.btn-secondary:hover {
+  border-color: #5750f1;
+  color: #5750f1;
+  background: rgba(87, 80, 241, 0.04);
+}
+
+.dark .btn-secondary {
+  border-color: #374151;
+  color: #ffffff;
+}
+
+/* === SCROLLBAR === */
+* { scrollbar-width: thin; scrollbar-color: rgba(0, 0, 0, 0.1) transparent; }
+.dark * { scrollbar-color: rgba(255, 255, 255, 0.08) transparent; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.1); border-radius: 100px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(0, 0, 0, 0.18); }
+.dark ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.08); }
+.dark ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.15); }
+
+/* === SKELETON === */
+.skeleton-shimmer {
+  background: linear-gradient(90deg, rgba(0,0,0,0.04) 25%, rgba(0,0,0,0.08) 50%, rgba(0,0,0,0.04) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 2s linear infinite;
+}
+
+/* === SAFE AREA === */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+}
+
+/* === TABLET === */
+@media (min-width: 768px) and (max-width: 1023px) {
+  button, a, .btn-press, [role="button"] { min-height: 48px; }
+  td, th { padding-top: 0.75rem !important; padding-bottom: 0.75rem !important; }
+  .sidebar { width: 320px !important; }
+}
+
+@media (hover: none) {
+  .card:hover { box-shadow: 0px 1px 2px 0px rgba(84, 87, 118, 0.12); }
+}

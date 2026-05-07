@@ -1,0 +1,4913 @@
+"""
+DDD Reader – Flask API backend.
+
+Serves JSON API endpoints for the React frontend.
+Static frontend files are served by Nginx in production
+or Flask's send_from_directory during development.
+"""
+
+import csv
+import math
+import hashlib
+import io
+import json
+import os
+import re
+import sqlite3
+import subprocess
+import tempfile
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime, timedelta, date
+from functools import wraps
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
+import dropbox
+import requests as http_requests
+from dropbox.exceptions import AuthError
+from flask import Flask, request, jsonify, session, send_from_directory, Response
+from flask_cors import CORS
+from zoneinfo import ZoneInfo
+
+try:
+    import bcrypt
+    _HAS_BCRYPT = True
+except ImportError:
+    _HAS_BCRYPT = False
+
+try:
+    from flask_limiter import Limiter
+    from flask_limiter.util import get_remote_address
+    _HAS_LIMITER = True
+except ImportError:
+    _HAS_LIMITER = False
+
+UTC = ZoneInfo('UTC')
+CET = ZoneInfo('Europe/Berlin')
+
+# DDD Activity types per EU Regulation 3821/85
+REST = 0
+AVAILABILITY = 1
+WORK = 2
+DRIVING = 3
+UNKNOWN = -1  # Synthetic: no data available (gap between records, card absent with no entry)
+STRICT_GLOBOFLEET_MODE = True
+
+ACTIVITY_NAMES = {
+    REST: 'REST',
+    AVAILABILITY: 'AVAILABILITY',
+    WORK: 'WORK',
+    DRIVING: 'DRIVING',
+    UNKNOWN: 'UNKNOWN',
+}
+
+
+def _is_rest_like_for_shift_split(wt):
+    return wt in (REST, UNKNOWN)
+
+
+def _is_break_like_for_reporting(wt):
+    return wt == REST
+
+# ---------------------------------------------------------------------------
+# Tachoparser (traconiq/tachoparser dddparser) field semantics:
+#
+# activity_record_date: ISO date string for the tachograph day (UTC anchor)
+#   - Each record represents one UTC day (00:00-24:00)
+#
+# activity_change_info[]: list of activity state changes within the day
+#   .minutes:      minute-of-day (0-1439), time when this state begins
+#   .work_type:    activity type: 0=REST, 1=AVAILABILITY, 2=WORK, 3=DRIVING
+#   .card_present: boolean
+#     - True:  card was physically in the tachograph unit (VU-recorded activity)
+#     - False: card was NOT in the VU; this entry was entered manually by the
+#              driver upon card reinsertion, or reconstructed from card memory.
+#              In DDD specification terms: "manual entry of driver activities"
+#              per Annex IC / Commission Regulation (EU) 2016/799.
+#
+# Note: card_present=False does NOT always mean the driver typed it in.
+# It can also mean the tachograph reconstructed the state from card memory
+# after a card-out period.  For our purposes we treat all card_present=False
+# entries as "card_out" (not recorded by the VU in real time).
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# App factory
+# ---------------------------------------------------------------------------
+
+app = Flask(__name__, static_folder=None)
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16 MB
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # Keep Lax for cross-origin redirects
+app.config['SESSION_COOKIE_SECURE'] = os.environ.get('FLASK_ENV') == 'production'
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=12)
+app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'ddd-parser-secret-key-change-me')
+
+# CORS for local dev (React on :5173, Flask on :8000)
+CORS(app, supports_credentials=True, origins=[
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+    'https://dd.ltslog.de',
+])
+
+# Global rate limiter (30 requests/minute per IP for all API endpoints)
+if _HAS_LIMITER:
+    limiter = Limiter(
+        get_remote_address,
+        app=app,
+        default_limits=["60 per minute"],
+        storage_uri="memory://",
+    )
+    # Stricter limit for auth endpoints
+    auth_limit = limiter.limit("10 per minute")
+    # More generous for data endpoints
+    data_limit = limiter.limit("120 per minute")
+else:
+    limiter = None
+
+# ---------------------------------------------------------------------------
+# Configuration
+# ---------------------------------------------------------------------------
+
+DDDPARSER_PATH = os.environ.get('DDDPARSER_PATH', 'dddparser')
+TACHOGRAPH_GO_PATH = os.environ.get('TACHOGRAPH_GO_PATH', os.path.join(os.path.dirname(__file__), 'tachograph'))
+PORTAL_PASSWORD = os.environ.get('PORTAL_PASSWORD', 'lts2025')
+ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'Marek2211.!')
+LOGIN_HISTORY_FILE = os.environ.get('LOGIN_HISTORY_FILE', '/opt/ddd-reader/login_history.json')
+USERS_FILE = os.environ.get('USERS_FILE', '/opt/ddd-reader/users.json')
+ACTIVITY_LOG_FILE = os.environ.get('ACTIVITY_LOG_FILE', '/opt/ddd-reader/activity_log.json')
+CONFIG_FILE = os.environ.get('CONFIG_FILE', '/opt/ddd-reader/config.json')
+_activity_lock = threading.Lock()
+_login_attempts: dict = {}  # IP -> (count, first_attempt_time)
+_login_lock = threading.Lock()
+LOGIN_MAX_ATTEMPTS = 5
+LOGIN_WINDOW_SECONDS = 300  # 5 minutes
+DATABASE_FILE = os.environ.get('DATABASE_FILE', '/opt/ddd-reader/ddd_portal.db')
+DROPBOX_APP_KEY = os.environ.get('DROPBOX_APP_KEY', 'j9ntkihedd9495i')
+DROPBOX_APP_SECRET = os.environ.get('DROPBOX_APP_SECRET', 'd3hr43reha9kky8')
+DROPBOX_REFRESH_TOKEN = os.environ.get('DROPBOX_REFRESH_TOKEN', '')
+SAMSARA_API_TOKEN = os.environ.get('SAMSARA_API_TOKEN', '')
+SAMSARA_API_BASE = 'https://api.eu.samsara.com'
+PORTAL_CACHE_FILE = os.environ.get('PORTAL_CACHE_FILE', '/opt/ddd-reader/portal_cache.json')
+PORTAL_CACHE_MAX_AGE = 900  # 15 minutes
+VEHICLE_ACTIVITY_CACHE = {}  # key: (period, tuple(vehicle_ids)) -> (timestamp, response_data)
+VEHICLE_ACTIVITY_CACHE_TTL = 300  # 5 minutes
+COMPANY_LOGO_PATH = os.environ.get('COMPANY_LOGO_PATH', '')
+
+import logging
+import sys
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S',
+)
+logger = logging.getLogger('ddd-reader')
+
+# Warn about default credentials
+_INSECURE_DEFAULTS = {
+    'PORTAL_PASSWORD': 'lts2025',
+    'ADMIN_PASSWORD': 'Marek2211.!',
+    'FLASK_SECRET_KEY': 'ddd-parser-secret-key-change-me',
+}
+for _env_key, _default_val in _INSECURE_DEFAULTS.items():
+    if os.environ.get(_env_key, _default_val) == _default_val:
+        logger.warning('⚠ %s is using default value — set it via environment variable!', _env_key)
+
+# Path to built React frontend
+FRONTEND_DIR = os.environ.get(
+    'FRONTEND_DIR',
+    os.path.join(os.path.dirname(__file__), '..', 'frontend', 'dist'),
+)
+
+# ---------------------------------------------------------------------------
+# Database
+# ---------------------------------------------------------------------------
+
+
+def _haversine_km(lat1, lon1, lat2, lon2):
+    """Calculate distance in km between two GPS points using Haversine formula."""
+    R = 6371.0  # Earth radius in km
+    dlat = math.radians(lat2 - lat1)
+    dlon = math.radians(lon2 - lon1)
+    a = (math.sin(dlat / 2) ** 2 +
+         math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) *
+         math.sin(dlon / 2) ** 2)
+    return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+
+def _get_db() -> sqlite3.Connection:
+    """Get a thread-local SQLite connection."""
+    conn = sqlite3.connect(DATABASE_FILE)
+    conn.row_factory = sqlite3.Row
+    conn.execute('PRAGMA journal_mode=WAL')
+    conn.execute('PRAGMA foreign_keys=ON')
+    return conn
+
+
+def _init_db():
+    """Create database tables if they don't exist."""
+    os.makedirs(os.path.dirname(DATABASE_FILE), exist_ok=True)
+    conn = _get_db()
+    conn.executescript('''
+        CREATE TABLE IF NOT EXISTS driver_config (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            card_number   TEXT UNIQUE NOT NULL,
+            driver_name   TEXT NOT NULL DEFAULT '',
+            personal_nr   TEXT NOT NULL DEFAULT '',
+            double_diet   INTEGER NOT NULL DEFAULT 0,
+            diet_rate     REAL NOT NULL DEFAULT 14.0,
+            notes         TEXT NOT NULL DEFAULT '',
+            created_at    TEXT NOT NULL,
+            updated_at    TEXT NOT NULL
+        );
+    ''')
+    # Add card_expiry_date column if missing (migration)
+    try:
+        conn.execute("SELECT card_expiry_date FROM driver_config LIMIT 1")
+    except Exception:
+        conn.execute("ALTER TABLE driver_config ADD COLUMN card_expiry_date TEXT NOT NULL DEFAULT ''")
+        conn.commit()
+
+    # Monthly days table (vacation/sick per driver per month)
+    conn.executescript('''
+        CREATE TABLE IF NOT EXISTS driver_monthly_days (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            card_number   TEXT NOT NULL,
+            period        TEXT NOT NULL,
+            vacation_days REAL NOT NULL DEFAULT 0,
+            sick_days     REAL NOT NULL DEFAULT 0,
+            overtime_hm   TEXT NOT NULL DEFAULT '',
+            notes         TEXT NOT NULL DEFAULT '',
+            absence_days  TEXT NOT NULL DEFAULT '{}',
+            updated_at    TEXT NOT NULL,
+            UNIQUE(card_number, period)
+        );
+    ''')
+    # Add absence_days column if missing (migration)
+    try:
+        conn.execute("SELECT absence_days FROM driver_monthly_days LIMIT 1")
+    except Exception:
+        conn.execute("ALTER TABLE driver_monthly_days ADD COLUMN absence_days TEXT NOT NULL DEFAULT '{}'")
+        conn.commit()
+    # Config audit log table
+    conn.executescript('''
+        CREATE TABLE IF NOT EXISTS config_audit_log (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            card_number   TEXT NOT NULL DEFAULT '',
+            driver_name   TEXT NOT NULL DEFAULT '',
+            action        TEXT NOT NULL,
+            field_name    TEXT NOT NULL DEFAULT '',
+            old_value     TEXT NOT NULL DEFAULT '',
+            new_value     TEXT NOT NULL DEFAULT '',
+            changed_by    TEXT NOT NULL DEFAULT 'admin',
+            changed_at    TEXT NOT NULL
+        );
+    ''')
+
+    # Payroll status table (policzony / stundenzettel per driver per month)
+    conn.executescript('''
+        CREATE TABLE IF NOT EXISTS payroll_status (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            card_number   TEXT NOT NULL,
+            period        TEXT NOT NULL,
+            status        TEXT NOT NULL DEFAULT '',
+            updated_at    TEXT NOT NULL,
+            UNIQUE(card_number, period)
+        );
+    ''')
+
+    conn.commit()
+    conn.close()
+
+
+_init_db()
+
+
+def _cache_card_expiry(card_number, card_expiry_date, driver_name=''):
+    """Cache card_expiry_date in driver_config (upsert)."""
+    if not card_number or not card_expiry_date:
+        return
+    now = datetime.utcnow().isoformat()
+    conn = _get_db()
+    try:
+        existing = conn.execute(
+            "SELECT id FROM driver_config WHERE card_number = ?", (card_number,)
+        ).fetchone()
+        if existing:
+            conn.execute(
+                "UPDATE driver_config SET card_expiry_date = ?, updated_at = ? WHERE card_number = ?",
+                (card_expiry_date, now, card_number),
+            )
+        else:
+            conn.execute(
+                "INSERT INTO driver_config (card_number, driver_name, card_expiry_date, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+                (card_number, driver_name, card_expiry_date, now, now),
+            )
+        conn.commit()
+    except Exception:
+        pass
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Auth helpers
+# ---------------------------------------------------------------------------
+
+
+def login_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not session.get('logged_in'):
+            return jsonify({'error': 'Unauthorized'}), 401
+        return f(*args, **kwargs)
+    return decorated
+
+
+def admin_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not session.get('logged_in'):
+            return jsonify({'error': 'Unauthorized'}), 401
+        if session.get('role') != 'admin':
+            return jsonify({'error': 'Admin access required'}), 403
+        return f(*args, **kwargs)
+    return decorated
+
+
+def dispatcher_required(f):
+    """Require admin or dispatcher role."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not session.get('logged_in'):
+            return jsonify({'error': 'Unauthorized'}), 401
+        if session.get('role') not in ('admin', 'dispatcher'):
+            return jsonify({'error': 'Dispatcher access required'}), 403
+        return f(*args, **kwargs)
+    return decorated
+
+
+# Role-based permission definitions
+ROLE_PERMISSIONS = {
+    'admin': [
+        'dashboard', 'drivers', 'reader', 'analysis', 'compare', 'settlement',
+        'vehicles', 'driver_km', 'toll', 'samsara_km', 'config', 'night_sim',
+        'admin', 'sync', 'verstosse', 'export', 'ddd_preview',
+    ],
+    'dispatcher': [
+        'dashboard', 'drivers', 'reader', 'analysis', 'compare', 'settlement',
+        'vehicles', 'driver_km', 'toll', 'samsara_km', 'verstosse', 'export',
+        'ddd_preview', 'sync',
+    ],
+    'user': [
+        'dashboard', 'drivers', 'reader', 'analysis', 'sync', 'verstosse',
+        'ddd_preview',
+    ],
+    'driver': [
+        'dashboard', 'reader', 'ddd_preview',
+    ],
+}
+
+
+def has_permission(permission: str) -> bool:
+    """Check if current session user has the given permission."""
+    role = session.get('role', 'user')
+    # Check role-based permissions
+    if permission in ROLE_PERMISSIONS.get(role, []):
+        return True
+    # Check custom user permissions
+    custom_perms = session.get('permissions', [])
+    return permission in custom_perms
+
+
+def permission_required(permission: str):
+    """Decorator: require a specific permission."""
+    def decorator(f):
+        @wraps(f)
+        def decorated(*args, **kwargs):
+            if not session.get('logged_in'):
+                return jsonify({'error': 'Unauthorized'}), 401
+            if not has_permission(permission):
+                return jsonify({'error': f'Permission required: {permission}'}), 403
+            return f(*args, **kwargs)
+        return decorated
+    return decorator
+
+
+def _record_login(role: str, username: str = ''):
+    """Append a login event to the history file."""
+    entry = {
+        'timestamp': datetime.now(UTC).isoformat(),
+        'role': role,
+        'username': username or role,
+        'ip': request.remote_addr or '',
+        'user_agent': request.headers.get('User-Agent', '')[:200],
+    }
+    try:
+        history = []
+        if os.path.exists(LOGIN_HISTORY_FILE):
+            with open(LOGIN_HISTORY_FILE) as f:
+                history = json.load(f)
+        history.append(entry)
+        # Keep last 500 entries
+        history = history[-500:]
+        os.makedirs(os.path.dirname(LOGIN_HISTORY_FILE), exist_ok=True)
+        with open(LOGIN_HISTORY_FILE, 'w') as f:
+            json.dump(history, f, indent=2)
+    except Exception:
+        pass  # non-critical
+
+
+def _hash_password(password: str) -> str:
+    """Hash password with bcrypt if available, fall back to SHA256."""
+    if _HAS_BCRYPT:
+        return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+    return hashlib.sha256(password.encode()).hexdigest()
+
+
+def _verify_password(password: str, stored_hash: str) -> bool:
+    """Verify password against stored hash (supports both bcrypt and SHA256)."""
+    if _HAS_BCRYPT and stored_hash.startswith('$2'):
+        try:
+            return bcrypt.checkpw(password.encode(), stored_hash.encode())
+        except Exception:
+            return False
+    # Fall back to SHA256 comparison
+    return hashlib.sha256(password.encode()).hexdigest() == stored_hash
+
+
+def _load_users() -> list:
+    try:
+        if os.path.exists(USERS_FILE):
+            with open(USERS_FILE) as f:
+                return json.load(f)
+    except Exception:
+        pass
+    return []
+
+
+def _save_users(users: list):
+    os.makedirs(os.path.dirname(USERS_FILE), exist_ok=True)
+    with open(USERS_FILE, 'w') as f:
+        json.dump(users, f, indent=2)
+
+
+def _log_activity(action: str, detail: str = ''):
+    entry = {
+        'timestamp': datetime.now(UTC).isoformat(),
+        'role': session.get('role', ''),
+        'username': session.get('username', ''),
+        'ip': request.remote_addr or '',
+        'action': action,
+        'detail': detail[:500],
+    }
+    try:
+        with _activity_lock:
+            log = []
+            if os.path.exists(ACTIVITY_LOG_FILE):
+                with open(ACTIVITY_LOG_FILE) as f:
+                    log = json.load(f)
+            log.append(entry)
+            log = log[-1000:]
+            os.makedirs(os.path.dirname(ACTIVITY_LOG_FILE), exist_ok=True)
+            with open(ACTIVITY_LOG_FILE, 'w') as f:
+                json.dump(log, f, indent=2)
+    except Exception:
+        pass
+
+
+def _log_config_change(action: str, detail: str = '', card_number: str = '', driver_name: str = '', changes: list = None):
+    """Log configuration changes with full context and field-level diffs."""
+    _log_activity(f'config_change:{action}', detail)
+    if changes:
+        now = datetime.now(UTC).isoformat()
+        try:
+            conn = _get_db()
+            for ch in changes:
+                conn.execute('''
+                    INSERT INTO config_audit_log (card_number, driver_name, action, field_name, old_value, new_value, changed_by, changed_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (card_number, driver_name, action, ch.get('field', ''), str(ch.get('old', '')), str(ch.get('new', '')), 'admin', now))
+            conn.commit()
+            conn.close()
+        except Exception:
+            pass
+
+
+def _load_config() -> dict:
+    try:
+        if os.path.exists(CONFIG_FILE):
+            with open(CONFIG_FILE) as f:
+                return json.load(f)
+    except Exception:
+        pass
+    return {}
+
+
+def _save_config(cfg: dict):
+    os.makedirs(os.path.dirname(CONFIG_FILE), exist_ok=True)
+    with open(CONFIG_FILE, 'w') as f:
+        json.dump(cfg, f, indent=2)
+
+
+# ---------------------------------------------------------------------------
+# Auth API
+# ---------------------------------------------------------------------------
+
+
+def _check_rate_limit(ip: str) -> bool:
+    """Return True if this IP is rate-limited."""
+    now = datetime.now(UTC).timestamp()
+    with _login_lock:
+        if ip in _login_attempts:
+            count, first_time = _login_attempts[ip]
+            if now - first_time > LOGIN_WINDOW_SECONDS:
+                _login_attempts[ip] = (0, now)
+                return False
+            if count >= LOGIN_MAX_ATTEMPTS:
+                return True
+        return False
+
+
+def _record_failed_login(ip: str):
+    now = datetime.now(UTC).timestamp()
+    with _login_lock:
+        if ip in _login_attempts:
+            count, first_time = _login_attempts[ip]
+            if now - first_time > LOGIN_WINDOW_SECONDS:
+                _login_attempts[ip] = (1, now)
+            else:
+                _login_attempts[ip] = (count + 1, first_time)
+        else:
+            _login_attempts[ip] = (1, now)
+
+
+def _clear_rate_limit(ip: str):
+    with _login_lock:
+        _login_attempts.pop(ip, None)
+
+
+@app.route('/api/auth/login', methods=['POST'])
+def api_login():
+    ip = request.remote_addr or '0.0.0.0'
+    if _check_rate_limit(ip):
+        return jsonify({'error': 'Too many login attempts. Try again in 5 minutes.'}), 429
+
+    data = request.get_json(silent=True) or {}
+    password = data.get('password', '')
+
+    if not password or len(password) > 200:
+        _record_failed_login(ip)
+        return jsonify({'error': 'Nieprawidłowe hasło'}), 401
+
+    # Check hardcoded admin password
+    if password == ADMIN_PASSWORD:
+        session['logged_in'] = True
+        session['role'] = 'admin'
+        session['username'] = 'admin'
+        session['permissions'] = []
+        _record_login('admin', 'admin')
+        _clear_rate_limit(ip)
+        return jsonify({'ok': True, 'role': 'admin', 'username': 'admin', 'permissions': ROLE_PERMISSIONS['admin']})
+    # Check hardcoded portal password
+    if password == PORTAL_PASSWORD:
+        session['logged_in'] = True
+        session['role'] = 'user'
+        session['username'] = 'user'
+        session['permissions'] = []
+        _record_login('user', 'user')
+        _clear_rate_limit(ip)
+        return jsonify({'ok': True, 'role': 'user', 'username': 'user', 'permissions': ROLE_PERMISSIONS['user']})
+    # Check users from JSON file
+    for u in _load_users():
+        if _verify_password(password, u.get('password_hash', '')):
+            role = u.get('role', 'user')
+            if role not in ROLE_PERMISSIONS:
+                role = 'user'
+            session['logged_in'] = True
+            session['role'] = role
+            session['username'] = u.get('name', '')
+            custom_perms = u.get('permissions', [])
+            session['permissions'] = custom_perms
+            _record_login(role, u.get('name', ''))
+            _clear_rate_limit(ip)
+            perms = list(set(ROLE_PERMISSIONS.get(role, []) + custom_perms))
+            return jsonify({'ok': True, 'role': role, 'username': u.get('name', ''), 'permissions': perms})
+    _record_failed_login(ip)
+    return jsonify({'error': 'Nieprawidłowe hasło'}), 401
+
+
+@app.route('/api/auth/logout', methods=['POST'])
+def api_logout():
+    session.pop('logged_in', None)
+    session.pop('role', None)
+    session.pop('username', None)
+    return jsonify({'ok': True})
+
+
+@app.route('/api/auth/status')
+def api_auth_status():
+    role = session.get('role', 'user')
+    custom_perms = session.get('permissions', [])
+    perms = list(set(ROLE_PERMISSIONS.get(role, []) + custom_perms))
+    return jsonify({
+        'logged_in': bool(session.get('logged_in')),
+        'role': role,
+        'username': session.get('username', ''),
+        'permissions': perms,
+    })
+
+
+# ---------------------------------------------------------------------------
+# Dropbox helpers
+# ---------------------------------------------------------------------------
+
+
+def get_server_dropbox_client():
+    if not DROPBOX_REFRESH_TOKEN:
+        return None
+    try:
+        return dropbox.Dropbox(
+            oauth2_refresh_token=DROPBOX_REFRESH_TOKEN,
+            app_key=DROPBOX_APP_KEY,
+            app_secret=DROPBOX_APP_SECRET,
+        )
+    except Exception:
+        return None
+
+
+# ---------------------------------------------------------------------------
+# DDD parser & analysis (domain logic – stays in Python)
+# ---------------------------------------------------------------------------
+
+
+def parse_ddd_file(file_path):
+    result = subprocess.run(
+        [DDDPARSER_PATH, '-card', '-format', '-input', file_path],
+        capture_output=True, text=True, timeout=30,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"Parser error: {result.stderr}")
+    return json.loads(result.stdout)
+
+
+# ---------------------------------------------------------------------------
+# tachograph-go alternative parser
+# ---------------------------------------------------------------------------
+
+TACHOGRAPH_GO_ACTIVITY_MAP = {
+    'BREAK_REST': REST,
+    'AVAILABILITY': AVAILABILITY,
+    'WORK': WORK,
+    'DRIVING': DRIVING,
+}
+
+
+def parse_ddd_file_tachograph_go(file_path):
+    """Parse DDD file using tachograph-go and convert to our internal format."""
+    result = subprocess.run(
+        [TACHOGRAPH_GO_PATH, 'parse', file_path],
+        capture_output=True, text=True, timeout=30,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"tachograph-go error: {result.stderr}")
+    raw = json.loads(result.stdout)
+    return _convert_tachograph_go_output(raw)
+
+
+def _tg_convert_vehicles(dc):
+    """Convert tachograph-go vehicle records to tachoparser format."""
+    vehicles_section = dc.get('vehiclesUsed', {})
+    records = vehicles_section.get('records', [])
+    converted = []
+    for rec in records:
+        reg = rec.get('vehicleRegistration', {})
+        plate = reg.get('number', {}).get('value', '').strip()
+        if not plate:
+            continue
+        converted.append({
+            'vehicle_registration': {
+                'vehicle_registration_number': plate,
+            },
+            'vehicle_first_use': rec.get('vehicleFirstUse', '') or '',
+            'vehicle_last_use': rec.get('vehicleLastUse', '') or '',
+            'vehicle_odometer_begin': rec.get('vehicleOdometerBeginKm', 0),
+            'vehicle_odometer_end': rec.get('vehicleOdometerEndKm', 0),
+        })
+    return converted
+
+
+def _tg_convert_places(dc):
+    """Convert tachograph-go place records to tachoparser format."""
+    places_section = dc.get('places', {})
+    records = places_section.get('records', [])
+    converted = []
+    type_map = {'END': 'end', 'BEGIN': 'start'}
+    for rec in records:
+        entry_time = rec.get('entryTime', '')
+        country = rec.get('dailyWorkPeriodCountry', '')
+        region = rec.get('dailyWorkPeriodRegion', '')
+        raw_type = rec.get('entryTypeDailyWorkPeriod', '')
+        converted.append({
+            'entry_time': entry_time or '',
+            'date': entry_time or '',
+            'country': country,
+            'region': region,
+            'type': type_map.get(raw_type, raw_type.lower() if raw_type else ''),
+        })
+    return converted
+
+
+def _tg_convert_events(dc):
+    """Convert tachograph-go event records to tachoparser format."""
+    # tachograph-go uses 'eventsData' (not 'eventsAndFaults')
+    events_section = dc.get('eventsData', dc.get('eventsAndFaults', {}))
+    records = events_section.get('events', events_section.get('records', []))
+    return records  # pass through; get_card_events will handle gracefully
+
+
+def _convert_tachograph_go_output(raw):
+    """Convert tachograph-go JSON to our internal format compatible with analyze_card."""
+    dc = raw.get('driverCard', {}).get('tachograph', {})
+
+    # Driver info
+    ident = dc.get('identification', {})
+
+    # Activity records — convert and ensure cross-midnight continuity
+    activity_data = dc.get('driverActivityData', {})
+    daily_records = activity_data.get('dailyRecords', [])
+    converted_records = []
+    prev_day_last_state = None  # (work_type, card_present) from end of previous day
+
+    for rec in daily_records:
+        if not rec.get('valid', True):
+            continue
+        driver_changes = []
+        for ci in rec.get('activityChangeInfo', []):
+            # Only process DRIVER_SLOT entries (ignore CO_DRIVER_SLOT)
+            if ci.get('slot') != 'DRIVER_SLOT':
+                continue
+            driver_changes.append(ci)
+
+        changes = []
+        if driver_changes:
+            first_min = driver_changes[0].get('timeOfChangeMinutes', 0)
+
+            # If first entry is NOT at minute 0, the card was still inserted
+            # from the previous day — carry over the last known state.
+            # This is how GloboFleet handles cross-midnight continuity.
+            if first_min > 0 and prev_day_last_state is not None:
+                changes.append({
+                    'minutes': 0,
+                    'work_type': prev_day_last_state[0],
+                    'card_present': prev_day_last_state[1],
+                })
+
+            for ci in driver_changes:
+                changes.append({
+                    'minutes': ci.get('timeOfChangeMinutes', 0),
+                    'work_type': TACHOGRAPH_GO_ACTIVITY_MAP.get(ci.get('activity', 'BREAK_REST'), REST),
+                    'card_present': ci.get('inserted', False),
+                })
+
+            # Remember last state for next day's cross-midnight continuity
+            last_ci = driver_changes[-1]
+            prev_day_last_state = (
+                TACHOGRAPH_GO_ACTIVITY_MAP.get(last_ci.get('activity', 'BREAK_REST'), REST),
+                last_ci.get('inserted', False),
+            )
+        else:
+            # No driver changes — if we have previous state, carry it for full day
+            if prev_day_last_state is not None:
+                changes.append({
+                    'minutes': 0,
+                    'work_type': prev_day_last_state[0],
+                    'card_present': prev_day_last_state[1],
+                })
+
+        converted_records.append({
+            'activity_record_date': rec.get('activityRecordDate', ''),
+            'activity_change_info': changes,
+        })
+
+    # Build the structure that our existing code expects
+    holder_birth = ident.get('cardHolderBirthDate', '')
+    if isinstance(holder_birth, dict):
+        holder_birth = holder_birth.get('date', '')
+
+    return {
+        'card_identification_and_driver_card_holder_identification_1': {
+            'card_identification': {
+                'card_number': ident.get('driverIdentification', {}).get('driverIdentificationNumber', {}).get('value', ''),
+                'card_issuing_authority_name': ident.get('cardIssuingAuthorityName', {}).get('value', ''),
+                'card_issue_date': ident.get('cardIssueDate', '') or '',
+                'card_expiry_date': ident.get('cardExpiryDate', '') or '',
+            },
+            'driver_card_holder_identification': {
+                'card_holder_name': {
+                    'holder_surname': ident.get('cardHolderSurname', {}).get('value', ''),
+                    'holder_first_names': ident.get('cardHolderFirstNames', {}).get('value', ''),
+                },
+                'card_holder_birth_date': holder_birth,
+            },
+        },
+        'card_driver_activity_1': {
+            'decoded_activity_daily_records': converted_records,
+        },
+        'card_vehicles_used_1': {
+            'card_vehicle_records': _tg_convert_vehicles(dc),
+        },
+        'card_places_1': {
+            'place_records': _tg_convert_places(dc),
+        },
+        'card_events_and_faults_1': {
+            'card_event_records': _tg_convert_events(dc),
+        },
+    }
+
+
+def parse_ddd_auto(file_path):
+    """Parse DDD file using the configured parser engine."""
+    cfg = _load_config()
+    engine = cfg.get('parser_engine', 'tachoparser')
+    if engine == 'tachograph-go':
+        return parse_ddd_file_tachograph_go(file_path)
+    return parse_ddd_file(file_path)
+
+
+def get_driver_info(data):
+    info = {}
+    for key in ['card_identification_and_driver_card_holder_identification_1',
+                'card_identification_and_driver_card_holder_identification_2']:
+        block = data.get(key)
+        if block:
+            card_id = block.get('card_identification') or {}
+            holder = block.get('driver_card_holder_identification') or {}
+            info['card_number'] = card_id.get('card_number', '')
+            info['card_issuing_authority'] = card_id.get('card_issuing_authority_name', '')
+            info['card_issue_date'] = card_id.get('card_issue_date')
+            info['card_expiry_date'] = card_id.get('card_expiry_date')
+            name = holder.get('card_holder_name') or {}
+            surname = name.get('holder_surname', '')
+            first_name = name.get('holder_first_names', '')
+            info['driver_name'] = f"{surname} {first_name}".strip()
+            info['birth_date'] = holder.get('card_holder_birth_date')
+            break
+    return info
+
+
+def get_activity_records(data):
+    """Extract daily activity records from tachoparser output.
+
+    Uses ONLY card_driver_activity_1 (slot 1 = driver position).
+    card_driver_activity_2 is the co-driver slot and contains activity
+    recorded when this card was in the passenger/co-driver position.
+    Co-driver activity must NOT be mixed into the driver's work hours.
+    Falls back to _2 only if _1 is completely empty (rare edge case).
+    """
+    candidates = []
+
+    # Primary: driver slot only
+    activity_1 = data.get('card_driver_activity_1')
+    if activity_1:
+        recs = activity_1.get('decoded_activity_daily_records') or []
+        candidates.extend(recs)
+
+    # Fallback: if slot 1 is empty, try slot 2 (card may have been
+    # used exclusively as co-driver in the requested period)
+    if not candidates:
+        activity_2 = data.get('card_driver_activity_2')
+        if activity_2:
+            recs = activity_2.get('decoded_activity_daily_records') or []
+            candidates.extend(recs)
+
+    if not candidates:
+        return []
+
+    def _norm_changes(rec):
+        changes = rec.get('activity_change_info') or []
+        norm = []
+        for ch in changes:
+            norm.append({
+                'minutes': ch.get('minutes'),
+                'work_type': ch.get('work_type'),
+                'card_present': ch.get('card_present'),
+            })
+        return norm
+
+    def _is_full_rest_day(rec):
+        changes = rec.get('activity_change_info') or []
+        if not changes:
+            return False
+
+        work_like = 0
+        for ch in changes:
+            wt = ch.get('work_type')
+            if wt in (AVAILABILITY, WORK, DRIVING):
+                work_like += 1
+
+        return work_like == 0
+
+    def _count_work_like_minutes(rec):
+        changes = rec.get('activity_change_info') or []
+        if not changes:
+            return 0
+
+        sorted_changes = sorted(changes, key=lambda c: c.get('minutes', 0))
+        total = 0
+
+        for i, ch in enumerate(sorted_changes):
+            start_min = ch.get('minutes', 0)
+            wt = ch.get('work_type')
+
+            if i + 1 < len(sorted_changes):
+                end_min = sorted_changes[i + 1].get('minutes', 1440)
+            else:
+                end_min = 1440
+
+            if wt in (AVAILABILITY, WORK, DRIVING):
+                total += max(0, end_min - start_min)
+        return total
+
+    by_date = {}
+
+    for rec in candidates:
+        day = rec.get('activity_record_date', '')
+        if not day:
+            continue
+
+        changes = _norm_changes(rec)
+        sig = json.dumps(changes, sort_keys=True, ensure_ascii=False)
+
+        if day not in by_date:
+            by_date[day] = {
+                'record': rec,
+                'signature': sig,
+                'change_count': len(changes),
+                'card_present_true_count': sum(1 for ch in changes if ch.get('card_present') is True),
+            }
+            continue
+
+        prev = by_date[day]
+
+        if prev['signature'] == sig:
+            logger.warning("Duplicate identical daily activity record skipped for %s", day)
+            continue
+
+        new_change_count = len(changes)
+        new_card_present_true_count = sum(1 for ch in changes if ch.get('card_present') is True)
+        prev_is_full_rest = _is_full_rest_day(prev['record'])
+        new_is_full_rest = _is_full_rest_day(rec)
+        prev_work_like = _count_work_like_minutes(prev['record'])
+        new_work_like = _count_work_like_minutes(rec)
+
+        replace = False
+        decision_reason = "kept existing by default"
+
+        if prev_is_full_rest and not new_is_full_rest:
+            replace = True
+            decision_reason = "existing is full rest day, new has real activity"
+        elif new_is_full_rest and not prev_is_full_rest:
+            replace = False
+            decision_reason = "new is full rest day, existing has real activity"
+        elif new_work_like > prev_work_like:
+            replace = True
+            decision_reason = "new has more work-like minutes"
+        elif new_work_like < prev_work_like:
+            replace = False
+            decision_reason = "existing has more work-like minutes"
+        elif new_change_count > prev['change_count']:
+            replace = True
+            decision_reason = "new has more activity changes"
+        elif new_change_count == prev['change_count'] and new_card_present_true_count > prev['card_present_true_count']:
+            replace = True
+            decision_reason = "new has more card_present=True changes"
+
+        logger.warning(
+            "Conflicting daily activity records for %s; keeping %s record (%s)",
+            day,
+            "newer/better" if replace else "existing",
+            decision_reason,
+        )
+
+        if replace:
+            by_date[day] = {
+                'record': rec,
+                'signature': sig,
+                'change_count': new_change_count,
+                'card_present_true_count': new_card_present_true_count,
+            }
+
+    return [v['record'] for _, v in sorted(by_date.items(), key=lambda kv: kv[0])]
+
+
+def get_card_places(data):
+    """Extract card_places (country entries at start/end of daily work) from DDD data."""
+    places = []
+    for key in ['card_places_1', 'card_places_2',
+                'card_places_daily_work_periods_1', 'card_places_daily_work_periods_2']:
+        block = data.get(key)
+        if not block:
+            continue
+        records = block if isinstance(block, list) else block.get('place_records', block.get('records', []))
+        if isinstance(records, list):
+            for rec in records:
+                place = {
+                    'date': rec.get('entry_time', rec.get('date', '')),
+                    'country': rec.get('country', rec.get('entry_country', '')),
+                    'region': rec.get('region', rec.get('entry_region', '')),
+                    'type': rec.get('type', ''),  # 'start' or 'end'
+                }
+                if place['date'] and place['country']:
+                    places.append(place)
+    return places
+
+
+def get_card_events(data):
+    """Extract card events and faults from DDD data."""
+    events = []
+    for key in ['card_events_and_faults_1', 'card_events_and_faults_2']:
+        block = data.get(key)
+        if not block:
+            continue
+        for event_list_key in ['card_event_records', 'event_records', 'events']:
+            event_list = block.get(event_list_key, [])
+            if isinstance(event_list, list):
+                events.extend(event_list)
+    return events
+
+
+def get_vehicle_records(data):
+    vehicles = []
+    seen = set()
+    for key in ['card_vehicles_used_1', 'card_vehicles_used_2']:
+        block = data.get(key)
+        if not block:
+            continue
+        for rec in (block.get('card_vehicle_records') or []):
+            reg = rec.get('vehicle_registration', {})
+            plate = reg.get('vehicle_registration_number', '').strip()
+            if not plate:
+                continue
+            first_use = rec.get('vehicle_first_use', '')
+            last_use = rec.get('vehicle_last_use', '')
+            odo_begin = rec.get('vehicle_odometer_begin', 0)
+            odo_end = rec.get('vehicle_odometer_end', 0)
+            dedup_key = (plate, first_use, last_use)
+            if dedup_key in seen:
+                continue
+            seen.add(dedup_key)
+            vehicles.append({
+                'plate': plate,
+                'first_use': first_use,
+                'last_use': last_use,
+                'odometer_begin_km': int(odo_begin) if odo_begin else 0,
+                'odometer_end_km': int(odo_end) if odo_end else 0,
+            })
+    vehicles.sort(key=lambda v: v.get('first_use', ''))
+    return vehicles
+
+
+def parse_date_safe(date_str):
+    if not date_str:
+        return None
+    try:
+        return datetime.strptime(date_str[:10], '%Y-%m-%d').date()
+    except (ValueError, TypeError):
+        return None
+
+
+def minutes_to_hm(minutes):
+    h = minutes // 60
+    m = minutes % 60
+    return f"{h}:{m:02d}"
+
+
+def minutes_to_decimal(minutes):
+    return round(minutes / 60, 2)
+
+
+def build_timeline(records):
+    """Build timeline using the 1440-minute-per-day model per DDD spec.
+
+    Each tachograph day = 00:00-24:00 UTC, represented as 1440 minutes.
+    The tachograph specification expects a state at minute 0. If the first
+    entry is not at minute 0, strict Globofleet mode treats this period
+    as REST/manual for compatibility.
+
+    Returns list of intervals ``(start_dt, end_dt, work_type, card_out)``
+    where all datetimes are UTC-aware.
+    """
+    sorted_records = [
+        r for r in sorted(records, key=lambda r: r.get('activity_record_date', ''))
+        if r.get('activity_record_date')
+    ]
+    if not sorted_records:
+        return []
+
+    all_day_minutes = []  # list of (base_date_utc_aware, minutes_array)
+
+    for record in sorted_records:
+        date_str = record['activity_record_date']
+        base_date = datetime.strptime(date_str[:10], '%Y-%m-%d').replace(tzinfo=UTC)
+        changes = record.get('activity_change_info') or []
+        if not changes:
+            continue
+
+        # 1440-minute array; default UNKNOWN until filled by real data
+        minutes = [(UNKNOWN, True)] * 1440
+
+        sorted_changes = sorted(changes, key=lambda c: c.get('minutes', 0))
+
+        # Validate: first entry should be at minute 0 (tachograph always records 00:00 state)
+        first_minute = sorted_changes[0].get('minutes', -1)
+        if first_minute != 0:
+            import logging
+            if STRICT_GLOBOFLEET_MODE:
+                logging.getLogger(__name__).warning(
+                    'Day %s: first activity_change_info entry at minute %d, not 0. '
+                    'State from 00:00 to minute %d is treated as REST/manual for Globofleet compatibility.',
+                    date_str[:10], first_minute, first_minute
+                )
+                current_wt = REST
+                current_card_out = True
+            else:
+                logging.getLogger(__name__).warning(
+                    'Day %s: first activity_change_info entry at minute %d, not 0. '
+                    'State from 00:00 to minute %d is UNKNOWN.',
+                    date_str[:10], first_minute, first_minute
+                )
+                # Fill 00:00..first_change as UNKNOWN (no data for this period)
+                current_wt = UNKNOWN
+                current_card_out = True
+            current_minute = 0
+        else:
+            first_wt = sorted_changes[0].get('work_type', REST)
+            first_cp = sorted_changes[0].get('card_present', True)
+            # Smart start-of-day logic (mirrors end-of-day):
+            # If minute 0 is WORK/DRIVING and the next change is far away
+            # (>2h), this is a retroactive filler — treat as UNKNOWN.
+            # AVAILABILITY is excluded: co-drivers legitimately have long
+            # AVAILABILITY stretches (entire day as passenger).
+            # If REST or small gap: keep as-is.
+            second_minute = sorted_changes[1].get('minutes', 0) if len(sorted_changes) > 1 else 0
+            if first_wt in (WORK, DRIVING) and second_minute > 120:
+                current_wt = UNKNOWN
+                current_card_out = True
+            else:
+                current_wt = first_wt
+                current_card_out = not first_cp
+            current_minute = 0
+
+        current_manual = current_card_out
+
+        _seen_minutes = set()
+        for change in sorted_changes:
+            raw_minute = change.get('minutes', 0)
+            if not isinstance(raw_minute, int) or raw_minute < 0 or raw_minute > 1439:
+                import logging
+                logging.getLogger(__name__).warning(
+                    'Day %s: invalid minute value %r, clamping to 0..1439', date_str[:10], raw_minute)
+            target_minute = max(0, min(int(raw_minute) if isinstance(raw_minute, (int, float)) else 0, 1439))
+            if target_minute in _seen_minutes:
+                import logging
+                logging.getLogger(__name__).warning(
+                    'Day %s: duplicate entry at minute %d', date_str[:10], target_minute)
+            _seen_minutes.add(target_minute)
+            raw_wt = change.get('work_type', REST)
+            if raw_wt not in (REST, AVAILABILITY, WORK, DRIVING):
+                import logging
+                logging.getLogger(__name__).warning(
+                    'Day %s: invalid work_type %r at minute %d, treating as UNKNOWN',
+                    date_str[:10], raw_wt, target_minute)
+                wt = UNKNOWN
+            else:
+                wt = raw_wt
+            cp = change.get('card_present', True)
+            if not isinstance(cp, bool):
+                import logging
+                logging.getLogger(__name__).warning(
+                    'Day %s minute %d: card_present is %r (type %s), expected bool. Defaulting to True.',
+                    date_str[:10], target_minute, cp, type(cp).__name__)
+                cp = True
+            manual = not cp
+
+            for m in range(current_minute, target_minute):
+                minutes[m] = (current_wt, current_manual)
+
+            current_wt = wt
+            current_manual = manual
+            current_minute = target_minute
+
+        # Fill remaining minutes after last activity change.
+        # Smart logic:
+        # - REST/UNKNOWN at end of day: keep as-is (natural state)
+        # - WORK/DRIVING at end of day with large gap (>2h) to midnight:
+        #   likely driver forgot to switch → UNKNOWN
+        # - AVAILABILITY excluded: co-drivers legitimately have long
+        #   AVAILABILITY stretches that can run to end of day.
+        # - WORK/DRIVING with small gap (<=2h): keep (legitimate retroactive entry)
+        remaining_minutes = 1440 - current_minute
+        if current_wt in (WORK, DRIVING) and remaining_minutes > 120:
+            for m in range(current_minute, 1440):
+                minutes[m] = (UNKNOWN, True)
+        else:
+            for m in range(current_minute, 1440):
+                minutes[m] = (current_wt, current_manual)
+
+        # Invariant checks
+        assert len(minutes) == 1440, f'Day {date_str[:10]}: minute array has {len(minutes)} entries, expected 1440'
+        assert all(m is not None for m in minutes), f'Day {date_str[:10]}: minute array has None entries'
+
+        all_day_minutes.append((base_date, minutes))
+
+    # Convert minute arrays to UTC-aware intervals
+    all_intervals = []
+    for base_date, minutes in all_day_minutes:
+        i = 0
+        while i < 1440:
+            wt, manual = minutes[i]
+            j = i + 1
+            while j < 1440 and minutes[j] == (wt, manual):
+                j += 1
+            start_dt = base_date + timedelta(minutes=i)
+            end_dt = base_date + timedelta(minutes=j)
+            all_intervals.append((start_dt, end_dt, wt, manual))
+            i = j
+
+    merged_intervals = _merge_cross_day_intervals(all_intervals)
+
+    # Post-process: WORK intervals > 2h immediately after UNKNOWN
+    # are retroactive fills across day boundaries — convert to UNKNOWN.
+    # AVAILABILITY is excluded: co-drivers legitimately have long
+    # AVAILABILITY stretches after card-out / UNKNOWN gaps.
+    cleaned = list(merged_intervals)
+    for idx in range(1, len(cleaned)):
+        prev_s, prev_e, prev_wt, prev_m = cleaned[idx - 1]
+        cur_s, cur_e, cur_wt, cur_m = cleaned[idx]
+        dur_min = (cur_e - cur_s).total_seconds() / 60
+        if prev_wt == UNKNOWN and cur_wt == WORK and dur_min > 120 and not cur_m:
+            cleaned[idx] = (cur_s, cur_e, UNKNOWN, True)
+
+    return _validate_timeline(cleaned)
+
+
+def _validate_timeline(intervals):
+    """Validate merged timeline: monotonic, non-overlapping, valid states."""
+    import logging
+    _log = logging.getLogger(__name__)
+    _VALID_STATES = (REST, AVAILABILITY, WORK, DRIVING, UNKNOWN)
+    for i, (s, e, wt, co) in enumerate(intervals):
+        if e <= s:
+            _log.warning('Timeline: interval %d has zero/negative length (%s to %s)', i, s, e)
+        if wt not in _VALID_STATES:
+            _log.warning('Timeline: interval %d has unknown work_type %r', i, wt)
+        if i > 0:
+            prev_end = intervals[i - 1][1]
+            if s < prev_end:
+                _log.warning('Timeline overlap: interval %d ends at %s but %d starts at %s', i - 1, prev_end, i, s)
+            elif s > prev_end:
+                _log.warning('Timeline gap after merge: interval %d ends at %s, %d starts at %s', i - 1, prev_end, i, s)
+    return intervals
+
+
+def _merge_cross_day_intervals(intervals):
+    """Merge intervals across day boundaries when state is identical.
+
+    Merging only happens when start == prev_end exactly (no tolerance).
+    """
+    if not intervals:
+        return []
+    result = [list(intervals[0])]
+    for start, end, wt, manual in intervals[1:]:
+        prev = result[-1]
+        if prev[2] == wt and prev[3] == manual and start == prev[1]:
+            prev[1] = end
+        else:
+            result.append([start, end, wt, manual])
+    return [(s, e, w, m) for s, e, w, m in result]
+
+
+def merge_intervals(intervals):
+    """Merge adjacent intervals with identical state (exact boundary match)."""
+    if not intervals:
+        return []
+    merged = [list(intervals[0])]
+    for start, end, wt, manual in intervals[1:]:
+        prev = merged[-1]
+        if prev[2] == wt and prev[3] == manual and start == prev[1]:
+            prev[1] = end
+        else:
+            merged.append([start, end, wt, manual])
+    return [(s, e, w, m) for s, e, w, m in merged]
+
+
+def fill_timeline_gaps(intervals):
+    """Fill gaps between recorded days with UNKNOWN intervals.
+
+    Business assumption: gaps between days where no tachograph record exists
+    represent periods when the driver card was out of the unit.  These are
+    marked as UNKNOWN (``manual=True``) so that shift-boundary detection can
+    identify daily rest periods correctly.  GloboFleet labels these as
+    "? Unbekannt".
+    """
+    if len(intervals) < 2:
+        return list(intervals)
+    result = [intervals[0]]
+    for i in range(1, len(intervals)):
+        prev_end = result[-1][1]
+        curr_start = intervals[i][0]
+        gap_sec = (curr_start - prev_end).total_seconds()
+        if gap_sec > 0:
+            # Mark as manual=True to indicate unknown/card-out period
+            result.append((prev_end, curr_start, UNKNOWN, True))
+        result.append(intervals[i])
+    return result
+
+
+def detect_shifts(all_intervals, min_rest_hours=5):
+    """Split a continuous timeline into driver shifts (BUSINESS HEURISTIC).
+
+    Shift-splitting rules (matching GloboFleet behavior):
+    - A rest >= 9h (valid EU daily rest) ALWAYS splits, even within the same CET day.
+    - A rest >= *min_rest_hours* (default 5h) but < 9h splits only if it starts/ends
+      on a different CET calendar day than the current shift's first work activity.
+    """
+    if not all_intervals:
+        return []
+    merged = merge_intervals(all_intervals)
+    merged = fill_timeline_gaps(merged)
+    min_rest_sec = min_rest_hours * 3600
+    shifts = []
+    current = []
+    current_shift_start_cet_date = None  # CET date of first work in current shift
+
+    i = 0
+    while i < len(merged):
+        start, end, wt, manual = merged[i]
+
+        # Track the CET date of the first work activity in current shift
+        if wt not in (REST, UNKNOWN) and current_shift_start_cet_date is None:
+            current_shift_start_cet_date = _to_cet(start).date()
+
+        if _is_rest_like_for_shift_split(wt):
+            rest_begin = start
+            rest_end = end
+            j = i + 1
+            while j < len(merged):
+                nxt_s, nxt_e, nxt_wt, nxt_manual = merged[j]
+                if nxt_s != rest_end:
+                    break
+                if _is_rest_like_for_shift_split(nxt_wt):
+                    rest_end = nxt_e
+                    j += 1
+                else:
+                    break
+
+            effective_rest = (rest_end - rest_begin).total_seconds()
+            if effective_rest >= min_rest_sec:
+                # A rest >= 9h is a valid EU daily rest — always split.
+                # Shorter rests (5h–9h) only split across CET day boundaries.
+                daily_rest_sec = 9 * 3600
+                if effective_rest >= daily_rest_sec:
+                    should_split = True
+                else:
+                    rest_begin_cet_date = _to_cet(rest_begin).date()
+                    rest_end_cet_date = _to_cet(rest_end).date()
+                    should_split = (
+                        current_shift_start_cet_date is None
+                        or rest_begin_cet_date != current_shift_start_cet_date
+                        or rest_end_cet_date != current_shift_start_cet_date
+                    )
+                if should_split:
+                    if current:
+                        shifts.append(current)
+                        current = []
+                    current_shift_start_cet_date = None
+                    i = j
+                    continue
+
+        current.append(merged[i])
+        i += 1
+
+    if current:
+        shifts.append(current)
+    return shifts
+
+
+def _to_cet(dt):
+    """Convert a UTC-aware datetime to CET for display purposes."""
+    return dt.astimezone(CET)
+
+
+def _build_night_windows(earliest_utc, latest_utc, night_start_hour=22):
+    """Build night windows as UTC-aware datetimes using CET business hours.
+
+    Night windows in CET for each calendar date:
+      night_start_hour:00 -> 00:00 next day  = 25%
+      00:00 -> 04:00                          = 'check' (40% or 25% depending on shift start)
+      04:00 -> 06:00                          = 25%
+
+    Uses a bounded for-loop over CET dates to avoid infinite loops.
+    Returns list of (start_utc, end_utc, category) with UTC-aware datetimes.
+    """
+    windows = []
+    # Convert to CET to determine which CET dates to iterate
+    cet_start = _to_cet(earliest_utc) - timedelta(days=1)
+    cet_end = _to_cet(latest_utc) + timedelta(days=1)
+    start_date = cet_start.date()
+    end_date = cet_end.date()
+    num_days = (end_date - start_date).days + 1
+
+    for day_offset in range(num_days):
+        d = start_date + timedelta(days=day_offset)
+        # CET-aware midnight for this date
+        cet_midnight = datetime(d.year, d.month, d.day, tzinfo=CET)
+
+        # 1) night_start_hour:00 CET -> 00:00 CET next day (25%)
+        w1_start = cet_midnight.replace(hour=night_start_hour).astimezone(UTC)
+        w1_end = (cet_midnight + timedelta(days=1)).astimezone(UTC)
+        windows.append((w1_start, w1_end, '25'))
+
+        # 2) 00:00 -> 04:00 CET (check shift_start for 40% vs 25%)
+        w2_start = cet_midnight.astimezone(UTC)
+        w2_end = cet_midnight.replace(hour=4).astimezone(UTC)
+        windows.append((w2_start, w2_end, 'check'))
+
+        # 3) 04:00 -> 06:00 CET (25%)
+        w3_start = cet_midnight.replace(hour=4).astimezone(UTC)
+        w3_end = cet_midnight.replace(hour=6).astimezone(UTC)
+        windows.append((w3_start, w3_end, '25'))
+
+    return windows
+
+
+def calculate_shift_night_hours(minute_buckets, shift_start, night_start_hour=22):
+    """Calculate night work minutes using CET night windows on UTC timeline.
+
+    Returns (night_25_minutes, night_40_minutes).
+    """
+    if not minute_buckets:
+        return 0, 0
+    night_25 = 0
+    night_40 = 0
+
+    if STRICT_GLOBOFLEET_MODE:
+        for dt, (work_type, _manual) in minute_buckets.items():
+            if work_type in (REST, UNKNOWN):
+                continue
+            dt_cet = _to_cet(dt)
+            hour = dt_cet.hour
+            if night_start_hour <= hour <= 23:
+                night_25 += 1
+            elif 0 <= hour < 4:
+                cet_midnight = datetime(
+                    dt_cet.year, dt_cet.month, dt_cet.day, tzinfo=CET
+                ).astimezone(UTC)
+                if shift_start < cet_midnight:
+                    night_40 += 1
+                else:
+                    night_25 += 1
+            elif 4 <= hour < 6:
+                night_25 += 1
+        return night_25, night_40
+
+    intervals = []
+    for dt, (wt, m) in sorted(minute_buckets.items(), key=lambda kv: kv[0]):
+        intervals.append((dt, dt + timedelta(minutes=1), wt, m))
+    earliest = min(iv[0] for iv in intervals)
+    latest = max(iv[1] for iv in intervals)
+    windows = _build_night_windows(earliest, latest, night_start_hour)
+    for interval in intervals:
+        iv_start, iv_end, work_type = interval[0], interval[1], interval[2]
+        if work_type in (REST, UNKNOWN):
+            continue
+        for w_start, w_end, category in windows:
+            o_start = max(iv_start, w_start)
+            o_end = min(iv_end, w_end)
+            if o_end <= o_start:
+                continue
+            mins = int((o_end - o_start).total_seconds()) // 60
+            if category == '25':
+                night_25 += mins
+            elif category == 'check':
+                # 00:00-04:00 CET: 40% if shift started before this CET midnight
+                cet_midnight_utc = w_start  # w_start IS CET 00:00 in UTC
+                if shift_start < cet_midnight_utc:
+                    night_40 += mins
+                else:
+                    night_25 += mins
+    return night_25, night_40
+
+
+def iter_tachograph_minutes(intervals):
+    """
+    Expand intervals into tachograph minute buckets.
+
+    RULE (tachograph / Globofleet):
+    - If any part of a minute contains activity, the whole minute counts.
+    - start -> floor to minute
+    - end   -> ceil to minute
+    """
+    for start, end, wt, card_out in intervals:
+        if end <= start:
+            continue
+
+        # START: round DOWN (floor)
+        minute_start = start.replace(second=0, microsecond=0)
+
+        # END: round UP (ceil)
+        minute_end = end.replace(second=0, microsecond=0)
+        if minute_end < end:
+            minute_end += timedelta(minutes=1)
+
+        current = minute_start
+        while current < minute_end:
+            yield current, wt, card_out
+            current += timedelta(minutes=1)
+
+
+def count_bucket_minutes_between(start, end):
+    if end <= start:
+        return 0
+    minute_start = start.replace(second=0, microsecond=0)
+    minute_end = end.replace(second=0, microsecond=0)
+    if minute_end < end:
+        minute_end += timedelta(minutes=1)
+    count = 0
+    current = minute_start
+    while current < minute_end:
+        count += 1
+        current += timedelta(minutes=1)
+    return count
+
+
+def count_minutes_for_interval_from_buckets(start, end, target_wt, minute_buckets):
+    return sum(
+        1 for dt, (wt, _m) in minute_buckets.items()
+        if start <= dt < end and wt == target_wt
+    )
+
+
+def split_day_bucket_into_work_blocks(day_bucket, rest_gap_threshold_minutes=15):
+    """Split one CET local-day bucket into contiguous work shifts.
+
+    Separates blocks by (1) missing minutes on the timeline and (2) long runs of
+    REST/UNKNOWN (Globofleet-style rest separators). Long rest is not included
+    at the start of the next block; the next block begins at the next work-like
+    minute. Each returned dict is one shift segment for shift_details.
+    """
+    dts = sorted(day_bucket.keys())
+    if not dts:
+        return []
+
+    _REAL = (AVAILABILITY, WORK, DRIVING)
+    blocks = []
+    current_block = {}
+    rest_buffer = []
+    last_dt = None
+
+    for dt in dts:
+        wt, m = day_bucket[dt]
+
+        if last_dt is not None:
+            gap_minutes = int((dt - last_dt).total_seconds() // 60)
+            if gap_minutes > 1:
+                if rest_buffer:
+                    if len(rest_buffer) < rest_gap_threshold_minutes:
+                        for rdt, rval in rest_buffer:
+                            current_block[rdt] = rval
+                    rest_buffer = []
+                if current_block and any(v[0] in _REAL for v in current_block.values()):
+                    blocks.append(current_block)
+                current_block = {}
+
+        last_dt = dt
+
+        if wt in (REST, UNKNOWN):
+            rest_buffer.append((dt, (wt, m)))
+
+            if len(rest_buffer) >= rest_gap_threshold_minutes:
+                if current_block and any(v[0] in _REAL for v in current_block.values()):
+                    blocks.append(current_block)
+                current_block = {}
+            continue
+
+        if rest_buffer:
+            if len(rest_buffer) < rest_gap_threshold_minutes:
+                for rdt, rval in rest_buffer:
+                    current_block[rdt] = rval
+            rest_buffer = []
+
+        current_block[dt] = (wt, m)
+
+    if rest_buffer:
+        if len(rest_buffer) < rest_gap_threshold_minutes:
+            for rdt, rval in rest_buffer:
+                current_block[rdt] = rval
+
+    if current_block and any(v[0] in _REAL for v in current_block.values()):
+        blocks.append(current_block)
+
+    return blocks
+
+
+def analyze_card(data, night_start_hour=None):
+    if night_start_hour is None:
+        cfg = _load_config()
+        night_start_hour = int(cfg.get('night_start_hour', 22))
+    driver_info = get_driver_info(data)
+    records = get_activity_records(data)
+    vehicles = get_vehicle_records(data)
+    places = get_card_places(data)
+    card_events = get_card_events(data)
+    timeline = build_timeline(records)
+    shifts = detect_shifts(timeline)
+
+    # === DEBUG DUMP ===
+    import json, os
+    _debug_dir = os.path.dirname(os.path.abspath(__file__))
+    _debug = {
+        'driver_info': driver_info,
+        'timeline': [
+            {
+                'start': s.isoformat(),
+                'end': e.isoformat(),
+                'wt': wt,
+                'manual': m,
+            }
+            for s, e, wt, m in timeline
+        ],
+        'shifts_count': len(shifts),
+        'shifts': [
+            [
+                {
+                    'start': s.isoformat(),
+                    'end': e.isoformat(),
+                    'wt': wt,
+                    'manual': m,
+                }
+                for s, e, wt, m in shift_intervals
+            ]
+            for shift_intervals in shifts
+        ],
+    }
+    _debug_path = os.path.join(_debug_dir, 'debug_analyze_card.json')
+    try:
+        with open(_debug_path, 'w') as f:
+            json.dump(_debug, f, indent=2, default=str)
+        logger.warning("DEBUG DUMP saved to %s", _debug_path)
+    except Exception as exc:
+        logger.warning("DEBUG DUMP failed: %s", exc)
+    # === END DEBUG DUMP ===
+
+    # Helper: UTC-aware datetime -> CET string for display only
+    def _to_cet_str(dt):
+        return _to_cet(dt).strftime('%Y-%m-%d %H:%M')
+
+    def _build_segments(bucket, target_wt):
+        dts = sorted(dt for dt, (wt, _m) in bucket.items() if wt == target_wt)
+        if not dts:
+            return []
+        segments = []
+        seg_start = dts[0]
+        prev_dt = dts[0]
+        for dt in dts[1:]:
+            if dt != prev_dt + timedelta(minutes=1):
+                segments.append((seg_start, prev_dt + timedelta(minutes=1)))
+                seg_start = dt
+            prev_dt = dt
+        segments.append((seg_start, prev_dt + timedelta(minutes=1)))
+        return segments
+
+    _REAL_WORK = (AVAILABILITY, WORK, DRIVING)
+
+    # Detect manual entry errors from timeline
+    manual_errors = []
+    for s, e, wt, m in timeline:
+        if not m or wt in (REST, UNKNOWN):
+            continue
+        dur_min = int((e - s).total_seconds() / 60)
+        if dur_min < 30:
+            continue
+        s_cet = _to_cet(s)
+        e_cet = _to_cet(e)
+        h_start = s_cet.hour
+        h_end = e_cet.hour if e_cet.date() == s_cet.date() else 24
+        is_overnight = h_start >= 20 or h_end <= 7 or (e - s).total_seconds() > 10 * 3600
+        if is_overnight or dur_min > 600:
+            wt_names = {AVAILABILITY: 'Bereitschaft', WORK: 'Arbeit', DRIVING: 'Lenken'}
+            manual_errors.append({
+                'start': _to_cet_str(s),
+                'end': _to_cet_str(e),
+                'duration_minutes': dur_min,
+                'declared_type': wt_names.get(wt, str(wt)),
+            })
+
+    shift_details = []
+    seen_shifts = set()
+    total_work = total_driving = total_break = total_avail = 0
+    total_n25 = total_n40 = 0
+    total_manual = 0
+    diet_count = 0
+
+    priority = {UNKNOWN: 0, REST: 1, AVAILABILITY: 2, WORK: 3, DRIVING: 4}
+
+    # --- Calendar-day metrics (CET) ---
+    # Independent of shift splitting: attribute each minute to its CET calendar day.
+    # This matches GloboFleet's per-day reporting.
+    _cd = {}
+    _REAL_WT = (WORK, DRIVING, AVAILABILITY)
+    try:
+        for dt, wt, card_out in iter_tachograph_minutes(timeline):
+            dt_cet = _to_cet(dt)
+            cet_date = dt_cet.strftime('%Y-%m-%d')
+            if cet_date not in _cd:
+                _cd[cet_date] = {
+                    'work': 0, 'driving': 0, 'work_only': 0, 'avail': 0,
+                    'break': 0, 'manual': 0, 'n25': 0, 'n40': 0,
+                    'first_work': None, 'last_work': None,
+                }
+            cd = _cd[cet_date]
+
+            if wt in _REAL_WT:
+                cd['work'] += 1
+                if cd['first_work'] is None:
+                    cd['first_work'] = dt_cet
+                cd['last_work'] = dt_cet
+                if card_out:
+                    cd['manual'] += 1
+                # Night hours
+                hour = dt_cet.hour
+                if night_start_hour <= hour <= 23:
+                    cd['n25'] += 1
+                elif 0 <= hour < 4:
+                    cd['n40'] += 1
+                elif 4 <= hour < 6:
+                    cd['n25'] += 1
+            if wt == DRIVING:
+                cd['driving'] += 1
+            elif wt == WORK:
+                cd['work_only'] += 1
+            elif wt == AVAILABILITY:
+                cd['avail'] += 1
+    except Exception as exc:
+        logger.warning('calendar_days iteration error: %s', exc)
+
+    # Build calendar_days dict
+    weekday_names = ['Pn', 'Wt', 'Śr', 'Cz', 'Pt', 'So', 'Nd']
+    calendar_days = {}
+    for d in sorted(_cd.keys()):
+        try:
+            cd = _cd[d]
+            if cd['work'] == 0 and cd['driving'] == 0:
+                continue
+            w = cd['work']
+            first = cd['first_work']
+            last = cd['last_work']
+            duration = 0
+            if first and last:
+                duration = int((last - first).total_seconds() / 60) + 1
+            # Break = duration minus actual work
+            brk = max(0, duration - w)
+            cd['break'] = brk
+            parsed_date = parse_date_safe(d)
+            wd_idx = parsed_date.weekday() if parsed_date else 0
+            is_weekday = wd_idx < 5
+            has_diet = duration >= 480 and is_weekday
+
+            calendar_days[d] = {
+                'date': d,
+                'weekday': weekday_names[wd_idx] if parsed_date else '',
+                'shift_start': first.strftime('%Y-%m-%d %H:%M') if first else '',
+                'shift_end': (last + timedelta(minutes=1)).strftime('%Y-%m-%d %H:%M') if last else '',
+                'duration_minutes': duration,
+                'duration_hm': minutes_to_hm(duration),
+                'work_minutes': w,
+                'work_hm': minutes_to_hm(w),
+                'work_decimal': round(w / 60, 2),
+                'driving_minutes': cd['driving'],
+                'driving_hm': minutes_to_hm(cd['driving']),
+                'work_only_minutes': cd['work_only'],
+                'work_only_hm': minutes_to_hm(cd['work_only']),
+                'avail_minutes': cd['avail'],
+                'avail_hm': minutes_to_hm(cd['avail']),
+                'break_minutes': cd['break'],
+                'break_hm': minutes_to_hm(cd['break']),
+                'night_25_minutes': cd['n25'],
+                'night_25_hm': minutes_to_hm(cd['n25']),
+                'night_40_minutes': cd['n40'],
+                'night_40_hm': minutes_to_hm(cd['n40']),
+                'manual_minutes': cd['manual'],
+                'manual_hm': minutes_to_hm(cd['manual']),
+                'has_diet': has_diet,
+            }
+        except Exception as exc:
+            logger.warning('calendar_days error for %s: %s', d, exc)
+
+    for shift_intervals in shifts:
+        if not shift_intervals:
+            continue
+
+        # Build minute buckets for this shift
+        minute_buckets = {}
+        for dt, wt, m in iter_tachograph_minutes(shift_intervals):
+            if dt not in minute_buckets or priority[wt] > priority[minute_buckets[dt][0]]:
+                minute_buckets[dt] = (wt, m)
+
+        # Shift span from real work minutes (WORK/DRIVING/AVAIL).
+        # Overnight periods are REST/UNKNOWN after the fill fix, so they're
+        # naturally excluded without needing a manual flag filter.
+        work_dts = sorted(
+            dt for dt, (wt, _m) in minute_buckets.items()
+            if wt in _REAL_WORK
+        )
+        if not work_dts:
+            continue
+        shift_start = work_dts[0]
+        shift_end = work_dts[-1] + timedelta(minutes=1)
+        shift_date = _to_cet(shift_start).strftime('%Y-%m-%d')
+        # grid_date: midpoint-based date for monthly grid display.
+        # A shift 22:00→07:41 midpoint is ~02:50 next day → grid shows next day.
+        # A shift 17:30→01:30 midpoint is ~21:30 same day → grid shows same day.
+        shift_midpoint = shift_start + (shift_end - shift_start) / 2
+        grid_date = _to_cet(shift_midpoint).strftime('%Y-%m-%d')
+
+        shift_key = (shift_start, shift_end)
+        if shift_key in seen_shifts:
+            continue
+        seen_shifts.add(shift_key)
+
+        # Totals from minutes within the shift span
+        span_buckets = {
+            dt: v for dt, v in minute_buckets.items()
+            if shift_start <= dt < shift_end
+        }
+
+        if STRICT_GLOBOFLEET_MODE:
+            break_minutes = sum(
+                1 for wt, _m in span_buckets.values()
+                if _is_break_like_for_reporting(wt)
+            )
+        else:
+            break_minutes = sum(
+                1 for wt, _m in span_buckets.values()
+                if wt in (REST, UNKNOWN)
+            )
+        avail_minutes = sum(1 for wt, _m in span_buckets.values() if wt == AVAILABILITY)
+        work_only_minutes = sum(1 for wt, _m in span_buckets.values() if wt == WORK)
+        driving_minutes = sum(1 for wt, _m in span_buckets.values() if wt == DRIVING)
+        unknown_minutes = sum(1 for wt, _m in span_buckets.values() if wt == UNKNOWN)
+        manual_minutes = sum(
+            1 for _dt, (wt, m) in span_buckets.items()
+            if m and wt in _REAL_WORK
+        )
+        work_minutes = work_only_minutes + driving_minutes + avail_minutes
+        duration_minutes = count_bucket_minutes_between(shift_start, shift_end)
+        cet_start = _to_cet(shift_start)
+        night_25, night_40 = calculate_shift_night_hours(span_buckets, shift_start, night_start_hour)
+
+        total_work += work_minutes
+        total_driving += driving_minutes
+        total_break += break_minutes
+        total_avail += avail_minutes
+        total_n25 += night_25
+        total_n40 += night_40
+        total_manual += manual_minutes
+        is_weekday = cet_start.weekday() < 5
+        has_diet = duration_minutes >= 8 * 60 and is_weekday
+        if has_diet:
+            diet_count += 1
+
+        shift_start_date = shift_start.date()
+        shift_end_date = shift_end.date()
+        day_plates = []
+        for v in vehicles:
+            v_start = parse_date_safe(v.get('first_use', ''))
+            v_end = parse_date_safe(v.get('last_use', ''))
+            if v_start and v_end and v_start <= shift_end_date and v_end >= shift_start_date:
+                day_plates.append(v['plate'])
+        unique_plates = list(dict.fromkeys(day_plates))
+
+        driving_segments = [{
+            'start': _to_cet_str(seg_start),
+            'end': _to_cet_str(seg_end),
+            'duration_minutes': count_minutes_for_interval_from_buckets(
+                seg_start, seg_end, DRIVING, span_buckets
+            ),
+        } for seg_start, seg_end in _build_segments(span_buckets, DRIVING)]
+        break_segments = [{
+            'start': _to_cet_str(seg_start),
+            'end': _to_cet_str(seg_end),
+            'duration_minutes': count_minutes_for_interval_from_buckets(
+                seg_start, seg_end, REST, span_buckets
+            ),
+        } for seg_start, seg_end in _build_segments(span_buckets, REST)]
+
+        weekday_names = ['Pn', 'Wt', 'Śr', 'Cz', 'Pt', 'So', 'Nd']
+        shift_details.append({
+            'shift_start': _to_cet_str(shift_start),
+            'shift_end': _to_cet_str(shift_end),
+            'shift_date': shift_date,
+            'grid_date': grid_date,
+            'weekday': weekday_names[cet_start.weekday()],
+            'duration_minutes': duration_minutes,
+            'duration_hm': minutes_to_hm(duration_minutes),
+            'work_minutes': work_minutes,
+            'work_hm': minutes_to_hm(work_minutes),
+            'work_decimal': minutes_to_decimal(work_minutes),
+            'driving_minutes': driving_minutes,
+            'driving_hm': minutes_to_hm(driving_minutes),
+            'work_only_minutes': work_only_minutes,
+            'work_only_hm': minutes_to_hm(work_only_minutes),
+            'avail_minutes': avail_minutes,
+            'avail_hm': minutes_to_hm(avail_minutes),
+            'break_minutes': break_minutes,
+            'break_hm': minutes_to_hm(break_minutes),
+            'unknown_minutes': unknown_minutes,
+            'unknown_hm': minutes_to_hm(unknown_minutes),
+            'night_25_minutes': night_25,
+            'night_25_hm': minutes_to_hm(night_25),
+            'night_40_minutes': night_40,
+            'night_40_hm': minutes_to_hm(night_40),
+            'has_diet': has_diet,
+            'vehicles': unique_plates,
+            'manual_minutes': manual_minutes,
+            'manual_hm': minutes_to_hm(manual_minutes),
+            'driving_segments': driving_segments,
+            'break_segments': break_segments,
+            'manual_errors': manual_errors,
+        })
+
+    # Recalculate summary from calendar_days (accurate per-CET-day attribution)
+    cd_total_work = sum(cd.get('work_minutes', 0) for cd in calendar_days.values())
+    cd_total_driving = sum(cd.get('driving_minutes', 0) for cd in calendar_days.values())
+    cd_total_break = sum(cd.get('break_minutes', 0) for cd in calendar_days.values())
+    cd_total_avail = sum(cd.get('avail_minutes', 0) for cd in calendar_days.values())
+    cd_total_n25 = sum(cd.get('night_25_minutes', 0) for cd in calendar_days.values())
+    cd_total_n40 = sum(cd.get('night_40_minutes', 0) for cd in calendar_days.values())
+    cd_total_night = cd_total_n25 + cd_total_n40
+    cd_total_manual = sum(cd.get('manual_minutes', 0) for cd in calendar_days.values())
+    cd_diet_count = sum(1 for cd in calendar_days.values() if cd.get('has_diet'))
+
+    return {
+        'driver_info': driver_info,
+        'vehicles': vehicles,
+        'summary': {
+            'total_work_hm': minutes_to_hm(cd_total_work),
+            'total_work_decimal': minutes_to_decimal(cd_total_work),
+            'total_work_minutes': cd_total_work,
+            'total_driving_hm': minutes_to_hm(cd_total_driving),
+            'total_driving_minutes': cd_total_driving,
+            'total_break_hm': minutes_to_hm(cd_total_break),
+            'total_break_minutes': cd_total_break,
+            'total_avail_hm': minutes_to_hm(cd_total_avail),
+            'total_avail_minutes': cd_total_avail,
+            'night_25_hm': minutes_to_hm(cd_total_n25),
+            'night_25_decimal': minutes_to_decimal(cd_total_n25),
+            'night_25_minutes': cd_total_n25,
+            'night_40_hm': minutes_to_hm(cd_total_n40),
+            'night_40_decimal': minutes_to_decimal(cd_total_n40),
+            'night_40_minutes': cd_total_n40,
+            'total_night_hm': minutes_to_hm(cd_total_night),
+            'total_night_decimal': minutes_to_decimal(cd_total_night),
+            'total_night_minutes': cd_total_night,
+            'diet_count': cd_diet_count,
+            'total_shifts': len(shift_details),
+            'total_manual_hm': minutes_to_hm(cd_total_manual),
+            'total_manual_minutes': cd_total_manual,
+        },
+        'shift_details': shift_details,
+        'calendar_days': calendar_days,
+        'card_places': places,
+        'card_events': card_events,
+        'night_start_hour': night_start_hour,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Portal / Drivers API
+# ---------------------------------------------------------------------------
+
+
+def build_drivers_data(dbx, sync_folder):
+    result = dbx.files_list_folder(sync_folder, recursive=True)
+    all_entries = list(result.entries)
+    while result.has_more:
+        result = dbx.files_list_folder_continue(result.cursor)
+        all_entries.extend(result.entries)
+
+    driver_files = {}
+    driver_paths = {}
+    for entry in all_entries:
+        if isinstance(entry, dropbox.files.FolderMetadata):
+            rel = entry.path_display[len(sync_folder):].strip('/')
+            if '/' not in rel and rel:
+                driver_paths[rel] = entry.path_display
+            continue
+        if not isinstance(entry, dropbox.files.FileMetadata):
+            continue
+        rel = entry.path_display[len(sync_folder):].strip('/')
+        parts = rel.split('/')
+        if len(parts) != 2:
+            continue
+        driver_name = parts[0]
+        fname = parts[1]
+        if driver_name not in driver_files:
+            driver_files[driver_name] = []
+
+        card_number = ''
+        file_date = ''
+        m = re.match(r'^(.+?)_(\d{4}-\d{2}-\d{2})\.ddd$', fname, re.IGNORECASE)
+        if m:
+            card_number = m.group(1)
+            file_date = m.group(2)
+
+        driver_files[driver_name].append({
+            'name': fname,
+            'path': entry.path_display,
+            'size': entry.size,
+            'modified': entry.server_modified.isoformat() if entry.server_modified else '',
+            'card_number': card_number,
+            'file_date': file_date,
+        })
+
+    drivers = []
+    for driver_name in set(driver_paths.keys()) | set(driver_files.keys()):
+        files = driver_files.get(driver_name, [])
+        files.sort(key=lambda x: x.get('file_date', ''), reverse=True)
+
+        earliest_date = latest_date = latest_download = card_number = ''
+        if files:
+            dates = [f['file_date'] for f in files if f['file_date']]
+            if dates:
+                earliest_date = min(dates)
+                latest_date = max(dates)
+            modified_dates = [f['modified'] for f in files if f['modified']]
+            if modified_dates:
+                latest_download = max(modified_dates)
+            for f in files:
+                if f['card_number']:
+                    card_number = f['card_number']
+                    break
+
+        days_since = None
+        if latest_download:
+            try:
+                last_dt = datetime.fromisoformat(latest_download)
+                if last_dt.tzinfo is None:
+                    last_dt = last_dt.replace(tzinfo=UTC)
+                days_since = (datetime.now(UTC) - last_dt).days
+            except Exception:
+                pass
+
+        drivers.append({
+            'name': driver_name,
+            'path': driver_paths.get(driver_name, f'{sync_folder}/{driver_name}'),
+            'card_number': card_number,
+            'file_count': len(files),
+            'earliest_date': earliest_date,
+            'latest_date': latest_date,
+            'latest_download': latest_download,
+            'days_since': days_since,
+            'files': files,
+        })
+
+    drivers.sort(key=lambda d: d.get('latest_download', ''), reverse=True)
+    return drivers
+
+
+def load_portal_cache():
+    try:
+        if os.path.exists(PORTAL_CACHE_FILE):
+            mtime = os.path.getmtime(PORTAL_CACHE_FILE)
+            age = datetime.now().timestamp() - mtime
+            if age < PORTAL_CACHE_MAX_AGE:
+                with open(PORTAL_CACHE_FILE) as f:
+                    return json.load(f)
+    except Exception:
+        pass
+    return None
+
+
+def save_portal_cache(drivers):
+    try:
+        with open(PORTAL_CACHE_FILE, 'w') as f:
+            json.dump(drivers, f)
+    except Exception:
+        pass
+
+
+@app.route('/api/drivers')
+@login_required
+def api_drivers():
+    force = request.args.get('refresh') == '1'
+    if not force:
+        cached = load_portal_cache()
+        if cached is not None:
+            for d in cached:
+                if d.get('latest_download'):
+                    try:
+                        last_dt = datetime.fromisoformat(d['latest_download'])
+                        if last_dt.tzinfo is None:
+                            last_dt = last_dt.replace(tzinfo=UTC)
+                        d['days_since'] = (datetime.now(UTC) - last_dt).days
+                    except Exception:
+                        pass
+            return jsonify({'drivers': cached, 'cached': True})
+
+    dbx = get_server_dropbox_client()
+    if not dbx:
+        return jsonify({'error': 'Brak połączenia z Dropbox (brak DROPBOX_REFRESH_TOKEN)'}), 500
+
+    sync_folder = os.environ.get('SYNC_DEST_FOLDER', '/Samsara-DDD')
+    try:
+        drivers = build_drivers_data(dbx, sync_folder)
+        save_portal_cache(drivers)
+        return jsonify({'drivers': drivers})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
+# Manual driver management
+# ---------------------------------------------------------------------------
+
+
+@app.route('/api/drivers/add', methods=['POST'])
+@login_required
+def api_add_driver():
+    """Create a new driver folder in Dropbox."""
+    payload = request.get_json(silent=True) or {}
+    driver_name = (payload.get('name') or '').strip()
+    if not driver_name:
+        return jsonify({'error': 'Brak nazwy kierowcy'}), 400
+
+    dbx = get_server_dropbox_client()
+    if not dbx:
+        return jsonify({'error': 'Brak połączenia z Dropbox'}), 500
+
+    sync_folder = os.environ.get('SYNC_DEST_FOLDER', '/Samsara-DDD')
+    folder_path = f"{sync_folder}/{driver_name}"
+
+    try:
+        dbx.files_create_folder_v2(folder_path)
+    except dropbox.exceptions.ApiError as e:
+        if 'conflict' in str(e).lower() or 'path/conflict' in str(e).lower():
+            return jsonify({'error': 'Folder już istnieje'}), 409
+        return jsonify({'error': str(e)}), 500
+
+    # Invalidate cache
+    try:
+        if os.path.exists(PORTAL_CACHE_FILE):
+            os.unlink(PORTAL_CACHE_FILE)
+    except Exception:
+        pass
+
+    _log_activity('add_driver', driver_name)
+    return jsonify({'ok': True, 'path': folder_path})
+
+
+@app.route('/api/reader/save-to-dropbox', methods=['POST'])
+@login_required
+def api_reader_save_to_dropbox():
+    """Upload a .ddd file from the reader to the driver's Dropbox folder."""
+    if 'file' not in request.files:
+        return jsonify({'error': 'Brak pliku'}), 400
+
+    file = request.files['file']
+    driver_name = request.form.get('driver_name', '').strip()
+    card_number = request.form.get('card_number', '').strip()
+
+    if not driver_name:
+        return jsonify({'error': 'Brak nazwy kierowcy'}), 400
+
+    dbx = get_server_dropbox_client()
+    if not dbx:
+        return jsonify({'error': 'Brak połączenia z Dropbox'}), 500
+
+    sync_folder = os.environ.get('SYNC_DEST_FOLDER', '/Samsara-DDD')
+    date_part = datetime.now().strftime('%Y-%m-%d')
+
+    if card_number:
+        fname = f"{card_number}_{date_part}.ddd"
+    else:
+        safe = "".join(c for c in driver_name if c.isalnum() or c in ' _-').strip() or 'file'
+        fname = f"{safe}_{date_part}.ddd"
+
+    dbx_path = f"{sync_folder}/{driver_name}/{fname}"
+
+    try:
+        file_data = file.read()
+        dbx.files_upload(
+            file_data,
+            dbx_path,
+            mode=dropbox.files.WriteMode.overwrite,
+        )
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+    # Invalidate cache
+    try:
+        if os.path.exists(PORTAL_CACHE_FILE):
+            os.unlink(PORTAL_CACHE_FILE)
+    except Exception:
+        pass
+
+    _log_activity('reader_save_to_dropbox', f"{driver_name} — {fname}")
+    return jsonify({'ok': True, 'path': dbx_path, 'filename': fname})
+
+
+# ---------------------------------------------------------------------------
+# File analysis API
+# ---------------------------------------------------------------------------
+
+
+@app.route('/api/analyze', methods=['POST'])
+@login_required
+def api_analyze_upload():
+    """Upload a .ddd file and return analysis."""
+    if 'file' not in request.files:
+        return jsonify({'error': 'Brak pliku'}), 400
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'error': 'Nie wybrano pliku'}), 400
+    try:
+        with tempfile.NamedTemporaryFile(suffix='.ddd', delete=False) as tmp:
+            file.save(tmp.name)
+            tmp_path = tmp.name
+        data = parse_ddd_auto(tmp_path)
+        result = analyze_card(data)
+        _log_activity('analyze_upload', result.get('driver_info', {}).get('driver_name', ''))
+        di = result.get('driver_info', {})
+        _cache_card_expiry(di.get('card_number'), di.get('card_expiry_date'), di.get('driver_name', ''))
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if 'tmp_path' in locals():
+            os.unlink(tmp_path)
+
+
+@app.route('/api/preview-ddd', methods=['POST'])
+@login_required
+def api_preview_ddd():
+    """Return DDD file preview: hex dump + decoded card structure."""
+    if 'file' not in request.files:
+        return jsonify({'error': 'Brak pliku'}), 400
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'error': 'Nie wybrano pliku'}), 400
+    try:
+        file_data = file.read()
+        file_size = len(file_data)
+        # Hex dump (first 8KB)
+        hex_dump = file_data[:8192].hex()
+
+        # Parse the DDD file for structured data
+        with tempfile.NamedTemporaryFile(suffix='.ddd', delete=False) as tmp:
+            tmp.write(file_data)
+            tmp_path = tmp.name
+
+        try:
+            data = parse_ddd_auto(tmp_path)
+        finally:
+            os.unlink(tmp_path)
+
+        # Extract card info
+        card_info = get_driver_info(data)
+
+        # Use shared timeline logic for consistent totals
+        activity_records = []
+        for rec in get_activity_records(data):
+            date_str = rec.get('activity_record_date', '')
+            changes = rec.get('activity_change_info', [])
+            # Build timeline for this single day using the same logic as analyze_card
+            day_timeline = build_timeline([rec])
+            driving_mins = sum(
+                int((e - s).total_seconds()) // 60
+                for s, e, wt, _co in day_timeline if wt == DRIVING
+            )
+            work_mins = sum(
+                int((e - s).total_seconds()) // 60
+                for s, e, wt, _co in day_timeline if wt == WORK
+            )
+            rest_mins = sum(
+                int((e - s).total_seconds()) // 60
+                for s, e, wt, _co in day_timeline if wt == REST
+            )
+            activity_records.append({
+                'date': date_str[:10] if date_str else '',
+                'total_activities': len(changes),
+                'driving_minutes': driving_mins,
+                'work_minutes': work_mins,
+                'rest_minutes': rest_mins,
+            })
+
+        # Extract vehicles
+        vehicle_records = get_vehicle_records(data)
+
+        # Extract places and events
+        card_places = get_card_places(data)
+        card_events = get_card_events(data)
+
+        _log_activity('preview_ddd', card_info.get('driver_name', ''))
+        return jsonify({
+            'file_size': file_size,
+            'hex_dump': hex_dump,
+            'card_info': card_info,
+            'activity_records': activity_records,
+            'vehicle_records': vehicle_records,
+            'card_places': card_places,
+            'card_events': card_events,
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/analyze/dropbox')
+@login_required
+def api_analyze_dropbox():
+    """Download a DDD file from Dropbox and return analysis."""
+    dbx = get_server_dropbox_client()
+    if not dbx:
+        return jsonify({'error': 'Brak połączenia z Dropbox'}), 500
+    file_path = request.args.get('path')
+    if not file_path:
+        return jsonify({'error': 'Brak ścieżki pliku'}), 400
+    try:
+        metadata, response = dbx.files_download(file_path)
+        with tempfile.NamedTemporaryFile(suffix='.ddd', delete=False) as tmp:
+            tmp.write(response.content)
+            tmp_path = tmp.name
+        data = parse_ddd_auto(tmp_path)
+        result = analyze_card(data)
+        result['source_file'] = metadata.name
+        _log_activity('analyze_dropbox', f"{result.get('driver_info', {}).get('driver_name', '')} — {metadata.name}")
+        di = result.get('driver_info', {})
+        _cache_card_expiry(di.get('card_number'), di.get('card_expiry_date'), di.get('driver_name', ''))
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if 'tmp_path' in locals():
+            os.unlink(tmp_path)
+
+
+# ---------------------------------------------------------------------------
+# Stundenzettel OCR parsing (handwritten / PDF timesheets)
+# Uses OpenAI GPT-4o Vision for OCR — works great on handwriting.
+# ---------------------------------------------------------------------------
+
+_STZ_PROMPT = '''You are an expert system for extracting structured data from handwritten German timesheets (DATEV format).
+
+Your task is to read the provided image and extract work entries into structured JSON.
+
+STRICT RULES:
+* Do NOT guess missing or unclear values
+* If a value is unreadable, return null
+* Preserve original meaning, do not invent data
+* Be precise: accuracy is more important than completeness
+* Process the table row by row
+* The day number is PRINTED in the leftmost column (Kalendertag 1-31). Read it directly.
+
+NORMALIZATION RULES:
+* "5 Uhr" -> "05:00", "19Uhr" -> "19:00", "5uhr" -> "05:00"
+* "15.45" -> "15:45" (dot is time separator in German handwriting)
+* "14.30" -> "14:30"
+* If only hour is given, assume ":00"
+* Breaks: "45 min" -> 45, "0,75" -> 45, "0,5" -> 30, "0.75" -> 45, "/" -> 0, "—" -> 0
+* German codes: "F" = "Feiertag", "K" = "Krank", "U" = "Urlaub"
+* Extract "Name des Mitarbeiters" from the header field at the top
+
+OUTPUT FORMAT (JSON only, no explanation):
+{"name":"...","days":[
+{"day":1,"start_time":null,"end_time":null,"break_minutes":null,"notes":"","confidence":0.0},
+{"day":2,"start_time":"05:00","end_time":"19:00","break_minutes":45,"notes":"Tour gefahren","confidence":1.0}
+]}
+
+CONFIDENCE per row:
+* 1.0 = clearly readable
+* 0.7 = minor uncertainty
+* 0.4 = hard to read
+* 0.0 = unreadable
+
+IMPORTANT:
+* Do not merge rows
+* Do not skip rows - return ALL rows (28, 30, or 31 depending on month)
+* If a row is empty or has only dashes, return it with null values
+* Keep output strictly valid JSON
+* "day" must match the PRINTED number in column 1'''
+
+
+def _parse_stundenzettel_with_openai(image_data, media_type):
+    """Send image to OpenAI GPT-4o Vision for OCR extraction."""
+    import openai
+    import base64
+
+    api_key = os.environ.get('OPENAI_API_KEY', '')
+    if not api_key:
+        raise RuntimeError('OPENAI_API_KEY not configured. Set it in .env')
+
+    client = openai.OpenAI(api_key=api_key)
+    b64 = base64.b64encode(image_data).decode('utf-8')
+
+    response = client.chat.completions.create(
+        model='gpt-4o',
+        max_tokens=4096,
+        messages=[{
+            'role': 'user',
+            'content': [
+                {
+                    'type': 'image_url',
+                    'image_url': {
+                        'url': f'data:{media_type};base64,{b64}',
+                        'detail': 'high',
+                    },
+                },
+                {
+                    'type': 'text',
+                    'text': _STZ_PROMPT,
+                },
+            ],
+        }],
+    )
+    raw_text = response.choices[0].message.content.strip()
+    # Strip markdown code fences if present
+    if raw_text.startswith('```'):
+        raw_text = raw_text.split('\n', 1)[1] if '\n' in raw_text else raw_text[3:]
+        if raw_text.endswith('```'):
+            raw_text = raw_text[:-3].strip()
+    return json.loads(raw_text)
+
+
+def _calculate_stundenzettel(parsed):
+    """Calculate work hours, night hours, diets from parsed Stundenzettel data."""
+    days = parsed.get('days', [])
+    results = []
+    totals = {
+        'work_minutes': 0,
+        'night_25_minutes': 0,
+        'night_40_minutes': 0,
+        'diet_count': 0,
+        'sick_days': 0,
+        'vacation_days': 0,
+        'holiday_days': 0,
+        'work_days': 0,
+    }
+
+    month = parsed.get('month') or 1
+    year = parsed.get('year') or 2026
+
+    for entry in days:
+        day_num = entry.get('day')
+        start_str = entry.get('start_time') or entry.get('start')
+        end_str = entry.get('end_time') or entry.get('end')
+        pause = entry.get('break_minutes') or entry.get('pause_minutes') or 0
+        if isinstance(pause, str):
+            try:
+                pause = int(float(pause))
+            except (ValueError, TypeError):
+                pause = 0
+        notes = entry.get('notes') or entry.get('remarks') or ''
+        code = entry.get('code') or ''
+        # Detect code from notes if not set
+        if not code and notes:
+            notes_upper = notes.strip().upper()
+            if notes_upper in ('FEIERTAG', 'F'):
+                code = 'F'
+            elif notes_upper in ('KRANK', 'K'):
+                code = 'K'
+            elif notes_upper in ('URLAUB', 'U'):
+                code = 'U'
+        remarks = notes if code == '' else None
+
+        day_result = {
+            'day': day_num,
+            'start': start_str,
+            'end': end_str,
+            'pause_minutes': pause,
+            'code': code,
+            'remarks': remarks,
+            'work_minutes': 0,
+            'night_25_minutes': 0,
+            'night_40_minutes': 0,
+            'has_diet': False,
+        }
+
+        if code == 'K':
+            totals['sick_days'] += 1
+            results.append(day_result)
+            continue
+        if code == 'U':
+            totals['vacation_days'] += 1
+            results.append(day_result)
+            continue
+        if code == 'F':
+            totals['holiday_days'] += 1
+            results.append(day_result)
+            continue
+        if code in ('UU', 'SA', 'SU'):
+            results.append(day_result)
+            continue
+
+        if not start_str or not end_str:
+            results.append(day_result)
+            continue
+
+        # Parse times
+        try:
+            sh, sm = map(int, start_str.split(':'))
+            eh, em = map(int, end_str.split(':'))
+        except (ValueError, AttributeError):
+            results.append(day_result)
+            continue
+
+        start_min = sh * 60 + sm
+        end_min = eh * 60 + em
+        if end_min <= start_min:
+            end_min += 1440  # crosses midnight
+
+        gross_minutes = end_min - start_min
+        work_minutes = max(0, gross_minutes - pause)
+        day_result['work_minutes'] = work_minutes
+        totals['work_minutes'] += work_minutes
+        totals['work_days'] += 1
+
+        # Diet: work (including pause) >= 8 hours
+        if gross_minutes >= 480:
+            day_result['has_diet'] = True
+            totals['diet_count'] += 1
+
+        # Night hours calculation (22:00-06:00)
+        # Night 25%: 22:00-24:00 and 04:00-06:00
+        # Night 40%: 00:00-04:00 if shift started before midnight
+        night_25 = 0
+        night_40 = 0
+        for m in range(start_min, min(start_min + gross_minutes - pause, end_min)):
+            hour_of_day = (m % 1440) // 60
+            if 22 <= hour_of_day <= 23:
+                night_25 += 1
+            elif 4 <= hour_of_day < 6:
+                night_25 += 1
+            elif 0 <= hour_of_day < 4:
+                if start_min < 1440:
+                    night_40 += 1
+                else:
+                    night_25 += 1
+
+        day_result['night_25_minutes'] = night_25
+        day_result['night_40_minutes'] = night_40
+        totals['night_25_minutes'] += night_25
+        totals['night_40_minutes'] += night_40
+
+        results.append(day_result)
+
+    def hm(m):
+        return f"{m // 60}:{m % 60:02d}"
+
+    totals['work_hm'] = hm(totals['work_minutes'])
+    totals['work_decimal'] = round(totals['work_minutes'] / 60, 2)
+    totals['night_25_hm'] = hm(totals['night_25_minutes'])
+    totals['night_40_hm'] = hm(totals['night_40_minutes'])
+    total_night = totals['night_25_minutes'] + totals['night_40_minutes']
+    totals['total_night_minutes'] = total_night
+    totals['total_night_hm'] = hm(total_night)
+
+    return {
+        'name': parsed.get('name', ''),
+        'personal_nr': parsed.get('personal_nr', ''),
+        'month': month,
+        'year': year,
+        'period': f"{year}-{int(month):02d}",
+        'days': results,
+        'totals': totals,
+    }
+
+
+@app.route('/api/stundenzettel/parse', methods=['POST'])
+@login_required
+def api_parse_stundenzettel():
+    """Parse a Stundenzettel image or PDF using OpenAI GPT-4o Vision."""
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file uploaded'}), 400
+
+    file = request.files['file']
+    filename = (file.filename or '').lower()
+    file_data = file.read()
+
+    if not file_data:
+        return jsonify({'error': 'Empty file'}), 400
+
+    try:
+        if filename.endswith('.pdf'):
+            # Convert PDF pages to images for GPT-4o Vision
+            try:
+                import fitz  # PyMuPDF
+            except ImportError:
+                return jsonify({'error': 'PyMuPDF not installed (pip install pymupdf)'}), 500
+
+            doc = fitz.open(stream=file_data, filetype='pdf')
+            all_results = []
+            for page_num in range(min(len(doc), 5)):
+                page = doc[page_num]
+                pix = page.get_pixmap(dpi=200)
+                img_data = pix.tobytes('png')
+                try:
+                    parsed = _parse_stundenzettel_with_openai(img_data, 'image/png')
+                    result = _calculate_stundenzettel(parsed)
+                    all_results.append(result)
+                except Exception as exc:
+                    logger.warning('Stundenzettel page %d parse error: %s', page_num, exc)
+                    all_results.append({'error': str(exc), 'page': page_num + 1})
+            doc.close()
+            return jsonify({'results': all_results, 'pages': len(all_results)})
+
+        elif filename.endswith(('.jpg', '.jpeg')):
+            media_type = 'image/jpeg'
+        elif filename.endswith('.png'):
+            media_type = 'image/png'
+        elif filename.endswith('.webp'):
+            media_type = 'image/webp'
+        else:
+            return jsonify({'error': 'Unsupported file type. Use JPG, PNG, WebP or PDF.'}), 400
+
+        parsed = _parse_stundenzettel_with_openai(file_data, media_type)
+        result = _calculate_stundenzettel(parsed)
+        return jsonify({'results': [result], 'pages': 1})
+
+    except Exception as exc:
+        logger.error('Stundenzettel parse error: %s', exc)
+        return jsonify({'error': str(exc)}), 500
+
+
+@app.route('/api/vacation/parse', methods=['POST'])
+@login_required
+def api_vacation_parse():
+    """Parse an Urlaubsbericht PDF and return vacation entries."""
+    if 'file' not in request.files:
+        return jsonify({'error': 'Brak pliku'}), 400
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'error': 'Nie wybrano pliku'}), 400
+    try:
+        import pdfplumber
+        with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as tmp:
+            file.save(tmp.name)
+            tmp_path = tmp.name
+
+        entries = []
+        with pdfplumber.open(tmp_path) as pdf:
+            for page in pdf.pages:
+                tables = page.extract_tables()
+                for table in tables:
+                    for row in table:
+                        if not row or len(row) < 4:
+                            continue
+                        # Skip header row
+                        name = (row[0] or '').strip()
+                        if not name or name.lower() in ('mitarbeiter', ''):
+                            continue
+                        von = (row[1] or '').strip()
+                        bis = (row[2] or '').strip()
+                        tage_raw = (row[3] or '').strip()
+                        # Parse Arbeitstage: "5" or "2 (4)" -> take first number
+                        tage_match = re.match(r'(\d+)', tage_raw)
+                        tage = int(tage_match.group(1)) if tage_match else 0
+                        if not von or not tage:
+                            continue
+                        # Parse dates DD.MM.YYYY -> YYYY-MM-DD
+                        def parse_de_date(s):
+                            m = re.match(r'(\d{1,2})\.(\d{1,2})\.(\d{4})', s)
+                            if m:
+                                return f'{m.group(3)}-{m.group(2).zfill(2)}-{m.group(1).zfill(2)}'
+                            return s
+                        entries.append({
+                            'name': name,
+                            'von': parse_de_date(von),
+                            'bis': parse_de_date(bis),
+                            'tage': tage,
+                            'raw_tage': tage_raw,
+                        })
+
+        # Group by person (merge multiple rows for same person)
+        from collections import defaultdict
+        by_name = defaultdict(lambda: {'ranges': [], 'total_tage': 0})
+        for e in entries:
+            by_name[e['name']]['ranges'].append({
+                'von': e['von'],
+                'bis': e['bis'],
+                'tage': e['tage'],
+            })
+            by_name[e['name']]['total_tage'] += e['tage']
+
+        result = []
+        for name, data in by_name.items():
+            result.append({
+                'name': name,
+                'ranges': data['ranges'],
+                'total_tage': data['total_tage'],
+            })
+
+        return jsonify({'entries': result, 'count': len(result)})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if 'tmp_path' in locals():
+            os.unlink(tmp_path)
+
+
+@app.route('/api/compare', methods=['POST'])
+@login_required
+def api_compare_drivers():
+    """Compare shifts across multiple drivers. Accepts {files: [{path, driver_name, card_number}]}."""
+    payload = request.get_json(silent=True) or {}
+    files = payload.get('files', [])
+    if not files or not isinstance(files, list):
+        return jsonify({'error': 'files list required'}), 400
+    if len(files) > 20:
+        return jsonify({'error': 'Max 20 drivers'}), 400
+
+    dbx = get_server_dropbox_client()
+    if not dbx:
+        return jsonify({'error': 'Brak połączenia z Dropbox'}), 500
+
+    results = []
+    for entry in files:
+        file_path = entry.get('path', '')
+        driver_name = entry.get('driver_name', '')
+        card_number = entry.get('card_number', '')
+        if not file_path:
+            continue
+        try:
+            metadata, response = dbx.files_download(file_path)
+            with tempfile.NamedTemporaryFile(suffix='.ddd', delete=False) as tmp:
+                tmp.write(response.content)
+                tmp_path = tmp.name
+            data = parse_ddd_auto(tmp_path)
+            analysis = analyze_card(data)
+            os.unlink(tmp_path)
+
+            # Extract condensed shift data
+            shifts = []
+            for sh in analysis.get('shift_details', []):
+                shifts.append({
+                    'date': sh.get('shift_date', ''),
+                    'weekday': sh.get('weekday', ''),
+                    'start': sh.get('shift_start', ''),
+                    'end': sh.get('shift_end', ''),
+                    'duration_hm': sh.get('duration_hm', ''),
+                    'work_minutes': sh.get('work_minutes', 0),
+                })
+
+            results.append({
+                'driver_name': driver_name or analysis.get('driver_info', {}).get('driver_name', ''),
+                'card_number': card_number,
+                'shifts': shifts,
+            })
+        except Exception:
+            results.append({
+                'driver_name': driver_name,
+                'card_number': card_number,
+                'shifts': [],
+                'error': 'Nie udało się przeanalizować pliku',
+            })
+
+    _log_activity('compare_drivers', f"{len(results)} drivers")
+    return jsonify({'drivers': results})
+
+
+@app.route('/api/settlement', methods=['POST'])
+@login_required
+def api_settlement():
+    """Analyze all drivers for a given month. Returns full analysis per driver.
+
+    Accepts {period: "YYYY-MM"} – downloads latest DDD file per driver from Dropbox,
+    parses it, and filters shifts to the requested month.
+    Uses ThreadPoolExecutor for parallel Dropbox downloads.
+    """
+    try:
+        payload = request.get_json(silent=True) or {}
+        period = payload.get('period', '')
+        if not period or not re.match(r'^\d{4}-\d{2}$', period):
+            return jsonify({'error': 'period (YYYY-MM) required'}), 400
+
+        # Load drivers from cache or Dropbox
+        cached = load_portal_cache()
+        if cached:
+            drivers_data = cached
+        else:
+            dbx = get_server_dropbox_client()
+            if not dbx:
+                return jsonify({'error': 'Brak połączenia z Dropbox'}), 500
+            sync_folder = os.environ.get('SYNC_DEST_FOLDER', '/Samsara-DDD')
+            drivers_data = build_drivers_data(dbx, sync_folder)
+
+        # Load all driver configs for personal_nr / diet settings
+        conn = _get_db()
+        all_configs = {}
+        for row in conn.execute('SELECT * FROM driver_config').fetchall():
+            all_configs[row['card_number']] = dict(row)
+        conn.close()
+
+        # Build list of drivers that have files to analyze
+        tasks = []
+        for driver in drivers_data:
+            files = driver.get('files', [])
+            if not files:
+                continue
+            file_path = files[0].get('path', '')
+            if not file_path:
+                continue
+            tasks.append({
+                'driver_name': driver.get('name', ''),
+                'card_number': driver.get('card_number', ''),
+                'file_path': file_path,
+            })
+
+        def process_driver(task):
+            """Download + parse + filter one driver. Each thread gets its own Dropbox client."""
+            dbx_thread = get_server_dropbox_client()
+            if not dbx_thread:
+                return None
+            driver_name = task['driver_name']
+            card_number = task['card_number']
+            file_path = task['file_path']
+            try:
+                _metadata, response = dbx_thread.files_download(file_path)
+                with tempfile.NamedTemporaryFile(suffix='.ddd', delete=False) as tmp:
+                    tmp.write(response.content)
+                    tmp_path = tmp.name
+                data = parse_ddd_auto(tmp_path)
+                analysis = analyze_card(data)
+                os.unlink(tmp_path)
+
+                month_shifts = [sh for sh in analysis.get('shift_details', [])
+                               if sh.get('shift_date', '')[:7] == period]
+                if not month_shifts:
+                    return None
+
+                total_work = sum(s.get('work_minutes', 0) for s in month_shifts)
+                total_driving = sum(s.get('driving_minutes', 0) for s in month_shifts)
+                total_break = sum(s.get('break_minutes', 0) for s in month_shifts)
+                total_avail = sum(s.get('avail_minutes', 0) for s in month_shifts)
+                total_n25 = sum(s.get('night_25_minutes', 0) for s in month_shifts)
+                total_n40 = sum(s.get('night_40_minutes', 0) for s in month_shifts)
+                diet_count = sum(1 for s in month_shifts if s.get('has_diet'))
+
+                dcfg = all_configs.get(card_number, {})
+                personal_nr = dcfg.get('personal_nr', '') or card_number
+                double_diet = bool(dcfg.get('double_diet', 0))
+                diet_rate = float(dcfg.get('diet_rate', 14.0))
+                # Double diet = two allowances per day (14€ + 14€)
+                vma_per_day = diet_rate * 2 if double_diet else diet_rate
+
+                return {
+                    'driver_name': driver_name,
+                    'card_number': card_number,
+                    'personal_nr': personal_nr,
+                    'double_diet': double_diet,
+                    'diet_rate': diet_rate,
+                    'summary': {
+                        'total_work_minutes': total_work,
+                        'total_work_hm': minutes_to_hm(total_work),
+                        'total_driving_minutes': total_driving,
+                        'total_driving_hm': minutes_to_hm(total_driving),
+                        'total_break_minutes': total_break,
+                        'total_break_hm': minutes_to_hm(total_break),
+                        'total_avail_minutes': total_avail,
+                        'night_25_minutes': total_n25,
+                        'night_25_hm': minutes_to_hm(total_n25),
+                        'night_40_minutes': total_n40,
+                        'night_40_hm': minutes_to_hm(total_n40),
+                        'diet_count': diet_count,
+                        'effective_diet_count': diet_count,
+                        'vma_amount': diet_count * vma_per_day,
+                        'total_shifts': len(month_shifts),
+                    },
+                    'shifts': month_shifts,
+                }
+            except Exception:
+                return None
+
+        # Process drivers in parallel (up to 8 concurrent Dropbox downloads)
+        results = []
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            futures = {executor.submit(process_driver, t): t for t in tasks}
+            for future in as_completed(futures):
+                result = future.result()
+                if result:
+                    results.append(result)
+
+        results.sort(key=lambda r: r['driver_name'])
+        _log_activity('settlement', f"{period} – {len(results)} drivers")
+        return jsonify({'period': period, 'drivers': results})
+    except Exception as exc:
+        return jsonify({'error': f'Settlement error: {str(exc)}'}), 500
+
+
+@app.route('/api/driver-km', methods=['POST'])
+@login_required
+def api_driver_km():
+    """Extract km (odometer) data from selected drivers' DDD files for a date range.
+
+    Accepts {date_from: "YYYY-MM-DD", date_to: "YYYY-MM-DD", driver_names: [...]}.
+    Downloads latest DDD file per driver from Dropbox, parses vehicle records
+    with odometer_begin/end, and returns per-driver km summary.
+    """
+    try:
+        payload = request.get_json(force=True)
+        date_from = payload.get('date_from', '')
+        date_to = payload.get('date_to', '')
+        selected_drivers = payload.get('driver_names', [])
+
+        if not date_from or not date_to:
+            return jsonify({'error': 'date_from and date_to required (YYYY-MM-DD)'}), 400
+
+        dbx = get_server_dropbox_client()
+        if not dbx:
+            return jsonify({'error': 'Brak połączenia z Dropbox'}), 500
+
+        # Use the same driver listing as settlement/drivers pages
+        cached = load_portal_cache()
+        if cached:
+            drivers_data = cached
+        else:
+            sync_folder = os.environ.get('SYNC_DEST_FOLDER', '/Samsara-DDD')
+            drivers_data = build_drivers_data(dbx, sync_folder)
+
+        # Build task list: one task per selected driver with files
+        selected_set = set(selected_drivers) if selected_drivers else None
+        tasks = []
+        for driver in drivers_data:
+            name = driver.get('name', '')
+            if selected_set and name not in selected_set:
+                continue
+            files = driver.get('files', [])
+            if not files:
+                continue
+            file_path = files[0].get('path', '')
+            if not file_path:
+                continue
+            tasks.append({
+                'driver_name': name,
+                'card_number': driver.get('card_number', ''),
+                'file_path': file_path,
+            })
+
+        def process_driver_km(task):
+            dbx_thread = get_server_dropbox_client()
+            if not dbx_thread:
+                return None
+            try:
+                _meta, response = dbx_thread.files_download(task['file_path'])
+                with tempfile.NamedTemporaryFile(suffix='.ddd', delete=False) as tmp:
+                    tmp.write(response.content)
+                    tmp_path = tmp.name
+                data = parse_ddd_auto(tmp_path)
+                os.unlink(tmp_path)
+
+                vehicles = get_vehicle_records(data)
+                driver_info = get_driver_info(data)
+
+                # Filter vehicle records to date range and calculate km
+                period_records = []
+                total_km = 0
+                for v in vehicles:
+                    first_use = v.get('first_use', '')[:10]
+                    last_use = v.get('last_use', '')[:10]
+                    if not first_use:
+                        continue
+                    # Check date range overlap: vehicle record overlaps [date_from, date_to]
+                    v_end = last_use or first_use
+                    if v_end < date_from or first_use > date_to:
+                        continue
+
+                    odo_begin = v.get('odometer_begin_km', 0)
+                    odo_end = v.get('odometer_end_km', 0)
+                    km = max(0, odo_end - odo_begin)
+                    total_km += km
+
+                    period_records.append({
+                        'plate': v.get('plate', ''),
+                        'first_use': first_use,
+                        'last_use': last_use,
+                        'odometer_begin_km': odo_begin,
+                        'odometer_end_km': odo_end,
+                        'distance_km': km,
+                    })
+
+                if not period_records:
+                    return None
+
+                return {
+                    'driver_name': task['driver_name'],
+                    'card_number': driver_info.get('card_number', ''),
+                    'vehicles': period_records,
+                    'total_km': total_km,
+                }
+            except Exception as exc:
+                app.logger.warning(f'Driver km error for {task["driver_name"]}: {exc}')
+                return None
+
+        results = []
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            futures = {executor.submit(process_driver_km, t): t for t in tasks}
+            for future in as_completed(futures):
+                result = future.result()
+                if result:
+                    results.append(result)
+
+        results.sort(key=lambda r: r['driver_name'])
+        _log_activity('driver_km', f"{date_from}–{date_to} – {len(results)} drivers")
+        return jsonify({'date_from': date_from, 'date_to': date_to, 'drivers': results})
+    except Exception as exc:
+        return jsonify({'error': f'Driver km error: {str(exc)}'}), 500
+
+
+@app.route('/api/export/datev-batch', methods=['POST'])
+@login_required
+def api_export_datev_batch():
+    """Generate a combined DATEV CSV for multiple drivers at once.
+
+    Accepts {period: "YYYY-MM", drivers: [{driver_name, card_number, summary, shifts}, ...]}
+    Returns a single CSV file with all drivers.
+    """
+    payload = request.json or {}
+    period = payload.get('period', '')
+    driver_list = payload.get('drivers', [])
+    if not driver_list:
+        return jsonify({'error': 'No drivers data'}), 400
+
+    year_str = period[:4] if len(period) >= 4 else ''
+    month_str = period[5:7] if len(period) >= 7 else ''
+
+    conn = _get_db()
+
+    def fmt_de(val):
+        return f"{val:.2f}".replace('.', ',')
+
+    output = io.StringIO()
+    writer = csv.writer(output, delimiter=';', quoting=csv.QUOTE_ALL)
+
+    # Summary header
+    writer.writerow([
+        'Personalnr', 'Name', 'Monat', 'Jahr',
+        'Arbeitsstunden', 'Nacht 25%', 'Nacht 40%',
+        'Überstunden', 'Urlaub', 'Krank',
+        'VMA Tage', 'VMA Betrag (EUR)',
+        'Schichten gesamt',
+    ])
+
+    for drv in driver_list:
+        driver_name = drv.get('driver_name', '')
+        card_number = drv.get('card_number', '')
+        summary = drv.get('summary', {})
+
+        dcfg = conn.execute('SELECT * FROM driver_config WHERE card_number = ?', (card_number,)).fetchone()
+        dcfg = dict(dcfg) if dcfg else {}
+
+        personal_nr = dcfg.get('personal_nr', '') or card_number
+        double_diet = bool(dcfg.get('double_diet', 0))
+        VMA_RATE = float(dcfg.get('diet_rate', 14.0))
+
+        total_work_h = summary.get('total_work_minutes', 0) / 60
+        n25_h = summary.get('night_25_minutes', 0) / 60
+        n40_h = summary.get('night_40_minutes', 0) / 60
+        diet_count = summary.get('diet_count', 0)
+        # Double diet = two separate allowances per day (14€ + 14€), not double the count
+        vma_per_day = VMA_RATE * 2 if double_diet else VMA_RATE
+        vma_amount = diet_count * vma_per_day
+
+        writer.writerow([
+            personal_nr,
+            driver_name,
+            month_str,
+            year_str,
+            fmt_de(total_work_h),
+            fmt_de(n25_h),
+            fmt_de(n40_h),
+            '',  # Überstunden
+            '',  # Urlaub
+            '',  # Krank
+            str(diet_count),
+            fmt_de(vma_amount),
+            str(summary.get('total_shifts', 0)),
+        ])
+
+    # Blank line separator
+    writer.writerow([])
+
+    # Detail section for each driver
+    for drv in driver_list:
+        driver_name = drv.get('driver_name', '')
+        shifts = drv.get('shifts', [])
+        if not shifts:
+            continue
+
+        writer.writerow([f'--- {driver_name} ---'])
+        writer.writerow([
+            'Datum', 'Wochentag', 'Start', 'Ende',
+            'Arbeitszeit', 'Fahrzeit', 'Pause',
+            'Nacht 25%', 'Nacht 40%', 'VMA', 'Fahrzeug',
+        ])
+        for s in shifts:
+            writer.writerow([
+                s.get('shift_date', ''),
+                s.get('weekday', ''),
+                s.get('shift_start', '').split(' ')[-1] if ' ' in s.get('shift_start', '') else s.get('shift_start', ''),
+                s.get('shift_end', '').split(' ')[-1] if ' ' in s.get('shift_end', '') else s.get('shift_end', ''),
+                fmt_de(s.get('work_minutes', 0) / 60),
+                fmt_de(s.get('driving_minutes', 0) / 60),
+                fmt_de(s.get('break_minutes', 0) / 60),
+                fmt_de(s.get('night_25_minutes', 0) / 60),
+                fmt_de(s.get('night_40_minutes', 0) / 60),
+                'JA' if s.get('has_diet') else '',
+                ', '.join(s.get('vehicles', [])),
+            ])
+        writer.writerow([])
+
+    conn.close()
+    csv_bytes = output.getvalue().encode('utf-8-sig')
+    filename = f"DATEV_Alle_{period or datetime.now().strftime('%Y-%m')}.csv"
+    _log_activity('export_datev_batch', f"{period} – {len(driver_list)} drivers")
+    from flask import Response
+    return Response(
+        csv_bytes,
+        mimetype='text/csv',
+        headers={'Content-Disposition': f'attachment; filename="{filename}"'},
+    )
+
+
+@app.route('/api/export/csv', methods=['POST'])
+@login_required
+def api_export_csv():
+    """Generate CSV from shift data and return it."""
+    payload = request.json or {}
+    driver_name = payload.get('driver_name', 'kierowca')
+    shifts = payload.get('shifts', [])
+
+    output = io.StringIO()
+    writer = csv.writer(output, delimiter=';')
+    writer.writerow([
+        'Dzień', 'Start', 'Koniec', 'Czas trwania', 'Pojazd', 'Jazda', 'Praca',
+        'Przerwy', 'Czas pracy', 'Nocne 25%', 'Nocne 40%', 'Dieta',
+    ])
+    for s in shifts:
+        writer.writerow([
+            s.get('weekday', ''),
+            s.get('shift_start', ''),
+            s.get('shift_end', ''),
+            s.get('duration_hm', ''),
+            ', '.join(s.get('vehicles', [])),
+            s.get('driving_hm', ''),
+            s.get('work_only_hm', ''),
+            s.get('break_hm', ''),
+            s.get('work_hm', ''),
+            f"{s.get('night_25_minutes', 0) / 60:.2f}",
+            f"{s.get('night_40_minutes', 0) / 60:.2f}",
+            'TAK' if s.get('has_diet') else 'NIE',
+        ])
+
+    csv_bytes = output.getvalue().encode('utf-8-sig')
+    from flask import Response
+    safe_name = "".join(c for c in driver_name if c.isalnum() or c in ' _-').strip() or 'kierowca'
+    filename = f"{safe_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+    return Response(
+        csv_bytes,
+        mimetype='text/csv',
+        headers={'Content-Disposition': f'attachment; filename="{filename}"'},
+    )
+
+
+@app.route('/api/export/pdf', methods=['POST'])
+@login_required
+def api_export_pdf():
+    """Generate a PDF report from analysis data."""
+    payload = request.json or {}
+    driver_name = payload.get('driver_name', 'Kierowca')
+    card_number = payload.get('card_number', '')
+    summary = payload.get('summary', {})
+    shifts = payload.get('shifts', [])
+
+    # Company logo (optional)
+    logo_html = ''
+    if COMPANY_LOGO_PATH and os.path.exists(COMPANY_LOGO_PATH):
+        import base64
+        with open(COMPANY_LOGO_PATH, 'rb') as lf:
+            logo_b64 = base64.b64encode(lf.read()).decode()
+        ext_logo = COMPANY_LOGO_PATH.rsplit('.', 1)[-1].lower()
+        mime = {'png': 'image/png', 'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'svg': 'image/svg+xml'}.get(ext_logo, 'image/png')
+        logo_html = f'<img src="data:{mime};base64,{logo_b64}" style="max-height:60px;margin-bottom:8px;" />'
+
+    # Build simple HTML-based PDF using basic HTML tables
+    html_parts = [
+        '<!DOCTYPE html><html><head><meta charset="utf-8">',
+        '<style>',
+        'body{font-family:Arial,sans-serif;font-size:11px;margin:20px;}',
+        '.header{display:flex;align-items:center;gap:16px;margin-bottom:12px;}',
+        '.header img{max-height:60px;}',
+        'h1{font-size:18px;margin-bottom:4px;}',
+        'h2{font-size:14px;color:#555;margin:16px 0 8px;}',
+        '.meta{color:#666;font-size:10px;margin-bottom:16px;}',
+        '.grid{display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;}',
+        '.card{border:1px solid #ddd;border-radius:8px;padding:10px 16px;text-align:center;min-width:120px;}',
+        '.card .label{font-size:9px;text-transform:uppercase;font-weight:bold;color:#888;letter-spacing:0.5px;}',
+        '.card .val{font-size:18px;font-weight:bold;margin-top:2px;}',
+        '.highlight{border-color:#4f46e5;background:#f5f3ff;}',
+        'table{width:100%;border-collapse:collapse;margin-top:8px;font-size:10px;}',
+        'th{background:#f3f4f6;border:1px solid #ddd;padding:5px 8px;text-align:left;font-size:9px;text-transform:uppercase;}',
+        'td{border:1px solid #eee;padding:4px 8px;}',
+        'tr:nth-child(even){background:#fafafa;}',
+        '.diet-yes{color:#16a34a;font-weight:bold;}',
+        '.footer{margin-top:20px;font-size:9px;color:#999;text-align:center;}',
+        '</style></head><body>',
+        f'<div class="header">{logo_html}<div><h1>{driver_name}</h1>' if logo_html else f'<h1>{driver_name}</h1>',
+        f'<div class="meta">{card_number}</div></div></div>' if logo_html and card_number else (f'<div class="meta">{card_number}</div>' if card_number else ('</div></div>' if logo_html else '')),
+        '<h2>Podsumowanie</h2>',
+        '<div class="grid">',
+        f'<div class="card highlight"><div class="label">Czas pracy</div><div class="val">{summary.get("total_work_hm", "-")}</div></div>',
+        f'<div class="card highlight"><div class="label">Nocne 25%</div><div class="val">{summary.get("night_25_minutes", 0) / 60:.2f}h ({summary.get("night_25_hm", "-")})</div></div>',
+        f'<div class="card highlight"><div class="label">Nocne 40%</div><div class="val">{summary.get("night_40_minutes", 0) / 60:.2f}h ({summary.get("night_40_hm", "-")})</div></div>',
+        f'<div class="card highlight"><div class="label">Diety</div><div class="val">{summary.get("diet_count", 0)}</div></div>',
+        '</div>',
+        '<div class="grid">',
+        f'<div class="card"><div class="label">Jazda</div><div class="val">{summary.get("total_driving_hm", "-")}</div></div>',
+        f'<div class="card"><div class="label">Przerwy</div><div class="val">{summary.get("total_break_hm", "-")}</div></div>',
+        f'<div class="card"><div class="label">Łącznie zmian</div><div class="val">{summary.get("total_shifts", 0)}</div></div>',
+        '</div>',
+        '<h2>Zmiany</h2>',
+        '<table><thead><tr>',
+        '<th>Dzień</th><th>Start</th><th>Koniec</th><th>Czas</th><th>Pojazd</th>',
+        '<th>Jazda</th><th>Praca</th><th>Przerwy</th>',
+        '<th>Nocne 25%</th><th>Nocne 40%</th><th>Dieta</th>',
+        '</tr></thead><tbody>',
+    ]
+    weekend_style = ' style="background:#fef2f2;"'
+    for s in shifts:
+        n25 = f"{s.get('night_25_minutes', 0) / 60:.2f}"
+        n40 = f"{s.get('night_40_minutes', 0) / 60:.2f}"
+        diet = '<span class="diet-yes">TAK</span>' if s.get('has_diet') else 'NIE'
+        wd = s.get('weekday', '')
+        is_weekend = wd in ('So', 'Nd', 'Sa', 'Su')
+        row_style = weekend_style if is_weekend else ''
+        html_parts.append(
+            f'<tr{row_style}><td><b>{wd}</b></td><td>{s.get("shift_start","")}</td><td>{s.get("shift_end","")}</td>'
+            f'<td><b>{s.get("duration_hm","")}</b></td><td>{", ".join(s.get("vehicles",[]))}</td>'
+            f'<td>{s.get("driving_hm","")}</td><td>{s.get("work_only_hm","")}</td>'
+            f'<td>{s.get("break_hm","")}</td><td>{n25}</td><td>{n40}</td><td>{diet}</td></tr>'
+        )
+    html_parts.append('</tbody></table>')
+    html_parts.append(f'<div class="footer">LTS Logistik GmbH — Tachoprüfung — wygenerowano {datetime.now().strftime("%Y-%m-%d %H:%M")}</div>')
+    html_parts.append('</body></html>')
+
+    html_content = '\n'.join(html_parts)
+
+    # Try weasyprint first, fall back to HTML download
+    try:
+        from weasyprint import HTML as WeasyHTML
+        pdf_bytes = WeasyHTML(string=html_content).write_pdf()
+        content_type = 'application/pdf'
+        ext = 'pdf'
+    except ImportError:
+        # Fallback: return HTML file that can be printed to PDF from browser
+        pdf_bytes = html_content.encode('utf-8')
+        content_type = 'text/html'
+        ext = 'html'
+
+    safe_name = "".join(c for c in driver_name if c.isalnum() or c in ' _-').strip() or 'kierowca'
+    filename = f"{safe_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{ext}"
+    from flask import Response
+    return Response(
+        pdf_bytes,
+        mimetype=content_type,
+        headers={'Content-Disposition': f'attachment; filename="{filename}"'},
+    )
+
+
+# ---------------------------------------------------------------------------
+# Sync status API
+# ---------------------------------------------------------------------------
+
+
+@app.route('/api/sync/status')
+@login_required
+def api_sync_status():
+    state_file = os.environ.get('SYNC_STATE_FILE', '/opt/ddd-reader/samsara_sync_state.json')
+    try:
+        if os.path.exists(state_file):
+            with open(state_file) as f:
+                data = json.load(f)
+            return jsonify({
+                'last_sync': data.get('last_sync', ''),
+                'synced_count': len(data.get('synced_ids', [])),
+            })
+        return jsonify({'last_sync': '', 'synced_count': 0})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/sync/log')
+@login_required
+def api_sync_log():
+    history_file = os.environ.get('SYNC_HISTORY_FILE', '/opt/ddd-reader/samsara_sync_history.json')
+    try:
+        if os.path.exists(history_file):
+            with open(history_file) as f:
+                history = json.load(f)
+            history.reverse()
+            return jsonify({'history': history})
+        return jsonify({'history': []})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
+# Dashboard summary API
+# ---------------------------------------------------------------------------
+
+
+@app.route('/api/dashboard')
+@login_required
+def api_dashboard():
+    """Aggregate summary for the dashboard."""
+    # Drivers count from cache
+    cached = load_portal_cache()
+    driver_count = len(cached) if cached else 0
+    total_files = sum(d.get('file_count', 0) for d in cached) if cached else 0
+
+    # Sync status
+    state_file = os.environ.get('SYNC_STATE_FILE', '/opt/ddd-reader/samsara_sync_state.json')
+    last_sync = ''
+    synced_count = 0
+    try:
+        if os.path.exists(state_file):
+            with open(state_file) as f:
+                data = json.load(f)
+            last_sync = data.get('last_sync', '')
+            synced_count = len(data.get('synced_ids', []))
+    except Exception:
+        pass
+
+    # Last sync history entry
+    history_file = os.environ.get('SYNC_HISTORY_FILE', '/opt/ddd-reader/samsara_sync_history.json')
+    last_sync_status = ''
+    last_sync_errors = 0
+    last_sync_uploaded = 0
+    try:
+        if os.path.exists(history_file):
+            with open(history_file) as f:
+                history = json.load(f)
+            if history:
+                last = history[-1]
+                last_sync_status = last.get('status', '')
+                last_sync_errors = last.get('errors', 0)
+                last_sync_uploaded = last.get('uploaded', 0)
+    except Exception:
+        pass
+
+    # Stale drivers (sorted by days_since descending, those with data issues first)
+    stale_drivers = []
+    if cached:
+        now = datetime.utcnow()
+        for d in cached:
+            ld = d.get('latest_download', '')
+            days = None
+            if ld:
+                try:
+                    cleaned = ld.replace('Z', '+00:00') if ld.endswith('Z') else ld
+                    dt = datetime.fromisoformat(cleaned.replace('+00:00', ''))
+                    days = (now - dt).days
+                except Exception:
+                    pass
+            stale_drivers.append({
+                'name': d.get('name', ''),
+                'card_number': d.get('card_number', ''),
+                'days_since': days,
+                'latest_download': ld,
+                'file_count': d.get('file_count', 0),
+            })
+        # Sort: null days first (no data), then highest days_since
+        stale_drivers.sort(key=lambda x: (0 if x['days_since'] is None else 1, -(x['days_since'] or 9999)))
+
+    # Expiring cards from driver_config cache
+    expiring_cards = []
+    try:
+        conn = _get_db()
+        rows = conn.execute(
+            "SELECT card_number, driver_name, card_expiry_date FROM driver_config WHERE card_expiry_date != ''"
+        ).fetchall()
+        conn.close()
+        today = datetime.utcnow().date()
+        for row in rows:
+            try:
+                expiry = datetime.strptime(row[2], '%Y-%m-%d').date() if row[2] else None
+                if expiry:
+                    days_left = (expiry - today).days
+                    expiring_cards.append({
+                        'card_number': row[0],
+                        'driver_name': row[1],
+                        'card_expiry_date': row[2],
+                        'days_left': days_left,
+                    })
+            except Exception:
+                pass
+        expiring_cards.sort(key=lambda x: x['days_left'])
+    except Exception:
+        pass
+
+    return jsonify({
+        'driver_count': driver_count,
+        'total_files': total_files,
+        'last_sync': last_sync,
+        'synced_count': synced_count,
+        'last_sync_status': last_sync_status,
+        'last_sync_errors': last_sync_errors,
+        'last_sync_uploaded': last_sync_uploaded,
+        'stale_drivers': stale_drivers,
+        'expiring_cards': expiring_cards,
+    })
+
+
+@app.route('/api/dashboard/scan-expiry', methods=['POST'])
+@login_required
+def api_scan_card_expiry():
+    """Bulk scan all drivers' latest DDD files to cache card expiry dates."""
+    dbx = get_server_dropbox_client()
+    if not dbx:
+        return jsonify({'error': 'Brak połączenia z Dropbox'}), 500
+
+    cached = load_portal_cache()
+    if not cached:
+        return jsonify({'error': 'Brak danych kierowców'}), 400
+
+    results = []
+    for driver in cached:
+        files = driver.get('files', [])
+        if not files:
+            continue
+        # Use the latest file
+        latest = files[0]
+        fpath = latest.get('path', '')
+        if not fpath:
+            continue
+        try:
+            _, response = dbx.files_download(fpath)
+            with tempfile.NamedTemporaryFile(suffix='.ddd', delete=False) as tmp:
+                tmp.write(response.content)
+                tmp_path = tmp.name
+            data = parse_ddd_auto(tmp_path)
+            info = get_driver_info(data)
+            os.unlink(tmp_path)
+            if info.get('card_number') and info.get('card_expiry_date'):
+                _cache_card_expiry(info['card_number'], info['card_expiry_date'], info.get('driver_name', ''))
+                results.append({
+                    'driver': driver.get('name', ''),
+                    'card_number': info['card_number'],
+                    'card_expiry_date': info['card_expiry_date'],
+                })
+        except Exception:
+            if 'tmp_path' in locals():
+                try:
+                    os.unlink(tmp_path)
+                except Exception:
+                    pass
+            continue
+
+    return jsonify({'scanned': len(results), 'results': results})
+
+
+# ---------------------------------------------------------------------------
+# Monthly days API (vacation / sick per driver per month)
+# ---------------------------------------------------------------------------
+
+
+@app.route('/api/driver-monthly/<card_number>/<period>')
+@login_required
+def api_get_monthly_days(card_number, period):
+    """Get vacation/sick days for a driver in a given month (period=YYYY-MM)."""
+    conn = _get_db()
+    row = conn.execute(
+        "SELECT vacation_days, sick_days, overtime_hm, notes, absence_days FROM driver_monthly_days WHERE card_number = ? AND period = ?",
+        (card_number, period),
+    ).fetchone()
+    conn.close()
+    if row:
+        import json as _json
+        try:
+            absence = _json.loads(row[4]) if row[4] else {}
+        except Exception:
+            absence = {}
+        return jsonify({
+            'card_number': card_number,
+            'period': period,
+            'vacation_days': row[0],
+            'sick_days': row[1],
+            'overtime_hm': row[2],
+            'notes': row[3],
+            'absence_days': absence,
+        })
+    return jsonify({
+        'card_number': card_number,
+        'period': period,
+        'vacation_days': 0,
+        'sick_days': 0,
+        'overtime_hm': '',
+        'notes': '',
+        'absence_days': {},
+    })
+
+
+@app.route('/api/driver-monthly/<card_number>/<period>', methods=['POST'])
+@login_required
+def api_set_monthly_days(card_number, period):
+    """Set vacation/sick days for a driver in a given month."""
+    import json as _json
+    body = request.get_json(force=True)
+    vacation = float(body.get('vacation_days', 0))
+    sick = float(body.get('sick_days', 0))
+    overtime = body.get('overtime_hm', '')
+    notes = body.get('notes', '')
+    absence = body.get('absence_days', {})
+    absence_str = _json.dumps(absence) if isinstance(absence, dict) else str(absence or '{}')
+    now = datetime.utcnow().isoformat()
+
+    conn = _get_db()
+    conn.execute('''
+        INSERT INTO driver_monthly_days (card_number, period, vacation_days, sick_days, overtime_hm, notes, absence_days, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(card_number, period) DO UPDATE SET
+            vacation_days = excluded.vacation_days,
+            sick_days = excluded.sick_days,
+            overtime_hm = excluded.overtime_hm,
+            notes = excluded.notes,
+            absence_days = excluded.absence_days,
+            updated_at = excluded.updated_at
+    ''', (card_number, period, vacation, sick, overtime, notes, absence_str, now))
+    conn.commit()
+    conn.close()
+
+    return jsonify({'ok': True})
+
+
+# ---------------------------------------------------------------------------
+# Payroll status API (policzony / stundenzettel per driver per month)
+# ---------------------------------------------------------------------------
+
+
+@app.route('/api/payroll-status/<period>')
+@login_required
+def api_get_payroll_status(period):
+    """Get payroll status for all drivers in a given period (YYYY-MM)."""
+    conn = _get_db()
+    rows = conn.execute(
+        "SELECT card_number, status FROM payroll_status WHERE period = ?",
+        (period,),
+    ).fetchall()
+    conn.close()
+    statuses = {row[0]: row[1] for row in rows}
+    return jsonify({'period': period, 'statuses': statuses})
+
+
+@app.route('/api/payroll-status/<period>', methods=['POST'])
+@login_required
+def api_set_payroll_status(period):
+    """Set payroll status for a driver. Body: {card_number, status}.
+    status: '' (none), 'policzony', 'stundenzettel'
+    """
+    body = request.get_json(force=True)
+    card_number = body.get('card_number', '').strip()
+    status = body.get('status', '').strip()
+    if not card_number:
+        return jsonify({'error': 'card_number required'}), 400
+    if status not in ('', 'policzony', 'stundenzettel'):
+        return jsonify({'error': 'Invalid status'}), 400
+
+    now = datetime.utcnow().isoformat()
+    conn = _get_db()
+    if status == '':
+        conn.execute(
+            "DELETE FROM payroll_status WHERE card_number = ? AND period = ?",
+            (card_number, period),
+        )
+    else:
+        conn.execute('''
+            INSERT INTO payroll_status (card_number, period, status, updated_at)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(card_number, period) DO UPDATE SET
+                status = excluded.status,
+                updated_at = excluded.updated_at
+        ''', (card_number, period, status, now))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+
+# ---------------------------------------------------------------------------
+# Toll Collect – Dropbox file storage
+# ---------------------------------------------------------------------------
+
+TOLLCOLLECT_FOLDER = '/TollCollect'
+
+
+@app.route('/api/tollcollect/files')
+@login_required
+def api_tollcollect_files():
+    """List CSV files stored in the TollCollect Dropbox folder."""
+    dbx = get_server_dropbox_client()
+    if not dbx:
+        return jsonify({'error': 'Brak połączenia z Dropbox'}), 500
+
+    try:
+        result = dbx.files_list_folder(TOLLCOLLECT_FOLDER)
+        entries = list(result.entries)
+        while result.has_more:
+            result = dbx.files_list_folder_continue(result.cursor)
+            entries.extend(result.entries)
+    except dropbox.exceptions.ApiError as e:
+        if 'not_found' in str(e):
+            return jsonify({'files': []})
+        return jsonify({'error': str(e)}), 500
+
+    files = []
+    for entry in entries:
+        if not isinstance(entry, dropbox.files.FileMetadata):
+            continue
+        files.append({
+            'name': entry.name,
+            'path': entry.path_display,
+            'size': entry.size,
+            'modified': entry.server_modified.isoformat() if entry.server_modified else '',
+        })
+
+    files.sort(key=lambda f: f['modified'], reverse=True)
+    return jsonify({'files': files})
+
+
+@app.route('/api/tollcollect/upload', methods=['POST'])
+@login_required
+def api_tollcollect_upload():
+    """Upload a Toll Collect CSV to the Dropbox TollCollect folder."""
+    if 'file' not in request.files:
+        return jsonify({'error': 'Brak pliku'}), 400
+
+    file = request.files['file']
+    period = request.form.get('period', '').strip()  # YYYY-MM
+
+    # Build filename: "YYYY-MM Maut LTS Logistik GmbH.csv"
+    if period and re.match(r'^\d{4}-\d{2}$', period):
+        safe_name = f"{period} Maut LTS Logistik GmbH.csv"
+    else:
+        fname = file.filename or 'tollcollect.csv'
+        safe_name = "".join(c for c in fname if c.isalnum() or c in '._- ').strip() or 'tollcollect.csv'
+
+    dbx = get_server_dropbox_client()
+    if not dbx:
+        return jsonify({'error': 'Brak połączenia z Dropbox'}), 500
+
+    dbx_path = f"{TOLLCOLLECT_FOLDER}/{safe_name}"
+    try:
+        file_data = file.read()
+        dbx.files_upload(
+            file_data,
+            dbx_path,
+            mode=dropbox.files.WriteMode.overwrite,
+        )
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+    _log_activity('tollcollect_upload', safe_name)
+    return jsonify({'ok': True, 'path': dbx_path, 'filename': safe_name})
+
+
+@app.route('/api/tollcollect/download')
+@login_required
+def api_tollcollect_download():
+    """Download a Toll Collect CSV from Dropbox and return its text content."""
+    path = request.args.get('path', '').strip()
+    if not path:
+        return jsonify({'error': 'Brak parametru path'}), 400
+
+    dbx = get_server_dropbox_client()
+    if not dbx:
+        return jsonify({'error': 'Brak połączenia z Dropbox'}), 500
+
+    try:
+        metadata, response = dbx.files_download(path)
+        content = response.content.decode('utf-8', errors='replace')
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+    return jsonify({
+        'ok': True,
+        'filename': metadata.name,
+        'content': content,
+    })
+
+
+@app.route('/api/tollcollect/delete', methods=['POST'])
+@login_required
+def api_tollcollect_delete():
+    """Delete a Toll Collect file from Dropbox."""
+    data = request.get_json(silent=True) or {}
+    path = data.get('path', '').strip()
+    if not path:
+        return jsonify({'error': 'Brak parametru path'}), 400
+
+    dbx = get_server_dropbox_client()
+    if not dbx:
+        return jsonify({'error': 'Brak połączenia z Dropbox'}), 500
+
+    try:
+        dbx.files_delete_v2(path)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+    _log_activity('tollcollect_delete', path)
+    return jsonify({'ok': True})
+
+
+# ---------------------------------------------------------------------------
+# Connection status API
+# ---------------------------------------------------------------------------
+
+
+@app.route('/api/status/connections')
+@login_required
+def api_connection_status():
+    """Check Dropbox and Samsara connectivity."""
+    result = {'dropbox': False, 'samsara': False}
+
+    # Check Dropbox
+    dbx = get_server_dropbox_client()
+    if dbx:
+        try:
+            dbx.users_get_current_account()
+            result['dropbox'] = True
+        except Exception:
+            pass
+
+    # Check Samsara
+    if SAMSARA_API_TOKEN:
+        try:
+            resp = http_requests.get(
+                f'{SAMSARA_API_BASE}/fleet/drivers',
+                headers={'Authorization': f'Bearer {SAMSARA_API_TOKEN}'},
+                params={'limit': 1},
+                timeout=5,
+            )
+            result['samsara'] = resp.status_code == 200
+        except Exception:
+            pass
+
+    return jsonify(result)
+
+
+# ---------------------------------------------------------------------------
+# Admin API
+# ---------------------------------------------------------------------------
+
+
+@app.route('/api/admin/login-history')
+@admin_required
+def api_login_history():
+    """Return login history (admin only)."""
+    try:
+        if os.path.exists(LOGIN_HISTORY_FILE):
+            with open(LOGIN_HISTORY_FILE) as f:
+                history = json.load(f)
+            history.reverse()
+            return jsonify({'history': history})
+        return jsonify({'history': []})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/admin/activity-log')
+@admin_required
+def api_activity_log():
+    """Return API activity log."""
+    try:
+        if os.path.exists(ACTIVITY_LOG_FILE):
+            with open(ACTIVITY_LOG_FILE) as f:
+                log = json.load(f)
+            log.reverse()
+            return jsonify({'log': log})
+        return jsonify({'log': []})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# --- Driver config ---
+
+@app.route('/api/driver-config')
+@login_required
+def api_list_driver_configs():
+    """List all driver configs."""
+    conn = _get_db()
+    rows = conn.execute('SELECT * FROM driver_config ORDER BY driver_name').fetchall()
+    conn.close()
+    return jsonify({'configs': [dict(r) for r in rows]})
+
+
+@app.route('/api/driver-config/<card_number>')
+@login_required
+def api_get_driver_config(card_number):
+    """Get config for a specific driver by card number."""
+    conn = _get_db()
+    row = conn.execute('SELECT * FROM driver_config WHERE card_number = ?', (card_number,)).fetchone()
+    conn.close()
+    if row:
+        return jsonify(dict(row))
+    return jsonify({
+        'card_number': card_number,
+        'driver_name': '',
+        'personal_nr': '',
+        'double_diet': 0,
+        'diet_rate': 14.0,
+        'notes': '',
+    })
+
+
+def _sanitize_text(val: str, max_len: int = 200) -> str:
+    """Strip and limit text input length."""
+    return str(val).strip()[:max_len]
+
+
+@app.route('/api/driver-config', methods=['POST'])
+@admin_required
+def api_upsert_driver_config():
+    """Create or update a driver config."""
+    data = request.get_json(silent=True) or {}
+    card_number = _sanitize_text(data.get('card_number', ''), 50)
+    if not card_number:
+        return jsonify({'error': 'card_number required'}), 400
+    if not re.match(r'^[A-Za-z0-9_ .\-/]+$', card_number):
+        return jsonify({'error': 'Invalid card_number format'}), 400
+
+    driver_name = _sanitize_text(data.get('driver_name', ''), 200)
+    personal_nr = _sanitize_text(data.get('personal_nr', ''), 50)
+    notes = _sanitize_text(data.get('notes', ''), 500)
+    double_diet = 1 if data.get('double_diet') else 0
+
+    try:
+        diet_rate = float(data.get('diet_rate', 14.0))
+        if diet_rate < 0 or diet_rate > 999:
+            diet_rate = 14.0
+    except (ValueError, TypeError):
+        diet_rate = 14.0
+
+    now = datetime.now(UTC).isoformat()
+    conn = _get_db()
+    existing = conn.execute('SELECT * FROM driver_config WHERE card_number = ?', (card_number,)).fetchone()
+
+    changes = []
+    if existing:
+        old = dict(existing)
+        field_map = {'driver_name': driver_name, 'personal_nr': personal_nr, 'double_diet': double_diet, 'diet_rate': diet_rate, 'notes': notes}
+        for field, new_val in field_map.items():
+            old_val = old.get(field, '')
+            if str(old_val) != str(new_val):
+                changes.append({'field': field, 'old': old_val, 'new': new_val})
+        conn.execute('''
+            UPDATE driver_config SET
+                driver_name = ?, personal_nr = ?, double_diet = ?,
+                diet_rate = ?, notes = ?, updated_at = ?
+            WHERE card_number = ?
+        ''', (driver_name, personal_nr, double_diet, diet_rate, notes, now, card_number))
+    else:
+        changes.append({'field': '*', 'old': '', 'new': 'created'})
+        conn.execute('''
+            INSERT INTO driver_config (card_number, driver_name, personal_nr, double_diet, diet_rate, notes, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (card_number, driver_name, personal_nr, double_diet, diet_rate, notes, now, now))
+
+    conn.commit()
+    conn.close()
+    _log_activity('save_driver_config', f"{card_number} — {driver_name}")
+    _log_config_change('save_driver_config', f"{card_number} — {driver_name}", card_number=card_number, driver_name=driver_name, changes=changes)
+    return jsonify({'ok': True})
+
+
+@app.route('/api/driver-config/bulk', methods=['POST'])
+@admin_required
+def api_bulk_driver_config():
+    """Bulk update driver configs. Expects {card_numbers: [...], updates: {...}}."""
+    data = request.get_json(silent=True) or {}
+    card_numbers = data.get('card_numbers', [])
+    updates = data.get('updates', {})
+
+    if not card_numbers or not isinstance(card_numbers, list):
+        return jsonify({'error': 'card_numbers list required'}), 400
+    if len(card_numbers) > 200:
+        return jsonify({'error': 'Too many card numbers (max 200)'}), 400
+    if not updates:
+        return jsonify({'error': 'updates required'}), 400
+
+    now = datetime.now(UTC).isoformat()
+    conn = _get_db()
+    count = 0
+
+    for cn in card_numbers:
+        cn = _sanitize_text(str(cn), 50)
+        if not cn:
+            continue
+        existing = conn.execute('SELECT id FROM driver_config WHERE card_number = ?', (cn,)).fetchone()
+        if existing:
+            # Build partial update
+            sets = ['updated_at = ?']
+            vals = [now]
+            if 'double_diet' in updates:
+                sets.append('double_diet = ?')
+                vals.append(1 if updates['double_diet'] else 0)
+            if 'diet_rate' in updates:
+                try:
+                    rate = float(updates['diet_rate'])
+                    if 0 <= rate <= 999:
+                        sets.append('diet_rate = ?')
+                        vals.append(rate)
+                except (ValueError, TypeError):
+                    pass
+            if 'personal_nr' in updates:
+                sets.append('personal_nr = ?')
+                vals.append(_sanitize_text(str(updates['personal_nr']), 50))
+            if 'notes' in updates:
+                sets.append('notes = ?')
+                vals.append(_sanitize_text(str(updates['notes']), 500))
+            vals.append(cn)
+            conn.execute(f"UPDATE driver_config SET {', '.join(sets)} WHERE card_number = ?", vals)
+        else:
+            # Create with defaults + updates
+            double_diet = 1 if updates.get('double_diet') else 0
+            try:
+                diet_rate = float(updates.get('diet_rate', 14.0))
+                if diet_rate < 0 or diet_rate > 999:
+                    diet_rate = 14.0
+            except (ValueError, TypeError):
+                diet_rate = 14.0
+            conn.execute('''
+                INSERT INTO driver_config (card_number, driver_name, personal_nr, double_diet, diet_rate, notes, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                cn, '', _sanitize_text(str(updates.get('personal_nr', '')), 50),
+                double_diet, diet_rate, _sanitize_text(str(updates.get('notes', '')), 500),
+                now, now,
+            ))
+        count += 1
+
+    conn.commit()
+    conn.close()
+    _log_activity('bulk_driver_config', f"{count} drivers updated")
+    _log_config_change('bulk_driver_config', f"{count} drivers updated")
+    return jsonify({'ok': True, 'updated': count})
+
+
+@app.route('/api/driver-config/<int:config_id>', methods=['DELETE'])
+@admin_required
+def api_delete_driver_config(config_id):
+    """Delete a driver config."""
+    conn = _get_db()
+    conn.execute('DELETE FROM driver_config WHERE id = ?', (config_id,))
+    conn.commit()
+    conn.close()
+    _log_activity('delete_driver_config', f"id={config_id}")
+    _log_config_change('delete_driver_config', f"id={config_id}")
+    return jsonify({'ok': True})
+
+
+# --- Config audit log ---
+
+@app.route('/api/admin/config-history')
+@admin_required
+def api_config_history():
+    """Return recent config change audit log entries."""
+    card_number = request.args.get('card_number', '')
+    limit = min(int(request.args.get('limit', 100)), 500)
+    conn = _get_db()
+    if card_number:
+        rows = conn.execute(
+            'SELECT * FROM config_audit_log WHERE card_number = ? ORDER BY changed_at DESC LIMIT ?',
+            (card_number, limit)
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            'SELECT * FROM config_audit_log ORDER BY changed_at DESC LIMIT ?',
+            (limit,)
+        ).fetchall()
+    conn.close()
+    entries = [dict(r) for r in rows]
+    return jsonify({'entries': entries})
+
+
+# --- User management ---
+
+@app.route('/api/admin/roles')
+@admin_required
+def api_list_roles():
+    """Return available roles and their default permissions."""
+    return jsonify({'roles': ROLE_PERMISSIONS})
+
+
+@app.route('/api/admin/users')
+@admin_required
+def api_list_users():
+    users = _load_users()
+    # Strip password hashes
+    safe = [{'id': u.get('id'), 'name': u.get('name'), 'role': u.get('role', 'user'),
+             'permissions': u.get('permissions', []),
+             'created': u.get('created', '')} for u in users]
+    return jsonify({'users': safe})
+
+
+@app.route('/api/admin/users', methods=['POST'])
+@admin_required
+def api_create_user():
+    data = request.get_json(silent=True) or {}
+    name = data.get('name', '').strip()
+    password = data.get('password', '')
+    role = data.get('role', 'user')
+    if not name or not password:
+        return jsonify({'error': 'Name and password required'}), 400
+    if role not in ('user', 'admin', 'dispatcher', 'driver'):
+        role = 'user'
+    permissions = data.get('permissions', [])
+    if not isinstance(permissions, list):
+        permissions = []
+    users = _load_users()
+    new_id = max((u.get('id', 0) for u in users), default=0) + 1
+    users.append({
+        'id': new_id,
+        'name': name,
+        'password_hash': _hash_password(password),
+        'role': role,
+        'permissions': permissions,
+        'created': datetime.now(UTC).isoformat(),
+    })
+    _save_users(users)
+    _log_activity('create_user', f"{name} ({role})")
+    return jsonify({'ok': True, 'id': new_id})
+
+
+@app.route('/api/admin/users/<int:user_id>', methods=['DELETE'])
+@admin_required
+def api_delete_user(user_id):
+    users = _load_users()
+    before = len(users)
+    users = [u for u in users if u.get('id') != user_id]
+    if len(users) == before:
+        return jsonify({'error': 'User not found'}), 404
+    _save_users(users)
+    _log_activity('delete_user', f"id={user_id}")
+    return jsonify({'ok': True})
+
+
+# --- Password change ---
+
+@app.route('/api/admin/change-password', methods=['POST'])
+@admin_required
+def api_change_password():
+    """Change portal or admin password (writes to config file, not env)."""
+    data = request.get_json(silent=True) or {}
+    target = data.get('target', '')  # 'portal' or 'admin'
+    new_password = data.get('new_password', '')
+    if target not in ('portal', 'admin') or not new_password:
+        return jsonify({'error': 'Invalid target or empty password'}), 400
+    cfg = _load_config()
+    cfg[f'{target}_password'] = new_password
+    _save_config(cfg)
+    # Update in-memory variable
+    global PORTAL_PASSWORD, ADMIN_PASSWORD
+    if target == 'portal':
+        PORTAL_PASSWORD = new_password
+    else:
+        ADMIN_PASSWORD = new_password
+    _log_activity('change_password', target)
+    _log_config_change('change_password', f"{target} password changed")
+    return jsonify({'ok': True})
+
+
+# --- Sync config ---
+
+@app.route('/api/admin/config')
+@admin_required
+def api_get_config():
+    cfg = _load_config()
+    return jsonify({
+        'samsara_api_token': cfg.get('samsara_api_token', SAMSARA_API_TOKEN[:8] + '...' if SAMSARA_API_TOKEN else ''),
+        'samsara_api_token_set': bool(SAMSARA_API_TOKEN or cfg.get('samsara_api_token')),
+        'dropbox_refresh_token_set': bool(DROPBOX_REFRESH_TOKEN or cfg.get('dropbox_refresh_token')),
+        'sync_dest_folder': cfg.get('sync_dest_folder', os.environ.get('SYNC_DEST_FOLDER', '/Samsara-DDD')),
+        'night_start_hour': int(cfg.get('night_start_hour', 22)),
+        'parser_engine': cfg.get('parser_engine', 'tachoparser'),
+    })
+
+
+@app.route('/api/admin/config', methods=['POST'])
+@admin_required
+def api_update_config():
+    data = request.get_json(silent=True) or {}
+    cfg = _load_config()
+    for key in ('samsara_api_token', 'dropbox_refresh_token', 'sync_dest_folder'):
+        if key in data and data[key]:
+            cfg[key] = data[key]
+    if 'night_start_hour' in data:
+        val = int(data['night_start_hour'])
+        if val in (20, 21, 22):
+            cfg['night_start_hour'] = val
+    if 'parser_engine' in data and data['parser_engine'] in ('tachoparser', 'tachograph-go'):
+        cfg['parser_engine'] = data['parser_engine']
+    _save_config(cfg)
+    # Update in-memory
+    global SAMSARA_API_TOKEN, DROPBOX_REFRESH_TOKEN
+    if 'samsara_api_token' in data and data['samsara_api_token']:
+        SAMSARA_API_TOKEN = data['samsara_api_token']
+    if 'dropbox_refresh_token' in data and data['dropbox_refresh_token']:
+        DROPBOX_REFRESH_TOKEN = data['dropbox_refresh_token']
+    _log_activity('update_config', ', '.join(data.keys()))
+    _log_config_change('update_config', ', '.join(data.keys()))
+    return jsonify({'ok': True})
+
+
+# --- DATEV export ---
+
+@app.route('/api/export/datev', methods=['POST'])
+@login_required
+def api_export_datev():
+    """Generate DATEV-compatible CSV from shift analysis data."""
+    payload = request.json or {}
+    driver_name = payload.get('driver_name', 'Fahrer')
+    card_number = payload.get('card_number', '')
+    summary = payload.get('summary', {})
+    shifts = payload.get('shifts', [])
+    period = payload.get('period', '')  # YYYY-MM
+
+    # Load driver config from DB
+    conn = _get_db()
+    dcfg = conn.execute('SELECT * FROM driver_config WHERE card_number = ?', (card_number,)).fetchone()
+    conn.close()
+    dcfg = dict(dcfg) if dcfg else {}
+
+    personal_nr = dcfg.get('personal_nr', '') or card_number
+    double_diet = bool(dcfg.get('double_diet', 0))
+    VMA_RATE = float(dcfg.get('diet_rate', 14.0))
+
+    output = io.StringIO()
+    writer = csv.writer(output, delimiter=';', quoting=csv.QUOTE_ALL)
+
+    # DATEV-compatible header
+    writer.writerow([
+        'Personalnr', 'Name', 'Monat', 'Jahr',
+        'Arbeitsstunden', 'Nacht 25%', 'Nacht 40%',
+        'Überstunden', 'Urlaub', 'Krank',
+        'VMA Tage', 'VMA Betrag (EUR)',
+        'Schichten gesamt',
+    ])
+
+    # Determine period
+    year_str = ''
+    month_str = ''
+    if period:
+        parts = period.split('-')
+        year_str = parts[0] if len(parts) > 0 else ''
+        month_str = parts[1] if len(parts) > 1 else ''
+    elif shifts:
+        first_date = shifts[0].get('shift_date', '')
+        if len(first_date) >= 7:
+            year_str = first_date[:4]
+            month_str = first_date[5:7]
+
+    # Format numbers German style
+    def fmt_de(val):
+        return f"{val:.2f}".replace('.', ',')
+
+    total_work_h = summary.get('total_work_minutes', 0) / 60
+    n25_h = summary.get('night_25_minutes', 0) / 60
+    n40_h = summary.get('night_40_minutes', 0) / 60
+    diet_count = summary.get('diet_count', 0)
+    # Double diet = two separate allowances per day (14€ + 14€), not double the count
+    vma_per_day = VMA_RATE * 2 if double_diet else VMA_RATE
+    vma_amount = diet_count * vma_per_day
+
+    writer.writerow([
+        personal_nr,
+        driver_name,
+        month_str,
+        year_str,
+        fmt_de(total_work_h),
+        fmt_de(n25_h),
+        fmt_de(n40_h),
+        '',  # Überstunden
+        '',  # Urlaub
+        '',  # Krank
+        str(diet_count),
+        fmt_de(vma_amount),
+        str(summary.get('total_shifts', 0)),
+    ])
+
+    # Detail rows per shift
+    writer.writerow([])
+    writer.writerow([
+        'Datum', 'Wochentag', 'Start', 'Ende',
+        'Arbeitszeit', 'Fahrzeit', 'Pause',
+        'Nacht 25%', 'Nacht 40%', 'VMA', 'Fahrzeug',
+    ])
+    for s in shifts:
+        writer.writerow([
+            s.get('shift_date', ''),
+            s.get('weekday', ''),
+            s.get('shift_start', ''),
+            s.get('shift_end', ''),
+            fmt_de(s.get('work_minutes', 0) / 60),
+            fmt_de(s.get('driving_minutes', 0) / 60),
+            fmt_de(s.get('break_minutes', 0) / 60),
+            fmt_de(s.get('night_25_minutes', 0) / 60),
+            fmt_de(s.get('night_40_minutes', 0) / 60),
+            'JA' if s.get('has_diet') else '',
+            ', '.join(s.get('vehicles', [])),
+        ])
+
+    csv_bytes = output.getvalue().encode('utf-8-sig')
+    safe_name = "".join(c for c in driver_name if c.isalnum() or c in ' _-').strip() or 'fahrer'
+    filename = f"DATEV_{safe_name}_{period or datetime.now().strftime('%Y-%m')}.csv"
+    _log_activity('export_datev', f"{driver_name} {period}")
+    from flask import Response
+    return Response(
+        csv_bytes,
+        mimetype='text/csv',
+        headers={'Content-Disposition': f'attachment; filename="{filename}"'},
+    )
+
+
+# --- Load persisted config on startup ---
+
+def _apply_persisted_config():
+    """Load config from JSON file and override env-based defaults."""
+    global PORTAL_PASSWORD, ADMIN_PASSWORD, SAMSARA_API_TOKEN, DROPBOX_REFRESH_TOKEN
+    cfg = _load_config()
+    if cfg.get('portal_password'):
+        PORTAL_PASSWORD = cfg['portal_password']
+    if cfg.get('admin_password'):
+        ADMIN_PASSWORD = cfg['admin_password']
+    if cfg.get('samsara_api_token'):
+        SAMSARA_API_TOKEN = cfg['samsara_api_token']
+    if cfg.get('dropbox_refresh_token'):
+        DROPBOX_REFRESH_TOKEN = cfg['dropbox_refresh_token']
+
+
+_apply_persisted_config()
+
+
+# ---------------------------------------------------------------------------
+# Vehicle activity (Samsara GPS / engine data for controlling)
+# ---------------------------------------------------------------------------
+
+
+@app.route('/api/vehicles', methods=['GET'])
+@admin_required
+def api_vehicles_list():
+    """List vehicles from Samsara."""
+    if not SAMSARA_API_TOKEN:
+        return jsonify({'error': 'Samsara API not configured'}), 400
+
+    headers = {'Authorization': f'Bearer {SAMSARA_API_TOKEN}'}
+    vehicles = []
+    after = None
+
+    for _ in range(20):  # max pages
+        params = {'limit': 100}
+        if after:
+            params['after'] = after
+        try:
+            resp = http_requests.get(
+                f'{SAMSARA_API_BASE}/fleet/vehicles',
+                headers=headers, params=params, timeout=15,
+            )
+            if resp.status_code != 200:
+                return jsonify({'error': f'Samsara API error: {resp.status_code}'}), 502
+            data = resp.json()
+        except Exception as e:
+            return jsonify({'error': str(e)}), 502
+
+        for v in data.get('data', []):
+            vehicles.append({
+                'id': v.get('id', ''),
+                'name': v.get('name', ''),
+                'vin': v.get('vin', ''),
+                'serial': v.get('serial', ''),
+                'license_plate': v.get('licensePlate', ''),
+            })
+        pag = data.get('pagination', {})
+        if pag.get('hasNextPage') and pag.get('endCursor'):
+            after = pag['endCursor']
+        else:
+            break
+
+    _log_activity('vehicles_list', f'{len(vehicles)} vehicles')
+    return jsonify({'vehicles': vehicles})
+
+
+@app.route('/api/vehicles/activity', methods=['POST'])
+@admin_required
+def api_vehicles_activity():
+    """
+    Fetch vehicle activity from Samsara using trips/stream endpoint.
+    Returns daily breakdown: date, start/end time, duration, distance.
+    """
+    if not SAMSARA_API_TOKEN:
+        return jsonify({'error': 'Samsara API not configured'}), 400
+
+    body = request.get_json(force=True)
+    period = body.get('period', '')  # "2026-03"
+    vehicle_ids = body.get('vehicle_ids', [])  # required
+    # skip_location removed — always fetch all sources for accuracy
+
+    if not period or len(period) != 7:
+        return jsonify({'error': 'Invalid period (expected YYYY-MM)'}), 400
+
+    if not vehicle_ids:
+        return jsonify({'error': 'No vehicle selected'}), 400
+
+    # --- Check cache ---
+    cache_key = (period, tuple(sorted(vehicle_ids)))
+    cached = VEHICLE_ACTIVITY_CACHE.get(cache_key)
+    if cached:
+        cache_ts, cache_data = cached
+        if (datetime.now() - cache_ts).total_seconds() < VEHICLE_ACTIVITY_CACHE_TTL:
+            app.logger.info('Vehicle activity cache hit for %s', cache_key)
+            return jsonify(cache_data)
+
+    year, month = int(period[:4]), int(period[5:7])
+    from calendar import monthrange
+    _, last_day = monthrange(year, month)
+    start_time = f'{period}-01T00:00:00Z'
+    end_time = f'{period}-{last_day:02d}T23:59:59Z'
+
+    headers = {'Authorization': f'Bearer {SAMSARA_API_TOKEN}'}
+    ids_param = ','.join(vehicle_ids[:50])
+
+    debug_info = {'api_calls': 0, 'raw_trips': 0, 'errors': []}
+
+    # ---- Helper functions for parallel fetching ----
+
+    def _fetch_trips():
+        """Fetch trips from trips/stream endpoint."""
+        trips = []
+        info = {'api_calls': 0, 'raw_trips': 0, 'errors': []}
+        after_cursor = None
+        for _ in range(200):
+            params = {
+                'ids': ids_param,
+                'startTime': start_time,
+                'endTime': end_time,
+                'queryBy': 'tripStartTime',
+                'completionStatus': 'completed',
+                'includeAsset': 'true',
+            }
+            if after_cursor:
+                params['after'] = after_cursor
+            info['api_calls'] += 1
+            try:
+                resp = http_requests.get(
+                    f'{SAMSARA_API_BASE}/trips/stream',
+                    headers=headers, params=params, timeout=30,
+                )
+                if resp.status_code != 200:
+                    info['errors'].append(f'HTTP {resp.status_code}: {resp.text[:500] if resp.text else ""}')
+                    break
+                data = resp.json()
+            except Exception as exc:
+                info['errors'].append(str(exc))
+                break
+            batch = data.get('data', [])
+            info['raw_trips'] += len(batch)
+            trips.extend(batch)
+            pag = data.get('pagination', {})
+            if pag.get('hasNextPage') and pag.get('endCursor'):
+                after_cursor = pag['endCursor']
+            else:
+                break
+        return trips, info
+
+    def _fetch_stats():
+        """Fetch OBD odometer / GPS distance stats."""
+        all_stats = {vid: [] for vid in vehicle_ids}
+        info = {'api_calls': 0, 'errors': []}
+        stats_after = None
+        for _ in range(50):
+            stat_params = {
+                'vehicleIds': ids_param,
+                'types': 'obdOdometerMeters,gpsDistanceMeters',
+                'startTime': start_time,
+                'endTime': end_time,
+            }
+            if stats_after:
+                stat_params['after'] = stats_after
+            info['api_calls'] += 1
+            sresp = http_requests.get(
+                f'{SAMSARA_API_BASE}/fleet/vehicles/stats/history',
+                headers=headers, params=stat_params, timeout=30,
+            )
+            if sresp.status_code != 200:
+                info['errors'].append(f'stats/history HTTP {sresp.status_code}: {sresp.text[:300]}')
+                break
+            sdata = sresp.json()
+            for entry in sdata.get('data', []):
+                vid = entry.get('id', '')
+                if vid not in all_stats:
+                    all_stats[vid] = []
+                for stat_type in ['obdOdometerMeters', 'gpsDistanceMeters']:
+                    for point in entry.get(stat_type, []):
+                        val = point.get('value', 0) or 0
+                        ts = point.get('time', '')
+                        if val and ts:
+                            all_stats[vid].append({
+                                'type': stat_type,
+                                'value': float(val),
+                                'time': ts,
+                            })
+            spag = sdata.get('pagination', {})
+            if spag.get('hasNextPage') and spag.get('endCursor'):
+                stats_after = spag['endCursor']
+            else:
+                break
+
+        # Calculate daily km from stats
+        stats_daily = {}
+        for vid, points in all_stats.items():
+            if not points:
+                continue
+            obd_pts = [p for p in points if p['type'] == 'obdOdometerMeters']
+            gps_pts = [p for p in points if p['type'] == 'gpsDistanceMeters']
+            use_pts = obd_pts if obd_pts else gps_pts
+            if not use_pts:
+                continue
+            day_readings = {}
+            for p in use_pts:
+                try:
+                    dt = datetime.fromisoformat(p['time'].replace('Z', '+00:00')).astimezone(CET)
+                    dk = dt.strftime('%Y-%m-%d')
+                    day_readings.setdefault(dk, []).append(p['value'])
+                except Exception:
+                    continue
+            if vid not in stats_daily:
+                stats_daily[vid] = {}
+            sorted_days = sorted(day_readings.keys())
+            prev_day_max = None
+            for dk in sorted_days:
+                readings = day_readings[dk]
+                curr_max = max(readings)
+                if prev_day_max is not None:
+                    # Distance = today's max odometer - yesterday's max odometer
+                    # This captures ALL driving between days (no gaps lost)
+                    diff = curr_max - prev_day_max
+                    if diff > 0:
+                        stats_daily[vid][dk] = round(diff / 1000, 1)
+                elif len(readings) >= 2:
+                    # First day: best we can do is max-min within the day
+                    stats_daily[vid][dk] = round((curr_max - min(readings)) / 1000, 1)
+                prev_day_max = curr_max
+
+        has_obd = any(p['type'] == 'obdOdometerMeters' for pts in all_stats.values() for p in pts)
+        has_gps = any(p['type'] == 'gpsDistanceMeters' for pts in all_stats.values() for p in pts)
+        info['stats_vehicles'] = len([v for v in all_stats.values() if v])
+        info['stats_daily_entries'] = sum(len(d) for d in stats_daily.values())
+        info['stats_source'] = 'obdOdometer' if has_obd else 'gpsDistance' if has_gps else 'none'
+        return stats_daily, info
+
+    def _fetch_gps():
+        """Fetch GPS breadcrumbs for location + distance calculation."""
+        daily_location = {}
+        daily_points = {}
+        daily_km = {}
+        info = {'api_calls': 0, 'errors': [], 'gps_points': 0}
+        gps_after = None
+        for _ in range(100):
+            gps_params = {
+                'vehicleIds': ids_param,
+                'types': 'gps',
+                'startTime': start_time,
+                'endTime': end_time,
+            }
+            if gps_after:
+                gps_params['after'] = gps_after
+            info['api_calls'] += 1
+            gresp = http_requests.get(
+                f'{SAMSARA_API_BASE}/fleet/vehicles/stats/history',
+                headers=headers, params=gps_params, timeout=30,
+            )
+            if gresp.status_code != 200:
+                info['errors'].append(f'gps/history HTTP {gresp.status_code}: {gresp.text[:300]}')
+                break
+            gdata = gresp.json()
+            for entry in gdata.get('data', []):
+                vid = entry.get('id', '')
+                if vid not in daily_location:
+                    daily_location[vid] = {}
+                for gps_point in entry.get('gps', []):
+                    ts = gps_point.get('time', '')
+                    if not ts:
+                        continue
+                    info['gps_points'] += 1
+                    try:
+                        dt = datetime.fromisoformat(ts.replace('Z', '+00:00')).astimezone(CET)
+                        dk = dt.strftime('%Y-%m-%d')
+                    except Exception:
+                        continue
+                    lat = gps_point.get('latitude', 0)
+                    lng = gps_point.get('longitude', 0)
+                    reverse_geo = gps_point.get('reverseGeo', {}) or {}
+                    address = reverse_geo.get('formattedLocation', '')
+                    if lat and lng:
+                        daily_points.setdefault(vid, {}).setdefault(dk, []).append((ts, lat, lng))
+                    existing = daily_location[vid].get(dk)
+                    if not existing or ts > existing.get('time', ''):
+                        daily_location[vid][dk] = {'address': address, 'lat': lat, 'lng': lng, 'time': ts}
+            gpag = gdata.get('pagination', {})
+            if gpag.get('hasNextPage') and gpag.get('endCursor'):
+                gps_after = gpag['endCursor']
+            else:
+                break
+
+        # Calculate daily distance from GPS breadcrumbs
+        for vid, day_pts in daily_points.items():
+            if vid not in daily_km:
+                daily_km[vid] = {}
+            for dk, pts in day_pts.items():
+                if len(pts) < 2:
+                    continue
+                pts.sort(key=lambda p: p[0])
+                total_dist = 0.0
+                for i in range(1, len(pts)):
+                    d = _haversine_km(pts[i-1][1], pts[i-1][2], pts[i][1], pts[i][2])
+                    if d < 10.0:
+                        total_dist += d
+                if total_dist > 0.1:
+                    daily_km[vid][dk] = round(total_dist, 1)
+
+        info['gps_vehicles_with_location'] = len([v for v in daily_location.values() if v])
+        info['gps_distance_days'] = sum(len(d) for d in daily_km.values())
+        return daily_location, daily_km, info
+
+    # ---- Step 1: Always fetch trips (lightweight, has distance + addresses) ----
+    all_trips, trips_info = _fetch_trips()
+    debug_info['api_calls'] += trips_info['api_calls']
+    debug_info['raw_trips'] = trips_info['raw_trips']
+    debug_info['errors'].extend(trips_info['errors'])
+
+    # ---- Step 2+3: Always fetch stats (odometer) ----
+    stats_daily_km = {}
+    app.logger.info('Fetching stats/odometer for accuracy')
+    stats_daily_km, stats_info = _fetch_stats()
+    debug_info['api_calls'] += stats_info['api_calls']
+    debug_info['errors'].extend(stats_info.get('errors', []))
+    debug_info['stats_vehicles'] = stats_info.get('stats_vehicles', 0)
+    debug_info['stats_daily_entries'] = stats_info.get('stats_daily_entries', 0)
+    debug_info['stats_source'] = stats_info.get('stats_source', 'none')
+
+    # ---- Step 4: Always fetch GPS breadcrumbs ----
+    gps_daily_location = {}
+    gps_daily_km = {}
+    app.logger.info('Fetching GPS breadcrumbs for accuracy')
+    gps_daily_location, gps_daily_km, gps_info = _fetch_gps()
+    debug_info['api_calls'] += gps_info['api_calls']
+    debug_info['errors'].extend(gps_info.get('errors', []))
+    debug_info['gps_points'] = gps_info.get('gps_points', 0)
+    debug_info['gps_vehicles_with_location'] = gps_info.get('gps_vehicles_with_location', 0)
+    debug_info['gps_distance_days'] = gps_info.get('gps_distance_days', 0)
+
+    # ---------- Group trips by vehicle and then by day ----------
+    # Trip object structure (Samsara) may vary:
+    #   tripStartTime, tripEndTime, distanceMeters (or other field names),
+    #   startLocation{latitude,longitude,formattedAddress},
+    #   endLocation{latitude,longitude,formattedAddress},
+    #   asset{id,name}
+    vehicle_trips = {}  # vid -> list of trips
+
+    # Log a sample raw trip for debugging
+    if all_trips:
+        sample = all_trips[0]
+        debug_info['sample_trip_keys'] = list(sample.keys())
+        # Include sample values for distance-related fields
+        for k in sample.keys():
+            if 'dist' in k.lower() or 'meter' in k.lower() or 'mile' in k.lower() or 'km' in k.lower() or 'odometer' in k.lower():
+                debug_info[f'sample_{k}'] = sample.get(k)
+
+    for trip in all_trips:
+        asset = trip.get('asset', {})
+        vid = asset.get('id', '')
+        if not vid:
+            vid = vehicle_ids[0] if len(vehicle_ids) == 1 else ''
+        if vid not in vehicle_trips:
+            vehicle_trips[vid] = {
+                'name': asset.get('name', vid),
+                'trips': [],
+            }
+        vehicle_trips[vid]['trips'].append(trip)
+
+    # Process each vehicle's trips into daily summaries
+    results = []
+
+    for vid, vdata in vehicle_trips.items():
+        daily = {}  # date_str -> {first_start, last_end, total_meters, trips_count, end_address}
+        vid_stats = stats_daily_km.get(vid, {})
+
+        for trip in vdata['trips']:
+            t_start = trip.get('tripStartTime', '')
+            t_end = trip.get('tripEndTime', '')
+            # Try multiple field names for distance
+            dist = (
+                trip.get('distanceMeters')
+                or trip.get('distance_meters')
+                or trip.get('distanceM')
+                or trip.get('distance')
+                or 0
+            )
+            dist = float(dist) if dist else 0
+
+            if not t_start:
+                continue
+
+            try:
+                dt_start = datetime.fromisoformat(
+                    t_start.replace('Z', '+00:00')
+                ).astimezone(CET)
+            except Exception:
+                continue
+
+            try:
+                dt_end = datetime.fromisoformat(
+                    t_end.replace('Z', '+00:00')
+                ).astimezone(CET) if t_end else dt_start
+            except Exception:
+                dt_end = dt_start
+
+            day_key = dt_start.strftime('%Y-%m-%d')
+
+            # End location address
+            end_loc = trip.get('endLocation', {})
+            end_addr = end_loc.get('formattedAddress', '') if end_loc else ''
+
+            if day_key not in daily:
+                daily[day_key] = {
+                    'first_start': dt_start,
+                    'last_end': dt_end,
+                    'total_meters': float(dist),
+                    'trips_count': 1,
+                    'end_address': end_addr,
+                    'trips': [{
+                        'start': dt_start.strftime('%H:%M'),
+                        'end': dt_end.strftime('%H:%M'),
+                        'km': round(float(dist) / 1000, 1),
+                    }],
+                }
+            else:
+                d = daily[day_key]
+                if dt_start < d['first_start']:
+                    d['first_start'] = dt_start
+                if dt_end > d['last_end']:
+                    d['last_end'] = dt_end
+                    d['end_address'] = end_addr
+                d['total_meters'] += float(dist)
+                d['trips_count'] += 1
+                d['trips'].append({
+                    'start': dt_start.strftime('%H:%M'),
+                    'end': dt_end.strftime('%H:%M'),
+                    'km': round(float(dist) / 1000, 1),
+                })
+
+        # Build daily entries
+        days = []
+        total_km = 0.0
+        distance_source = 'trips'
+
+        for day_key in sorted(daily.keys()):
+            d = daily[day_key]
+            start_dt = d['first_start']
+            end_dt = d['last_end']
+            trip_dist_km = round(d['total_meters'] / 1000, 1)
+            stats_dist_km = vid_stats.get(day_key, 0)
+
+            gps_dist_km = gps_daily_km.get(vid, {}).get(day_key, 0)
+
+            # Use the highest value from all sources for accuracy
+            dist_km = max(trip_dist_km, stats_dist_km, gps_dist_km)
+            if dist_km == stats_dist_km and stats_dist_km > 0:
+                distance_source = 'stats'
+            elif dist_km == gps_dist_km and gps_dist_km > 0:
+                distance_source = 'gps'
+            total_km += dist_km
+
+            dur_min = int((end_dt - start_dt).total_seconds() / 60) if end_dt > start_dt else 0
+            dur_h = dur_min // 60
+            dur_m = dur_min % 60
+
+            # Last location: prefer trip endLocation, fall back to GPS
+            last_loc = d['end_address']
+            if not last_loc:
+                gps_loc = gps_daily_location.get(vid, {}).get(day_key, {})
+                last_loc = gps_loc.get('address', '')
+
+            days.append({
+                'date': day_key,
+                'begin_driving': start_dt.strftime('%Y-%m-%d %H:%M'),
+                'last_driving': end_dt.strftime('%Y-%m-%d %H:%M'),
+                'duration_h': dur_h,
+                'duration_m': dur_m,
+                'duration_hm': f'{dur_h}h' if dur_m == 0 else f'{dur_h}h {dur_m}m',
+                'duration_minutes': dur_min,
+                'distance_km': dist_km,
+                'trips_count': d['trips_count'],
+                'last_location': last_loc,
+                'trips': d.get('trips', []),
+            })
+
+        results.append({
+            'vehicle_id': vid,
+            'vehicle_name': vdata['name'],
+            'days': days,
+            'total_km': round(total_km, 1),
+            'active_days': len(days),
+            'distance_source': distance_source,
+        })
+
+    # Add vehicles that have stats data but no trips
+    for vid in vehicle_ids:
+        if vid not in vehicle_trips and vid in stats_daily_km and stats_daily_km[vid]:
+            vid_stats = stats_daily_km[vid]
+            vname = vid  # frontend maps to real name from vehicle list
+
+            days = []
+            total_km = 0.0
+            for day_key in sorted(vid_stats.keys()):
+                sk = vid_stats[day_key]
+                if sk > 0:
+                    gps_loc = gps_daily_location.get(vid, {}).get(day_key, {})
+                    days.append({
+                        'date': day_key,
+                        'begin_driving': '',
+                        'last_driving': '',
+                        'duration_h': 0,
+                        'duration_m': 0,
+                        'duration_hm': '-',
+                        'duration_minutes': 0,
+                        'distance_km': sk,
+                        'trips_count': 0,
+                        'last_location': gps_loc.get('address', ''),
+                    })
+                    total_km += sk
+
+            if days:
+                results.append({
+                    'vehicle_id': vid,
+                    'vehicle_name': vname,
+                    'days': days,
+                    'total_km': round(total_km, 1),
+                    'active_days': len(days),
+                    'distance_source': 'stats',
+                })
+
+    # Add vehicles that have only GPS data (no trips, no stats)
+    vids_with_results = {r['vehicle_id'] for r in results}
+    for vid in vehicle_ids:
+        if vid not in vids_with_results and vid in gps_daily_km and gps_daily_km[vid]:
+            vname = vid
+            days = []
+            total_km = 0.0
+            for day_key in sorted(gps_daily_km[vid].keys()):
+                gk = gps_daily_km[vid][day_key]
+                if gk > 0:
+                    gps_loc = gps_daily_location.get(vid, {}).get(day_key, {})
+                    days.append({
+                        'date': day_key,
+                        'begin_driving': '',
+                        'last_driving': '',
+                        'duration_h': 0,
+                        'duration_m': 0,
+                        'duration_hm': '-',
+                        'duration_minutes': 0,
+                        'distance_km': gk,
+                        'trips_count': 0,
+                        'last_location': gps_loc.get('address', ''),
+                    })
+                    total_km += gk
+
+            if days:
+                results.append({
+                    'vehicle_id': vid,
+                    'vehicle_name': vname,
+                    'days': days,
+                    'total_km': round(total_km, 1),
+                    'active_days': len(days),
+                    'distance_source': 'gps',
+                })
+
+    results.sort(key=lambda r: r['vehicle_name'])
+
+    debug_info['vehicles_with_data'] = len(results)
+    debug_info['total_days'] = sum(r['active_days'] for r in results)
+    _log_activity('vehicles_activity', f'{period}: {len(all_trips)} trips, {len(results)} vehicles')
+
+    # Save to cache
+    response_data = {'period': period, 'vehicles': results, 'debug': debug_info}
+    VEHICLE_ACTIVITY_CACHE[cache_key] = (datetime.now(), response_data)
+    # Evict old cache entries
+    now = datetime.now()
+    stale = [k for k, (ts, _) in VEHICLE_ACTIVITY_CACHE.items()
+             if (now - ts).total_seconds() > VEHICLE_ACTIVITY_CACHE_TTL * 2]
+    for k in stale:
+        VEHICLE_ACTIVITY_CACHE.pop(k, None)
+
+    return jsonify(response_data)
+
+
+# ---------------------------------------------------------------------------
+# Backward-compatible routes (keep old endpoints working)
+# ---------------------------------------------------------------------------
+
+
+@app.route('/portal/drivers')
+@login_required
+def portal_drivers():
+    return api_drivers()
+
+
+@app.route('/portal/download')
+@login_required
+def portal_download():
+    return api_analyze_dropbox()
+
+
+@app.route('/portal/sync-status')
+@login_required
+def portal_sync_status():
+    return api_sync_status()
+
+
+@app.route('/portal/sync-log')
+@login_required
+def portal_sync_log():
+    return api_sync_log()
+
+
+@app.route('/upload', methods=['POST'])
+@login_required
+def upload():
+    return api_analyze_upload()
+
+
+
+
+# ---------------------------------------------------------------------------
+# Health endpoint
+# ---------------------------------------------------------------------------
+
+_app_start_time = datetime.now(UTC)
+
+@app.route('/api/health')
+def health():
+    uptime = (datetime.now(UTC) - _app_start_time).total_seconds()
+    db_ok = False
+    try:
+        conn = _get_db()
+        conn.execute('SELECT 1')
+        conn.close()
+        db_ok = True
+    except Exception:
+        pass
+    return jsonify({
+        'status': 'ok' if db_ok else 'degraded',
+        'uptime_seconds': int(uptime),
+        'database': db_ok,
+    })
+
+
+# ---------------------------------------------------------------------------
+# Serve frontend (SPA fallback)
+# ---------------------------------------------------------------------------
+
+
+@app.route('/', defaults={'path': ''})
+@app.route('/<path:path>')
+def serve_frontend(path):
+    """Serve React static build. Falls back to index.html for SPA routing."""
+    abs_frontend = os.path.abspath(FRONTEND_DIR)
+    if path and os.path.isfile(os.path.join(abs_frontend, path)):
+        return send_from_directory(abs_frontend, path)
+    index_path = os.path.join(abs_frontend, 'index.html')
+    if os.path.isfile(index_path):
+        return send_from_directory(abs_frontend, 'index.html')
+    return jsonify({'error': 'Frontend not built. Run: cd frontend && npm run build'}), 404
+
+
+# ---------------------------------------------------------------------------
+# Entry point
+# ---------------------------------------------------------------------------
+
+if __name__ == '__main__':
+    app.run(debug=True, host='0.0.0.0', port=8000)

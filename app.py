@@ -2,11 +2,14 @@ import csv
 import io
 import json
 import os
+import re
 import subprocess
 import tempfile
 from datetime import datetime, timedelta
+from functools import wraps
 
 import dropbox
+import requests as http_requests
 from dropbox.exceptions import AuthError
 from flask import Flask, render_template, request, jsonify, redirect, session, url_for
 from zoneinfo import ZoneInfo
@@ -20,10 +23,47 @@ app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'ddd-parser-secret-key-chang
 
 DDDPARSER_PATH = os.environ.get('DDDPARSER_PATH', 'dddparser')
 
+# Portal password
+PORTAL_PASSWORD = os.environ.get('PORTAL_PASSWORD', 'lts2025')
+
 # Dropbox OAuth2 config
 DROPBOX_APP_KEY = os.environ.get('DROPBOX_APP_KEY', 'j9ntkihedd9495i')
 DROPBOX_APP_SECRET = os.environ.get('DROPBOX_APP_SECRET', 'd3hr43reha9kky8')
-DROPBOX_REDIRECT_URI = os.environ.get('DROPBOX_REDIRECT_URI', 'http://dddd.bieda.it/dropbox/callback')
+DROPBOX_REDIRECT_URI = os.environ.get('DROPBOX_REDIRECT_URI', 'https://dd.ltslog.de/dropbox/callback')
+
+# Dropbox refresh token for server-side access (from samsara_sync)
+DROPBOX_REFRESH_TOKEN = os.environ.get('DROPBOX_REFRESH_TOKEN', '')
+
+# Samsara API config
+SAMSARA_API_TOKEN = os.environ.get('SAMSARA_API_TOKEN', '')
+SAMSARA_API_BASE = 'https://api.eu.samsara.com'
+
+
+def login_required(f):
+    """Decorator to require login for routes."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not session.get('logged_in'):
+            if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return jsonify({'error': 'Unauthorized'}), 401
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated
+
+
+def get_server_dropbox_client():
+    """Get a Dropbox client using the server-side refresh token."""
+    if not DROPBOX_REFRESH_TOKEN:
+        return None
+    try:
+        dbx = dropbox.Dropbox(
+            oauth2_refresh_token=DROPBOX_REFRESH_TOKEN,
+            app_key=DROPBOX_APP_KEY,
+            app_secret=DROPBOX_APP_SECRET,
+        )
+        return dbx
+    except Exception:
+        return None
 
 
 def get_dropbox_auth_flow():
@@ -148,10 +188,11 @@ def minutes_to_decimal(minutes):
 
 
 def build_timeline(records):
-    """Build continuous timeline of (start_dt, end_dt, work_type) from daily records.
+    """Build continuous timeline of (start_dt, end_dt, work_type, is_manual) from daily records.
 
     Tachograph data is stored in UTC. We convert to Europe/Berlin (CET/CEST)
     so that night bonus windows align with local German time.
+    is_manual is True when card_present is False (card removed from tachograph).
     """
     all_intervals = []
     sorted_records = sorted(records, key=lambda r: r.get('activity_record_date', ''))
@@ -164,26 +205,30 @@ def build_timeline(records):
         for i, change in enumerate(changes):
             start_min = change['minutes']
             work_type = change['work_type']
+            is_manual = not change.get('card_present', True)
             end_min = changes[i + 1]['minutes'] if i + 1 < len(changes) else 1440
             if end_min > start_min:
                 start_dt = (base_date + timedelta(minutes=start_min)).astimezone(CET).replace(tzinfo=None)
                 end_dt = (base_date + timedelta(minutes=end_min)).astimezone(CET).replace(tzinfo=None)
-                all_intervals.append((start_dt, end_dt, work_type))
+                all_intervals.append((start_dt, end_dt, work_type, is_manual))
     return all_intervals
 
 
 def merge_intervals(intervals):
-    """Merge consecutive intervals of same work_type."""
+    """Merge consecutive intervals of same work_type and manual flag."""
     if not intervals:
         return []
     merged = [list(intervals[0])]
-    for start, end, wt in intervals[1:]:
+    for iv in intervals[1:]:
+        start, end, wt = iv[0], iv[1], iv[2]
+        manual = iv[3] if len(iv) > 3 else False
         prev = merged[-1]
-        if prev[2] == wt and abs((start - prev[1]).total_seconds()) < 60:
+        prev_manual = prev[3] if len(prev) > 3 else False
+        if prev[2] == wt and prev_manual == manual and abs((start - prev[1]).total_seconds()) < 60:
             prev[1] = end
         else:
-            merged.append([start, end, wt])
-    return [(s, e, w) for s, e, w in merged]
+            merged.append(list(iv))
+    return [tuple(m) for m in merged]
 
 
 def detect_shifts(all_intervals, min_rest_hours=9):
@@ -191,6 +236,12 @@ def detect_shifts(all_intervals, min_rest_hours=9):
 
     A shift is a group of activity intervals separated by rest >= min_rest_hours.
     Short breaks within a shift are included in the shift.
+    Effective rest is calculated by merging consecutive rest / card-out intervals
+    that are only interrupted by very brief non-rest blips (<=3 min),
+    which commonly appear at UTC day boundaries in DDD data.
+
+    Card-out periods (is_manual=True, GloboFleet "? Unbekannt") are treated
+    as rest for shift-splitting purposes regardless of recorded work_type.
     """
     if not all_intervals:
         return []
@@ -198,20 +249,56 @@ def detect_shifts(all_intervals, min_rest_hours=9):
     merged = merge_intervals(all_intervals)
     min_rest_sec = min_rest_hours * 3600
 
+    def _get_manual(iv):
+        return iv[3] if len(iv) > 3 else False
+
+    def _is_rest_like(iv):
+        """Rest or card-out → counts as rest for shift splitting."""
+        return iv[2] == 0 or _get_manual(iv)
+
     shifts = []
     current = []
 
-    for start, end, wt in merged:
-        if wt == 0:
-            duration_sec = (end - start).total_seconds()
-            if duration_sec >= min_rest_sec:
-                # Daily rest boundary - end current shift
+    i = 0
+    while i < len(merged):
+        iv = merged[i]
+        start, end, wt = iv[0], iv[1], iv[2]
+
+        if _is_rest_like(iv):
+            # Accumulate effective rest duration across brief interruptions
+            rest_begin = start
+            rest_end = end
+            j = i + 1
+            while j < len(merged):
+                nxt = merged[j]
+                nxt_s, nxt_e = nxt[0], nxt[1]
+                if (nxt_s - rest_end).total_seconds() > 60:
+                    break
+                if _is_rest_like(nxt):
+                    rest_end = nxt_e
+                    j += 1
+                elif (nxt_e - nxt_s).total_seconds() <= 180:
+                    blip_end = nxt_e
+                    j += 1
+                    if j < len(merged) and _is_rest_like(merged[j]) \
+                       and (merged[j][0] - blip_end).total_seconds() <= 60:
+                        rest_end = merged[j][1]
+                        j += 1
+                    else:
+                        break
+                else:
+                    break
+
+            effective_rest = (rest_end - rest_begin).total_seconds()
+            if effective_rest >= min_rest_sec:
                 if current:
                     shifts.append(current)
                     current = []
+                i = j
                 continue
-        # Short break or work - part of current shift
+
         current.append((start, end, wt))
+        i += 1
 
     if current:
         shifts.append(current)
@@ -225,15 +312,12 @@ def calculate_shift_night_hours(intervals, shift_start):
     Night ranges (all activity types including breaks):
       - 22:00-06:00 is the full night window
       - 22:00-24:00 => always 25%
-      - 00:00-04:00 => 40% if shift started before midnight, else 25%
+      - 00:00-04:00 => 40% if shift started before 00:00 of that day, else 25%
       - 04:00-06:00 => always 25%
       - A given minute is either 25% or 40%, never both
 
     Returns (night_25_minutes, night_40_minutes).
     """
-    # Determine if shift started before midnight (evening shift)
-    shift_started_before_midnight = shift_start.hour >= 12
-
     night_25_sec = 0
     night_40_sec = 0
 
@@ -255,14 +339,15 @@ def calculate_shift_night_hours(intervals, shift_start):
             if o_end > o_start:
                 night_25_sec += (o_end - o_start).total_seconds()
 
-            # 00:00-04:00 => 40% if shift started before midnight, else 25%
+            # 00:00-04:00 => 40% if shift started before midnight (this day), else 25%
             nr_start = day_base
             nr_end = day_base + timedelta(hours=4)
             o_start = max(current, nr_start)
             o_end = min(chunk_end, nr_end)
             if o_end > o_start:
                 secs = (o_end - o_start).total_seconds()
-                if shift_started_before_midnight:
+                # Shift started before 00:00 of this calendar day
+                if shift_start < day_base:
                     night_40_sec += secs
                 else:
                     night_25_sec += secs
@@ -348,7 +433,7 @@ def analyze_card(data):
         total_night_40_minutes += night_40
 
         # Diet based on shift DURATION (not work time)
-        if duration_minutes > 8 * 60:
+        if duration_minutes >= 8 * 60:
             diet_count += 1
 
         # Find vehicles used during this shift
@@ -389,7 +474,7 @@ def analyze_card(data):
             'night_25_hm': minutes_to_hm(night_25),
             'night_40_minutes': night_40,
             'night_40_hm': minutes_to_hm(night_40),
-            'has_diet': duration_minutes > 8 * 60,
+            'has_diet': duration_minutes >= 8 * 60,
             'vehicles': unique_plates,
         })
 
@@ -424,12 +509,39 @@ def analyze_card(data):
     }
 
 
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if session.get('logged_in'):
+        return redirect('/')
+    error = None
+    if request.method == 'POST':
+        if request.form.get('password') == PORTAL_PASSWORD:
+            session['logged_in'] = True
+            return redirect('/')
+        error = 'Nieprawidlowe haslo'
+    return render_template('login.html', error=error)
+
+
+@app.route('/logout')
+def logout():
+    session.pop('logged_in', None)
+    return redirect('/login')
+
+
 @app.route('/')
+@login_required
 def index():
+    return render_template('portal.html')
+
+
+@app.route('/reader')
+@login_required
+def reader():
     return render_template('index.html')
 
 
 @app.route('/upload', methods=['POST'])
+@login_required
 def upload():
     if 'file' not in request.files:
         return jsonify({'error': 'Brak pliku'}), 400
@@ -454,6 +566,7 @@ def upload():
 
 
 @app.route('/dropbox/auth')
+@login_required
 def dropbox_auth():
     """Start Dropbox OAuth2 flow."""
     flow = dropbox.DropboxOAuth2Flow(
@@ -469,6 +582,7 @@ def dropbox_auth():
 
 
 @app.route('/dropbox/callback')
+@login_required
 def dropbox_callback():
     """Handle Dropbox OAuth2 callback."""
     flow = dropbox.DropboxOAuth2Flow(
@@ -490,6 +604,7 @@ def dropbox_callback():
 
 
 @app.route('/dropbox/status')
+@login_required
 def dropbox_status():
     """Check if Dropbox is connected."""
     dbx = get_dropbox_client()
@@ -507,6 +622,7 @@ def dropbox_status():
 
 
 @app.route('/dropbox/disconnect')
+@login_required
 def dropbox_disconnect():
     """Disconnect Dropbox."""
     session.pop('dropbox_token', None)
@@ -515,6 +631,7 @@ def dropbox_disconnect():
 
 
 @app.route('/dropbox/browse')
+@login_required
 def dropbox_browse():
     """Browse Dropbox files and folders."""
     dbx = get_dropbox_client()
@@ -544,6 +661,7 @@ def dropbox_browse():
 
 
 @app.route('/dropbox/import', methods=['POST'])
+@login_required
 def dropbox_import():
     """Import a .ddd file from Dropbox and analyze it."""
     dbx = get_dropbox_client()
@@ -572,6 +690,7 @@ def dropbox_import():
 
 
 @app.route('/dropbox/export', methods=['POST'])
+@login_required
 def dropbox_export():
     """Export analysis results as CSV to Dropbox."""
     dbx = get_dropbox_client()
@@ -619,6 +738,439 @@ def dropbox_export():
             mode=dropbox.files.WriteMode.overwrite,
         )
         return jsonify({'ok': True, 'path': full_path, 'filename': filename})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# ===== Samsara Integration =====
+
+def samsara_headers():
+    return {'Authorization': f'Bearer {SAMSARA_API_TOKEN}'}
+
+
+@app.route('/samsara/status')
+@login_required
+def samsara_status():
+    """Check Samsara connection by listing drivers."""
+    if not SAMSARA_API_TOKEN:
+        return jsonify({'connected': False})
+    try:
+        resp = http_requests.get(
+            f'{SAMSARA_API_BASE}/fleet/drivers',
+            headers=samsara_headers(),
+            params={'limit': 1},
+            timeout=10,
+        )
+        if resp.status_code == 200:
+            return jsonify({'connected': True})
+        return jsonify({'connected': False, 'error': resp.text})
+    except Exception as e:
+        return jsonify({'connected': False, 'error': str(e)})
+
+
+@app.route('/samsara/drivers')
+@login_required
+def samsara_drivers():
+    """List drivers with tachograph files available."""
+    if not SAMSARA_API_TOKEN:
+        return jsonify({'error': 'Brak tokenu Samsara'}), 401
+
+    # Get last 90 days of tachograph files
+    end_time = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+    start_time = (datetime.utcnow() - timedelta(days=90)).strftime('%Y-%m-%dT%H:%M:%SZ')
+
+    try:
+        all_data = []
+        has_next = True
+        after = None
+
+        while has_next:
+            params = {
+                'startTime': start_time,
+                'endTime': end_time,
+            }
+            if after:
+                params['after'] = after
+
+            resp = http_requests.get(
+                f'{SAMSARA_API_BASE}/fleet/drivers/tachograph-files/history',
+                headers=samsara_headers(),
+                params=params,
+                timeout=30,
+            )
+
+            if resp.status_code != 200:
+                return jsonify({'error': f'Samsara API: {resp.status_code} {resp.text}'}), 500
+
+            body = resp.json()
+            all_data.extend(body.get('data', []))
+
+            pagination = body.get('pagination', {})
+            after = pagination.get('endCursor')
+            has_next = pagination.get('hasNextPage', False)
+
+        # Merge entries by driver ID (API returns separate entries per period)
+        driver_map = {}
+        for entry in all_data:
+            driver = entry.get('driver', {})
+            did = driver.get('id', '')
+            files = entry.get('tachographFiles', entry.get('files', []))
+            if not files:
+                continue
+            if did not in driver_map:
+                driver_map[did] = {
+                    'id': did,
+                    'name': driver.get('name', 'Nieznany'),
+                    'files': [],
+                }
+            for f in files:
+                driver_map[did]['files'].append({
+                    'id': f.get('id', ''),
+                    'card_number': f.get('cardNumber', ''),
+                    'created_at': f.get('createdAtTime', ''),
+                    'url': f.get('url', ''),
+                })
+
+        # Deduplicate files by ID and sort
+        drivers = []
+        for d in driver_map.values():
+            seen = set()
+            unique = []
+            for f in d['files']:
+                fid = f['id']
+                if fid and fid in seen:
+                    continue
+                seen.add(fid)
+                unique.append(f)
+            unique.sort(key=lambda f: f.get('created_at', ''), reverse=True)
+            drivers.append({
+                'id': d['id'],
+                'name': d['name'],
+                'file_count': len(unique),
+                'latest_file': unique[0]['created_at'] if unique else '',
+                'files': unique,
+            })
+
+        drivers.sort(key=lambda d: d.get('name', ''))
+        return jsonify({'drivers': drivers})
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/samsara/import', methods=['POST'])
+@login_required
+def samsara_import():
+    """Download a DDD file from Samsara and analyze it."""
+    if not SAMSARA_API_TOKEN:
+        return jsonify({'error': 'Brak tokenu Samsara'}), 401
+
+    file_url = (request.json or {}).get('url')
+    if not file_url:
+        return jsonify({'error': 'Brak URL pliku'}), 400
+
+    try:
+        # Download the .ddd file from Samsara S3
+        resp = http_requests.get(file_url, timeout=60)
+        if resp.status_code != 200:
+            return jsonify({'error': f'Blad pobierania pliku: {resp.status_code}'}), 500
+
+        with tempfile.NamedTemporaryFile(suffix='.ddd', delete=False) as tmp:
+            tmp.write(resp.content)
+            tmp_path = tmp.name
+
+        data = parse_ddd_file(tmp_path)
+        result = analyze_card(data)
+        result['source'] = 'samsara'
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if 'tmp_path' in locals():
+            os.unlink(tmp_path)
+
+
+@app.route('/samsara/export-to-dropbox', methods=['POST'])
+@login_required
+def samsara_export_to_dropbox():
+    """Download DDD files from Samsara and upload them to Dropbox."""
+    if not SAMSARA_API_TOKEN:
+        return jsonify({'error': 'Brak tokenu Samsara'}), 401
+
+    dbx = get_dropbox_client()
+    if not dbx:
+        return jsonify({'error': 'Nie polaczono z Dropbox'}), 401
+
+    payload = request.json or {}
+    files = payload.get('files', [])
+    driver_name = payload.get('driver_name', 'kierowca')
+    dest_folder = payload.get('dest_folder', '/Samsara-DDD')
+
+    if not files:
+        return jsonify({'error': 'Brak plikow do eksportu'}), 400
+
+    safe_name = "".join(c for c in driver_name if c.isalnum() or c in ' _-').strip() or 'kierowca'
+    driver_folder = f"{dest_folder}/{safe_name}"
+
+    results = []
+    for f in files:
+        url = f.get('url', '')
+        card_number = f.get('card_number', '')
+        created_at = f.get('created_at', '')
+        if not url:
+            continue
+        try:
+            resp = http_requests.get(url, timeout=60)
+            if resp.status_code != 200:
+                results.append({'ok': False, 'error': f'HTTP {resp.status_code}'})
+                continue
+
+            # Build filename: cardnumber_date.ddd
+            date_part = created_at[:10] if created_at else datetime.utcnow().strftime('%Y-%m-%d')
+            fname = f"{card_number}_{date_part}.ddd" if card_number else f"{safe_name}_{date_part}.ddd"
+            dbx_path = f"{driver_folder}/{fname}"
+
+            dbx.files_upload(
+                resp.content,
+                dbx_path,
+                mode=dropbox.files.WriteMode.overwrite,
+            )
+            results.append({'ok': True, 'path': dbx_path})
+        except Exception as e:
+            results.append({'ok': False, 'error': str(e)})
+
+    ok_count = sum(1 for r in results if r.get('ok'))
+    return jsonify({
+        'ok': True,
+        'uploaded': ok_count,
+        'total': len(files),
+        'folder': driver_folder,
+        'details': results,
+    })
+
+
+# ===== Portal API =====
+
+PORTAL_CACHE_FILE = os.environ.get('PORTAL_CACHE_FILE', '/opt/ddd-reader/portal_cache.json')
+PORTAL_CACHE_MAX_AGE = 300  # 5 minutes
+
+
+def build_drivers_data(dbx, sync_folder):
+    """Build drivers data from Dropbox using a single recursive API call."""
+    # One recursive call gets ALL files and folders
+    result = dbx.files_list_folder(sync_folder, recursive=True)
+    all_entries = list(result.entries)
+    while result.has_more:
+        result = dbx.files_list_folder_continue(result.cursor)
+        all_entries.extend(result.entries)
+
+    # Group files by parent folder (driver)
+    driver_files = {}
+    driver_paths = {}
+    for entry in all_entries:
+        if isinstance(entry, dropbox.files.FolderMetadata):
+            # Top-level folders are drivers
+            rel = entry.path_display[len(sync_folder):].strip('/')
+            if '/' not in rel and rel:
+                driver_paths[rel] = entry.path_display
+            continue
+        if not isinstance(entry, dropbox.files.FileMetadata):
+            continue
+        # Extract driver name from path: /Samsara-DDD/DriverName/file.ddd
+        rel = entry.path_display[len(sync_folder):].strip('/')
+        parts = rel.split('/')
+        if len(parts) != 2:
+            continue
+        driver_name = parts[0]
+        fname = parts[1]
+
+        if driver_name not in driver_files:
+            driver_files[driver_name] = []
+
+        card_number = ''
+        file_date = ''
+        m = re.match(r'^(.+?)_(\d{4}-\d{2}-\d{2})\.ddd$', fname, re.IGNORECASE)
+        if m:
+            card_number = m.group(1)
+            file_date = m.group(2)
+
+        driver_files[driver_name].append({
+            'name': fname,
+            'path': entry.path_display,
+            'size': entry.size,
+            'modified': entry.server_modified.isoformat() if entry.server_modified else '',
+            'card_number': card_number,
+            'file_date': file_date,
+        })
+
+    # Build driver summaries
+    drivers = []
+    all_driver_names = set(driver_paths.keys()) | set(driver_files.keys())
+    for driver_name in all_driver_names:
+        files = driver_files.get(driver_name, [])
+        files.sort(key=lambda x: x.get('file_date', ''), reverse=True)
+
+        earliest_date = ''
+        latest_date = ''
+        latest_download = ''
+        card_number = ''
+        if files:
+            dates = [f['file_date'] for f in files if f['file_date']]
+            if dates:
+                earliest_date = min(dates)
+                latest_date = max(dates)
+            modified_dates = [f['modified'] for f in files if f['modified']]
+            if modified_dates:
+                latest_download = max(modified_dates)
+            for f in files:
+                if f['card_number']:
+                    card_number = f['card_number']
+                    break
+
+        days_since = None
+        if latest_download:
+            try:
+                last_dt = datetime.fromisoformat(latest_download)
+                if last_dt.tzinfo is None:
+                    last_dt = last_dt.replace(tzinfo=UTC)
+                days_since = (datetime.now(UTC) - last_dt).days
+            except Exception:
+                pass
+
+        drivers.append({
+            'name': driver_name,
+            'path': driver_paths.get(driver_name, f'{sync_folder}/{driver_name}'),
+            'card_number': card_number,
+            'file_count': len(files),
+            'earliest_date': earliest_date,
+            'latest_date': latest_date,
+            'latest_download': latest_download,
+            'days_since': days_since,
+            'files': files,
+        })
+
+    drivers.sort(key=lambda d: d.get('latest_download', ''), reverse=True)
+    return drivers
+
+
+def load_portal_cache():
+    """Load cached portal data if fresh enough."""
+    try:
+        if os.path.exists(PORTAL_CACHE_FILE):
+            mtime = os.path.getmtime(PORTAL_CACHE_FILE)
+            age = datetime.now().timestamp() - mtime
+            if age < PORTAL_CACHE_MAX_AGE:
+                with open(PORTAL_CACHE_FILE) as f:
+                    return json.load(f)
+    except Exception:
+        pass
+    return None
+
+
+def save_portal_cache(drivers):
+    """Save portal data to cache file."""
+    try:
+        with open(PORTAL_CACHE_FILE, 'w') as f:
+            json.dump(drivers, f)
+    except Exception:
+        pass
+
+
+@app.route('/portal/drivers')
+@login_required
+def portal_drivers():
+    """List all drivers from Dropbox /Samsara-DDD/ folder with file metadata."""
+    force = request.args.get('refresh') == '1'
+
+    if not force:
+        cached = load_portal_cache()
+        if cached is not None:
+            # Recalculate days_since from cached data
+            for d in cached:
+                if d.get('latest_download'):
+                    try:
+                        last_dt = datetime.fromisoformat(d['latest_download'])
+                        if last_dt.tzinfo is None:
+                            last_dt = last_dt.replace(tzinfo=UTC)
+                        d['days_since'] = (datetime.now(UTC) - last_dt).days
+                    except Exception:
+                        pass
+            return jsonify({'drivers': cached, 'cached': True})
+
+    dbx = get_server_dropbox_client()
+    if not dbx:
+        return jsonify({'error': 'Brak polaczenia z Dropbox (brak DROPBOX_REFRESH_TOKEN)'}), 500
+
+    sync_folder = os.environ.get('SYNC_DEST_FOLDER', '/Samsara-DDD')
+
+    try:
+        drivers = build_drivers_data(dbx, sync_folder)
+        save_portal_cache(drivers)
+        return jsonify({'drivers': drivers})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/portal/download')
+@login_required
+def portal_download():
+    """Download a DDD file from Dropbox and analyze it."""
+    dbx = get_server_dropbox_client()
+    if not dbx:
+        return jsonify({'error': 'Brak polaczenia z Dropbox'}), 500
+
+    file_path = request.args.get('path')
+    if not file_path:
+        return jsonify({'error': 'Brak sciezki pliku'}), 400
+
+    try:
+        metadata, response = dbx.files_download(file_path)
+        with tempfile.NamedTemporaryFile(suffix='.ddd', delete=False) as tmp:
+            tmp.write(response.content)
+            tmp_path = tmp.name
+
+        data = parse_ddd_file(tmp_path)
+        result = analyze_card(data)
+        result['source_file'] = metadata.name
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if 'tmp_path' in locals():
+            os.unlink(tmp_path)
+
+
+@app.route('/portal/sync-status')
+@login_required
+def portal_sync_status():
+    """Get sync status from state file."""
+    state_file = os.environ.get('SYNC_STATE_FILE', '/opt/ddd-reader/samsara_sync_state.json')
+    try:
+        if os.path.exists(state_file):
+            with open(state_file) as f:
+                data = json.load(f)
+            return jsonify({
+                'last_sync': data.get('last_sync', ''),
+                'synced_count': len(data.get('synced_ids', [])),
+            })
+        return jsonify({'last_sync': '', 'synced_count': 0})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/portal/sync-log')
+@login_required
+def portal_sync_log():
+    """Get sync history log."""
+    history_file = os.environ.get('SYNC_HISTORY_FILE', '/opt/ddd-reader/samsara_sync_history.json')
+    try:
+        if os.path.exists(history_file):
+            with open(history_file) as f:
+                history = json.load(f)
+            # Return newest first
+            history.reverse()
+            return jsonify({'history': history})
+        return jsonify({'history': []})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

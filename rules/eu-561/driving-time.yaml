@@ -1,0 +1,43 @@
+rule_set: EU_561_DRIVING_TIME
+version: 2026.01
+rules:
+  - rule_id: EU_561_ART6_DAILY_DRIVING
+    category: DRIVING_TIME
+    legal_basis:
+      de: "Art. 6 Abs. 1 VO (EG) 561/2006"
+      en: "Art. 6(1) Regulation (EC) 561/2006"
+      pl: "Art. 6 ust. 1 Rozporządzenia 561/2006"
+    title:
+      de: "Tägliche Lenkzeit überschritten"
+      en: "Daily driving time exceeded"
+      pl: "Przekroczony dzienny czas jazdy"
+    logic:
+      normal_limit_minutes: 540
+      extended_limit_minutes: 600
+      allowed_extensions_per_week: 2
+
+  - rule_id: EU_561_ART6_WEEKLY_DRIVING
+    category: DRIVING_TIME
+    legal_basis:
+      de: "Art. 6 Abs. 2 VO (EG) 561/2006"
+      en: "Art. 6(2) Regulation (EC) 561/2006"
+      pl: "Art. 6 ust. 2 Rozporządzenia 561/2006"
+    title:
+      de: "Wöchentliche Lenkzeit überschritten"
+      en: "Weekly driving time exceeded"
+      pl: "Przekroczony tygodniowy czas jazdy"
+    logic:
+      weekly_limit_minutes: 3360
+
+  - rule_id: EU_561_ART6_TWO_WEEK_DRIVING
+    category: DRIVING_TIME
+    legal_basis:
+      de: "Art. 6 Abs. 3 VO (EG) 561/2006"
+      en: "Art. 6(3) Regulation (EC) 561/2006"
+      pl: "Art. 6 ust. 3 Rozporządzenia 561/2006"
+    title:
+      de: "Lenkzeit in zwei Wochen überschritten"
+      en: "Two-week driving time exceeded"
+      pl: "Przekroczony dwutygodniowy czas jazdy"
+    logic:
+      two_week_limit_minutes: 5400

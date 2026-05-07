@@ -1,48 +1,67 @@
 #!/bin/bash
 # =============================================================================
-# Skrypt deploymentu aplikacji DDD Reader na VPS mikr.us
-# Uzycie: ./deploy.sh <user@host> <port_ssh> <port_http>
+# Skrypt deploymentu aplikacji DDD Reader
+# Uzycie: ./deploy.sh <user@host> <port_ssh>
 #
 # Przyklad:
-#   ./deploy.sh root@srv15.mikr.us 12345 20080
+#   ./deploy.sh root@srv15.mikr.us 12345
 #
-# Parametry:
-#   user@host  - uzytkownik i adres VPS (np. root@srv15.mikr.us)
-#   port_ssh   - port SSH do polaczenia
-#   port_http  - port przekierowany na mikr.us na ktory trafi ruch HTTP
+# Aplikacja dostepna przez Cloudflare na dd.ltslog.de
+# Nginx serwuje statyczny frontend + proxy API do Gunicorn
 # =============================================================================
 
 set -e
 
-if [ "$#" -lt 3 ]; then
-    echo "Uzycie: $0 <user@host> <port_ssh> <port_http>"
+if [ "$#" -lt 2 ]; then
+    echo "Uzycie: $0 <user@host> <port_ssh>"
     echo ""
-    echo "Przyklad: $0 root@srv15.mikr.us 12345 20080"
-    echo ""
-    echo "  port_ssh  - port SSH z maila powitalnego mikr.us"
-    echo "  port_http - port przekierowany z IPv4 (z panelu mikr.us)"
+    echo "Przyklad: $0 root@srv15.mikr.us 12345"
     exit 1
 fi
 
 REMOTE="$1"
 SSH_PORT="$2"
-HTTP_PORT="$3"
 APP_DIR="/opt/ddd-reader"
 
 SSH_CMD="ssh -p $SSH_PORT $REMOTE"
 SCP_CMD="scp -P $SSH_PORT"
 
-echo "=== [1/6] Przesylanie plikow na serwer ==="
-$SSH_CMD "mkdir -p $APP_DIR/templates"
-$SCP_CMD app.py requirements.txt setup.sh "$REMOTE:$APP_DIR/"
-$SCP_CMD templates/index.html "$REMOTE:$APP_DIR/templates/"
+# ---------------------------------------------------------------------------
+# [1/7] Build frontend locally
+# ---------------------------------------------------------------------------
+echo "=== [1/7] Budowanie frontendu ==="
+(cd frontend && npm ci --silent && npm run build)
+echo "Frontend zbudowany."
 
-echo "=== [2/6] Instalacja zaleznosci systemowych ==="
+# ---------------------------------------------------------------------------
+# [2/7] Upload files
+# ---------------------------------------------------------------------------
+echo "=== [2/7] Przesylanie plikow na serwer ==="
+$SSH_CMD "mkdir -p $APP_DIR/static"
+
+# Backend files (modular structure)
+$SCP_CMD backend/app.py backend/config.py backend/extensions.py backend/samsara_sync.py backend/requirements.txt "$REMOTE:$APP_DIR/"
+
+# Backend packages
+$SSH_CMD "mkdir -p $APP_DIR/core $APP_DIR/auth $APP_DIR/services $APP_DIR/routes"
+$SCP_CMD backend/core/*.py "$REMOTE:$APP_DIR/core/"
+$SCP_CMD backend/auth/*.py "$REMOTE:$APP_DIR/auth/"
+$SCP_CMD backend/services/*.py "$REMOTE:$APP_DIR/services/"
+$SCP_CMD backend/routes/*.py "$REMOTE:$APP_DIR/routes/"
+
+# Frontend build
+$SCP_CMD -r frontend/dist/* "$REMOTE:$APP_DIR/static/"
+
+echo "Pliki przeslane."
+
+# ---------------------------------------------------------------------------
+# [3/7] Install system dependencies
+# ---------------------------------------------------------------------------
+echo "=== [3/7] Instalacja zaleznosci systemowych ==="
 $SSH_CMD "bash -s" <<'REMOTE_SCRIPT'
 set -e
 export DEBIAN_FRONTEND=noninteractive
 
-# Wykryj menedzera pakietow
 if command -v apt-get &>/dev/null; then
     apt-get update -qq
     apt-get install -y -qq python3 python3-pip python3-venv golang-go git nginx > /dev/null 2>&1 || true
@@ -53,11 +72,12 @@ fi
 echo "Zaleznosci systemowe zainstalowane."
 REMOTE_SCRIPT
 
-echo "=== [3/6] Budowanie dddparser na serwerze ==="
+# ---------------------------------------------------------------------------
+# [4/7] Build dddparser
+# ---------------------------------------------------------------------------
+echo "=== [4/7] Budowanie dddparser na serwerze ==="
 $SSH_CMD "bash -s" <<'REMOTE_SCRIPT'
 set -e
-APP_DIR="/opt/ddd-reader"
-
 if [ -f /usr/local/bin/dddparser ]; then
     echo "dddparser juz istnieje, pomijam budowanie."
 else
@@ -65,11 +85,8 @@ else
     cd "$TMPDIR"
     git clone --depth 1 https://github.com/traconiq/tachoparser.git
     cd tachoparser
-
-    # Minimalne pliki certyfikatow (sygnatury nie beda weryfikowane)
     mkdir -p internal/pkg/certificates/pks1 internal/pkg/certificates/pks2
     touch internal/pkg/certificates/pks1/dummy.bin internal/pkg/certificates/pks2/dummy.bin
-
     go build -o /usr/local/bin/dddparser ./cmd/dddparser/
     cd /
     rm -rf "$TMPDIR"
@@ -77,26 +94,35 @@ else
 fi
 REMOTE_SCRIPT
 
-echo "=== [4/6] Konfiguracja srodowiska Python ==="
+# ---------------------------------------------------------------------------
+# [5/7] Python venv + deps
+# ---------------------------------------------------------------------------
+echo "=== [5/7] Konfiguracja srodowiska Python ==="
 $SSH_CMD "bash -s" <<REMOTE_SCRIPT
 set -e
-APP_DIR="/opt/ddd-reader"
-cd "\$APP_DIR"
-
+cd "$APP_DIR"
 if [ ! -d venv ]; then
     python3 -m venv venv
 fi
-./venv/bin/pip install -q flask gunicorn
+./venv/bin/pip install -q -r requirements.txt
 echo "Srodowisko Python gotowe."
 REMOTE_SCRIPT
 
-echo "=== [5/6] Konfiguracja systemd + nginx ==="
-$SSH_CMD "bash -s $HTTP_PORT" <<'REMOTE_SCRIPT'
+# ---------------------------------------------------------------------------
+# [6/7] systemd + nginx
+# ---------------------------------------------------------------------------
+echo "=== [6/7] Konfiguracja systemd + nginx ==="
+$SSH_CMD "bash -s" <<'REMOTE_SCRIPT'
 set -e
-HTTP_PORT="$1"
 APP_DIR="/opt/ddd-reader"
 
-# Serwis systemd
+# Flask secret key (jednorazowo)
+if [ ! -f "$APP_DIR/.flask_secret" ]; then
+    python3 -c "import secrets; print(secrets.token_hex(32))" > "$APP_DIR/.flask_secret"
+fi
+FLASK_SECRET=$(cat "$APP_DIR/.flask_secret")
+
+# Serwis systemd — Gunicorn serves API + SPA fallback
 cat > /etc/systemd/system/ddd-reader.service <<EOF
 [Unit]
 Description=DDD Driver Card Reader
@@ -107,6 +133,11 @@ User=root
 WorkingDirectory=/opt/ddd-reader
 ExecStart=/opt/ddd-reader/venv/bin/gunicorn --bind 127.0.0.1:8000 --workers 2 --timeout 60 app:app
 Environment=DDDPARSER_PATH=/usr/local/bin/dddparser
+Environment=FLASK_SECRET_KEY=$FLASK_SECRET
+Environment=SAMSARA_API_TOKEN=$SAMSARA_TOKEN
+Environment=DROPBOX_REFRESH_TOKEN=$DROPBOX_REFRESH_TOKEN
+Environment=PORTAL_PASSWORD=$PORTAL_PASSWORD
+Environment=FRONTEND_DIR=/opt/ddd-reader/static
 Restart=always
 RestartSec=5
 
@@ -114,32 +145,78 @@ RestartSec=5
 WantedBy=multi-user.target
 EOF
 
-# Konfiguracja nginx
-cat > /etc/nginx/sites-available/ddd-reader <<EOF
+# Nginx — serwuje statyczny frontend + proxy API
+cat > /etc/nginx/sites-available/ddd-reader <<'NGINX_EOF'
 server {
-    listen ${HTTP_PORT};
+    listen 80;
     listen [::]:80;
+    server_name dd.ltslog.de;
 
     client_max_body_size 16M;
 
-    location / {
+    # Cloudflare real IP
+    set_real_ip_from 173.245.48.0/20;
+    set_real_ip_from 103.21.244.0/22;
+    set_real_ip_from 103.22.200.0/22;
+    set_real_ip_from 103.31.4.0/22;
+    set_real_ip_from 141.101.64.0/18;
+    set_real_ip_from 108.162.192.0/18;
+    set_real_ip_from 190.93.240.0/20;
+    set_real_ip_from 188.114.96.0/20;
+    set_real_ip_from 197.234.240.0/22;
+    set_real_ip_from 198.41.128.0/17;
+    set_real_ip_from 162.158.0.0/15;
+    set_real_ip_from 104.16.0.0/13;
+    set_real_ip_from 104.24.0.0/14;
+    set_real_ip_from 172.64.0.0/13;
+    set_real_ip_from 131.0.72.0/22;
+    real_ip_header CF-Connecting-IP;
+
+    root /opt/ddd-reader/static;
+
+    # API i stare endpointy -> Flask
+    location /api/ {
         proxy_pass http://127.0.0.1:8000;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 60s;
+    }
+
+    # Backward compat: old portal/upload endpoints
+    location /portal/ {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location = /upload {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+
+    # Static assets (JS/CSS/images) — cache aggressively
+    location /assets/ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        try_files $uri =404;
+    }
+
+    # SPA fallback: all other routes serve index.html
+    location / {
+        try_files $uri $uri/ /index.html;
     }
 }
-EOF
+NGINX_EOF
 
-# Wlacz konfiguracje nginx
 mkdir -p /etc/nginx/sites-enabled
 ln -sf /etc/nginx/sites-available/ddd-reader /etc/nginx/sites-enabled/ddd-reader
-
-# Usun domyslna konfiguracje jesli istnieje
 rm -f /etc/nginx/sites-enabled/default
 
-# Reload/restart
 systemctl daemon-reload
 systemctl enable ddd-reader
 systemctl restart ddd-reader
@@ -148,19 +225,18 @@ nginx -t && systemctl restart nginx
 echo "Uslugi uruchomione pomyslnie."
 REMOTE_SCRIPT
 
-echo "=== [6/6] Weryfikacja ==="
+# ---------------------------------------------------------------------------
+# [7/7] Verify
+# ---------------------------------------------------------------------------
+echo "=== [7/7] Weryfikacja ==="
 $SSH_CMD "systemctl status ddd-reader --no-pager -l | head -15"
 
 echo ""
 echo "=========================================="
-echo " Deployment zakonczony pomyslnie!"
+echo " Deployment zakonczony!"
 echo "=========================================="
 echo ""
-echo " Aplikacja dostepna pod adresem:"
-echo "   http://${REMOTE#*@}:${HTTP_PORT}"
-echo ""
-echo " Jesli masz subdomene mikr.us:"
-echo "   https://twoja-subdomena.mikr.us"
+echo " https://dd.ltslog.de"
 echo ""
 echo " Komendy serwisowe (przez SSH):"
 echo "   systemctl status ddd-reader"
