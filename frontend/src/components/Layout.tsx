@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Users, FileText, RefreshCw, Sun, Moon, Globe, LogOut,
   Calendar, X, Shield, UserCog, Truck, Gauge, Coins, ClipboardCheck,
   Menu, ChevronLeft, ChevronRight, Route, PanelLeftClose, PanelLeftOpen,
-  Palette, Clock,
+  Palette, Clock, ShieldCheck,
 } from 'lucide-react';
 import { useI18n, type Locale } from '../i18n';
 import { useTheme } from '../hooks/useTheme';
@@ -47,6 +47,7 @@ export function Layout({ children }: { children: ReactNode }) {
           { to: '/stundenzettel', icon: FileText, labelKey: 'navStundenzettel' as const, permission: 'settlement' },
           { to: '/bulk-grid', icon: Users, labelKey: 'navBulkGrid' as const, permission: 'settlement' },
           { to: '/arbeitszeitbericht', icon: Clock, labelKey: 'navArbeitszeitbericht' as const, permission: 'settlement' },
+          { to: '/compliance', icon: ShieldCheck, labelKey: 'navCompliance' as const, permission: 'settlement' },
           { to: '/vehicles', icon: Truck, labelKey: 'navVehicles' as const, permission: 'vehicles' },
           { to: '/driver-km', icon: Gauge, labelKey: 'navDriverKm' as const, permission: 'driver_km' },
           { to: '/toll', icon: Coins, labelKey: 'navTollCollect' as const, permission: 'toll' },
@@ -78,7 +79,7 @@ export function Layout({ children }: { children: ReactNode }) {
   const mainItems = navItems.filter(i => mainKeys.has(i.to));
   if (mainItems.length > 0) navSections.push({ label: 'Menu', items: mainItems });
 
-  const payrollKeys = new Set(['/payroll', '/stundenzettel', '/bulk-grid', '/arbeitszeitbericht']);
+  const payrollKeys = new Set(['/payroll', '/stundenzettel', '/bulk-grid', '/arbeitszeitbericht', '/compliance']);
   const payrollItems = navItems.filter(i => payrollKeys.has(i.to));
   if (payrollItems.length > 0) navSections.push({ label: locale === 'de' ? 'Abrechnung' : 'Rozliczenia', items: payrollItems });
 

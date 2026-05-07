@@ -50,5 +50,8 @@ def register_blueprints(app):
     from .sign import bp as sign_bp
     app.register_blueprint(sign_bp)
 
+    from .compliance import bp as compliance_bp
+    app.register_blueprint(compliance_bp)
+
     from .legacy import bp as legacy_bp
     app.register_blueprint(legacy_bp)

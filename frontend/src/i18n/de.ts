@@ -658,6 +658,7 @@ export const de: Record<TranslationKey, string> = {
 
   // Arbeitszeitbericht
   navArbeitszeitbericht: 'Arbeitszeitbericht',
+  navCompliance: 'Compliance',
 
   // Drag & drop enhancements
   readerOnlyDdd: 'Nur .ddd-Dateien werden unterstützt',

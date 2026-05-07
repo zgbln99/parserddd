@@ -656,6 +656,7 @@ export const pl = {
 
   // Arbeitszeitbericht
   navArbeitszeitbericht: 'Raport czasu pracy',
+  navCompliance: 'Compliance',
 
   // Drag & drop enhancements
   readerOnlyDdd: 'Obsługiwane są tylko pliki .ddd',
