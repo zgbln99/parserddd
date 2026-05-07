@@ -79,7 +79,22 @@ def create_app() -> Flask:
     @application.route('/', defaults={'path': ''})
     @application.route('/<path:path>')
     def serve_frontend(path):
-        """Serve React static build. Falls back to index.html for SPA routing."""
+        """Serve React static build. Falls back to index.html for SPA routing.
+
+        Critical guard: never serve `index.html` for `/api/*` requests. If a
+        blueprint silently failed to register (import error, etc.) the SPA
+        fallback used to mask the bug by returning HTML to JSON callers,
+        producing the classic "Unexpected token '<'" parse error on the
+        frontend. We now return a JSON 404 for any unhandled `/api/*` path.
+        """
+        if path.startswith('api/'):
+            return jsonify({
+                'error': 'Endpoint not found',
+                'path': '/' + path,
+                'hint': 'Check that the relevant Flask blueprint is registered '
+                        'and that the backend has been restarted after changes.',
+            }), 404
+
         abs_frontend = os.path.abspath(FRONTEND_DIR)
         if path and os.path.isfile(os.path.join(abs_frontend, path)):
             return send_from_directory(abs_frontend, path)
@@ -87,6 +102,37 @@ def create_app() -> Flask:
         if os.path.isfile(index_path):
             return send_from_directory(abs_frontend, 'index.html')
         return jsonify({'error': 'Frontend not built. Run: cd frontend && npm run build'}), 404
+
+    # ---------------------------------------------------------------------------
+    # JSON error handlers for /api/*
+    # ---------------------------------------------------------------------------
+    # Keeps the contract: any /api/* response is JSON, never HTML. Handlers
+    # below only fire when nothing else caught the exception — they are the
+    # safety net for things like uncaught Dropbox SDK errors, subprocess
+    # failures, or schema typos in route bodies.
+    from werkzeug.exceptions import HTTPException
+    from flask import request as _request
+
+    @application.errorhandler(HTTPException)
+    def _json_http_error(exc):
+        if _request.path.startswith('/api/'):
+            return jsonify({
+                'error': exc.name,
+                'detail': exc.description or '',
+                'status': exc.code,
+            }), exc.code or 500
+        return exc
+
+    @application.errorhandler(Exception)
+    def _json_uncaught(exc):
+        if _request.path.startswith('/api/'):
+            logger.exception('Unhandled error in %s', _request.path)
+            return jsonify({
+                'error': 'Internal server error',
+                'detail': str(exc),
+            }), 500
+        # Re-raise so non-API requests fall through to Flask's default page.
+        raise exc
 
     return application
 

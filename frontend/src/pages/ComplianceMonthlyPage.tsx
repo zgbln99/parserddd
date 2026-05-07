@@ -86,6 +86,41 @@ interface MonthlyResponse {
   report: ReportPayload;
 }
 
+/**
+ * Parse a response that we expect to be JSON, but might be HTML when:
+ *   - the user is logged out and the server returned a redirect/login HTML
+ *   - the SPA fallback served index.html because the API route is missing
+ *   - a CDN/proxy injected an error page
+ *
+ * Throwing the raw `JSON.parse` exception gave us
+ * "SyntaxError: Unexpected token '<'…" with no actionable hint. We now
+ * return a typed error message based on the content-type instead.
+ */
+async function parseJsonOrThrow(res: Response): Promise<unknown> {
+  const ct = res.headers.get('content-type') ?? '';
+  const text = await res.text();
+  if (ct.includes('application/json')) {
+    try {
+      return JSON.parse(text) as unknown;
+    } catch {
+      throw new Error(
+        `Backend returned content-type=JSON but invalid body (status ${res.status})`,
+      );
+    }
+  }
+  if (text.trimStart().startsWith('<')) {
+    throw new Error(
+      res.status === 401 || res.status === 403
+        ? `Sitzung abgelaufen — bitte erneut anmelden (status ${res.status}).`
+        : res.status === 404
+        ? `API-Endpoint /${res.url.split('/').slice(3).join('/')} fehlt — Backend wurde nach Code-Änderung wahrscheinlich nicht neu gestartet (status 404).`
+        : `Backend hat HTML statt JSON zurückgegeben (status ${res.status}). Vermutlich ein nicht abgefangener Server-Fehler — schaue ins Backend-Log.`,
+    );
+  }
+  // Plain-text non-HTML response — surface it as-is.
+  throw new Error(`Backend response (status ${res.status}): ${text.slice(0, 200)}`);
+}
+
 export function ComplianceMonthlyPage() {
   const { t } = useI18n();
 
@@ -139,7 +174,10 @@ export function ComplianceMonthlyPage() {
         `/api/compliance/months?driver=${encodeURIComponent(driver.name)}`,
         { credentials: 'include' },
       );
-      const body = await res.json();
+      const body = (await parseJsonOrThrow(res)) as {
+        error?: string;
+        months?: MonthBucket[];
+      };
       if (!res.ok) {
         setError(body.error || `HTTP ${res.status}`);
         return;
@@ -147,7 +185,7 @@ export function ComplianceMonthlyPage() {
       setMonths(body.months || []);
       if (body.months?.[0]) setSelectedMonth(body.months[0].month);
     } catch (err) {
-      setError(String(err));
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoadingMonths(false);
     }
@@ -188,14 +226,17 @@ export function ComplianceMonthlyPage() {
           file_paths: bucket.files.map((f) => f.path),
         }),
       });
-      const body = await res.json();
+      const body = (await parseJsonOrThrow(res)) as {
+        error?: string;
+        detail?: string;
+      } & MonthlyResponse;
       if (!res.ok) {
         setError(body.detail || body.error || `HTTP ${res.status}`);
         return;
       }
       setResult(body);
     } catch (err) {
-      setError(String(err));
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setAnalyzing(false);
     }
@@ -217,14 +258,18 @@ export function ComplianceMonthlyPage() {
           payload: result.report,
         }),
       });
-      const body = await res.json();
-      if (!res.ok) {
+      const body = (await parseJsonOrThrow(res)) as {
+        error?: string;
+        url?: string;
+        expires_at?: string;
+      };
+      if (!res.ok || !body.url || !body.expires_at) {
         setError(body.error || `HTTP ${res.status}`);
         return;
       }
       setSignLink({ url: body.url, expires_at: body.expires_at });
     } catch (err) {
-      setError(String(err));
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setCreatingLink(false);
     }

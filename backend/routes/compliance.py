@@ -61,6 +61,17 @@ _DDD_NAME_RE = re.compile(r"(?P<date>\d{4}-\d{2}-\d{2})", re.ASCII)
 @login_required
 def api_list_months():
     """List the YYYY-MM buckets the driver's DDD archive covers."""
+    try:
+        return _api_list_months_impl()
+    except Exception as exc:
+        _log.exception("compliance/months failed")
+        return jsonify({
+            "error": "compliance/months failed",
+            "detail": str(exc),
+        }), 500
+
+
+def _api_list_months_impl():
     driver_name = (request.args.get("driver") or "").strip()
     if not driver_name:
         return jsonify({"error": "driver is required"}), 400
@@ -122,6 +133,17 @@ def api_list_months():
 @login_required
 def api_evaluate_monthly():
     """Evaluate compliance for a single driver-month."""
+    try:
+        return _api_evaluate_monthly_impl()
+    except Exception as exc:
+        _log.exception("compliance/monthly failed")
+        return jsonify({
+            "error": "compliance/monthly failed",
+            "detail": str(exc),
+        }), 500
+
+
+def _api_evaluate_monthly_impl():
     data = request.get_json(silent=True) or {}
     driver_card = (data.get("driver_card") or "").strip()
     driver_name = (data.get("driver_name") or "").strip()
