@@ -141,8 +141,7 @@ _LOC = {
         "no_violations": "Keine Verstöße im Bewertungszeitraum.",
         "col_kind": "Verstoß",
         "col_period": "Zeit",
-        "col_measured": "Gemessen",
-        "col_allowed": "Erlaubt",
+        "col_what": "Was passierte",
         "col_severity": "Schwere",
         "footer_left": "Bitte zur Kenntnis nehmen und unterschreiben.",
         "hash_label": "Dokument-Hash",
@@ -158,8 +157,7 @@ _LOC = {
         "no_violations": "No violations in the evaluated period.",
         "col_kind": "Violation",
         "col_period": "When",
-        "col_measured": "Measured",
-        "col_allowed": "Allowed",
+        "col_what": "What happened",
         "col_severity": "Severity",
         "footer_left": "Please review and sign.",
         "hash_label": "Document hash",
@@ -175,13 +173,134 @@ _LOC = {
         "no_violations": "Brak naruszeń w analizowanym okresie.",
         "col_kind": "Naruszenie",
         "col_period": "Kiedy",
-        "col_measured": "Zmierzone",
-        "col_allowed": "Dozwolone",
+        "col_what": "Co się stało",
         "col_severity": "Waga",
         "footer_left": "Prosimy o zapoznanie się i podpis.",
         "hash_label": "Hash dokumentu",
     },
 }
+
+
+def _describe_incident(row: Mapping[str, Any], locale: str) -> str:
+    """Plain-language sentence describing what the driver actually did wrong.
+
+    Mirrors the frontend's describeIncident() so the driver sees the same
+    wording on the web page and in the PDF.
+    """
+    rule_id = str(row.get("rule_id", ""))
+    unit = row.get("unit", "")
+    m = row.get("measured_value")
+    a = row.get("allowed_value")
+    is_time = unit in ("minutes", "hours", "days")
+
+    L = locale if locale in ("de", "en", "pl") else "de"
+
+    # ---- Rule-specific structural sentences --------------------------
+    static = {
+        "EU_165_MISSING_START_COUNTRY": {
+            "de": "Kein Land bei Schichtbeginn in den Tachograph eingegeben.",
+            "en": "No country entered into the tachograph at shift start.",
+            "pl": "Nie wpisano kraju w tachografie przy rozpoczęciu zmiany.",
+        },
+        "EU_165_MISSING_END_COUNTRY": {
+            "de": "Kein Land bei Schichtende in den Tachograph eingegeben.",
+            "en": "No country entered into the tachograph at shift end.",
+            "pl": "Nie wpisano kraju w tachografie przy zakończeniu zmiany.",
+        },
+        "EU_165_MISSING_MANUAL_ENTRY": {
+            "de": "Zeitraum mit gezogener Karte ohne manuellen Nachtrag.",
+            "en": "Card-out period not back-filled with a manual entry.",
+            "pl": "Okres bez karty nie uzupełniony wpisem manualnym.",
+        },
+        "EU_165_INCOMPLETE_MANUAL_ENTRY": {
+            "de": "Manueller Nachtrag wurde unvollständig ausgefüllt.",
+            "en": "Manual entry was filed but is incomplete.",
+            "pl": "Wpis manualny złożony, ale niekompletny.",
+        },
+        "EU_165_DRIVING_WITHOUT_CARD": {
+            "de": "Fahrzeug bewegt, ohne dass eine Fahrerkarte gesteckt war.",
+            "en": "Vehicle was driven without an inserted driver card.",
+            "pl": "Pojazd jechał bez włożonej karty kierowcy.",
+        },
+        "EU_165_CARD_REMOVED_TOO_EARLY": {
+            "de": "Fahrerkarte vor Schichtende entnommen.",
+            "en": "Driver card removed before the shift ended.",
+            "pl": "Karta kierowcy wyjęta przed zakończeniem zmiany.",
+        },
+        "EU_165_WRONG_SLOT": {
+            "de": "Fahrt im Beifahrer-Schacht statt im Fahrer-Schacht aufgezeichnet.",
+            "en": "Driving recorded under co-driver slot instead of driver slot.",
+            "pl": "Jazdę zapisano w slocie pasażera zamiast kierowcy.",
+        },
+        "EU_165_MISSING_CO_DRIVER": {
+            "de": "Mehrfahrerbetrieb angegeben, aber nur eine Karte gesteckt.",
+            "en": "Multi-manning declared but only one card inserted.",
+            "pl": "Załoga podwójna zadeklarowana, ale w slotach tylko jedna karta.",
+        },
+        "EU_165_REST_DURING_WORK": {
+            "de": "Aktivität als Ruhe gewählt, während gearbeitet wurde.",
+            "en": "Activity selected as rest while actually working.",
+            "pl": "Wybrano odpoczynek jako aktywność w trakcie pracy.",
+        },
+        "EU_165_OUT_MISUSE": {
+            "de": "OUT-Modus aktiviert, obwohl die Fahrt unter EU 561 fiel.",
+            "en": "OUT mode used on a trip that should have been recorded.",
+            "pl": "Włączono tryb OUT na trasie, która powinna być rejestrowana.",
+        },
+        "EU_165_AVAILABILITY_INSTEAD_OF_WORK": {
+            "de": "Bereitschaft markiert, obwohl tatsächlich gearbeitet wurde (z. B. Beladen).",
+            "en": "Availability selected while actually working (loading, etc.).",
+            "pl": "Wybrano dyspozycyjność zamiast pracy (np. załadunek).",
+        },
+    }
+    if rule_id in static:
+        return static[rule_id][L]
+
+    if not (is_time and isinstance(m, (int, float)) and isinstance(a, (int, float))):
+        return str(row.get("explanation", "") or "")
+
+    measured = _fmt_value(m, unit)
+    allowed = _fmt_value(a, unit)
+    category = str(row.get("category", ""))
+
+    if m > a > 0:
+        excess = _fmt_value(m - a, unit)
+        templates = {
+            "BREAKS": {
+                "de": f"{measured} am Stück gefahren, ohne die vorgeschriebene 45-Min-Pause einzulegen.",
+                "en": f"Drove {measured} continuously without taking the required 45-min break.",
+                "pl": f"Jazda ciągła {measured} bez wymaganej 45-min przerwy.",
+            },
+            "DRIVING_TIME": {
+                "de": f"Lenkzeit {measured} statt zulässiger {allowed} — {excess} zu viel.",
+                "en": f"Drove {measured} instead of the {allowed} maximum — {excess} over.",
+                "pl": f"Czas jazdy {measured} zamiast dozwolonych {allowed} — o {excess} za dużo.",
+            },
+            "WORKING_TIME": {
+                "de": f"Arbeitszeit {measured} statt zulässiger {allowed} — {excess} zu viel.",
+                "en": f"Worked {measured} instead of the {allowed} maximum — {excess} over.",
+                "pl": f"Czas pracy {measured} zamiast dozwolonych {allowed} — o {excess} za dużo.",
+            },
+            "NIGHT_WORK": {
+                "de": f"Nachtarbeitstag mit {measured} Arbeit (zulässig {allowed}).",
+                "en": f"Night-work day with {measured} of work (allowed {allowed}).",
+                "pl": f"Dzień z pracą nocną i {measured} pracy (dozwolone {allowed}).",
+            },
+        }
+        if category in templates:
+            return templates[category][L]
+
+    if 0 < m < a:
+        shortfall = _fmt_value(a - m, unit)
+        if category == "REST":
+            templates = {
+                "de": f"Ruhezeit nur {measured} statt erforderlicher {allowed} — {shortfall} zu kurz.",
+                "en": f"Rest only {measured} instead of the required {allowed} — {shortfall} short.",
+                "pl": f"Odpoczynek tylko {measured} zamiast wymaganych {allowed} — brakuje {shortfall}.",
+            }
+            return templates[L]
+
+    return str(row.get("explanation", "") or "")
 
 
 _SEVERITY_LOC = {
@@ -603,17 +722,23 @@ def _violation_table(
     styles: Mapping[str, ParagraphStyle],
     frame_width: float,
 ) -> Table:
-    """5-column violation table — Rule column dropped on purpose."""
+    """4-column violation table.
+
+    Columns: Verstoß | Zeit | Was passierte | Schwere
+    The "what happened" column carries a single plain-language sentence
+    (e.g. "Drove 10h 30min instead of the 9h maximum — 1h 30min over."),
+    replacing the previous "X / Y" measured/allowed pair which was
+    confusing for non-time-based rules and rest-shortfalls.
+    """
     head = [
         Paragraph(L["col_kind"], styles["tableHead"]),
         Paragraph(L["col_period"], styles["tableHead"]),
-        Paragraph(L["col_measured"], styles["tableHead"]),
-        Paragraph(L["col_allowed"], styles["tableHead"]),
+        Paragraph(L["col_what"], styles["tableHead"]),
         Paragraph(L["col_severity"], styles["tableHead"]),
     ]
     rows: list[list[Any]] = [head]
     section_band_indices: list[int] = []
-    severity_cells: list[tuple[int, str, Any, Any]] = []  # (row_idx, label, bg, fg)
+    severity_cells: list[tuple[int, str, Any, Any]] = []
 
     for section in sections:
         if not section.get("rows"):
@@ -625,15 +750,13 @@ def _violation_table(
                 f"  <font color='#9ca3af' size='8'>· {len(section['rows'])}</font>",
                 styles["tableBody"],
             ),
-            "", "", "", "",
+            "", "", "",
         ])
         for row in section.get("rows", []):
-            unit = row.get("unit", "")
-            measured = _fmt_value(row.get("measured_value"), unit)
-            allowed = _fmt_value(row.get("allowed_value"), unit)
             start_t = str(row.get("start_time", ""))[:16].replace("T", " ")
             end_t = str(row.get("end_time", ""))[:16].replace("T", " ")
             sev = _severity_pill(row.get("severity"), locale)
+            description = _describe_incident(row, locale)
 
             rows.append([
                 Paragraph(
@@ -645,9 +768,7 @@ def _violation_table(
                     f"{start_t}<br/><font color='#6b6b70'>→ {end_t}</font>",
                     styles["tableBody"],
                 ),
-                Paragraph(measured, styles["tableNum"]),
-                Paragraph(allowed, styles["tableNumMuted"]),
-                # Filled later via setStyle after we know the row index
+                Paragraph(description, styles["tableBody"]),
                 Paragraph(
                     f"  {sev[0] if sev else '—'}  ",
                     ParagraphStyle(
@@ -665,10 +786,9 @@ def _violation_table(
                 severity_cells.append((len(rows) - 1, sev[0], sev[1], sev[2]))
 
     col_w = [
-        frame_width * 0.42,  # kind
-        frame_width * 0.20,  # period
-        frame_width * 0.13,  # measured
-        frame_width * 0.13,  # allowed
+        frame_width * 0.30,  # kind
+        frame_width * 0.18,  # period
+        frame_width * 0.40,  # what happened (the meat of the row)
         frame_width * 0.12,  # severity
     ]
 
@@ -680,10 +800,10 @@ def _violation_table(
         ("RIGHTPADDING", (0, 0), (-1, -1), 8),
         ("TOPPADDING", (0, 0), (-1, -1), 6),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
     ]
 
-    # Section header rows: span all 5 columns + subtle background
+    # Section header rows: span all 4 columns
     for idx in section_band_indices:
         style.append(("SPAN", (0, idx), (-1, idx)))
         style.append(("BACKGROUND", (0, idx), (-1, idx), colors.HexColor("#f6f7f9")))
@@ -691,11 +811,11 @@ def _violation_table(
         style.append(("TOPPADDING", (0, idx), (-1, idx), 5))
         style.append(("BOTTOMPADDING", (0, idx), (-1, idx), 5))
 
-    # Severity cell tint
+    # Severity cell tint (severity is now column index 3)
     for row_idx, _label, bg, _fg in severity_cells:
-        style.append(("BACKGROUND", (4, row_idx), (4, row_idx), bg))
-        style.append(("LEFTPADDING", (4, row_idx), (4, row_idx), 6))
-        style.append(("RIGHTPADDING", (4, row_idx), (4, row_idx), 6))
+        style.append(("BACKGROUND", (3, row_idx), (3, row_idx), bg))
+        style.append(("LEFTPADDING", (3, row_idx), (3, row_idx), 6))
+        style.append(("RIGHTPADDING", (3, row_idx), (3, row_idx), 6))
 
     table = Table(rows, colWidths=col_w, repeatRows=1)
     table.setStyle(TableStyle(style))

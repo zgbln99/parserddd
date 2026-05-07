@@ -728,55 +728,20 @@ function ViolationCard({
   lang: UiLang;
 }) {
   const tone = severityTone(row.severity);
-  // Severity → accent color. There is no "good" colour anywhere on this
-  // page — every card on it is, by construction, a violation. We therefore
-  // never use emerald (which reads as "all clear"). MINOR maps to a soft
-  // amber, SERIOUS to amber, MOST/VERY_SERIOUS to rose. Unknown severity
-  // falls back to amber (warn) — never green.
-  const accent =
-    tone === 'high'
-      ? 'rose'
-      : 'amber';
-  const dot =
-    accent === 'rose' ? 'bg-rose-500' : 'bg-amber-500';
+  // No emerald here — every row on this page is a violation by
+  // construction, so "good green" would mislead. MOST/VERY_SERIOUS → rose,
+  // anything else (incl. unknown) → amber.
+  const accent = tone === 'high' ? 'rose' : 'amber';
+  const dot = accent === 'rose' ? 'bg-rose-500' : 'bg-amber-500';
 
-  // Decide what (if anything) to render in the metrics row.
-  //
-  // A violation is one of:
-  //   over       — measured > allowed (driving time, breaks)
-  //   shortfall  — measured < allowed AND excess > 0 (rest too short)
-  //   structural — measured == 0 / count rule (missing entry)
-  //
-  // Only "over" and "shortfall" have meaningful numbers for the driver.
-  // "structural" rules render headline + explanation only — the numbers
-  // 0 / 1 are confusing because they look like "all clear".
-  const m = row.measured_value;
-  const a = row.allowed_value;
-  const isTimeUnit =
-    row.unit === 'minutes' || row.unit === 'hours' || row.unit === 'days';
-  const hasNumbers =
-    isTimeUnit && m !== null && a !== null && (m > 0 || a > 0);
-
-  type Mode = 'over' | 'shortfall' | 'none';
-  let mode: Mode = 'none';
-  if (hasNumbers && m! > a! && a! > 0) mode = 'over';
-  else if (hasNumbers && m! < a! && a! > 0) mode = 'shortfall';
-
-  const measuredStr = hasNumbers ? formatMaybeHours(m, row.unit, lang) : null;
-  const allowedStr = hasNumbers ? formatMaybeHours(a, row.unit, lang) : null;
-
-  const overPercent =
-    mode === 'over' && a! > 0
-      ? Math.round(((m! - a!) / a!) * 100)
-      : null;
-  const shortfallStr =
-    mode === 'shortfall'
-      ? formatMaybeHours(a! - m!, row.unit, lang)
-      : null;
+  // Plain-language sentence ("Drove X instead of Y", "Rest only X — Y
+  // short", "No country entered at shift start", etc.). Replaces the
+  // confusing X/Y ratio entirely.
+  const incident = describeIncident(row, lang);
 
   return (
     <article className="rounded-2xl border border-black/[0.06] bg-white p-3.5 shadow-[0_1px_2px_rgba(15,15,20,0.03)] sm:p-4">
-      {/* Top line: severity dot + heading + (optional) severity label */}
+      {/* Eyebrow: severity dot + heading + (optional) severity label */}
       <div className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-[0.08em] text-black/55">
         <span className={`size-1.5 shrink-0 rounded-full ${dot}`} aria-hidden />
         <span>{heading}</span>
@@ -790,36 +755,16 @@ function ViolationCard({
         )}
       </div>
 
-      {/* Title + explanation: tight, readable, not shouty */}
+      {/* Title — the official rule name */}
       <h3 className="mt-1.5 text-[15px] font-semibold leading-snug tracking-tight text-black sm:text-[16px]">
         {row.title}
       </h3>
-      <p className="mt-1 text-[13px] leading-snug text-black/60">
-        {row.explanation}
-      </p>
 
-      {/* Metrics: single line, smaller numbers, inline pill */}
-      {mode !== 'none' && (
-        <div className="mt-2.5 flex flex-wrap items-baseline gap-x-2 gap-y-1">
-          <span className="text-[18px] font-semibold tabular-nums tracking-tight text-rose-700 sm:text-[20px]">
-            {measuredStr}
-          </span>
-          <span className="text-[13px] text-black/30">/</span>
-          <span className="text-[13px] font-medium tabular-nums text-black/55">
-            {allowedStr}
-          </span>
-          {mode === 'over' && overPercent !== null && overPercent > 0 && (
-            <span className="rounded-full bg-rose-50 px-2 py-0 text-[11px] font-semibold tabular-nums text-rose-700">
-              +{overPercent}%
-            </span>
-          )}
-          {mode === 'shortfall' && (
-            <span className="rounded-full bg-rose-50 px-2 py-0 text-[11px] font-semibold tabular-nums text-rose-700">
-              {shortfallLabel(lang, shortfallStr ?? '')}
-            </span>
-          )}
-        </div>
-      )}
+      {/* Plain-language WHAT-HAPPENED. Falls back to the engine's generic
+          explanation only if we don't have a specific template. */}
+      <p className="mt-1 text-[13px] leading-snug text-black/70 sm:text-[14px]">
+        {incident ?? row.explanation}
+      </p>
 
       {/* Footer: just the period, very muted */}
       <div className="mt-2.5 text-[10.5px] tabular-nums text-black/35">
@@ -1174,6 +1119,147 @@ function formatMaybeHours(
     return fmtNumber(value);
   }
   return `${fmtNumber(value)} ${unit}`.trim();
+}
+
+/**
+ * Plain-language description of WHAT the driver actually did wrong.
+ *
+ * The engine emits raw measurements (e.g. measured=300, allowed=270,
+ * unit=minutes). Showing a "300 min / 270 min" ratio is unhelpful and
+ * "0 / 1" for missing-entry rules is downright confusing. This function
+ * picks a rule-aware template and produces one finished sentence.
+ *
+ * Returns null when we can't say anything more specific than the
+ * generic explanation already does — caller falls back to that.
+ */
+function describeIncident(row: ViolationRow, lang: UiLang): string | null {
+  const m = row.measured_value;
+  const a = row.allowed_value;
+  const isTime =
+    row.unit === 'minutes' || row.unit === 'hours' || row.unit === 'days';
+
+  // -----  Structural / count rules: rule-id keyed sentences -----
+  switch (row.rule_id) {
+    case 'EU_165_MISSING_START_COUNTRY':
+      return T(lang, {
+        de: 'Kein Land bei Schichtbeginn in den Tachograph eingegeben.',
+        en: 'No country entered into the tachograph at shift start.',
+        pl: 'Nie wpisano kraju w tachografie przy rozpoczęciu zmiany.',
+      });
+    case 'EU_165_MISSING_END_COUNTRY':
+      return T(lang, {
+        de: 'Kein Land bei Schichtende in den Tachograph eingegeben.',
+        en: 'No country entered into the tachograph at shift end.',
+        pl: 'Nie wpisano kraju w tachografie przy zakończeniu zmiany.',
+      });
+    case 'EU_165_MISSING_MANUAL_ENTRY':
+      return T(lang, {
+        de: 'Zeitraum mit gezogener Karte ohne manuellen Nachtrag.',
+        en: 'Card-out period not back-filled with a manual entry.',
+        pl: 'Okres bez karty nie uzupełniony wpisem manualnym.',
+      });
+    case 'EU_165_INCOMPLETE_MANUAL_ENTRY':
+      return T(lang, {
+        de: 'Manueller Nachtrag wurde unvollständig ausgefüllt.',
+        en: 'Manual entry was filed but is incomplete.',
+        pl: 'Wpis manualny złożony, ale niekompletny.',
+      });
+    case 'EU_165_DRIVING_WITHOUT_CARD':
+      return T(lang, {
+        de: 'Fahrzeug bewegt, ohne dass eine Fahrerkarte gesteckt war.',
+        en: 'Vehicle was driven without an inserted driver card.',
+        pl: 'Pojazd jechał bez włożonej karty kierowcy.',
+      });
+    case 'EU_165_CARD_REMOVED_TOO_EARLY':
+      return T(lang, {
+        de: 'Fahrerkarte vor Schichtende entnommen.',
+        en: 'Driver card removed before the shift ended.',
+        pl: 'Karta kierowcy wyjęta przed zakończeniem zmiany.',
+      });
+    case 'EU_165_WRONG_SLOT':
+      return T(lang, {
+        de: 'Fahrt im Beifahrer-Schacht statt im Fahrer-Schacht aufgezeichnet.',
+        en: 'Driving recorded under co-driver slot instead of driver slot.',
+        pl: 'Jazdę zapisano w slocie pasażera zamiast kierowcy.',
+      });
+    case 'EU_165_MISSING_CO_DRIVER':
+      return T(lang, {
+        de: 'Mehrfahrerbetrieb angegeben, aber nur eine Karte gesteckt.',
+        en: 'Multi-manning declared but only one card inserted.',
+        pl: 'Załoga podwójna zadeklarowana, ale w slotach tylko jedna karta.',
+      });
+    case 'EU_165_REST_DURING_WORK':
+      return T(lang, {
+        de: 'Aktivität als Ruhe gewählt, während gearbeitet wurde.',
+        en: 'Activity selected as rest while actually working.',
+        pl: 'Wybrano odpoczynek jako aktywność w trakcie pracy.',
+      });
+    case 'EU_165_OUT_MISUSE':
+      return T(lang, {
+        de: 'OUT-Modus aktiviert, obwohl die Fahrt unter EU 561 fiel.',
+        en: 'OUT mode used on a trip that should have been recorded.',
+        pl: 'Włączono tryb OUT na trasie, która powinna być rejestrowana.',
+      });
+    case 'EU_165_AVAILABILITY_INSTEAD_OF_WORK':
+      return T(lang, {
+        de: 'Bereitschaft markiert, obwohl tatsächlich gearbeitet wurde (z. B. Beladen).',
+        en: 'Availability selected while actually working (loading, etc.).',
+        pl: 'Wybrano dyspozycyjność zamiast pracy (np. załadunek).',
+      });
+  }
+
+  // -----  Time-based rules: numeric over / shortfall sentences -----
+  if (!isTime || m === null || a === null) return null;
+
+  const measured = formatMaybeHours(m, row.unit, lang);
+  const allowed = formatMaybeHours(a, row.unit, lang);
+
+  if (m > a && a > 0) {
+    const excess = formatMaybeHours(m - a, row.unit, lang);
+    switch (row.category) {
+      case 'BREAKS':
+        return T(lang, {
+          de: `${measured} am Stück gefahren, ohne die vorgeschriebene 45-Min-Pause einzulegen.`,
+          en: `Drove ${measured} continuously without taking the required 45-min break.`,
+          pl: `Jazda ciągła ${measured} bez wymaganej 45-min przerwy.`,
+        });
+      case 'DRIVING_TIME':
+        return T(lang, {
+          de: `Lenkzeit ${measured} statt zulässiger ${allowed} — ${excess} zu viel.`,
+          en: `Drove ${measured} instead of the ${allowed} maximum — ${excess} over.`,
+          pl: `Czas jazdy ${measured} zamiast dozwolonych ${allowed} — o ${excess} za dużo.`,
+        });
+      case 'WORKING_TIME':
+        return T(lang, {
+          de: `Arbeitszeit ${measured} statt zulässiger ${allowed} — ${excess} zu viel.`,
+          en: `Worked ${measured} instead of the ${allowed} maximum — ${excess} over.`,
+          pl: `Czas pracy ${measured} zamiast dozwolonych ${allowed} — o ${excess} za dużo.`,
+        });
+      case 'NIGHT_WORK':
+        return T(lang, {
+          de: `Nachtarbeitstag mit ${measured} Arbeit (zulässig ${allowed}).`,
+          en: `Night-work day with ${measured} of work (allowed ${allowed}).`,
+          pl: `Dzień z pracą nocną i ${measured} pracy (dozwolone ${allowed}).`,
+        });
+    }
+  }
+
+  if (m < a && a > 0) {
+    const shortfall = formatMaybeHours(a - m, row.unit, lang);
+    if (row.category === 'REST') {
+      return T(lang, {
+        de: `Ruhezeit nur ${measured} statt erforderlicher ${allowed} — ${shortfall} zu kurz.`,
+        en: `Rest only ${measured} instead of the required ${allowed} — ${shortfall} short.`,
+        pl: `Odpoczynek tylko ${measured} zamiast wymaganych ${allowed} — brakuje ${shortfall}.`,
+      });
+    }
+  }
+
+  return null;
+}
+
+function T(lang: UiLang, options: { de: string; en: string; pl: string }): string {
+  return options[lang];
 }
 
 function shortfallLabel(lang: UiLang, amount: string): string {
