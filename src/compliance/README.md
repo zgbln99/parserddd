@@ -89,6 +89,29 @@ const report = buildPdfReport(result, "pl");
 
 ```bash
 npm install
-npm test            # vitest, 72 cases
+npm test            # vitest, 76 cases
 npm run typecheck   # strict tsc --noEmit
 ```
+
+## Python bridge
+
+Backend Flask invokes the engine through `backend/services/compliance_engine.py`:
+
+```python
+from backend.services.compliance_engine import ComplianceEngine
+engine = ComplianceEngine()
+result = engine.evaluate(payload)             # → dict (EvaluationResult)
+report = engine.report(result, locale="pl")  # → dict (PdfReport)
+```
+
+The bridge spawns `node dist/cli/engine-cli.js`, so build the package first:
+
+```bash
+cd src/compliance && npm install && npm run build
+```
+
+Override locations via env vars:
+- `COMPLIANCE_NODE_BIN` (default: `which node`)
+- `COMPLIANCE_CLI_ENTRY` (default: `src/compliance/dist/cli/engine-cli.js`)
+- `COMPLIANCE_RULES_ROOT` (default: repo `rules/`)
+- `COMPLIANCE_TIMEOUT_SECONDS` (default: 30)

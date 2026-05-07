@@ -5,3 +5,7 @@ __pycache__/
 venv/
 backend/debug_analyze_card.json
 backend/tachoparser.json
+src/compliance/node_modules/
+src/compliance/dist/
+src/compliance/coverage/
+*.tsbuildinfo

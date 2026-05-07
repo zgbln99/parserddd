@@ -20,6 +20,8 @@ rules:
       reduced_daily_rest_minutes: 540
       reduced_allowed_between_weekly_rests: 3
       window_minutes: 1440
+      split_first_min_minutes: 180
+      split_second_min_minutes: 540
 
   - rule_id: EU_561_ART8_WEEKLY_REST
     category: REST

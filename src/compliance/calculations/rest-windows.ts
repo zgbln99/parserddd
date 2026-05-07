@@ -53,6 +53,39 @@ export function findRestRuns(activities: readonly Activity[]): RestRun[] {
 }
 
 /**
+ * EU 561 Art. 4(g) "split daily rest": a regular daily rest may be taken in
+ * two periods, the first at least 3 hours uninterrupted and the second at
+ * least 9 hours uninterrupted, totalling at least 12 hours.
+ *
+ * Returns the equivalent total minutes of a valid 3+9 split inside the
+ * given window, or 0 if no valid split exists. Order matters — the 3h block
+ * must come before the 9h block, because EU 561 explicitly says so.
+ */
+export function splitDailyRestMinutes(
+  rests: readonly RestRun[],
+  window: TimeInterval,
+  first_min_minutes = 180,
+  second_min_minutes = 540,
+): number {
+  const inside = rests
+    .filter((r) => r.start >= window.start && r.end <= window.end)
+    .sort((a, b) => a.start.getTime() - b.start.getTime());
+  if (inside.length < 2) return 0;
+
+  for (let i = 0; i < inside.length - 1; i++) {
+    const first = inside[i] as RestRun;
+    if (first.minutes < first_min_minutes) continue;
+    for (let j = i + 1; j < inside.length; j++) {
+      const second = inside[j] as RestRun;
+      if (second.minutes >= second_min_minutes) {
+        return first.minutes + second.minutes;
+      }
+    }
+  }
+  return 0;
+}
+
+/**
  * Slide a 24h "operational day" window over the timeline starting from each
  * end-of-rest moment, and return the longest rest window that fits within
  * the next 24h.
