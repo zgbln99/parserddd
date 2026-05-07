@@ -26,7 +26,47 @@ rules:
       de: "Fehlende Arbeitszeitpause"
       en: "Missing working time break"
       pl: "Brak wymaganej przerwy czasu pracy"
+    explanation:
+      de: "Pausen von 30 min nach 6h bzw. 45 min nach 9h Arbeitszeit (Splittung min. 15 min)."
+      en: "Breaks of 30 min after 6h or 45 min after 9h work, splittable in chunks of >=15 min."
+      pl: "Przerwy 30 min po 6h lub 45 min po 9h pracy, podział w blokach >=15 min."
     logic:
       break_after_6h_minutes: 30
       break_after_9h_minutes: 45
       minimum_split_minutes: 15
+
+  - rule_id: DE_KRFARBZG_DAILY_WORKING_TIME
+    category: WORKING_TIME
+    legal_basis:
+      de: "§ 4 KrFArbZG"
+      en: "Section 4 KrFArbZG"
+      pl: "§ 4 KrFArbZG"
+    title:
+      de: "Tägliche Höchstarbeitszeit überschritten"
+      en: "Daily working time exceeded"
+      pl: "Przekroczony dzienny czas pracy"
+    explanation:
+      de: "Arbeitszeit pro Tag darf 10 Stunden nicht überschreiten."
+      en: "Daily working time must not exceed 10 hours."
+      pl: "Dzienny czas pracy nie może przekroczyć 10 godzin."
+    logic:
+      max_daily_minutes: 600
+
+  - rule_id: DE_KRFARBZG_NIGHT_WORK
+    category: NIGHT_WORK
+    legal_basis:
+      de: "§ 6 ArbZG i.V.m. § 1 KrFArbZG"
+      en: "§ 6 ArbZG, § 1 KrFArbZG"
+      pl: "§ 6 ArbZG, § 1 KrFArbZG"
+    title:
+      de: "Nachtarbeit überschritten"
+      en: "Night work exceeded"
+      pl: "Przekroczona praca nocna"
+    explanation:
+      de: "Bei Nachtarbeit (00:00-04:00) darf die Arbeitszeit 10 Stunden pro Tag nicht überschreiten."
+      en: "On nights with work between 00:00 and 04:00 the daily working time is capped at 10 hours."
+      pl: "W noce z pracą 00:00-04:00 dzienny czas pracy jest ograniczony do 10 godzin."
+    logic:
+      night_window_start_hour: 0
+      night_window_end_hour: 4
+      max_minutes_on_night_day: 600

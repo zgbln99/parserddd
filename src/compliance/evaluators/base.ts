@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import type { Timeline } from "../types/timeline.js";
+import type { AdministrativeContext } from "../types/administrative.js";
 import type {
   FineIndex,
   Rule,
@@ -25,6 +26,12 @@ export interface EvaluatorContext {
   readonly evaluated_at: Date;
   /** IANA tz used for local-day grouping. */
   readonly time_zone: string;
+  /**
+   * Optional admin data: download events, inspections, retention.
+   * Required for category F (downloads / retention) — when missing, those
+   * evaluators return `not_evaluable`.
+   */
+  readonly administrative?: AdministrativeContext;
 }
 
 /**

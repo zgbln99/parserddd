@@ -11,6 +11,10 @@ rules:
       de: "Fehlende Pause nach 4,5 Stunden"
       en: "Missing break after 4.5 hours"
       pl: "Brak przerwy po 4,5 godziny jazdy"
+    explanation:
+      de: "Nach max. 4,5 Stunden Lenkzeit ist eine 45-Minuten-Pause erforderlich (oder 15+30 in dieser Reihenfolge)."
+      en: "After at most 4.5h of driving a 45-minute break is required (or 15+30 in that order)."
+      pl: "Po maks. 4,5h jazdy wymagana jest 45-minutowa przerwa (lub 15+30 w tej kolejności)."
     logic:
       max_continuous_driving_minutes: 270
       required_break_minutes: 45

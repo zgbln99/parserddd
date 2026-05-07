@@ -69,3 +69,49 @@ export {
 
 export { countryEntryEvaluator } from "./evaluators/country-entry.js";
 export { manualEntryEvaluator } from "./evaluators/manual-entry.js";
+export { cardEvaluator } from "./evaluators/card.js";
+export { activitySelectionEvaluator } from "./evaluators/activity-selection.js";
+export { drivingTimeEvaluator } from "./evaluators/driving-time.js";
+export { breakAfter4h30Evaluator } from "./evaluators/break-4h30.js";
+export { restEvaluator } from "./evaluators/rest.js";
+export { workingTimeEvaluator } from "./evaluators/working-time.js";
+export { downloadsEvaluator } from "./evaluators/downloads.js";
+export { eventsFaultsEvaluator } from "./evaluators/events-faults.js";
+
+export { findRestRuns, longestRestWithin } from "./calculations/rest-windows.js";
+
+export {
+  summarizeViolations,
+  groupViolations,
+  violationToRow,
+} from "./reporting/summary.js";
+export type {
+  ViolationSummary,
+  GroupedViolations,
+  ViolationRow,
+} from "./reporting/summary.js";
+export {
+  buildPdfReport,
+} from "./reporting/pdf-structure.js";
+export type {
+  PdfReport,
+  PdfSection,
+} from "./reporting/pdf-structure.js";
+
+export {
+  signViolation,
+  disputeViolation,
+  correctViolation,
+  hashViolation,
+  canonicalize,
+  WorkflowError,
+} from "./signatures/workflow.js";
+export type {
+  SignArgs,
+  SignResult,
+  DisputeArgs,
+  CorrectionArgs,
+} from "./signatures/workflow.js";
+
+export { AuditLog } from "./audit/log.js";
+export type { ChainedAuditLogEntry } from "./audit/log.js";

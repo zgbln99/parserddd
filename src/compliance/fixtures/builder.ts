@@ -7,7 +7,14 @@ import type {
 import type {
   CardSession,
   ManualEntry,
+  Printout,
+  TachographEvent,
 } from "../types/timeline.js";
+import type {
+  DownloadEvent,
+  InspectionRecord,
+  RetentionRecord,
+} from "../types/administrative.js";
 import {
   asActivityId,
   asDriverId,
@@ -99,5 +106,74 @@ export function manualEntry(
     notes: opts.notes ?? [],
     start: startDate,
     end: D(end),
+  };
+}
+
+export function tachoEvent(
+  type: string,
+  begin: string | Date,
+  opts: Partial<TachographEvent> = {},
+): TachographEvent {
+  return {
+    driver_id: opts.driver_id ?? TEST_DRIVER,
+    vehicle_id: opts.vehicle_id ?? TEST_VEHICLE,
+    type,
+    begin: D(begin),
+    end: opts.end ?? null,
+    raw_code: opts.raw_code ?? null,
+    notes: opts.notes ?? [],
+  };
+}
+
+export function printoutFx(
+  created_at: string | Date,
+  type = "DRIVER_24H",
+  opts: Partial<Printout> = {},
+): Printout {
+  return {
+    driver_id: opts.driver_id ?? TEST_DRIVER,
+    created_at: D(created_at),
+    type,
+    reason: opts.reason ?? null,
+  };
+}
+
+export function downloadFx(
+  source: DownloadEvent["source"],
+  downloaded_at: string | Date,
+  opts: Partial<DownloadEvent> = {},
+): DownloadEvent {
+  return {
+    source,
+    driver_id: opts.driver_id ?? (source === "CARD" ? TEST_DRIVER : null),
+    vehicle_id: opts.vehicle_id ?? (source === "VEHICLE_UNIT" ? TEST_VEHICLE : null),
+    downloaded_at: D(downloaded_at),
+    file_hash: opts.file_hash ?? null,
+  };
+}
+
+export function inspectionFx(
+  performed_at: string | Date,
+  opts: Partial<InspectionRecord> = {},
+): InspectionRecord {
+  return {
+    vehicle_id: opts.vehicle_id ?? TEST_VEHICLE,
+    performed_at: D(performed_at),
+    workshop_card_id: opts.workshop_card_id ?? null,
+    notes: opts.notes ?? [],
+  };
+}
+
+export function retentionFx(
+  source: RetentionRecord["source"],
+  archived_until: string | Date,
+  opts: Partial<RetentionRecord> = {},
+): RetentionRecord {
+  return {
+    source,
+    driver_id: opts.driver_id ?? (source === "CARD" ? TEST_DRIVER : null),
+    vehicle_id: opts.vehicle_id ?? (source === "VEHICLE_UNIT" ? TEST_VEHICLE : null),
+    archived_until: D(archived_until),
+    removed_at: opts.removed_at ?? null,
   };
 }

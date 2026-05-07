@@ -5,3 +5,4 @@ export * from "./driver.js";
 export * from "./rule.js";
 export * from "./violation.js";
 export * from "./audit.js";
+export * from "./administrative.js";

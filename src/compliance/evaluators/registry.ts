@@ -3,22 +3,39 @@ import { combineEvaluations } from "./base.js";
 import type { EvaluationResult, RuleEvaluation } from "../types/violation.js";
 import { countryEntryEvaluator } from "./country-entry.js";
 import { manualEntryEvaluator } from "./manual-entry.js";
+import { cardEvaluator } from "./card.js";
+import { activitySelectionEvaluator } from "./activity-selection.js";
+import { drivingTimeEvaluator } from "./driving-time.js";
+import { breakAfter4h30Evaluator } from "./break-4h30.js";
+import { restEvaluator } from "./rest.js";
+import { workingTimeEvaluator } from "./working-time.js";
+import { downloadsEvaluator } from "./downloads.js";
+import { eventsFaultsEvaluator } from "./events-faults.js";
 
 /**
- * The default evaluator registry.
+ * Default evaluator registry.
  *
- * Order matters: evaluators run in this exact sequence and the resulting
- * `rule_evaluations` array preserves the order. UI/reporting layers may
- * group by category, but the engine output itself is stable so diffs
- * between runs are reviewable.
+ * Order is fixed so engine output is stable run-to-run. Categories are
+ * grouped roughly by spec order:
+ *   A — country entries / manual entries
+ *   B — card slot
+ *   C — activity selection
+ *   D — driving time / breaks / rests
+ *   E — KrFArbZG working time / breaks / night
+ *   F — downloads / retention / inspection
+ *   G — events / faults / printout / manipulation
  */
 export const DEFAULT_EVALUATORS: readonly Evaluator[] = Object.freeze([
   countryEntryEvaluator,
   manualEntryEvaluator,
-  // Future: drivingWithoutCardEvaluator, breakAfter4h30Evaluator,
-  // dailyDrivingEvaluator, weeklyDrivingEvaluator, twoWeekDrivingEvaluator,
-  // dailyRestEvaluator, weeklyRestEvaluator, krfArbZgWeeklyWorkingTime,
-  // krfArbZgBreaks, downloadCadenceEvaluator, ...
+  cardEvaluator,
+  activitySelectionEvaluator,
+  drivingTimeEvaluator,
+  breakAfter4h30Evaluator,
+  restEvaluator,
+  workingTimeEvaluator,
+  downloadsEvaluator,
+  eventsFaultsEvaluator,
 ]);
 
 export function evaluateAll(

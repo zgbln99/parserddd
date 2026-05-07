@@ -71,3 +71,198 @@ rules:
       de: "Fahren ohne Fahrerkarte"
       en: "Driving without driver card"
       pl: "Jazda bez karty kierowcy"
+    explanation:
+      de: "Während des Fahrens war keine gültige Fahrerkarte gesteckt."
+      en: "Driving recorded by the vehicle unit while no valid driver card was inserted."
+      pl: "W trakcie jazdy karta kierowcy nie była włożona."
+
+  - rule_id: EU_165_CARD_REMOVED_TOO_EARLY
+    category: CARD
+    legal_basis:
+      de: "Art. 34 VO (EU) 165/2014"
+      en: "Art. 34 Regulation (EU) 165/2014"
+      pl: "Art. 34 Rozporządzenia 165/2014"
+    title:
+      de: "Fahrerkarte zu früh entnommen"
+      en: "Driver card removed too early"
+      pl: "Zbyt wczesne wyjęcie karty kierowcy"
+    explanation:
+      de: "Karte wurde während aktiver Schicht / vor Schichtende entnommen."
+      en: "Card withdrawn while the shift was still ongoing."
+      pl: "Karta wyjęta jeszcze podczas trwającej zmiany."
+    logic:
+      min_post_drive_idle_minutes: 1
+
+  - rule_id: EU_165_WRONG_SLOT
+    category: CARD
+    legal_basis:
+      de: "Art. 33 VO (EU) 165/2014"
+      en: "Art. 33 Regulation (EU) 165/2014"
+      pl: "Art. 33 Rozporządzenia 165/2014"
+    title:
+      de: "Fahrerkarte im falschen Schacht"
+      en: "Driver card in wrong slot"
+      pl: "Karta w niewłaściwym slocie"
+    explanation:
+      de: "Fahraktivität auf der Beifahrerseite registriert (Slot 2)."
+      en: "Driving activity recorded under the co-driver slot."
+      pl: "Aktywność jazdy zarejestrowana w slocie pasażera."
+
+  - rule_id: EU_165_MISSING_CO_DRIVER
+    category: MULTI_MANNING
+    legal_basis:
+      de: "Art. 4 lit. o VO (EG) 561/2006 i.V.m. VO 165/2014"
+      en: "Art. 4(o) Regulation (EC) 561/2006 in conjunction with Reg. 165/2014"
+      pl: "Art. 4 lit. o Rozporządzenia 561/2006 w zw. z 165/2014"
+    title:
+      de: "Fehlender Beifahrer bei Mehrfahrerbetrieb"
+      en: "Missing co-driver in multi-manning"
+      pl: "Brak drugiego kierowcy w obsadzie podwójnej"
+    explanation:
+      de: "Mehrfahrerbetrieb deklariert, aber nur ein Fahrer eingelegt."
+      en: "Multi-manning declared but only one driver card present."
+      pl: "Załoga zadeklarowana jako podwójna, w slotach jest tylko jeden kierowca."
+
+  - rule_id: EU_165_REST_DURING_WORK
+    category: ACTIVITY_SELECTION
+    legal_basis:
+      de: "Art. 34 Abs. 5 VO (EU) 165/2014"
+      en: "Art. 34(5) Regulation (EU) 165/2014"
+      pl: "Art. 34 ust. 5 Rozporządzenia 165/2014"
+    title:
+      de: "Ruhezeit während Arbeitstätigkeit ausgewählt"
+      en: "Rest selected while working"
+      pl: "Wybrano odpoczynek podczas pracy"
+    explanation:
+      de: "Während registrierter Arbeit wurde Ruhe als Aktivität gewählt."
+      en: "Rest was selected as activity while real work was happening."
+      pl: "W trakcie pracy wybrano odpoczynek jako aktywność."
+
+  - rule_id: EU_165_OUT_MISUSE
+    category: ACTIVITY_SELECTION
+    legal_basis:
+      de: "Art. 3 Abs. 2 VO (EG) 561/2006"
+      en: "Art. 3(2) Regulation (EC) 561/2006"
+      pl: "Art. 3 ust. 2 Rozporządzenia 561/2006"
+    title:
+      de: "Missbräuchliche OUT-Nutzung"
+      en: "OUT-of-scope misuse"
+      pl: "Nadużycie trybu OUT"
+    explanation:
+      de: "OUT wurde gewählt, obwohl die Fahrt nicht außerhalb des Geltungsbereichs liegt."
+      en: "OUT flag set even though the trip is in scope of EU 561."
+      pl: "Tryb OUT włączony pomimo trasy w zakresie EU 561."
+    logic:
+      max_consecutive_minutes: 720
+
+  - rule_id: EU_165_AVAILABILITY_INSTEAD_OF_WORK
+    category: ACTIVITY_SELECTION
+    legal_basis:
+      de: "Art. 6 RL 2002/15/EG i.V.m. § 21a ArbZG"
+      en: "Art. 6 Directive 2002/15/EC, § 21a ArbZG"
+      pl: "Art. 6 Dyrektywy 2002/15/WE, § 21a ArbZG"
+    title:
+      de: "Bereitschaft statt Arbeit ausgewählt"
+      en: "Availability selected instead of work"
+      pl: "Dyspozycyjność zamiast pracy"
+    explanation:
+      de: "Aktivität als Bereitschaft markiert, obwohl der Fahrer aktiv tätig war (z. B. Be-/Entladen)."
+      en: "Activity marked as availability while the driver was actively working (loading, etc.)."
+      pl: "Aktywność oznaczona jako dyspozycyjność, choć kierowca pracował (np. przy załadunku)."
+
+  - rule_id: EU_165_DOWNLOAD_CARD_28
+    category: DOWNLOAD
+    legal_basis:
+      de: "Art. 33 VO (EU) 165/2014, § 2 FPersV"
+      en: "Art. 33 Regulation (EU) 165/2014, § 2 FPersV"
+      pl: "Art. 33 Rozporządzenia 165/2014, § 2 FPersV"
+    title:
+      de: "Fahrerkarten-Auslesung über 28 Tage"
+      en: "Driver card download overdue (>28 days)"
+      pl: "Pobranie karty kierowcy po terminie (>28 dni)"
+    logic:
+      max_days_between_downloads: 28
+
+  - rule_id: EU_165_DOWNLOAD_VU_90
+    category: DOWNLOAD
+    legal_basis:
+      de: "Art. 33 VO (EU) 165/2014, § 2 FPersV"
+      en: "Art. 33 Regulation (EU) 165/2014, § 2 FPersV"
+      pl: "Art. 33 Rozporządzenia 165/2014, § 2 FPersV"
+    title:
+      de: "Massenspeicher-Auslesung über 90 Tage"
+      en: "Vehicle unit download overdue (>90 days)"
+      pl: "Pobranie pamięci masowej po terminie (>90 dni)"
+    logic:
+      max_days_between_downloads: 90
+
+  - rule_id: EU_165_DATA_RETENTION
+    category: DOWNLOAD
+    legal_basis:
+      de: "§ 2 Abs. 5 FPersV, § 21a ArbZG"
+      en: "§ 2(5) FPersV, § 21a ArbZG"
+      pl: "§ 2 ust. 5 FPersV, § 21a ArbZG"
+    title:
+      de: "Aufbewahrungsfrist nicht eingehalten"
+      en: "Retention period missed"
+      pl: "Niedotrzymanie okresu przechowywania"
+    logic:
+      retention_days: 365
+
+  - rule_id: EU_165_MISSING_INSPECTION
+    category: DOWNLOAD
+    legal_basis:
+      de: "Art. 23 VO (EU) 165/2014"
+      en: "Art. 23 Regulation (EU) 165/2014"
+      pl: "Art. 23 Rozporządzenia 165/2014"
+    title:
+      de: "Fehlender Werkstatt-Nachweis"
+      en: "Missing periodic inspection record"
+      pl: "Brak okresowego przeglądu warsztatu"
+    logic:
+      max_days_between_inspections: 730
+
+  - rule_id: EU_165_PRINTOUT_REQUIRED
+    category: PRINTOUT
+    legal_basis:
+      de: "Art. 35 VO (EU) 165/2014"
+      en: "Art. 35 Regulation (EU) 165/2014"
+      pl: "Art. 35 Rozporządzenia 165/2014"
+    title:
+      de: "Fehlender Ausdruck bei Kartenstörung"
+      en: "Missing printout during card malfunction"
+      pl: "Brak wydruku przy awarii karty"
+
+  - rule_id: EU_165_TACHOGRAPH_EVENT
+    category: EVENT_FAULT
+    legal_basis:
+      de: "Anhang IC VO (EU) 165/2014"
+      en: "Annex IC Regulation (EU) 165/2014"
+      pl: "Załącznik IC Rozporządzenia 165/2014"
+    title:
+      de: "Tachograph-Ereignis registriert"
+      en: "Tachograph event recorded"
+      pl: "Zarejestrowane zdarzenie tachografu"
+
+  - rule_id: EU_165_TACHOGRAPH_FAULT
+    category: EVENT_FAULT
+    legal_basis:
+      de: "Anhang IC VO (EU) 165/2014"
+      en: "Annex IC Regulation (EU) 165/2014"
+      pl: "Załącznik IC Rozporządzenia 165/2014"
+    title:
+      de: "Tachograph-Störung registriert"
+      en: "Tachograph fault recorded"
+      pl: "Zarejestrowana usterka tachografu"
+
+  - rule_id: EU_165_MANIPULATION_INDICATOR
+    category: MANIPULATION
+    legal_basis:
+      de: "Art. 32 VO (EU) 165/2014"
+      en: "Art. 32 Regulation (EU) 165/2014"
+      pl: "Art. 32 Rozporządzenia 165/2014"
+    title:
+      de: "Manipulationsverdacht"
+      en: "Manipulation indicator"
+      pl: "Wskaźnik manipulacji"
+    severity: MOST_SERIOUS

@@ -11,6 +11,10 @@ rules:
       de: "Tägliche Lenkzeit überschritten"
       en: "Daily driving time exceeded"
       pl: "Przekroczony dzienny czas jazdy"
+    explanation:
+      de: "Tägliche Lenkzeit überschreitet 9 Stunden bzw. 10 Stunden bei zulässiger Verlängerung."
+      en: "Daily driving time exceeds 9h, or 10h on the (max two) extended days per week."
+      pl: "Dzienny czas jazdy przekracza 9h lub 10h w dni z dopuszczalnym wydłużeniem."
     logic:
       normal_limit_minutes: 540
       extended_limit_minutes: 600

@@ -11,10 +11,15 @@ rules:
       de: "Tägliche Ruhezeit verkürzt"
       en: "Daily rest reduced"
       pl: "Skrócony odpoczynek dzienny"
+    explanation:
+      de: "Innerhalb von 24 Stunden nach Schichtbeginn fehlt eine Ruhezeit von 11h (regulär) bzw. 9h (verkürzt, max. 3x je Woche)."
+      en: "Within 24h of shift start a rest of 11h (regular) or 9h (reduced, max 3 per week) is required."
+      pl: "W ciągu 24h od początku zmiany wymagany jest odpoczynek 11h (regularny) lub 9h (skrócony, max 3x w tygodniu)."
     logic:
       regular_daily_rest_minutes: 660
       reduced_daily_rest_minutes: 540
       reduced_allowed_between_weekly_rests: 3
+      window_minutes: 1440
 
   - rule_id: EU_561_ART8_WEEKLY_REST
     category: REST
