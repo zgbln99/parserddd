@@ -668,38 +668,70 @@ function ViolationsList({
     () => payload.sections.filter((s) => (s.rows?.length ?? 0) > 0),
     [payload],
   );
-  const totalRows = useMemo(
-    () => sections.reduce((acc, s) => acc + s.rows.length, 0),
+  const rows = useMemo(
+    () => sections.flatMap((s) => s.rows),
     [sections],
   );
 
-  if (totalRows === 0) return null;
+  if (rows.length === 0) return null;
 
-  const allRows = sections.flatMap((s) =>
-    s.rows.map((r) => ({ row: r, heading: s.heading })),
+  // Sort chronologically — the list now reads like a diary entry.
+  const sorted = [...rows].sort(
+    (a, b) =>
+      new Date(a.start_time).getTime() - new Date(b.start_time).getTime(),
   );
 
   return (
-    <section>
-      <header className="mb-2 flex items-baseline justify-between gap-3 px-1">
-        <h2 className="text-[15px] font-semibold uppercase tracking-[0.08em] text-black/55">
+    <section className="overflow-hidden rounded-2xl border border-black/[0.06] bg-white shadow-[0_1px_2px_rgba(15,15,20,0.03)]">
+      <header className="flex items-baseline justify-between border-b border-black/[0.06] px-4 py-2.5">
+        <h2 className="text-[12px] font-semibold uppercase tracking-[0.1em] text-black/55">
           {t.listTitle}
         </h2>
-        <span className="text-[12px] font-medium tabular-nums text-black/40">
-          {totalRows}
+        <span className="text-[11px] font-medium tabular-nums text-black/40">
+          {sorted.length}
         </span>
       </header>
-      <div className="space-y-2">
-        {allRows.map(({ row, heading }, i) => (
-          <ViolationCard
-            key={`${row.rule_id}-${i}`}
-            row={row}
-            heading={heading}
-            lang={lang}
-          />
+      <ul className="divide-y divide-black/[0.06]">
+        {sorted.map((row, i) => (
+          <ViolationLine key={`${row.rule_id}-${i}`} row={row} lang={lang} />
         ))}
-      </div>
+      </ul>
     </section>
+  );
+}
+
+/**
+ * One violation = one line in a list. Date on the left, plain-language
+ * sentence on the right. Severity collapses to a single coloured dot at
+ * the very start of the row.
+ *
+ * No cards, no eyebrows, no metric pairs — banks render account
+ * statements like this for a reason: dense, scannable, no decoration
+ * competing with content.
+ */
+function ViolationLine({
+  row,
+  lang,
+}: {
+  row: ViolationRow;
+  lang: UiLang;
+}) {
+  const tone = severityTone(row.severity);
+  const dot = tone === 'high' ? 'bg-rose-500' : 'bg-amber-500';
+  const incident = describeIncident(row, lang) ?? row.title;
+  return (
+    <li className="grid grid-cols-[auto,5rem,1fr] items-baseline gap-2.5 px-4 py-2.5 sm:grid-cols-[auto,6rem,1fr] sm:gap-3 sm:py-3">
+      <span
+        className={`mt-1.5 size-1.5 shrink-0 rounded-full ${dot}`}
+        aria-hidden
+      />
+      <span className="text-[11px] font-medium tabular-nums text-black/55 sm:text-[12px]">
+        {fmtDateTime(row.start_time, lang)}
+      </span>
+      <span className="text-[13px] leading-snug text-black sm:text-[14px]">
+        {incident}
+      </span>
+    </li>
   );
 }
 
@@ -718,63 +750,6 @@ function ViolationsList({
  * "0 of 1" can read as "all clear". The headline + explanation already
  * convey the issue.
  */
-function ViolationCard({
-  row,
-  heading,
-  lang,
-}: {
-  row: ViolationRow;
-  heading: string;
-  lang: UiLang;
-}) {
-  const tone = severityTone(row.severity);
-  // No emerald here — every row on this page is a violation by
-  // construction, so "good green" would mislead. MOST/VERY_SERIOUS → rose,
-  // anything else (incl. unknown) → amber.
-  const accent = tone === 'high' ? 'rose' : 'amber';
-  const dot = accent === 'rose' ? 'bg-rose-500' : 'bg-amber-500';
-
-  // Plain-language sentence ("Drove X instead of Y", "Rest only X — Y
-  // short", "No country entered at shift start", etc.). Replaces the
-  // confusing X/Y ratio entirely.
-  const incident = describeIncident(row, lang);
-
-  return (
-    <article className="rounded-2xl border border-black/[0.06] bg-white p-3.5 shadow-[0_1px_2px_rgba(15,15,20,0.03)] sm:p-4">
-      {/* Eyebrow: severity dot + heading + (optional) severity label */}
-      <div className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-[0.08em] text-black/55">
-        <span className={`size-1.5 shrink-0 rounded-full ${dot}`} aria-hidden />
-        <span>{heading}</span>
-        {row.severity && (
-          <>
-            <span className="text-black/20">·</span>
-            <span className={accent === 'rose' ? 'text-rose-700' : 'text-amber-700'}>
-              {severityLabel(row.severity, lang)}
-            </span>
-          </>
-        )}
-      </div>
-
-      {/* Title — the official rule name */}
-      <h3 className="mt-1.5 text-[15px] font-semibold leading-snug tracking-tight text-black sm:text-[16px]">
-        {row.title}
-      </h3>
-
-      {/* Plain-language WHAT-HAPPENED. Falls back to the engine's generic
-          explanation only if we don't have a specific template. */}
-      <p className="mt-1 text-[13px] leading-snug text-black/70 sm:text-[14px]">
-        {incident ?? row.explanation}
-      </p>
-
-      {/* Footer: just the period, very muted */}
-      <div className="mt-2.5 text-[10.5px] tabular-nums text-black/35">
-        {fmtDateTime(row.start_time, lang)} → {fmtDateTime(row.end_time, lang)}
-      </div>
-    </article>
-  );
-}
-
-
 function severityTone(severity: string | null): 'high' | 'med' | 'low' {
   if (!severity) return 'low';
   const s = severity.toUpperCase();

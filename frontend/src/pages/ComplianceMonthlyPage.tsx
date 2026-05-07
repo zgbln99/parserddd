@@ -878,58 +878,207 @@ function SignLinkCard({
 }
 
 function ViolationsList({ sections }: { sections: Section[] }) {
-  const { t } = useI18n();
+  const { locale } = useI18n();
+  const lang = (locale === 'pl' ? 'pl' : 'de') as 'de' | 'en' | 'pl';
   if (sections.length === 0) return null;
+  // Flatten + chronologically sort. Reads like a diary, no section headers.
+  const rows = sections.flatMap((s) => s.rows);
+  const sorted = [...rows].sort(
+    (a, b) =>
+      new Date(a.start_time).getTime() - new Date(b.start_time).getTime(),
+  );
   return (
-    <div className="space-y-4">
-      {sections.map((section) => (
-        <section key={section.category} className="glass-card rounded-2xl p-5">
-          <h3 className="text-base font-semibold tracking-tight">{section.heading}</h3>
-          <ul className="mt-3 grid gap-3">
-            {section.rows.map((row, i) => (
-              <li
-                key={`${row.rule_id}-${i}`}
-                className="rounded-xl bg-black/[0.02] p-4 dark:bg-white/[0.04]"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="font-medium">{row.title}</div>
-                    <div className="mt-1 text-xs text-muted">{row.legal_basis}</div>
-                  </div>
-                  <div className="shrink-0 text-right">
-                    <div className="text-xs uppercase tracking-wide text-muted">
-                      {fmtUnit(row.unit, t)}
-                    </div>
-                    <div className="text-base font-semibold">
-                      {fmt(row.measured_value)}{' '}
-                      <span className="text-muted">/ {fmt(row.allowed_value)}</span>
-                    </div>
-                  </div>
-                </div>
-                <p className="mt-2 text-sm text-muted">{row.explanation}</p>
-                <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted">
-                  <span>
-                    {fmtIso(row.start_time)} → {fmtIso(row.end_time)}
-                  </span>
-                  <span>
-                    {t('complianceFinesDriverShort')} {fmtEuro(row.driver_fine_eur)}
-                  </span>
-                  <span>
-                    {t('complianceFinesCompanyShort')} {fmtEuro(row.company_fine_eur)}
-                  </span>
-                  {row.severity && (
-                    <span>
-                      {t('complianceSeverity')} {row.severity}
-                    </span>
-                  )}
-                </div>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ))}
+    <div className="overflow-hidden rounded-2xl border border-black/[0.06] bg-white shadow-[0_1px_2px_rgba(15,15,20,0.03)] dark:border-white/10 dark:bg-white/[0.03]">
+      <ul className="divide-y divide-black/[0.06] dark:divide-white/10">
+        {sorted.map((row, i) => (
+          <ViolationLine key={`${row.rule_id}-${i}`} row={row} lang={lang} />
+        ))}
+      </ul>
     </div>
   );
+}
+
+function ViolationLine({
+  row,
+  lang,
+}: {
+  row: ViolationRow;
+  lang: 'de' | 'en' | 'pl';
+}) {
+  const sev = (row.severity ?? '').toUpperCase();
+  const high = sev === 'MOST_SERIOUS' || sev === 'VERY_SERIOUS';
+  const dot = high ? 'bg-rose-500' : 'bg-amber-500';
+  const incident = describeIncidentLocal(row, lang) ?? row.title;
+  const date = fmtDateShort(row.start_time, lang);
+  return (
+    <li className="grid grid-cols-[auto,5rem,1fr] items-baseline gap-2.5 px-4 py-2.5 sm:grid-cols-[auto,6rem,1fr] sm:gap-3 sm:py-3">
+      <span
+        className={`mt-1.5 size-1.5 shrink-0 rounded-full ${dot}`}
+        aria-hidden
+      />
+      <span className="text-[11px] font-medium tabular-nums text-muted sm:text-[12px]">
+        {date}
+      </span>
+      <span className="text-[13px] leading-snug sm:text-[14px]">{incident}</span>
+    </li>
+  );
+}
+
+function fmtDateShort(iso: string, lang: 'de' | 'en' | 'pl'): string {
+  const d = new Date(iso);
+  return d.toLocaleString(
+    lang === 'pl' ? 'pl-PL' : lang === 'en' ? 'en-GB' : 'de-DE',
+    { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' },
+  );
+}
+
+/** Mirror of SignPage's describeIncident. Kept inline so the admin page
+ *  doesn't depend on the public sign-flow module. */
+function describeIncidentLocal(
+  row: ViolationRow,
+  lang: 'de' | 'en' | 'pl',
+): string | null {
+  const m = row.measured_value;
+  const a = row.allowed_value;
+  const isTime = row.unit === 'minutes' || row.unit === 'hours' || row.unit === 'days';
+
+  const pickT = (de: string, en: string, pl: string) =>
+    lang === 'pl' ? pl : lang === 'en' ? en : de;
+
+  const STATIC: Record<string, () => string> = {
+    EU_165_MISSING_START_COUNTRY: () =>
+      pickT(
+        'Kein Land bei Schichtbeginn in den Tachograph eingegeben.',
+        'No country entered into the tachograph at shift start.',
+        'Nie wpisano kraju w tachografie przy rozpoczęciu zmiany.',
+      ),
+    EU_165_MISSING_END_COUNTRY: () =>
+      pickT(
+        'Kein Land bei Schichtende in den Tachograph eingegeben.',
+        'No country entered into the tachograph at shift end.',
+        'Nie wpisano kraju w tachografie przy zakończeniu zmiany.',
+      ),
+    EU_165_MISSING_MANUAL_ENTRY: () =>
+      pickT(
+        'Zeitraum mit gezogener Karte ohne manuellen Nachtrag.',
+        'Card-out period not back-filled with a manual entry.',
+        'Okres bez karty nie uzupełniony wpisem manualnym.',
+      ),
+    EU_165_INCOMPLETE_MANUAL_ENTRY: () =>
+      pickT(
+        'Manueller Nachtrag wurde unvollständig ausgefüllt.',
+        'Manual entry was filed but is incomplete.',
+        'Wpis manualny złożony, ale niekompletny.',
+      ),
+    EU_165_DRIVING_WITHOUT_CARD: () =>
+      pickT(
+        'Fahrzeug bewegt, ohne dass eine Fahrerkarte gesteckt war.',
+        'Vehicle was driven without an inserted driver card.',
+        'Pojazd jechał bez włożonej karty kierowcy.',
+      ),
+    EU_165_CARD_REMOVED_TOO_EARLY: () =>
+      pickT(
+        'Fahrerkarte vor Schichtende entnommen.',
+        'Driver card removed before the shift ended.',
+        'Karta kierowcy wyjęta przed zakończeniem zmiany.',
+      ),
+    EU_165_WRONG_SLOT: () =>
+      pickT(
+        'Fahrt im Beifahrer-Schacht statt im Fahrer-Schacht aufgezeichnet.',
+        'Driving recorded under co-driver slot instead of driver slot.',
+        'Jazdę zapisano w slocie pasażera zamiast kierowcy.',
+      ),
+    EU_165_MISSING_CO_DRIVER: () =>
+      pickT(
+        'Mehrfahrerbetrieb angegeben, aber nur eine Karte gesteckt.',
+        'Multi-manning declared but only one card inserted.',
+        'Załoga podwójna zadeklarowana, ale w slotach tylko jedna karta.',
+      ),
+    EU_165_REST_DURING_WORK: () =>
+      pickT(
+        'Aktivität als Ruhe gewählt, während gearbeitet wurde.',
+        'Activity selected as rest while actually working.',
+        'Wybrano odpoczynek jako aktywność w trakcie pracy.',
+      ),
+    EU_165_OUT_MISUSE: () =>
+      pickT(
+        'OUT-Modus aktiviert, obwohl die Fahrt unter EU 561 fiel.',
+        'OUT mode used on a trip that should have been recorded.',
+        'Włączono tryb OUT na trasie, która powinna być rejestrowana.',
+      ),
+    EU_165_AVAILABILITY_INSTEAD_OF_WORK: () =>
+      pickT(
+        'Bereitschaft markiert, obwohl tatsächlich gearbeitet wurde (z. B. Beladen).',
+        'Availability selected while actually working (loading, etc.).',
+        'Wybrano dyspozycyjność zamiast pracy (np. załadunek).',
+      ),
+  };
+  if (STATIC[row.rule_id]) return STATIC[row.rule_id]!();
+  if (!isTime || m === null || a === null) return null;
+
+  const measured = formatHoursLocal(m, row.unit, lang);
+  const allowed = formatHoursLocal(a, row.unit, lang);
+
+  if (m > a && a > 0) {
+    const excess = formatHoursLocal(m - a, row.unit, lang);
+    if (row.category === 'BREAKS')
+      return pickT(
+        `${measured} am Stück gefahren, ohne die vorgeschriebene 45-Min-Pause einzulegen.`,
+        `Drove ${measured} continuously without taking the required 45-min break.`,
+        `Jazda ciągła ${measured} bez wymaganej 45-min przerwy.`,
+      );
+    if (row.category === 'DRIVING_TIME')
+      return pickT(
+        `Lenkzeit ${measured} statt zulässiger ${allowed} — ${excess} zu viel.`,
+        `Drove ${measured} instead of the ${allowed} maximum — ${excess} over.`,
+        `Czas jazdy ${measured} zamiast dozwolonych ${allowed} — o ${excess} za dużo.`,
+      );
+    if (row.category === 'WORKING_TIME')
+      return pickT(
+        `Arbeitszeit ${measured} statt zulässiger ${allowed} — ${excess} zu viel.`,
+        `Worked ${measured} instead of the ${allowed} maximum — ${excess} over.`,
+        `Czas pracy ${measured} zamiast dozwolonych ${allowed} — o ${excess} za dużo.`,
+      );
+    if (row.category === 'NIGHT_WORK')
+      return pickT(
+        `Nachtarbeitstag mit ${measured} Arbeit (zulässig ${allowed}).`,
+        `Night-work day with ${measured} of work (allowed ${allowed}).`,
+        `Dzień z pracą nocną i ${measured} pracy (dozwolone ${allowed}).`,
+      );
+  }
+  if (m < a && a > 0 && row.category === 'REST') {
+    const shortfall = formatHoursLocal(a - m, row.unit, lang);
+    return pickT(
+      `Ruhezeit nur ${measured} statt erforderlicher ${allowed} — ${shortfall} zu kurz.`,
+      `Rest only ${measured} instead of the required ${allowed} — ${shortfall} short.`,
+      `Odpoczynek tylko ${measured} zamiast wymaganych ${allowed} — brakuje ${shortfall}.`,
+    );
+  }
+  return null;
+}
+
+function formatHoursLocal(
+  value: number,
+  unit: string,
+  lang: 'de' | 'en' | 'pl',
+): string {
+  if (unit === 'minutes') {
+    const total = Math.round(value);
+    if (total < 60) return `${total} min`;
+    const h = Math.floor(total / 60);
+    const m = total - h * 60;
+    if (m === 0) return `${h}h`;
+    return `${h}h ${m}min`;
+  }
+  if (unit === 'hours')
+    return `${Number.isInteger(value) ? value : value.toFixed(1)}${
+      lang === 'pl' ? ' godz' : 'h'
+    }`;
+  if (unit === 'days')
+    return `${Number.isInteger(value) ? value : value.toFixed(1)}${
+      lang === 'pl' ? ' dni' : lang === 'en' ? ' days' : ' Tage'
+    }`;
+  return String(value);
 }
 
 function NotEvaluableCard({ items }: { items: { rule_id: string; reason: string }[] }) {
