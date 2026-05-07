@@ -84,7 +84,42 @@ interface MonthlyResponse {
   vehicle: string | null;
   evaluation: { violations: unknown[]; not_evaluable: { rule_id: string; reason: string }[] };
   report: ReportPayload;
+  categories_applied?: string[];
 }
+
+/**
+ * Categories that ship enabled by default — these are violations the driver
+ * has agency over: time on the road, breaks, daily/weekly rest, country
+ * entries at start/end of shift.
+ *
+ * Other categories (CARD, MANUAL_ENTRY, ACTIVITY_SELECTION, DOWNLOAD,
+ * EVENT_FAULT, MANIPULATION, PRINTOUT, MULTI_MANNING, TACHOGRAPH) are
+ * available as opt-in. They tend to be either operational (e.g. download
+ * cadence) or impossible to fix retroactively.
+ */
+const DEFAULT_DRIVER_CATEGORIES = [
+  'DRIVING_TIME',
+  'BREAKS',
+  'REST',
+  'WORKING_TIME',
+  'NIGHT_WORK',
+  'COUNTRY_ENTRY',
+];
+
+const ALL_CATEGORIES: { key: string; labelDe: string; labelPl: string }[] = [
+  { key: 'DRIVING_TIME',       labelDe: 'Lenkzeit',           labelPl: 'Czas jazdy' },
+  { key: 'BREAKS',             labelDe: 'Lenkpausen',         labelPl: 'Przerwy' },
+  { key: 'REST',               labelDe: 'Ruhezeiten',         labelPl: 'Odpoczynki' },
+  { key: 'WORKING_TIME',       labelDe: 'Arbeitszeit',        labelPl: 'Czas pracy' },
+  { key: 'NIGHT_WORK',         labelDe: 'Nachtarbeit',        labelPl: 'Praca nocna' },
+  { key: 'COUNTRY_ENTRY',      labelDe: 'Ländereingaben',     labelPl: 'Wpisy państw' },
+  { key: 'CARD',               labelDe: 'Fahrerkarte',        labelPl: 'Karta kierowcy' },
+  { key: 'MANUAL_ENTRY',       labelDe: 'Manuelle Nachträge', labelPl: 'Wpisy manualne' },
+  { key: 'ACTIVITY_SELECTION', labelDe: 'Aktivitätswahl',     labelPl: 'Wybór aktywności' },
+  { key: 'DOWNLOAD',           labelDe: 'Auslesungen',        labelPl: 'Pobrania' },
+  { key: 'EVENT_FAULT',        labelDe: 'Ereignisse',         labelPl: 'Zdarzenia' },
+  { key: 'MANIPULATION',       labelDe: 'Manipulation',       labelPl: 'Manipulacja' },
+];
 
 /**
  * Parse a response that we expect to be JSON, but might be HTML when:
@@ -134,6 +169,13 @@ export function ComplianceMonthlyPage() {
   const [loadingMonths, setLoadingMonths] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
   const [locale, setLocale] = useState<'de' | 'en' | 'pl'>('de');
+
+  // Driver-facing categories that ship by default. The dispatcher can
+  // tick on extra ones (card / manual entry / etc.) but the driver should
+  // only see things they can actually do something about post-fact.
+  const [enabledCategories, setEnabledCategories] = useState<Set<string>>(
+    () => new Set(DEFAULT_DRIVER_CATEGORIES),
+  );
 
   const [analyzing, setAnalyzing] = useState(false);
   const [result, setResult] = useState<MonthlyResponse | null>(null);
@@ -224,6 +266,7 @@ export function ComplianceMonthlyPage() {
           month: Number(monthStr),
           locale,
           file_paths: bucket.files.map((f) => f.path),
+          categories: Array.from(enabledCategories),
         }),
       });
       const body = (await parseJsonOrThrow(res)) as {
@@ -240,7 +283,7 @@ export function ComplianceMonthlyPage() {
     } finally {
       setAnalyzing(false);
     }
-  }, [selectedDriver, selectedMonth, months, locale]);
+  }, [selectedDriver, selectedMonth, months, locale, enabledCategories]);
 
   const createSignLink = useCallback(async () => {
     if (!result) return;
@@ -325,6 +368,12 @@ export function ComplianceMonthlyPage() {
             {t('complianceAnalyze')}
           </button>
         </div>
+        <CategoryFilter
+          enabled={enabledCategories}
+          onChange={setEnabledCategories}
+          locale={locale}
+        />
+
         {selectedDriver && (
           <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-muted">
             <span>
@@ -391,6 +440,77 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       <span className="mb-1.5 block text-xs font-medium text-muted">{label}</span>
       {children}
     </label>
+  );
+}
+
+/**
+ * Toggle which violation categories are emitted to the driver. The default
+ * set leaves out card-handling, manual entries, downloads and similar
+ * operational rules — operators report those as noise. Click "Reset" to
+ * restore the curated default.
+ */
+function CategoryFilter({
+  enabled,
+  onChange,
+  locale,
+}: {
+  enabled: Set<string>;
+  onChange: (next: Set<string>) => void;
+  locale: 'de' | 'en' | 'pl';
+}) {
+  const label = (cat: { labelDe: string; labelPl: string; key: string }): string => {
+    if (locale === 'pl') return cat.labelPl;
+    return cat.labelDe;
+  };
+
+  const toggle = (key: string) => {
+    const next = new Set(enabled);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
+    onChange(next);
+  };
+
+  const allDefault = DEFAULT_DRIVER_CATEGORIES.every((c) => enabled.has(c)) &&
+    Array.from(enabled).every((c) => DEFAULT_DRIVER_CATEGORIES.includes(c));
+
+  return (
+    <div className="mt-4 rounded-lg border border-black/10 bg-black/[0.02] p-3 text-sm dark:border-white/10 dark:bg-white/[0.04]">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <span className="text-xs font-medium uppercase tracking-wide text-muted">
+          {locale === 'pl' ? 'Kategorie naruszeń' : 'Verstoß-Kategorien'}
+        </span>
+        <button
+          type="button"
+          onClick={() => onChange(new Set(DEFAULT_DRIVER_CATEGORIES))}
+          disabled={allDefault}
+          className="text-xs text-[#0066cc] hover:underline disabled:opacity-40 disabled:no-underline"
+        >
+          {locale === 'pl' ? 'Domyślne' : 'Standard'}
+        </button>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {ALL_CATEGORIES.map((cat) => {
+          const on = enabled.has(cat.key);
+          const isDefault = DEFAULT_DRIVER_CATEGORIES.includes(cat.key);
+          return (
+            <button
+              key={cat.key}
+              type="button"
+              onClick={() => toggle(cat.key)}
+              className={`inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-xs transition ${
+                on
+                  ? 'border-[#0071e3] bg-[#0071e3]/10 text-[#0071e3] dark:border-[#7eb6ff] dark:bg-[#7eb6ff]/15 dark:text-[#7eb6ff]'
+                  : 'border-black/10 bg-white text-muted hover:border-black/20 dark:border-white/15 dark:bg-white/5'
+              }`}
+              title={isDefault ? '' : (locale === 'pl' ? 'Opcjonalne — domyślnie wyłączone' : 'Optional — standardmäßig aus')}
+            >
+              <span className={`size-1.5 rounded-full ${on ? 'bg-[#0071e3] dark:bg-[#7eb6ff]' : 'bg-black/20 dark:bg-white/30'}`} />
+              {label(cat)}
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 

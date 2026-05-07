@@ -58,6 +58,69 @@ bp = Blueprint("compliance", __name__)
 _DDD_NAME_RE = re.compile(r"(?P<date>\d{4}-\d{2}-\d{2})", re.ASCII)
 
 
+# Categories of violations the dispatcher cares about by default. The driver
+# only sees rule families that match here (plus anything explicitly added via
+# the request's `categories` field). The set leaves OUT card-handling and
+# manual-entry rules — operators report those are too noisy and the driver
+# can't really do anything about them after the fact.
+DEFAULT_CATEGORIES: tuple[str, ...] = (
+    "DRIVING_TIME",
+    "BREAKS",
+    "REST",
+    "WORKING_TIME",
+    "NIGHT_WORK",
+    "COUNTRY_ENTRY",
+)
+
+
+def _filter_report_by_categories(
+    report: dict[str, Any],
+    allowed: set[str],
+) -> dict[str, Any]:
+    """Trim a PdfReport to only the sections matching `allowed`.
+
+    Recomputes the summary so totals line up with what the driver sees.
+    Pure transform — caller is responsible for not mutating the original.
+    """
+    out_sections = []
+    total = 0
+    driver_total: float | None = 0.0
+    company_total: float | None = 0.0
+    by_category: dict[str, int] = {}
+
+    for section in report.get("sections", []) or []:
+        if section.get("category") not in allowed:
+            continue
+        rows = section.get("rows", []) or []
+        if not rows:
+            continue
+        out_sections.append(section)
+        total += len(rows)
+        by_category[section["category"]] = len(rows)
+        for r in rows:
+            d = r.get("driver_fine_eur")
+            c = r.get("company_fine_eur")
+            if driver_total is not None:
+                driver_total = None if d is None else driver_total + float(d)
+            if company_total is not None:
+                company_total = None if c is None else company_total + float(c)
+
+    summary = dict(report.get("summary") or {})
+    summary["total"] = total
+    summary["driver_fine_total_eur"] = driver_total
+    summary["company_fine_total_eur"] = company_total
+    summary["by_category"] = by_category
+    # not_evaluable_rule_ids stays as-is — the dispatcher should still see
+    # which rules couldn't be evaluated, even if not in the driver-facing
+    # categories.
+
+    return {
+        **report,
+        "sections": out_sections,
+        "summary": summary,
+    }
+
+
 @bp.route("/api/compliance/months", methods=["GET"])
 @login_required
 def api_list_months():
@@ -176,6 +239,15 @@ def _api_evaluate_monthly_impl():
     driver_name = (data.get("driver_name") or "").strip()
     locale = (data.get("locale") or "de").lower()
     file_paths = data.get("file_paths") or []
+    # Optional whitelist of rule categories the driver should see. When not
+    # provided we fall back to DEFAULT_CATEGORIES (working/driving time +
+    # rests + breaks + night work + country entries). Pass an explicit list
+    # to widen — e.g. ["CARD", "MANUAL_ENTRY"] to include those.
+    categories_in = data.get("categories")
+    if isinstance(categories_in, list) and categories_in:
+        allowed_categories = {str(c).upper() for c in categories_in if c}
+    else:
+        allowed_categories = set(DEFAULT_CATEGORIES)
     try:
         year = int(data["year"])
         month = int(data["month"])
@@ -313,13 +385,19 @@ def _api_evaluate_monthly_impl():
             },
         ), 500
 
+    filtered_report = _filter_report_by_categories(report, allowed_categories)
+
     return jsonify(
         {
             "driver_card": driver_card,
             "driver_name": driver_name or di_for_card.get("driver_name", ""),
             "month": f"{year:04d}-{month:02d}",
             "vehicle": vehicle,
+            # Engine output (full + filtered). The frontend uses `report`
+            # for display + signing; `report_full` is kept for diagnostics.
             "evaluation": evaluation,
-            "report": report,
+            "report": filtered_report,
+            "report_full": report,
+            "categories_applied": sorted(allowed_categories),
         },
     )

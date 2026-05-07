@@ -230,6 +230,32 @@ def _init_db():
         );
     ''')
 
+    # Driver-signing tokens (one-time public links sent via WhatsApp).
+    # Required by /api/admin/sign-links and /api/sign/<token>. CREATE IF
+    # NOT EXISTS so the migration is idempotent across restarts.
+    conn.executescript('''
+        CREATE TABLE IF NOT EXISTS signing_tokens (
+            id                INTEGER PRIMARY KEY AUTOINCREMENT,
+            token             TEXT NOT NULL UNIQUE,
+            driver_card       TEXT NOT NULL,
+            driver_name       TEXT NOT NULL DEFAULT '',
+            payload_json      TEXT NOT NULL,
+            payload_hash      TEXT NOT NULL,
+            locale            TEXT NOT NULL DEFAULT 'de',
+            created_by        TEXT NOT NULL DEFAULT 'admin',
+            created_at        TEXT NOT NULL,
+            expires_at        TEXT NOT NULL,
+            used_at           TEXT,
+            used_ip           TEXT,
+            used_ua           TEXT,
+            signature_png     TEXT,
+            signer_name       TEXT,
+            driver_remark     TEXT,
+            pdf_dropbox_path  TEXT,
+            status            TEXT NOT NULL DEFAULT 'pending'
+        );
+    ''')
+
     conn.executescript('''
         CREATE TABLE IF NOT EXISTS payroll_status (
             id            INTEGER PRIMARY KEY AUTOINCREMENT,
