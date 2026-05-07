@@ -15,7 +15,6 @@ import {
   Lock,
   Eraser,
   Building2,
-  ChevronDown,
   ChevronUp,
 } from 'lucide-react';
 import { Spinner } from '../components/Spinner';
@@ -665,10 +664,6 @@ function ViolationsList({
   lang: UiLang;
 }) {
   const t = STR[lang];
-  // Drop sections that have no rows AND skip rendering entirely if the
-  // whole report is empty. The driver shouldn't see "no violations" UI —
-  // the absence of the list is information enough, and the hero already
-  // shows total = 0.
   const sections = useMemo(
     () => payload.sections.filter((s) => (s.rows?.length ?? 0) > 0),
     [payload],
@@ -685,30 +680,41 @@ function ViolationsList({
   );
 
   return (
-    <section className="overflow-hidden rounded-3xl border border-black/5 bg-white shadow-[0_1px_2px_rgba(15,15,20,0.04)]">
-      <header className="flex items-center justify-between border-b border-black/5 px-5 py-3.5 sm:px-6">
-        <h2 className="text-[15px] font-semibold tracking-tight">
-          {t.listTitle}
-        </h2>
-        <span className="rounded-full bg-black/[0.04] px-2.5 py-0.5 text-xs font-medium text-black/65">
-          {totalRows}
-        </span>
+    <section>
+      <header className="mb-3 flex items-end justify-between gap-3 px-1">
+        <h2 className="text-[20px] font-semibold tracking-tight">{t.listTitle}</h2>
+        <span className="text-[12px] font-medium text-black/45">{totalRows}</span>
       </header>
-      <ul className="divide-y divide-black/5">
+      <div className="space-y-3">
         {allRows.map(({ row, heading }, i) => (
-          <ViolationRowItem
+          <ViolationCard
             key={`${row.rule_id}-${i}`}
             row={row}
             heading={heading}
             lang={lang}
           />
         ))}
-      </ul>
+      </div>
     </section>
   );
 }
 
-function ViolationRowItem({
+/**
+ * One violation, one card. Open by default — no accordion. The card reads
+ * top-to-bottom like a paragraph in a document:
+ *   1. severity stripe on the left edge (color = urgency)
+ *   2. heading chip + severity label
+ *   3. bold title
+ *   4. plain-language explanation
+ *   5. when applicable: numeric metric pair + "+N%" pill (time-based only)
+ *   6. small footer line with the period
+ *
+ * For "count" violations (missing country entry, etc.) the numeric pair
+ * "0 / 1" is hidden — those numbers are confusing for the driver because
+ * "0 of 1" can read as "all clear". The headline + explanation already
+ * convey the issue.
+ */
+function ViolationCard({
   row,
   heading,
   lang,
@@ -717,13 +723,32 @@ function ViolationRowItem({
   heading: string;
   lang: UiLang;
 }) {
-  const [open, setOpen] = useState(false);
   const t = STR[lang];
+  const tone = severityTone(row.severity);
+  const stripe =
+    tone === 'high'
+      ? 'bg-rose-500'
+      : tone === 'med'
+        ? 'bg-amber-500'
+        : 'bg-emerald-500';
 
-  const measured = formatMaybeHours(row.measured_value, row.unit, lang);
-  const allowed = formatMaybeHours(row.allowed_value, row.unit, lang);
+  // Numeric metrics only make sense for time-based violations. Count and
+  // boolean rules ("missing country entry") render explanation-only.
+  const showNumbers =
+    (row.unit === 'minutes' || row.unit === 'hours' || row.unit === 'days') &&
+    row.measured_value !== null &&
+    row.allowed_value !== null;
+  const measured = showNumbers
+    ? formatMaybeHours(row.measured_value, row.unit, lang)
+    : null;
+  const allowed = showNumbers
+    ? formatMaybeHours(row.allowed_value, row.unit, lang)
+    : null;
   const overPercent =
-    row.measured_value !== null && row.allowed_value !== null && row.allowed_value > 0
+    showNumbers &&
+    row.measured_value !== null &&
+    row.allowed_value !== null &&
+    row.allowed_value > 0
       ? Math.round(
           (Math.max(row.measured_value - row.allowed_value, 0) /
             row.allowed_value) *
@@ -732,77 +757,52 @@ function ViolationRowItem({
       : null;
 
   return (
-    <li>
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center gap-3 px-5 py-3.5 text-left transition hover:bg-black/[0.02] sm:px-6 sm:py-4"
-        aria-expanded={open}
-      >
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="rounded-full bg-black/[0.04] px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-black/55">
-              {heading}
-            </span>
-            <SeverityPill severity={row.severity} lang={lang} />
-          </div>
-          <div className="mt-1 truncate text-[14px] font-semibold text-black sm:text-[15px]">
-            {row.title}
-          </div>
-          <div className="mt-0.5 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-[12px] text-black/55 sm:text-[13px]">
-            <span className="tabular-nums">
-              <span className={overPercent && overPercent > 0 ? 'font-semibold text-rose-700' : 'font-semibold text-black/85'}>
-                {measured}
-              </span>
-              {' / '}
-              <span className="text-black/55">{allowed}</span>
-            </span>
-            {overPercent !== null && overPercent > 0 && (
-              <span className="rounded-full bg-rose-50 px-1.5 py-0 text-[11px] font-medium text-rose-700">
-                +{overPercent}%
-              </span>
-            )}
-          </div>
-        </div>
-        <span
-          className={`grid size-7 shrink-0 place-items-center rounded-full text-black/45 transition ${
-            open ? 'rotate-180 bg-black/[0.04]' : ''
-          }`}
-          aria-hidden
-        >
-          <ChevronDown size={15} />
-        </span>
-      </button>
+    <article className="relative overflow-hidden rounded-3xl border border-black/5 bg-white p-5 pl-6 shadow-[0_1px_2px_rgba(15,15,20,0.04)] sm:p-7 sm:pl-8">
+      <span className={`absolute left-0 top-0 h-full w-1 ${stripe}`} aria-hidden />
 
-      {open && (
-        <div className="border-t border-black/5 bg-[#fafafc] px-5 py-4 text-[13px] leading-relaxed text-black/70 sm:px-6">
-          <p className="mb-2.5">{row.explanation}</p>
-          <div className="grid gap-2 text-[12px] text-black/55 sm:grid-cols-2">
-            <div>
-              <span className="text-black/40">{t.measured}:</span>{' '}
-              <span className="font-semibold tabular-nums text-rose-700">
-                {measured}
-              </span>
-            </div>
-            <div>
-              <span className="text-black/40">{t.allowed}:</span>{' '}
-              <span className="font-semibold tabular-nums text-black/85">
-                {allowed}
-              </span>
-            </div>
-            <div className="sm:col-span-2">
-              <span className="text-black/40">{t.summaryPeriod}:</span>{' '}
-              <span className="text-black/70">
-                {fmtDateTime(row.start_time, lang)} → {fmtDateTime(row.end_time, lang)}
-              </span>
-            </div>
-            <div className="sm:col-span-2">
-              <span className="text-black/40">{row.legal_basis}</span>
-            </div>
-          </div>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="rounded-full bg-black/[0.04] px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-black/55">
+          {heading}
+        </span>
+        <SeverityPill severity={row.severity} lang={lang} />
+      </div>
+
+      <h3 className="mt-3 text-[18px] font-semibold leading-tight tracking-tight text-black sm:text-[20px]">
+        {row.title}
+      </h3>
+
+      <p className="mt-2 max-w-2xl text-[14px] leading-relaxed text-black/70 sm:text-[15px]">
+        {row.explanation}
+      </p>
+
+      {showNumbers && (
+        <div className="mt-4 flex flex-wrap items-baseline gap-x-4 gap-y-2">
+          <span className="text-2xl font-semibold tabular-nums tracking-tight text-rose-700 sm:text-3xl">
+            {measured}
+          </span>
+          <span className="text-base text-black/40">/</span>
+          <span className="text-base font-medium tabular-nums text-black/55 sm:text-lg">
+            {allowed}
+          </span>
+          {overPercent !== null && overPercent > 0 && (
+            <span className="rounded-full bg-rose-50 px-2.5 py-0.5 text-xs font-semibold tabular-nums text-rose-700">
+              +{overPercent}%
+            </span>
+          )}
+          <span className="ml-auto text-[11px] text-black/35">
+            <span className="text-black/45">{t.measured}</span>
+            <span className="mx-1.5">·</span>
+            <span className="text-black/45">{t.allowed}</span>
+          </span>
         </div>
       )}
-    </li>
+
+      <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-black/5 pt-3 text-[11px] text-black/40">
+        <span>
+          {fmtDateTime(row.start_time, lang)} → {fmtDateTime(row.end_time, lang)}
+        </span>
+      </div>
+    </article>
   );
 }
 
