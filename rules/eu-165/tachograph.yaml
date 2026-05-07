@@ -2,7 +2,7 @@ rule_set: EU_165_TACHOGRAPH
 version: 2026.01
 rules:
   - rule_id: EU_165_MISSING_MANUAL_ENTRY
-    category: TACHOGRAPH
+    category: MANUAL_ENTRY
     legal_basis:
       de: "Art. 34 VO (EU) 165/2014"
       en: "Art. 34 Regulation (EU) 165/2014"
@@ -11,9 +11,58 @@ rules:
       de: "Fehlende manuelle Nachträge"
       en: "Missing manual entries"
       pl: "Brak wpisów manualnych"
+    explanation:
+      de: "Zeitraum mit gezogener Fahrerkarte ohne lückenlosen manuellen Nachtrag."
+      en: "Card-out window not fully covered by a manual entry."
+      pl: "Okres bez karty nieuzupełniony pełnym wpisem manualnym."
+
+  - rule_id: EU_165_INCOMPLETE_MANUAL_ENTRY
+    category: MANUAL_ENTRY
+    legal_basis:
+      de: "Art. 34 VO (EU) 165/2014"
+      en: "Art. 34 Regulation (EU) 165/2014"
+      pl: "Art. 34 Rozporządzenia 165/2014"
+    title:
+      de: "Unvollständiger manueller Nachtrag"
+      en: "Incomplete manual entry"
+      pl: "Niekompletny wpis manualny"
+    explanation:
+      de: "Manueller Nachtrag liegt vor, ist aber als unvollständig markiert."
+      en: "Manual entry exists but is flagged as incomplete by the parser."
+      pl: "Wpis manualny istnieje, ale jest oznaczony jako niekompletny."
+
+  - rule_id: EU_165_MISSING_START_COUNTRY
+    category: COUNTRY_ENTRY
+    legal_basis:
+      de: "Art. 34 Abs. 7 VO (EU) 165/2014"
+      en: "Art. 34(7) Regulation (EU) 165/2014"
+      pl: "Art. 34 ust. 7 Rozporządzenia 165/2014"
+    title:
+      de: "Fehlendes Anfangsland"
+      en: "Missing start country"
+      pl: "Brak kraju rozpoczęcia"
+    explanation:
+      de: "Bei Beginn der Schicht wurde kein Land eingegeben."
+      en: "No country was entered at card insertion."
+      pl: "Nie wprowadzono kraju przy rozpoczęciu zmiany."
+
+  - rule_id: EU_165_MISSING_END_COUNTRY
+    category: COUNTRY_ENTRY
+    legal_basis:
+      de: "Art. 34 Abs. 7 VO (EU) 165/2014"
+      en: "Art. 34(7) Regulation (EU) 165/2014"
+      pl: "Art. 34 ust. 7 Rozporządzenia 165/2014"
+    title:
+      de: "Fehlendes Endland"
+      en: "Missing end country"
+      pl: "Brak kraju zakończenia"
+    explanation:
+      de: "Bei Schichtende wurde kein Land eingegeben."
+      en: "No country was entered at card withdrawal."
+      pl: "Nie wprowadzono kraju przy zakończeniu zmiany."
 
   - rule_id: EU_165_DRIVING_WITHOUT_CARD
-    category: TACHOGRAPH
+    category: CARD
     legal_basis:
       de: "Art. 32-34 VO (EU) 165/2014"
       en: "Art. 32-34 Regulation (EU) 165/2014"
