@@ -723,7 +723,6 @@ function ViolationCard({
   heading: string;
   lang: UiLang;
 }) {
-  const t = STR[lang];
   const tone = severityTone(row.severity);
   const stripe =
     tone === 'high'
@@ -732,28 +731,38 @@ function ViolationCard({
         ? 'bg-amber-500'
         : 'bg-emerald-500';
 
-  // Numeric metrics only make sense for time-based violations. Count and
-  // boolean rules ("missing country entry") render explanation-only.
-  const showNumbers =
-    (row.unit === 'minutes' || row.unit === 'hours' || row.unit === 'days') &&
-    row.measured_value !== null &&
-    row.allowed_value !== null;
-  const measured = showNumbers
-    ? formatMaybeHours(row.measured_value, row.unit, lang)
-    : null;
-  const allowed = showNumbers
-    ? formatMaybeHours(row.allowed_value, row.unit, lang)
-    : null;
+  // Decide what (if anything) to render in the metrics row.
+  //
+  // A violation is one of:
+  //   over       — measured > allowed (driving time, breaks)
+  //   shortfall  — measured < allowed AND excess > 0 (rest too short)
+  //   structural — measured == 0 / count rule (missing entry)
+  //
+  // Only "over" and "shortfall" have meaningful numbers for the driver.
+  // "structural" rules render headline + explanation only — the numbers
+  // 0 / 1 are confusing because they look like "all clear".
+  const m = row.measured_value;
+  const a = row.allowed_value;
+  const isTimeUnit =
+    row.unit === 'minutes' || row.unit === 'hours' || row.unit === 'days';
+  const hasNumbers =
+    isTimeUnit && m !== null && a !== null && (m > 0 || a > 0);
+
+  type Mode = 'over' | 'shortfall' | 'none';
+  let mode: Mode = 'none';
+  if (hasNumbers && m! > a! && a! > 0) mode = 'over';
+  else if (hasNumbers && m! < a! && a! > 0) mode = 'shortfall';
+
+  const measuredStr = hasNumbers ? formatMaybeHours(m, row.unit, lang) : null;
+  const allowedStr = hasNumbers ? formatMaybeHours(a, row.unit, lang) : null;
+
   const overPercent =
-    showNumbers &&
-    row.measured_value !== null &&
-    row.allowed_value !== null &&
-    row.allowed_value > 0
-      ? Math.round(
-          (Math.max(row.measured_value - row.allowed_value, 0) /
-            row.allowed_value) *
-            100,
-        )
+    mode === 'over' && a! > 0
+      ? Math.round(((m! - a!) / a!) * 100)
+      : null;
+  const shortfallStr =
+    mode === 'shortfall'
+      ? formatMaybeHours(a! - m!, row.unit, lang)
       : null;
 
   return (
@@ -775,24 +784,34 @@ function ViolationCard({
         {row.explanation}
       </p>
 
-      {showNumbers && (
+      {mode === 'over' && (
         <div className="mt-4 flex flex-wrap items-baseline gap-x-4 gap-y-2">
           <span className="text-2xl font-semibold tabular-nums tracking-tight text-rose-700 sm:text-3xl">
-            {measured}
+            {measuredStr}
           </span>
           <span className="text-base text-black/40">/</span>
           <span className="text-base font-medium tabular-nums text-black/55 sm:text-lg">
-            {allowed}
+            {allowedStr}
           </span>
           {overPercent !== null && overPercent > 0 && (
             <span className="rounded-full bg-rose-50 px-2.5 py-0.5 text-xs font-semibold tabular-nums text-rose-700">
               +{overPercent}%
             </span>
           )}
-          <span className="ml-auto text-[11px] text-black/35">
-            <span className="text-black/45">{t.measured}</span>
-            <span className="mx-1.5">·</span>
-            <span className="text-black/45">{t.allowed}</span>
+        </div>
+      )}
+
+      {mode === 'shortfall' && (
+        <div className="mt-4 flex flex-wrap items-baseline gap-x-4 gap-y-2">
+          <span className="text-2xl font-semibold tabular-nums tracking-tight text-rose-700 sm:text-3xl">
+            {measuredStr}
+          </span>
+          <span className="text-base text-black/40">/</span>
+          <span className="text-base font-medium tabular-nums text-black/55 sm:text-lg">
+            {allowedStr}
+          </span>
+          <span className="rounded-full bg-rose-50 px-2.5 py-0.5 text-xs font-semibold tabular-nums text-rose-700">
+            {shortfallLabel(lang, shortfallStr ?? '')}
           </span>
         </div>
       )}
@@ -992,17 +1011,64 @@ const SignaturePad = forwardRef<SignaturePadHandle, { hint: string }>(
     useEffect(() => {
       const canvas = canvasRef.current;
       if (!canvas) return;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-      const dpr = window.devicePixelRatio || 1;
-      const rect = canvas.getBoundingClientRect();
-      canvas.width = rect.width * dpr;
-      canvas.height = rect.height * dpr;
-      ctx.scale(dpr, dpr);
-      ctx.lineWidth = 2.2;
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-      ctx.strokeStyle = '#0a0b0e';
+
+      // The canvas has to be re-measured every time its CSS size changes
+      // (orientation flip, fonts loading, on-screen keyboard opening on
+      // iOS). Without this, the internal bitmap size diverges from the
+      // CSS size and pointer events end up at the wrong canvas pixel —
+      // which is exactly the "signature is offset from my finger" bug
+      // the driver reported.
+      //
+      // We snapshot the existing pixels into an off-screen ImageData
+      // before resizing so partial signatures survive the rescale.
+      const setupForCurrentSize = () => {
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        const dpr = window.devicePixelRatio || 1;
+        const rect = canvas.getBoundingClientRect();
+        const targetW = Math.max(1, Math.round(rect.width * dpr));
+        const targetH = Math.max(1, Math.round(rect.height * dpr));
+        if (canvas.width === targetW && canvas.height === targetH) return;
+
+        // Save current bitmap so we can restore after resize.
+        let snapshot: HTMLCanvasElement | null = null;
+        if (canvas.width > 0 && canvas.height > 0 && !empty.current) {
+          snapshot = document.createElement('canvas');
+          snapshot.width = canvas.width;
+          snapshot.height = canvas.height;
+          const sctx = snapshot.getContext('2d');
+          if (sctx) sctx.drawImage(canvas, 0, 0);
+        }
+
+        canvas.width = targetW;
+        canvas.height = targetH;
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.scale(dpr, dpr);
+        ctx.lineWidth = 2.2;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.strokeStyle = '#0a0b0e';
+
+        if (snapshot) {
+          // Repaint the previous signature into the new bitmap, scaled
+          // proportionally so it aligns with the new CSS size.
+          ctx.save();
+          ctx.setTransform(1, 0, 0, 1, 0, 0);
+          ctx.drawImage(snapshot, 0, 0, snapshot.width, snapshot.height, 0, 0, targetW, targetH);
+          ctx.restore();
+          ctx.scale(dpr, dpr);
+        }
+      };
+
+      setupForCurrentSize();
+
+      const ro = new ResizeObserver(setupForCurrentSize);
+      ro.observe(canvas);
+      window.addEventListener('orientationchange', setupForCurrentSize);
+      return () => {
+        ro.disconnect();
+        window.removeEventListener('orientationchange', setupForCurrentSize);
+      };
     }, []);
 
     const point = (e: React.PointerEvent) => {
@@ -1127,6 +1193,12 @@ function formatMaybeHours(
     return fmtNumber(value);
   }
   return `${fmtNumber(value)} ${unit}`.trim();
+}
+
+function shortfallLabel(lang: UiLang, amount: string): string {
+  if (lang === 'pl') return `brakuje ${amount}`;
+  if (lang === 'en') return `${amount} short`;
+  return `fehlt ${amount}`;
 }
 
 function fmtNumber(n: number): string {
