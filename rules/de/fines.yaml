@@ -1,0 +1,16 @@
+rule_set: DE_FINES
+version: 2026.01
+fines:
+  - violation_reference: EU_561_ART7_BREAK_AFTER_4H30
+    source: "LASI LV48"
+    driver:
+      amount_eur: 30
+    company:
+      amount_eur: 90
+
+  - violation_reference: EU_165_DRIVING_WITHOUT_CARD
+    source: "LASI LV48"
+    driver:
+      amount_eur: 250
+    company:
+      amount_eur: 750

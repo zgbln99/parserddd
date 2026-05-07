@@ -1,0 +1,20 @@
+rule_set: EU_561_BREAKS
+version: 2026.01
+rules:
+  - rule_id: EU_561_ART7_BREAK_AFTER_4H30
+    category: BREAKS
+    legal_basis:
+      de: "Art. 7 VO (EG) 561/2006"
+      en: "Art. 7 Regulation (EC) 561/2006"
+      pl: "Art. 7 Rozporządzenia 561/2006"
+    title:
+      de: "Fehlende Pause nach 4,5 Stunden"
+      en: "Missing break after 4.5 hours"
+      pl: "Brak przerwy po 4,5 godziny jazdy"
+    logic:
+      max_continuous_driving_minutes: 270
+      required_break_minutes: 45
+      split_break_allowed: true
+      split_pattern:
+        - 15
+        - 30

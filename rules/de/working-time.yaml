@@ -1,0 +1,32 @@
+rule_set: DE_WORKING_TIME
+version: 2026.01
+rules:
+  - rule_id: DE_KRFARBZG_WEEKLY_WORKING_TIME
+    category: WORKING_TIME
+    legal_basis:
+      de: "§ 3 KrFArbZG"
+      en: "Section 3 KrFArbZG"
+      pl: "§ 3 KrFArbZG"
+    title:
+      de: "Wöchentliche Arbeitszeit überschritten"
+      en: "Weekly working time exceeded"
+      pl: "Przekroczony tygodniowy czas pracy"
+    logic:
+      average_limit_hours: 48
+      maximum_limit_hours: 60
+      averaging_period_weeks: 16
+
+  - rule_id: DE_KRFARBZG_BREAKS
+    category: WORKING_TIME
+    legal_basis:
+      de: "§ 5 KrFArbZG"
+      en: "Section 5 KrFArbZG"
+      pl: "§ 5 KrFArbZG"
+    title:
+      de: "Fehlende Arbeitszeitpause"
+      en: "Missing working time break"
+      pl: "Brak wymaganej przerwy czasu pracy"
+    logic:
+      break_after_6h_minutes: 30
+      break_after_9h_minutes: 45
+      minimum_split_minutes: 15
