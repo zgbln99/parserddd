@@ -50,7 +50,7 @@ function SyncConfigSection() {
     setSaving(true);
     setMsg('');
     try {
-      const data: Record<string, string | number> = {};
+      const data: Record<string, string | number | string[]> = {};
       if (samsaraToken) data.samsara_api_token = samsaraToken;
       if (dropboxToken) data.dropbox_refresh_token = dropboxToken;
       if (syncFolder) data.sync_dest_folder = syncFolder;

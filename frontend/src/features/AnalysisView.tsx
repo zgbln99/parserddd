@@ -380,7 +380,6 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
   const handleDownloadDdd = useCallback(() => {
     if (!filePath) return;
     window.open(`/api/download/dropbox?path=${encodeURIComponent(filePath)}`, '_blank');
-    setExportOpen(false);
   }, [filePath]);
 
   // Chart data: per-shift stacked bars

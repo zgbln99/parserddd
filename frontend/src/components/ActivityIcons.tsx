@@ -1,5 +1,7 @@
 /** Original Samsara activity type SVG icons */
 
+import type { ReactElement } from 'react';
+
 interface IconProps {
   size?: number;
   className?: string;
@@ -51,7 +53,7 @@ export function IconUnknown({ size = 14, className }: IconProps) {
 }
 
 /** Get the icon component for a given activity type */
-export const ACTIVITY_ICONS: Record<string, (props: IconProps) => JSX.Element> = {
+export const ACTIVITY_ICONS: Record<string, (props: IconProps) => ReactElement> = {
   DRIVING: IconDriving,
   WORK: IconWork,
   REST: IconRest,

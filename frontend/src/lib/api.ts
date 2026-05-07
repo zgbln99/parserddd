@@ -356,7 +356,7 @@ export interface SyncConfig {
 export const fetchConfig = () =>
   request<SyncConfig>('/api/admin/config');
 
-export const updateConfig = (data: Record<string, string | number>) =>
+export const updateConfig = (data: Record<string, string | number | string[]>) =>
   request<{ ok: boolean }>('/api/admin/config', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
