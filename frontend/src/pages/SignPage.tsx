@@ -681,11 +681,15 @@ function ViolationsList({
 
   return (
     <section>
-      <header className="mb-3 flex items-end justify-between gap-3 px-1">
-        <h2 className="text-[20px] font-semibold tracking-tight">{t.listTitle}</h2>
-        <span className="text-[12px] font-medium text-black/45">{totalRows}</span>
+      <header className="mb-2 flex items-baseline justify-between gap-3 px-1">
+        <h2 className="text-[15px] font-semibold uppercase tracking-[0.08em] text-black/55">
+          {t.listTitle}
+        </h2>
+        <span className="text-[12px] font-medium tabular-nums text-black/40">
+          {totalRows}
+        </span>
       </header>
-      <div className="space-y-3">
+      <div className="space-y-2">
         {allRows.map(({ row, heading }, i) => (
           <ViolationCard
             key={`${row.rule_id}-${i}`}
@@ -724,12 +728,17 @@ function ViolationCard({
   lang: UiLang;
 }) {
   const tone = severityTone(row.severity);
-  const stripe =
+  // Severity → accent color. There is no "good" colour anywhere on this
+  // page — every card on it is, by construction, a violation. We therefore
+  // never use emerald (which reads as "all clear"). MINOR maps to a soft
+  // amber, SERIOUS to amber, MOST/VERY_SERIOUS to rose. Unknown severity
+  // falls back to amber (warn) — never green.
+  const accent =
     tone === 'high'
-      ? 'bg-rose-500'
-      : tone === 'med'
-        ? 'bg-amber-500'
-        : 'bg-emerald-500';
+      ? 'rose'
+      : 'amber';
+  const dot =
+    accent === 'rose' ? 'bg-rose-500' : 'bg-amber-500';
 
   // Decide what (if anything) to render in the metrics row.
   //
@@ -766,88 +775,60 @@ function ViolationCard({
       : null;
 
   return (
-    <article className="relative overflow-hidden rounded-3xl border border-black/5 bg-white p-5 pl-6 shadow-[0_1px_2px_rgba(15,15,20,0.04)] sm:p-7 sm:pl-8">
-      <span className={`absolute left-0 top-0 h-full w-1 ${stripe}`} aria-hidden />
-
-      <div className="flex flex-wrap items-center gap-1.5">
-        <span className="rounded-full bg-black/[0.04] px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-black/55">
-          {heading}
-        </span>
-        <SeverityPill severity={row.severity} lang={lang} />
+    <article className="rounded-2xl border border-black/[0.06] bg-white p-3.5 shadow-[0_1px_2px_rgba(15,15,20,0.03)] sm:p-4">
+      {/* Top line: severity dot + heading + (optional) severity label */}
+      <div className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-[0.08em] text-black/55">
+        <span className={`size-1.5 shrink-0 rounded-full ${dot}`} aria-hidden />
+        <span>{heading}</span>
+        {row.severity && (
+          <>
+            <span className="text-black/20">·</span>
+            <span className={accent === 'rose' ? 'text-rose-700' : 'text-amber-700'}>
+              {severityLabel(row.severity, lang)}
+            </span>
+          </>
+        )}
       </div>
 
-      <h3 className="mt-3 text-[18px] font-semibold leading-tight tracking-tight text-black sm:text-[20px]">
+      {/* Title + explanation: tight, readable, not shouty */}
+      <h3 className="mt-1.5 text-[15px] font-semibold leading-snug tracking-tight text-black sm:text-[16px]">
         {row.title}
       </h3>
-
-      <p className="mt-2 max-w-2xl text-[14px] leading-relaxed text-black/70 sm:text-[15px]">
+      <p className="mt-1 text-[13px] leading-snug text-black/60">
         {row.explanation}
       </p>
 
-      {mode === 'over' && (
-        <div className="mt-4 flex flex-wrap items-baseline gap-x-4 gap-y-2">
-          <span className="text-2xl font-semibold tabular-nums tracking-tight text-rose-700 sm:text-3xl">
+      {/* Metrics: single line, smaller numbers, inline pill */}
+      {mode !== 'none' && (
+        <div className="mt-2.5 flex flex-wrap items-baseline gap-x-2 gap-y-1">
+          <span className="text-[18px] font-semibold tabular-nums tracking-tight text-rose-700 sm:text-[20px]">
             {measuredStr}
           </span>
-          <span className="text-base text-black/40">/</span>
-          <span className="text-base font-medium tabular-nums text-black/55 sm:text-lg">
+          <span className="text-[13px] text-black/30">/</span>
+          <span className="text-[13px] font-medium tabular-nums text-black/55">
             {allowedStr}
           </span>
-          {overPercent !== null && overPercent > 0 && (
-            <span className="rounded-full bg-rose-50 px-2.5 py-0.5 text-xs font-semibold tabular-nums text-rose-700">
+          {mode === 'over' && overPercent !== null && overPercent > 0 && (
+            <span className="rounded-full bg-rose-50 px-2 py-0 text-[11px] font-semibold tabular-nums text-rose-700">
               +{overPercent}%
+            </span>
+          )}
+          {mode === 'shortfall' && (
+            <span className="rounded-full bg-rose-50 px-2 py-0 text-[11px] font-semibold tabular-nums text-rose-700">
+              {shortfallLabel(lang, shortfallStr ?? '')}
             </span>
           )}
         </div>
       )}
 
-      {mode === 'shortfall' && (
-        <div className="mt-4 flex flex-wrap items-baseline gap-x-4 gap-y-2">
-          <span className="text-2xl font-semibold tabular-nums tracking-tight text-rose-700 sm:text-3xl">
-            {measuredStr}
-          </span>
-          <span className="text-base text-black/40">/</span>
-          <span className="text-base font-medium tabular-nums text-black/55 sm:text-lg">
-            {allowedStr}
-          </span>
-          <span className="rounded-full bg-rose-50 px-2.5 py-0.5 text-xs font-semibold tabular-nums text-rose-700">
-            {shortfallLabel(lang, shortfallStr ?? '')}
-          </span>
-        </div>
-      )}
-
-      <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-black/5 pt-3 text-[11px] text-black/40">
-        <span>
-          {fmtDateTime(row.start_time, lang)} → {fmtDateTime(row.end_time, lang)}
-        </span>
+      {/* Footer: just the period, very muted */}
+      <div className="mt-2.5 text-[10.5px] tabular-nums text-black/35">
+        {fmtDateTime(row.start_time, lang)} → {fmtDateTime(row.end_time, lang)}
       </div>
     </article>
   );
 }
 
-function SeverityPill({
-  severity,
-  lang,
-}: {
-  severity: string | null;
-  lang: UiLang;
-}) {
-  if (!severity) return null;
-  const tone = severityTone(severity);
-  const cls =
-    tone === 'high'
-      ? 'bg-rose-50 text-rose-700'
-      : tone === 'med'
-        ? 'bg-amber-50 text-amber-700'
-        : 'bg-emerald-50 text-emerald-700';
-  return (
-    <span
-      className={`inline-flex items-center rounded-full px-1.5 py-0 text-[10px] font-medium uppercase tracking-wider ${cls}`}
-    >
-      {severityLabel(severity, lang)}
-    </span>
-  );
-}
 
 function severityTone(severity: string | null): 'high' | 'med' | 'low' {
   if (!severity) return 'low';
