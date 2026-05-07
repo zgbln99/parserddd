@@ -60,6 +60,7 @@ export function SignLinksTab() {
 
   return (
     <div className="space-y-6">
+      <TestLinkPanel onCreated={refresh} />
       <CreateForm onCreated={refresh} />
 
       <div className="glass-card rounded-2xl p-5">
@@ -101,6 +102,119 @@ export function SignLinksTab() {
           <LinksTable items={items} onChanged={refresh} />
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * One-click test link generator.
+ *
+ * Hits POST /api/admin/sign-links/test which seeds 6 synthetic violations
+ * across the driver-facing categories. Useful for QA after deploys + for
+ * showing the sign flow to non-technical stakeholders without burning
+ * real driver data.
+ */
+function TestLinkPanel({ onCreated }: { onCreated: () => void }) {
+  const [driverName, setDriverName] = useState('Hans Mustermann');
+  const [locale, setLocale] = useState<'de' | 'en' | 'pl'>('de');
+  const [creating, setCreating] = useState(false);
+  const [created, setCreated] = useState<{ url: string; expires_at: string } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const onClick = async () => {
+    setError(null);
+    setCreated(null);
+    setCreating(true);
+    try {
+      const res = await fetch('/api/admin/sign-links/test', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ driver_name: driverName.trim() || undefined, locale }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(body.error || `HTTP ${res.status}`);
+        return;
+      }
+      setCreated({ url: body.url, expires_at: body.expires_at });
+      onCreated();
+    } catch (err) {
+      setError(String(err));
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  return (
+    <div className="glass-card rounded-2xl border border-emerald-200/30 bg-emerald-50/40 p-5 dark:border-emerald-700/30 dark:bg-emerald-900/10">
+      <h3 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
+        <CheckCircle2 size={18} className="text-emerald-600" /> Test-Link erzeugen
+      </h3>
+      <p className="mt-1 text-sm text-muted">
+        Generiert eine Sign-URL mit 6 vorgefertigten Verstößen — kein DDD,
+        kein Engine-Aufruf, keine echten Fahrerdaten. Ideal zum Prüfen der
+        Signatur-Seite + des PDF-Layouts.
+      </p>
+      <div className="mt-4 flex flex-wrap items-end gap-3">
+        <label className="block text-sm">
+          <span className="mb-1.5 block text-xs font-medium text-muted">Test-Name</span>
+          <input
+            value={driverName}
+            onChange={(e) => setDriverName(e.target.value)}
+            className="h-10 w-64 rounded-lg border border-black/10 bg-white px-3 text-sm dark:border-white/10 dark:bg-white/5"
+          />
+        </label>
+        <label className="block text-sm">
+          <span className="mb-1.5 block text-xs font-medium text-muted">Sprache</span>
+          <select
+            value={locale}
+            onChange={(e) => setLocale(e.target.value as 'de' | 'en' | 'pl')}
+            className="h-10 rounded-lg border border-black/10 bg-white px-3 text-sm dark:border-white/10 dark:bg-white/5"
+          >
+            <option value="de">Deutsch</option>
+            <option value="en">English</option>
+            <option value="pl">Polski</option>
+          </select>
+        </label>
+        <button
+          onClick={onClick}
+          disabled={creating}
+          className="inline-flex h-10 items-center gap-2 rounded-lg bg-emerald-600 px-5 text-sm font-medium text-white transition hover:bg-emerald-700 disabled:opacity-60"
+        >
+          {creating ? <Spinner size="sm" /> : <Send size={14} />}
+          Test-Link erzeugen
+        </button>
+      </div>
+
+      {error && (
+        <div className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-900/30 dark:text-red-300">
+          {error}
+        </div>
+      )}
+      {created && (
+        <div className="mt-3 rounded-lg bg-white p-3 text-sm dark:bg-black/30">
+          <div className="flex items-center gap-2 font-medium text-emerald-700 dark:text-emerald-300">
+            <CheckCircle2 size={16} /> Test-Link erstellt
+          </div>
+          <div className="mt-1 flex flex-wrap items-center gap-2">
+            <code className="min-w-0 flex-1 truncate rounded bg-black/5 px-2 py-1 text-xs dark:bg-white/10">
+              {created.url}
+            </code>
+            <CopyButton text={created.url} />
+            <a
+              href={created.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex h-9 items-center gap-1 rounded-lg bg-[#0071e3] px-3 text-sm font-medium text-white transition hover:bg-[#0077ed]"
+            >
+              <ExternalLink size={14} />
+              Öffnen
+            </a>
+          </div>
+          <div className="mt-1 text-xs text-muted">Gültig bis {new Date(created.expires_at).toLocaleString()}</div>
+        </div>
+      )}
     </div>
   );
 }
