@@ -129,6 +129,28 @@ _register_unicode_fonts()
 # --------------------------------------------------------------------------- #
 
 
+_DISCLAIMER = {
+    "de": (
+        "Der/Die unterzeichnete Fahrer/Fahrerin bestätigt hiermit, dass er/sie "
+        "über die hier aufgelisteten Verstöße in Kenntnis gesetzt wurde und dass "
+        "er/sie belehrt und aufgefordert wurde, zukünftig die gesetzlichen "
+        "Lenk- und Ruhezeiten sowie die Bestimmungen des Arbeitszeitgesetzes "
+        "einzuhalten."
+    ),
+    "en": (
+        "The undersigned driver hereby confirms that they have been informed "
+        "of the violations listed here and have been instructed to comply with "
+        "statutory driving / rest times and working-time regulations going forward."
+    ),
+    "pl": (
+        "Niżej podpisany kierowca potwierdza, że został(a) zapoznany(a) z "
+        "wymienionymi powyżej naruszeniami oraz pouczony(a) o obowiązku "
+        "przestrzegania ustawowych norm czasu jazdy, przerw i odpoczynków oraz "
+        "przepisów ustawy o czasie pracy."
+    ),
+}
+
+
 _LOC = {
     "de": {
         "doc_title": "Verstoßprotokoll",
@@ -145,6 +167,9 @@ _LOC = {
         "col_severity": "Schwere",
         "footer_left": "Bitte zur Kenntnis nehmen und unterschreiben.",
         "hash_label": "Dokument-Hash",
+        "sig_driver": "Unterschrift Fahrer/Fahrerin",
+        "sig_responsible": "Unterschrift Verantwortlicher",
+        "sig_place_date": "Ort, Datum",
     },
     "en": {
         "doc_title": "Violation report",
@@ -161,6 +186,9 @@ _LOC = {
         "col_severity": "Severity",
         "footer_left": "Please review and sign.",
         "hash_label": "Document hash",
+        "sig_driver": "Driver signature",
+        "sig_responsible": "Responsible person signature",
+        "sig_place_date": "Place, date",
     },
     "pl": {
         "doc_title": "Protokół naruszeń",
@@ -177,6 +205,9 @@ _LOC = {
         "col_severity": "Waga",
         "footer_left": "Prosimy o zapoznanie się i podpis.",
         "hash_label": "Hash dokumentu",
+        "sig_driver": "Podpis kierowcy",
+        "sig_responsible": "Podpis osoby odpowiedzialnej",
+        "sig_place_date": "Miejscowość, data",
     },
 }
 
@@ -435,7 +466,18 @@ def render_signed_pdf(
             frame_width=frame_width,
         ))
 
-    elements.append(Spacer(1, 6 * mm))
+    elements.append(Spacer(1, 4 * mm))
+
+    # Legal disclaimer block (Belehrung). Same text on every locale-bound
+    # PDF — the driver confirms they have been informed of the listed
+    # violations and instructed to comply with EU 561 / KrFArbZG going
+    # forward. Matches the German Verstöße-Details layout this customer
+    # uses for office printing.
+    elements.append(Paragraph(
+        _DISCLAIMER.get(locale, _DISCLAIMER["de"]),
+        styles.get("disclaimer") or styles["body"],
+    ))
+    elements.append(Spacer(1, 4 * mm))
 
     elements.append(_signature_band(
         signature_png_b64=signature_png_b64,
@@ -552,6 +594,16 @@ def _build_styles() -> dict[str, ParagraphStyle]:
             fontSize=9,
             leading=11.5,
             textColor=INK_SOFT,
+        ),
+        "disclaimer": ParagraphStyle(
+            "disclaimer",
+            parent=base["BodyText"],
+            fontName=_FONT_REGULAR,
+            fontSize=8,
+            leading=10.5,
+            textColor=MUTED,
+            spaceBefore=2,
+            spaceAfter=2,
         ),
         "tableTitle": ParagraphStyle(
             "tableTitle",
@@ -832,15 +884,26 @@ def _signature_band(
     styles: Mapping[str, ParagraphStyle],
     frame_width: float,
 ) -> Table:
+    """Bottom-of-page block.
+
+    Top row: full-width Bemerkung (driver remark) box.
+    Bottom row: three side-by-side slots — Ort+Datum | Unterschrift Fahrer
+    | Unterschrift Verantwortlicher. The driver's signature image goes in
+    the middle slot; the right slot stays empty for in-house signing
+    after print.
+    """
     sig_image = _decode_signature_image(signature_png_b64)
     sig_cell: Any = sig_image if sig_image is not None else Paragraph("—", styles["body"])
 
-    left = [
-        [Paragraph(L["remark"].upper(), styles["metaLabel"])],
-        [Paragraph(driver_remark or "—", styles["body"])],
-    ]
-    left_table = Table(left, colWidths=[frame_width * 0.55 - 6])
-    left_table.setStyle(
+    # Row 1: remark / Bemerkung — full width.
+    remark_table = Table(
+        [
+            [Paragraph(L["remark"].upper(), styles["metaLabel"])],
+            [Paragraph(driver_remark or "—", styles["body"])],
+        ],
+        colWidths=[frame_width],
+    )
+    remark_table.setStyle(
         TableStyle([
             ("BOX", (0, 0), (-1, -1), 0.4, LINE),
             ("LEFTPADDING", (0, 0), (-1, -1), 9),
@@ -850,17 +913,21 @@ def _signature_band(
         ]),
     )
 
-    right = [
-        [Paragraph(L["signature"].upper(), styles["metaLabel"])],
-        [sig_cell],
-        [Paragraph(
-            f"<b>{signer_name}</b><br/>"
-            f"<font color='#6b6b70'>{signed_at.astimezone().strftime('%Y-%m-%d %H:%M %Z')}</font>",
-            styles["body"],
-        )],
-    ]
-    right_table = Table(right, colWidths=[frame_width * 0.45 - 6])
-    right_table.setStyle(
+    # Row 2: three signature slots.
+    sig_col_w = (frame_width - 12) / 3.0
+
+    place_cell = Table(
+        [
+            [Paragraph(L.get("sig_place_date", "Ort, Datum").upper(), styles["metaLabel"])],
+            [Paragraph(" ", styles["body"])],
+            [Paragraph(
+                signed_at.astimezone().strftime("%Y-%m-%d"),
+                styles["body"],
+            )],
+        ],
+        colWidths=[sig_col_w],
+    )
+    place_cell.setStyle(
         TableStyle([
             ("BOX", (0, 0), (-1, -1), 0.4, LINE),
             ("LINEBELOW", (0, 1), (0, 1), 0.3, LINE),
@@ -871,9 +938,69 @@ def _signature_band(
         ]),
     )
 
+    driver_cell = Table(
+        [
+            [Paragraph(L.get("sig_driver", "Unterschrift Fahrer").upper(),
+                       styles["metaLabel"])],
+            [sig_cell],
+            [Paragraph(
+                f"<b>{signer_name}</b><br/>"
+                f"<font color='#6b6b70'>"
+                f"{signed_at.astimezone().strftime('%Y-%m-%d %H:%M %Z')}"
+                f"</font>",
+                styles["body"],
+            )],
+        ],
+        colWidths=[sig_col_w],
+    )
+    driver_cell.setStyle(
+        TableStyle([
+            ("BOX", (0, 0), (-1, -1), 0.4, LINE),
+            ("LINEBELOW", (0, 1), (0, 1), 0.3, LINE),
+            ("LEFTPADDING", (0, 0), (-1, -1), 9),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 9),
+            ("TOPPADDING", (0, 0), (-1, -1), 5),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+        ]),
+    )
+
+    resp_cell = Table(
+        [
+            [Paragraph(L.get("sig_responsible", "Unterschrift Verantwortlicher").upper(),
+                       styles["metaLabel"])],
+            [Paragraph(" ", styles["body"])],
+            [Paragraph(" ", styles["body"])],
+        ],
+        colWidths=[sig_col_w],
+    )
+    resp_cell.setStyle(
+        TableStyle([
+            ("BOX", (0, 0), (-1, -1), 0.4, LINE),
+            ("LINEBELOW", (0, 1), (0, 1), 0.3, LINE),
+            ("LEFTPADDING", (0, 0), (-1, -1), 9),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 9),
+            ("TOPPADDING", (0, 0), (-1, -1), 5),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+        ]),
+    )
+
+    sig_row = Table(
+        [[place_cell, driver_cell, resp_cell]],
+        colWidths=[sig_col_w, sig_col_w, sig_col_w],
+    )
+    sig_row.setStyle(
+        TableStyle([
+            ("LEFTPADDING", (0, 0), (-1, -1), 0),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+            ("TOPPADDING", (0, 0), (-1, -1), 0),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ]),
+    )
+
     band = Table(
-        [[left_table, right_table]],
-        colWidths=[frame_width * 0.55, frame_width * 0.45],
+        [[remark_table], [Spacer(1, 4)], [sig_row]],
+        colWidths=[frame_width],
     )
     band.setStyle(
         TableStyle([

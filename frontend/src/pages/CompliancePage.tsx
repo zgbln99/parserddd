@@ -55,6 +55,23 @@ function severityLabel(s: ComplianceSeverity): string {
   return { INFO: 'Info', LOW: 'Niski', MEDIUM: 'Średni', HIGH: 'Wysoki', CRITICAL: 'Krytyczny' }[s];
 }
 
+// Rules where actualMinutes < limitMinutes (rest / break / weekly rest):
+// the engine returns excessMinutes as a positive deficit. We prefix "−" so
+// the row reads as a deficit. Driving-time rules stay positive (overshoot).
+const _DEFICIT_RULES = new Set<string>([
+  'EU_561_DAILY_REST_SHORT',
+  'EU_561_WEEKLY_REST_MISSING',
+  'EU_561_WEEKLY_REST_SHORT',
+  'EU_561_WEEKLY_REST_REDUCED',
+]);
+
+function differenceLabel(v: ComplianceRangeViolation): string {
+  const value = formatDurationMinutes(v.excessMinutes);
+  if (!value || !v.excessMinutes) return value;
+  if (_DEFICIT_RULES.has(v.ruleCode)) return `− ${value}`;
+  return `+ ${value}`;
+}
+
 function statusLabel(s: string): string {
   switch (s) {
     case 'NEW': return 'Nowe';
@@ -446,9 +463,9 @@ export default function CompliancePage() {
                     <th className="border border-border px-2 py-1 text-left">Opis</th>
                     <th className="border border-border px-2 py-1 text-left">Od</th>
                     <th className="border border-border px-2 py-1 text-left">Do</th>
-                    <th className="border border-border px-2 py-1 text-right">Wartość</th>
+                    <th className="border border-border px-2 py-1 text-right">Faktyczne</th>
                     <th className="border border-border px-2 py-1 text-right">Limit</th>
-                    <th className="border border-border px-2 py-1 text-right">Przekroczenie</th>
+                    <th className="border border-border px-2 py-1 text-right">Różnica</th>
                     <th className="border border-border px-2 py-1 text-left">Podstawa prawna</th>
                     <th className="border border-border px-2 py-1 text-left">Status</th>
                     <th className="border border-border px-2 py-1 text-left">Akcje</th>
@@ -486,7 +503,7 @@ export default function CompliancePage() {
                         {formatDurationMinutes(v.limitMinutes)}
                       </td>
                       <td className="border border-border px-2 py-1 text-right tabular-nums">
-                        {formatDurationMinutes(v.excessMinutes)}
+                        {differenceLabel(v)}
                       </td>
                       <td className="border border-border px-2 py-1 text-[10px]">{v.legalBasis}</td>
                       <td className="border border-border px-2 py-1 text-[10px]">
