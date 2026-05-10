@@ -126,7 +126,7 @@ export default function CompliancePage() {
   useEffect(() => {
     setDriversLoading(true);
     fetchDrivers()
-      .then((list) => setDrivers(Array.isArray(list) ? list : []))
+      .then((data) => setDrivers(data?.drivers || []))
       .catch((e) => setError(e instanceof Error ? e.message : String(e)))
       .finally(() => setDriversLoading(false));
   }, []);
