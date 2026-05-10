@@ -30,6 +30,10 @@ from backend.compliance.profiles import (
     EU_561_PROFILE,
     CountryProfile,
 )
+from backend.compliance.service import (
+    build_webhook_events,
+    evaluate_parser_analysis_for_violations,
+)
 
 __all__ = [
     "ActivitySource",
@@ -48,4 +52,6 @@ __all__ = [
     "Violation",
     "ViolationStatus",
     "build_webhook_event",
+    "build_webhook_events",
+    "evaluate_parser_analysis_for_violations",
 ]
