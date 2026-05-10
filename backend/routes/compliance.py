@@ -20,11 +20,22 @@ from __future__ import annotations
 import logging
 import os
 import re
+import sys
 import tempfile
 import traceback
 from collections import defaultdict
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
+
+# Ensure the *parent* of ``backend/`` is on sys.path so that
+# ``from backend.compliance.service import ...`` resolves regardless of
+# whether gunicorn was started from the repo root or from inside
+# ``backend/`` (production WorkingDirectory is the latter on some
+# installs). Idempotent — added at most once per process.
+_BACKEND_PARENT = str(Path(__file__).resolve().parent.parent.parent)
+if _BACKEND_PARENT not in sys.path:
+    sys.path.insert(0, _BACKEND_PARENT)
 
 from flask import Blueprint, jsonify, request
 
