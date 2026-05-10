@@ -39,6 +39,27 @@ class DailyRestTests(unittest.TestCase):
         ]
         self.assertEqual(self._by_code(acts, CODE_SHORT), [])
 
+    def test_short_pause_during_shift_is_not_a_daily_rest_violation(self):
+        # 7-minute pause between two driving segments. Without the
+        # candidate-floor guard, this would be reported as "daily rest
+        # too short" — a false positive that drove the office crazy.
+        acts = [
+            driving(at(2026, 5, 11, 6, 0), 60),
+            rest(at(2026, 5, 11, 7, 0), 7),
+            driving(at(2026, 5, 11, 7, 7), 120),
+        ]
+        self.assertEqual(self._by_code(acts, CODE_SHORT), [])
+
+    def test_3h_pause_still_not_a_daily_rest_violation(self):
+        # 3h rest in the middle of a long shift — still well below the
+        # 4h floor so we don't pretend it's a daily-rest attempt.
+        acts = [
+            driving(at(2026, 5, 11, 6, 0), 240),
+            rest(at(2026, 5, 11, 10, 0), 180),     # 3h
+            driving(at(2026, 5, 11, 13, 0), 60),
+        ]
+        self.assertEqual(self._by_code(acts, CODE_SHORT), [])
+
     def test_8h59_rest_violation(self):
         acts = [
             driving(at(2026, 5, 11, 6, 0), 240),

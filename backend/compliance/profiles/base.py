@@ -35,6 +35,11 @@ class CountryProfile:
     daily_rest_split_first_min: int = 180           # 3h
     daily_rest_split_second_min: int = 540          # 9h
     reduced_daily_rests_per_week: int = 3
+    # Minimum length below which a REST/BREAK window is treated as an
+    # in-shift pause rather than a daily-rest *attempt*. Stops 7-minute
+    # coffee breaks from being reported as "too short daily rest".
+    # 4h is the conventional floor used by enforcement reports.
+    daily_rest_candidate_floor_min: int = 240       # 4h
     weekly_rest_regular_min: int = 2700             # 45h
     weekly_rest_reduced_min: int = 1440             # 24h
 

@@ -62,7 +62,19 @@ def evaluate(context: ComplianceContext) -> list[Violation]:
 
     reduced_count = 0
 
+    candidate_floor = profile.daily_rest_candidate_floor_min
+
     for idx, r in enumerate(rests):
+        # In-shift pauses (coffee breaks, sub-4h rests) are not daily-rest
+        # *attempts*. Without this guard, a 7-minute pause between two
+        # driving segments would be reported as "rest 7 min < required
+        # 540 min" — a meaningless alarm. EU 561 frames daily rest as a
+        # continuous window of at least 9h between duty periods; we
+        # require the rest to be at least 4h before considering it a
+        # candidate for the daily-rest rule.
+        if r.minutes < candidate_floor:
+            continue
+
         # 1) Hard breach: rest below the 9h floor.
         if r.minutes < profile.daily_rest_reduced_min and idx not in split_indices:
             sev = severity_for_short_daily_rest(r.minutes)
