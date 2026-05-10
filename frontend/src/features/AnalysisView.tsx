@@ -19,6 +19,7 @@ import { generateAnalysisPdf, generateArbeitszeitnachweisePdf } from '../lib/pdf
 import { MetricCards } from './analysis/MetricCards';
 import { VehicleUsageTable } from './analysis/VehicleUsageTable';
 import { ExportDropdown } from './analysis/ExportDropdown';
+import { ComplianceSection } from './analysis/ComplianceSection';
 
 function fmtNight(minutes: number, hm: string) {
   const decimal = (minutes / 60).toFixed(2);
@@ -1270,6 +1271,8 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
           )}
         </div>
       )}
+
+      <ComplianceSection data={data} />
 
     </div>
   );

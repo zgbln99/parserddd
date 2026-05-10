@@ -11,9 +11,15 @@ from backend.compliance.adapters.parser_analysis_adapter import (
     from_timeline,
     map_activity_label,
 )
+from backend.compliance.adapters.shift_details_adapter import (
+    from_shift_details,
+    looks_like_analysis_result,
+)
 
 __all__ = [
     "from_parsed_ddd",
+    "from_shift_details",
     "from_timeline",
+    "looks_like_analysis_result",
     "map_activity_label",
 ]

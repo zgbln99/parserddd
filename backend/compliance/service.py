@@ -22,7 +22,12 @@ from __future__ import annotations
 
 from typing import Any, Iterable, Mapping, Optional
 
-from backend.compliance.adapters import from_parsed_ddd, from_timeline
+from backend.compliance.adapters import (
+    from_parsed_ddd,
+    from_shift_details,
+    from_timeline,
+    looks_like_analysis_result,
+)
 from backend.compliance.engine import (
     ComplianceEngine,
     build_webhook_event,
@@ -389,6 +394,15 @@ def _normalize_activities(
         "card_driver_activity_1", "card_driver_activity_2",
     )):
         return from_parsed_ddd(parser_analysis, source=_resolve_source(parser_analysis))
+
+    # Path 3: caller passed an ``analyze_card`` result (the frontend's
+    # ``AnalysisResult`` shape). Coarse-grained adaptation from
+    # shift_details + driving/break segments. See docstring of
+    # ``from_shift_details`` for the trade-offs.
+    if looks_like_analysis_result(parser_analysis):
+        return from_shift_details(
+            parser_analysis, source=_resolve_source(parser_analysis),
+        )
 
     return []
 

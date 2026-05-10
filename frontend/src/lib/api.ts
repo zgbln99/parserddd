@@ -179,6 +179,69 @@ export const analyzeMergedFiles = async (file1: File, file2: File) => {
   });
 };
 
+// ---------------------------------------------------------------------------
+// Compliance (activity-based violation detection on the current analysis
+// result). The endpoint never re-parses the file — it consumes whatever
+// the frontend already has in memory.
+// ---------------------------------------------------------------------------
+
+export type ComplianceSeverity = 'INFO' | 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+
+export interface ComplianceViolation {
+  id?: string;
+  driverId: string;
+  vehicleId?: string | null;
+  countryProfile: string;
+  ruleCode: string;
+  title: string;
+  titlePl?: string | null;
+  titleDe?: string | null;
+  description: string;
+  legalBasis: string;
+  severity: ComplianceSeverity;
+  start: string;
+  end: string;
+  actualMinutes?: number | null;
+  limitMinutes?: number | null;
+  excessMinutes?: number | null;
+  evidence?: unknown[];
+  recommendedAction?: string | null;
+  status?: string;
+  extra?: Record<string, unknown>;
+}
+
+export interface ComplianceWebhookEvent {
+  event: string;
+  driverId: string;
+  vehicleId?: string | null;
+  countryProfile: string;
+  ruleCode: string;
+  severity: ComplianceSeverity;
+  start: string;
+  end: string;
+  violation: ComplianceViolation;
+}
+
+export interface ComplianceResponse {
+  countryProfile: string;
+  violations: ComplianceViolation[];
+  events: ComplianceWebhookEvent[];
+}
+
+export const evaluateParserAnalysis = (
+  parserAnalysis: unknown,
+  countryProfile: string = 'DE',
+) =>
+  request<ComplianceResponse>(
+    '/api/compliance/evaluate-parser-analysis',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ countryProfile, parserAnalysis }),
+    },
+  );
+
+
 // Stundenzettel OCR parsing
 export interface StundenzettelDay {
   day: number;
