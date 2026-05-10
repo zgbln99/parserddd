@@ -133,6 +133,123 @@ event = build_webhook_event(violation)
 Send this dict to n8n / Slack / a webhook of your choice; nothing in this
 package does IO.
 
+## HTTP endpoint
+
+`POST /api/compliance/evaluate-parser-analysis`
+
+The endpoint is the recommended way to invoke compliance from outside the
+Python process. It is **additive** — parser, timeline construction, hour
+calculation and existing analysis endpoints are unchanged. Compliance is
+not wired into the legacy analyse-file response; callers must opt in by
+hitting this endpoint.
+
+### What the endpoint does not do
+
+* It does not re-run the parser.
+* It does not recompute hours, shifts, calendar days or night work.
+* It does not pull from Samsara, Dropbox, or the card.
+* It does not check card-download / VU-download deadlines (Samsara
+  already pulls daily — this is out of scope).
+* It does not compute Euro fines.
+
+### Request body
+
+```json
+{
+  "countryProfile": "DE",
+  "parserAnalysis": {
+    "driver_info": {
+      "card_number": "PL123"
+    },
+    "vehicles": [
+      { "vehicle_registration_number": "WX-12345" }
+    ],
+    "timeline": [
+      ["2026-05-11T06:00:00+00:00", "2026-05-11T11:00:00+00:00", 3, false]
+    ]
+  }
+}
+```
+
+`parserAnalysis` may be either:
+
+* the dict returned by `parse_ddd_auto` (the one with
+  `card_driver_activity_1` / `..._2`); the adapter will run the existing
+  `core.timeline.build_timeline` to rebuild the timeline read-only, **or**
+* an already-assembled dict carrying `timeline`, `driver_info` and
+  `vehicles`. `timeline` is a list of `[start, end, work_type, card_out]`;
+  `start` / `end` accept both `datetime` objects (in-process callers) and
+  ISO-8601 strings (HTTP callers).
+
+`countryProfile` is optional (defaults to `"DE"`). The body itself can
+also be the analysis dict directly (no `parserAnalysis` wrapper).
+
+### Response
+
+```json
+{
+  "countryProfile": "DE",
+  "violations": [
+    {
+      "ruleCode": "EU_561_CONTINUOUS_DRIVING",
+      "severity": "HIGH",
+      "actualMinutes": 300,
+      "limitMinutes": 270,
+      "excessMinutes": 30,
+      "title": "Lenkzeit ohne ausreichende Fahrtunterbrechung überschritten",
+      "titlePl": "Przekroczony czas jazdy bez wymaganej przerwy",
+      "titleDe": "Lenkzeit ohne ausreichende Fahrtunterbrechung überschritten",
+      "legalBasis": "Art. 7 VO (EG) Nr. 561/2006",
+      "start": "2026-05-11T06:00:00+00:00",
+      "end":   "2026-05-11T11:00:00+00:00",
+      "evidence": [ ... ],
+      "automation": {
+        "notifyTransportManager": true,
+        "notifyDriver": true,
+        "createCase": true
+      },
+      "status": "NEW"
+    }
+  ],
+  "events": [
+    { "event": "tachograph.violation.detected", "ruleCode": "EU_561_CONTINUOUS_DRIVING", "severity": "HIGH", "violation": { ... } }
+  ]
+}
+```
+
+Status codes:
+
+* `200` — success (may include zero violations).
+* `400` — missing / non-object body, empty `parserAnalysis`.
+* `500` — unexpected error; body has `{ "error", "detail" }`, no stack
+  trace.
+
+### curl
+
+```bash
+curl -X POST http://localhost:5000/api/compliance/evaluate-parser-analysis \
+  -H "Content-Type: application/json" \
+  -b "session=<your-session-cookie>" \
+  -d @payload.json
+```
+
+The endpoint is protected by `@login_required` like the other
+`/api/compliance/*` routes; the session cookie must come from a logged-in
+browser session.
+
+### Dev helper
+
+For local experiments without a running Flask server you can use the
+read-only CLI helper:
+
+```bash
+python3 -m backend.compliance.dev_eval ./sample_parser_analysis.json
+```
+
+It loads the JSON, calls `evaluate_parser_analysis_for_violations` and
+prints `{ countryProfile, violations, events }` to stdout. The helper
+does not touch any DB, Dropbox, Samsara or parser file IO.
+
 ## Adding a new rule
 
 1. Create `rules/my_new_rule.py` exporting `CODE`, `LEGAL_BASIS` and
