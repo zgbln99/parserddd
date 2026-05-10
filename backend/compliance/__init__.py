@@ -33,6 +33,7 @@ from backend.compliance.profiles import (
 from backend.compliance.service import (
     build_webhook_events,
     evaluate_parser_analysis_for_violations,
+    inspect_parser_analysis,
 )
 
 __all__ = [
@@ -54,4 +55,5 @@ __all__ = [
     "build_webhook_event",
     "build_webhook_events",
     "evaluate_parser_analysis_for_violations",
+    "inspect_parser_analysis",
 ]

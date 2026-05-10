@@ -101,6 +101,119 @@ def build_webhook_events(violations: Iterable[Violation]) -> list[dict[str, Any]
 
 
 # ---------------------------------------------------------------------------
+# Inspection / diagnostics
+# ---------------------------------------------------------------------------
+
+_ACTIVITY_TYPES_ORDER = (
+    "DRIVING", "WORK", "AVAILABILITY", "BREAK", "REST", "UNKNOWN",
+)
+_SEVERITY_ORDER = ("INFO", "LOW", "MEDIUM", "HIGH", "CRITICAL")
+
+
+def inspect_parser_analysis(
+    parser_analysis: Mapping[str, Any],
+    *,
+    country_profile: str | CountryProfile = "DE",
+) -> dict[str, Any]:
+    """Diagnostic summary of what compliance sees from ``parser_analysis``.
+
+    Returns a dict that mirrors the engine's view of the data:
+
+    * ``activitySummary`` — count, time range, per-type count/minutes.
+    * ``driver`` — driver/vehicle ids the adapter extracted.
+    * ``violationsSummary`` — count, severity histogram, per-rule histogram.
+    * ``dataGaps`` — count of gaps detected by the engine's fact builders.
+    * ``violations`` — full ``Violation.to_dict()`` payloads.
+
+    Uses the same adapter and the same ``ComplianceEngine`` instance the
+    HTTP endpoint uses. No rule logic is duplicated; we ask the engine to
+    build its facts and then read them.
+    """
+    profile = _resolve_profile(country_profile)
+    activities = _normalize_activities(parser_analysis)
+
+    if not activities:
+        return {
+            "countryProfile": profile.code,
+            "activitySummary": _empty_activity_summary(),
+            "driver": {"driverId": None, "vehicleId": None},
+            "violationsSummary": _empty_violation_summary(),
+            "dataGaps": {"count": 0},
+            "violations": [],
+        }
+
+    engine = ComplianceEngine(profile=profile)
+    facts = engine.build_facts(activities)
+    violations: list[Violation] = engine.evaluate(activities)
+
+    by_type: dict[str, dict[str, int]] = {
+        t: {"count": 0, "minutes": 0} for t in _ACTIVITY_TYPES_ORDER
+    }
+    for a in activities:
+        bucket = by_type.setdefault(
+            a.type.value, {"count": 0, "minutes": 0}
+        )
+        bucket["count"] += 1
+        bucket["minutes"] += a.duration_minutes()
+
+    period_start = min(a.start for a in activities).isoformat()
+    period_end = max(a.end for a in activities).isoformat()
+
+    by_severity = {s: 0 for s in _SEVERITY_ORDER}
+    by_rule: dict[str, int] = {}
+    for v in violations:
+        by_severity[v.severity.value] = by_severity.get(v.severity.value, 0) + 1
+        by_rule[v.rule_code] = by_rule.get(v.rule_code, 0) + 1
+
+    # Pick driver/vehicle from the first activity. The adapter already
+    # decided what those values are; we just surface them here.
+    first = activities[0]
+    driver_block = {
+        "driverId": first.driver_id,
+        "vehicleId": next(
+            (a.vehicle_id for a in activities if a.vehicle_id), None
+        ),
+    }
+
+    return {
+        "countryProfile": profile.code,
+        "activitySummary": {
+            "count": len(activities),
+            "periodStart": period_start,
+            "periodEnd": period_end,
+            "byType": by_type,
+        },
+        "driver": driver_block,
+        "violationsSummary": {
+            "count": len(violations),
+            "bySeverity": by_severity,
+            "byRule": by_rule,
+        },
+        "dataGaps": {"count": len(facts.data_gaps)},
+        "violations": [v.to_dict() for v in violations],
+    }
+
+
+def _empty_activity_summary() -> dict[str, Any]:
+    return {
+        "count": 0,
+        "periodStart": None,
+        "periodEnd": None,
+        "byType": {
+            t: {"count": 0, "minutes": 0} for t in _ACTIVITY_TYPES_ORDER
+        },
+    }
+
+
+def _empty_violation_summary() -> dict[str, Any]:
+    return {
+        "count": 0,
+        "bySeverity": {s: 0 for s in _SEVERITY_ORDER},
+        "byRule": {},
+    }
+
+
+# ---------------------------------------------------------------------------
 # Internals
 # ---------------------------------------------------------------------------
 
