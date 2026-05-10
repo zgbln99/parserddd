@@ -162,14 +162,12 @@ def from_timeline(
         # Defensive unpacking — the parser may add more positional fields.
         if not entry or len(entry) < 3:
             continue
-        start = entry[0]
-        end = entry[1]
+        start = _coerce_datetime(entry[0])
+        end = _coerce_datetime(entry[1])
         work_type = entry[2]
         card_out = entry[3] if len(entry) >= 4 else None
 
         if start is None or end is None:
-            continue
-        if not isinstance(start, datetime) or not isinstance(end, datetime):
             continue
         if end <= start:
             continue
@@ -231,6 +229,21 @@ def from_parsed_ddd(
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+def _coerce_datetime(value: Any) -> Optional[datetime]:
+    """Accept ``datetime`` or ISO-8601 string (handy when the timeline
+    arrives over HTTP). Returns ``None`` if the value can't be coerced —
+    the caller drops that entry rather than invent a timestamp.
+    """
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, str):
+        try:
+            return datetime.fromisoformat(value)
+        except ValueError:
+            return None
+    return None
+
 
 def _driver_id_from_info(driver_info: Optional[Mapping[str, Any]]) -> str:
     if not driver_info:

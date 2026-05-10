@@ -401,3 +401,66 @@ def _api_evaluate_monthly_impl():
             "categories_applied": sorted(allowed_categories),
         },
     )
+
+
+# ---------------------------------------------------------------------------
+# Activity-based compliance — runs on top of the existing parser/analysis
+# output. Lives in this blueprint so registration is unchanged, but the
+# implementation delegates to ``backend.compliance.service`` (which does not
+# touch the parser, the timeline, or any hour calculation).
+# ---------------------------------------------------------------------------
+
+@bp.route("/api/compliance/evaluate-parser-analysis", methods=["POST"])
+@login_required
+def api_evaluate_parser_analysis():
+    """Run compliance on the output of the existing parser/analysis layer.
+
+    Body: JSON containing either:
+      * the dict returned by ``parse_ddd_auto`` (has ``card_driver_activity_1``),
+      * or an already-built analysis result carrying ``timeline``,
+        ``driver_info`` and ``vehicles`` (the shape ``analyze_card`` could
+        be combined with).
+
+    Returns: ``{ countryProfile, violations, events }``.
+
+    This endpoint is purely additive — it does not re-parse files, does not
+    recompute hours, does not modify the request payload, and never touches
+    Samsara, downloads or fines.
+    """
+    payload = request.get_json(silent=True)
+    if payload is None:
+        return jsonify({"error": "JSON body is required"}), 400
+    if not isinstance(payload, dict):
+        return jsonify({"error": "JSON body must be an object"}), 400
+
+    country_profile = (payload.get("countryProfile") or "DE").upper()
+    parser_analysis = payload.get("parserAnalysis")
+    if parser_analysis is None:
+        # Allow the body itself to be the analysis dict (more ergonomic).
+        parser_analysis = {
+            k: v for k, v in payload.items()
+            if k not in ("countryProfile",)
+        }
+    if not isinstance(parser_analysis, dict) or not parser_analysis:
+        return jsonify({"error": "parserAnalysis is required"}), 400
+
+    # Imported lazily so the route module stays decoupled from the
+    # compliance package's import chain at startup.
+    from backend.compliance.service import (
+        evaluate_parser_analysis_for_violations,
+    )
+
+    try:
+        result = evaluate_parser_analysis_for_violations(
+            parser_analysis,
+            country_profile=country_profile,
+            include_events=True,
+        )
+    except Exception as exc:
+        _log.exception("compliance/evaluate-parser-analysis failed")
+        return jsonify({
+            "error": "compliance evaluation failed",
+            "detail": str(exc),
+        }), 500
+
+    return jsonify(result)
