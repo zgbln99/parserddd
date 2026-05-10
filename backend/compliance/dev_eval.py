@@ -55,15 +55,27 @@ def inspect(
     input_path: str | Path,
     *,
     country_profile: str = "DE",
+    show_activities: bool = False,
+    gap_warn_minutes: int = 15,
 ) -> dict[str, Any]:
     """Diagnostic counterpart to :func:`run` — surfaces what the adapter
     and the engine *see* in the input. Reuses the production service so
     no rule logic is duplicated.
+
+    When ``show_activities=True`` the result also carries:
+
+    * ``activities`` — the post-adapter list, sorted by start, with
+      duration, source, raw_ref and flag fields. Useful for spotting a
+      mistyped REST/WORK/BREAK or mis-aligned start/end.
+    * ``diagnostics.warnings`` — UNKNOWN slices, ``end <= start`` entries
+      in the raw timeline, and wall-clock gaps over ``gap_warn_minutes``.
     """
     parser_analysis, profile = _load_payload(input_path, country_profile)
     return inspect_parser_analysis(
         parser_analysis,
         country_profile=profile,
+        show_activities=show_activities,
+        gap_warn_minutes=gap_warn_minutes,
     )
 
 
@@ -119,6 +131,21 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
     parser.add_argument(
+        "--show-activities",
+        dest="show_activities",
+        action="store_true",
+        help=(
+            "with --inspect: also include the post-adapter activity list "
+            "and adapter diagnostics (UNKNOWN, INVALID_TIME_RANGE, GAP)"
+        ),
+    )
+    parser.add_argument(
+        "--gap-warn-minutes",
+        type=int,
+        default=15,
+        help="threshold (minutes) for GAP diagnostics under --show-activities",
+    )
+    parser.add_argument(
         "-o", "--output",
         default=None,
         help="optional output JSON path (default: stdout)",
@@ -126,7 +153,12 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.inspect:
-        result = inspect(args.input, country_profile=args.profile)
+        result = inspect(
+            args.input,
+            country_profile=args.profile,
+            show_activities=args.show_activities,
+            gap_warn_minutes=args.gap_warn_minutes,
+        )
     else:
         result = run(
             args.input,

@@ -29,6 +29,7 @@ from backend.compliance.engine import (
 )
 from backend.compliance.models import (
     ActivitySource,
+    ActivityType,
     NormalizedActivity,
     Violation,
 )
@@ -114,6 +115,8 @@ def inspect_parser_analysis(
     parser_analysis: Mapping[str, Any],
     *,
     country_profile: str | CountryProfile = "DE",
+    show_activities: bool = False,
+    gap_warn_minutes: int = 15,
 ) -> dict[str, Any]:
     """Diagnostic summary of what compliance sees from ``parser_analysis``.
 
@@ -133,7 +136,7 @@ def inspect_parser_analysis(
     activities = _normalize_activities(parser_analysis)
 
     if not activities:
-        return {
+        empty: dict[str, Any] = {
             "countryProfile": profile.code,
             "activitySummary": _empty_activity_summary(),
             "coverage": _empty_coverage(),
@@ -142,6 +145,10 @@ def inspect_parser_analysis(
             "dataGaps": {"count": 0},
             "violations": [],
         }
+        if show_activities:
+            empty["activities"] = []
+            empty["diagnostics"] = {"warnings": []}
+        return empty
 
     engine = ComplianceEngine(profile=profile)
     facts = engine.build_facts(activities)
@@ -186,7 +193,7 @@ def inspect_parser_analysis(
         "sufficientForFortnightlyRules": cov.sufficient_for_fortnightly_rules,
     }
 
-    return {
+    result: dict[str, Any] = {
         "countryProfile": profile.code,
         "activitySummary": {
             "count": len(activities),
@@ -205,6 +212,15 @@ def inspect_parser_analysis(
         "violations": [v.to_dict() for v in violations],
     }
 
+    if show_activities:
+        activities_block, diagnostics = _build_adapter_diagnostics(
+            parser_analysis, activities, gap_warn_minutes=gap_warn_minutes,
+        )
+        result["activities"] = activities_block
+        result["diagnostics"] = diagnostics
+
+    return result
+
 
 def _empty_activity_summary() -> dict[str, Any]:
     return {
@@ -215,6 +231,115 @@ def _empty_activity_summary() -> dict[str, Any]:
             t: {"count": 0, "minutes": 0} for t in _ACTIVITY_TYPES_ORDER
         },
     }
+
+
+def _build_adapter_diagnostics(
+    parser_analysis: Mapping[str, Any],
+    activities: list[NormalizedActivity],
+    *,
+    gap_warn_minutes: int,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Build the activities listing + warnings shown under ``--show-activities``.
+
+    The function is intentionally read-only: it walks the post-adapter
+    activities (already produced upstream) and, when present, the *raw*
+    timeline tuples on ``parser_analysis`` to flag entries the adapter
+    silently dropped (``end <= start``).
+    """
+    from datetime import datetime
+
+    sorted_acts = sorted(activities, key=lambda a: (a.start, a.end))
+    activities_block: list[dict[str, Any]] = []
+    for i, a in enumerate(sorted_acts):
+        activities_block.append({
+            "index": i,
+            "driverId": a.driver_id,
+            "vehicleId": a.vehicle_id,
+            "type": a.type.value,
+            "start": a.start.isoformat(),
+            "end": a.end.isoformat(),
+            "durationMinutes": a.duration_minutes(),
+            "source": a.source.value if a.source else None,
+            "rawRef": a.raw_ref,
+            "flags": {
+                "isManualEntry": a.is_manual_entry,
+                "isOutOfScope": a.is_out_of_scope,
+                "isFerryTrain": a.is_ferry_train,
+                "isMultiManning": a.is_multi_manning,
+            },
+        })
+
+    warnings: list[dict[str, Any]] = []
+
+    # 1) INVALID_TIME_RANGE — scan the raw timeline (if supplied directly).
+    # The adapter drops those, so they would not appear in ``activities``.
+    raw_tl = parser_analysis.get("timeline") if isinstance(parser_analysis, Mapping) else None
+    if isinstance(raw_tl, (list, tuple)):
+        for j, entry in enumerate(raw_tl):
+            if not entry or len(entry) < 2:
+                continue
+            s = _coerce_inspect_dt(entry[0])
+            e = _coerce_inspect_dt(entry[1])
+            if s is None or e is None:
+                continue
+            if e <= s:
+                warnings.append({
+                    "type": "INVALID_TIME_RANGE",
+                    "index": j,
+                    "start": s.isoformat(),
+                    "end": e.isoformat(),
+                    "message": "Activity end is not after start",
+                })
+
+    # 2) UNKNOWN_ACTIVITY — any post-adapter UNKNOWN slice.
+    for i, a in enumerate(sorted_acts):
+        if a.type == ActivityType.UNKNOWN:
+            warnings.append({
+                "type": "UNKNOWN_ACTIVITY",
+                "index": i,
+                "start": a.start.isoformat(),
+                "end": a.end.isoformat(),
+                "message": "Activity mapped to UNKNOWN",
+            })
+
+    # 3) GAP — wall-clock gap between consecutive activities for the same
+    # driver. Strictly greater than the threshold (15 min by default).
+    by_driver: dict[str, list[NormalizedActivity]] = {}
+    for a in sorted_acts:
+        by_driver.setdefault(a.driver_id, []).append(a)
+    for driver_acts in by_driver.values():
+        for prev, cur in zip(driver_acts, driver_acts[1:]):
+            if cur.start <= prev.end:
+                continue
+            minutes = int((cur.start - prev.end).total_seconds() // 60)
+            if minutes > gap_warn_minutes:
+                warnings.append({
+                    "type": "GAP",
+                    "start": prev.end.isoformat(),
+                    "end": cur.start.isoformat(),
+                    "durationMinutes": minutes,
+                    "message": "Gap between normalized activities",
+                })
+
+    return activities_block, {"warnings": warnings}
+
+
+def _coerce_inspect_dt(value: Any):
+    """Coerce raw-timeline values for diagnostic inspection only.
+
+    Mirrors the adapter's tolerance for ISO strings; not used by the
+    engine. Returns ``None`` for anything that doesn't parse.
+    """
+    from datetime import datetime
+
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, str):
+        try:
+            return datetime.fromisoformat(value)
+        except ValueError:
+            return None
+    return None
 
 
 def _empty_coverage() -> dict[str, Any]:
