@@ -49,6 +49,15 @@ $SCP_CMD backend/auth/*.py "$REMOTE:$APP_DIR/auth/"
 $SCP_CMD backend/services/*.py "$REMOTE:$APP_DIR/services/"
 $SCP_CMD backend/routes/*.py "$REMOTE:$APP_DIR/routes/"
 
+# Compliance package (rules, adapters, service, CLI helper)
+$SSH_CMD "mkdir -p $APP_DIR/backend/compliance/adapters $APP_DIR/backend/compliance/facts $APP_DIR/backend/compliance/profiles $APP_DIR/backend/compliance/rules"
+$SCP_CMD backend/compliance/*.py "$REMOTE:$APP_DIR/backend/compliance/"
+$SCP_CMD backend/compliance/README.md "$REMOTE:$APP_DIR/backend/compliance/" 2>/dev/null || true
+$SCP_CMD backend/compliance/adapters/*.py "$REMOTE:$APP_DIR/backend/compliance/adapters/"
+$SCP_CMD backend/compliance/facts/*.py "$REMOTE:$APP_DIR/backend/compliance/facts/"
+$SCP_CMD backend/compliance/profiles/*.py "$REMOTE:$APP_DIR/backend/compliance/profiles/"
+$SCP_CMD backend/compliance/rules/*.py "$REMOTE:$APP_DIR/backend/compliance/rules/"
+
 # Frontend build
 $SCP_CMD -r frontend/dist/* "$REMOTE:$APP_DIR/static/"
 
