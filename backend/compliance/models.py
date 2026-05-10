@@ -269,6 +269,34 @@ class DataGap:
 
 
 @dataclass(frozen=True)
+class Coverage:
+    """How much wall-clock data the analysis window actually covers.
+
+    Used by rules whose verdict depends on having enough surrounding
+    context — for example, a "missing weekly rest" claim is only safe
+    when we have at least a full transport week of data to look at.
+    """
+    period_start: Optional[datetime] = None
+    period_end: Optional[datetime] = None
+    minutes: int = 0
+
+    @property
+    def days(self) -> float:
+        return self.minutes / 1440.0 if self.minutes else 0.0
+
+    @property
+    def sufficient_for_weekly_rules(self) -> bool:
+        # 7 days of span is the minimum at which we can claim a weekly
+        # rest is "missing"; anything shorter is just an incomplete
+        # snapshot, not an offence.
+        return self.days >= 7.0
+
+    @property
+    def sufficient_for_fortnightly_rules(self) -> bool:
+        return self.days >= 14.0
+
+
+@dataclass(frozen=True)
 class ComplianceFacts:
     driving_blocks: tuple[DrivingBlock, ...]
     daily_work_periods: tuple[DailyWorkPeriod, ...]
@@ -277,6 +305,7 @@ class ComplianceFacts:
     fortnightly_driving_summaries: tuple[FortnightlyDrivingSummary, ...]
     rest_periods: tuple[RestPeriod, ...]
     data_gaps: tuple[DataGap, ...]
+    coverage: Coverage = Coverage()
 
 
 # ---------------------------------------------------------------------------

@@ -60,14 +60,18 @@ class WeeklyRestTests(unittest.TestCase):
         self.assertEqual(len(v), 1)
 
     def test_no_weekly_rest_warning(self):
-        # Drive every day, never rest more than the 11h daily window.
+        # Drive every calendar day, never rest more than the 11h daily
+        # window. Total span must reach 7 days so the MISSING rule has
+        # enough coverage to fire — otherwise it correctly abstains.
+        start = at(2026, 5, 11, 6, 0)
         acts = []
-        cur = at(2026, 5, 11, 6, 0)
-        for _ in range(7):
-            acts.append(driving(cur, 480))
-            cur = cur + timedelta(minutes=480)
-            acts.append(rest(cur, 660))
-            cur = cur + timedelta(minutes=660)
+        # One 8h driving + 16h rest cycle per calendar day for 8 days,
+        # so the total span is > 7 days and the missing-weekly-rest
+        # signal is genuine, not an artefact of a short window.
+        for d in range(8):
+            day_start = start + timedelta(days=d)
+            acts.append(driving(day_start, 480))
+            acts.append(rest(day_start + timedelta(minutes=480), 660))
         v = self._by_code(acts, CODE_MISSING)
         self.assertGreaterEqual(len(v), 1)
         self.assertTrue(v[0].extra.get("requiresVerification"))

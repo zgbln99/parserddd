@@ -58,8 +58,15 @@ def evaluate(context: ComplianceContext) -> list[Violation]:
                 candidate = r
 
         if candidate is None:
-            # No weekly rest at all in this week — report as warning unless
-            # the period is partial.
+            # No weekly rest at all in this week. We only assert this when
+            # the analysis window actually covers a full transport week;
+            # otherwise it's an incomplete-data artefact, not an offence.
+            if not context.facts.coverage.sufficient_for_weekly_rules:
+                # TODO: surface an INSUFFICIENT_DATA info-level note once
+                # the reporting layer distinguishes warnings from
+                # violations. For now we stay silent rather than emit a
+                # false positive.
+                continue
             out.append(
                 Violation(
                     driver_id=context.driver_id,

@@ -49,7 +49,9 @@ class DailyRestTests(unittest.TestCase):
         self.assertEqual(v[0].actual_minutes, 539)
 
     def test_four_reduced_rests_between_weekly_rests_violation(self):
-        # 4 reduced rests of 9h30, separated by short driving.
+        # 4 reduced rests of 9h30, tightly packed; then a trailing 1-min
+        # activity 8 days after start so total coverage exceeds 7 days
+        # and the rule has enough context to assert the count.
         acts = []
         cur = at(2026, 5, 11, 6, 0)
         for _ in range(4):
@@ -57,6 +59,7 @@ class DailyRestTests(unittest.TestCase):
             cur = cur + timedelta(minutes=240)
             acts.append(rest(cur, 570))         # 9h30 reduced
             cur = cur + timedelta(minutes=570)
+        acts.append(driving(at(2026, 5, 11, 6, 0) + timedelta(days=8), 1))
         v = self._by_code(acts, CODE_REDUCED_LIMIT)
         self.assertEqual(len(v), 1)
         self.assertEqual(v[0].actual_minutes, 4)

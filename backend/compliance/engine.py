@@ -25,6 +25,7 @@ from backend.compliance.facts import (
 from backend.compliance.models import (
     ComplianceContext,
     ComplianceFacts,
+    Coverage,
     NormalizedActivity,
     Violation,
 )
@@ -100,6 +101,7 @@ class ComplianceEngine:
             acts, period_start=period_start, period_end=period_end,
             min_gap_minutes=self.profile.data_gap_warn_min,
         )
+        coverage = _coverage_for(acts, period_start, period_end)
         return ComplianceFacts(
             driving_blocks=tuple(driving_blocks),
             daily_work_periods=tuple(daily_periods),
@@ -108,6 +110,7 @@ class ComplianceEngine:
             fortnightly_driving_summaries=tuple(fortnight_sums),
             rest_periods=tuple(rests),
             data_gaps=tuple(gaps),
+            coverage=coverage,
         )
 
     def evaluate(
@@ -153,6 +156,28 @@ class ComplianceEngine:
 # ---------------------------------------------------------------------------
 # Webhook / automation event payload
 # ---------------------------------------------------------------------------
+
+def _coverage_for(
+    activities: list[NormalizedActivity],
+    period_start: Optional[datetime],
+    period_end: Optional[datetime],
+) -> Coverage:
+    """Coverage = max(end) - min(start) of activities, clipped to the
+    requested analysis window when one is provided.
+    """
+    if not activities:
+        return Coverage()
+    start = min(a.start for a in activities)
+    end = max(a.end for a in activities)
+    if period_start is not None:
+        start = max(start, period_start)
+    if period_end is not None:
+        end = min(end, period_end)
+    if end <= start:
+        return Coverage(period_start=start, period_end=end, minutes=0)
+    minutes = int((end - start).total_seconds() // 60)
+    return Coverage(period_start=start, period_end=end, minutes=minutes)
+
 
 def build_webhook_event(violation: Violation) -> dict[str, Any]:
     """Render a violation as the wire format for n8n / generic webhooks."""

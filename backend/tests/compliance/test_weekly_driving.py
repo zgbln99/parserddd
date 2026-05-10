@@ -64,7 +64,12 @@ class FortnightlyDrivingTests(unittest.TestCase):
     def test_90h01_violation(self):
         week1 = _spread_driving(at(2026, 5, 11, 6, 0), 45 * 60)
         week2 = _spread_driving(at(2026, 5, 18, 6, 0), 45 * 60 + 1)
-        v = self._by_code(week1 + week2, FORTNIGHT_CODE)
+        # The two _spread_driving blocks together only span ~12 days. Pad
+        # with a trailing 1-min driving activity so total coverage is
+        # >= 14 days; otherwise the fortnightly rule abstains because of
+        # insufficient context.
+        tail = [driving(at(2026, 5, 11, 6, 0) + timedelta(days=14, minutes=1), 1)]
+        v = self._by_code(week1 + week2 + tail, FORTNIGHT_CODE)
         self.assertEqual(len(v), 1)
         self.assertEqual(v[0].excess_minutes, 1)
 

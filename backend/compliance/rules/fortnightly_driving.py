@@ -19,7 +19,15 @@ LEGAL_BASIS = "Art. 6 Abs. 3 VO (EG) Nr. 561/2006"
 def evaluate(context: ComplianceContext) -> list[Violation]:
     profile = context.profile
     limit = profile.fortnightly_driving_limit_min
-    out = []
+    out: list[Violation] = []
+
+    # A 90h limit is only meaningful when at least two full transport
+    # weeks are in scope. Below that we don't have enough context to
+    # claim a breach and the rule would emit false positives on short
+    # snapshots.
+    # TODO: emit INSUFFICIENT_DATA when reporting supports it.
+    if not context.facts.coverage.sufficient_for_fortnightly_rules:
+        return out
 
     for f in context.facts.fortnightly_driving_summaries:
         if f.driver_id != context.driver_id:

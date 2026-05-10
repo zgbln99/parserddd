@@ -113,6 +113,14 @@ def evaluate(context: ComplianceContext) -> list[Violation]:
         if profile.daily_rest_reduced_min <= r.minutes < profile.daily_rest_regular_min:
             reduced_count += 1
             if reduced_count > profile.reduced_daily_rests_per_week:
+                # The "too many reduced rests between weekly rests" cap
+                # only holds across a full inter-weekly-rest span. Without
+                # at least a week of coverage we can't be sure the count
+                # reflects a real over-use; skip rather than misreport.
+                # TODO: replace this with a proper rest-to-rest framing
+                # once available.
+                if not context.facts.coverage.sufficient_for_weekly_rules:
+                    continue
                 out.append(
                     Violation(
                         driver_id=r.driver_id,

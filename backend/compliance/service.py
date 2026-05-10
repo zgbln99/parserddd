@@ -136,6 +136,7 @@ def inspect_parser_analysis(
         return {
             "countryProfile": profile.code,
             "activitySummary": _empty_activity_summary(),
+            "coverage": _empty_coverage(),
             "driver": {"driverId": None, "vehicleId": None},
             "violationsSummary": _empty_violation_summary(),
             "dataGaps": {"count": 0},
@@ -175,6 +176,16 @@ def inspect_parser_analysis(
         ),
     }
 
+    cov = facts.coverage
+    coverage_block = {
+        "periodStart": cov.period_start.isoformat() if cov.period_start else None,
+        "periodEnd": cov.period_end.isoformat() if cov.period_end else None,
+        "minutes": cov.minutes,
+        "days": round(cov.days, 4),
+        "sufficientForWeeklyRules": cov.sufficient_for_weekly_rules,
+        "sufficientForFortnightlyRules": cov.sufficient_for_fortnightly_rules,
+    }
+
     return {
         "countryProfile": profile.code,
         "activitySummary": {
@@ -183,6 +194,7 @@ def inspect_parser_analysis(
             "periodEnd": period_end,
             "byType": by_type,
         },
+        "coverage": coverage_block,
         "driver": driver_block,
         "violationsSummary": {
             "count": len(violations),
@@ -202,6 +214,17 @@ def _empty_activity_summary() -> dict[str, Any]:
         "byType": {
             t: {"count": 0, "minutes": 0} for t in _ACTIVITY_TYPES_ORDER
         },
+    }
+
+
+def _empty_coverage() -> dict[str, Any]:
+    return {
+        "periodStart": None,
+        "periodEnd": None,
+        "minutes": 0,
+        "days": 0.0,
+        "sufficientForWeeklyRules": False,
+        "sufficientForFortnightlyRules": False,
     }
 
 
