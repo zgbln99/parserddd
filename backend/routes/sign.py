@@ -131,6 +131,15 @@ def api_sign_post(token: str):
     except SigningError as exc:
         return jsonify({"error": str(exc), "status": "invalid"}), exc.status
 
+    # If this token bundles activity-based compliance violations, flip
+    # their status to SIGNED. No-op for sign-tokens created outside the
+    # compliance flow.
+    try:
+        from services import violations_service as _vs
+        _vs.mark_token_signed(token)
+    except Exception:  # pragma: no cover - log-only
+        pass
+
     return jsonify(
         {
             "ok": True,

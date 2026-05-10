@@ -30,6 +30,7 @@ const StundenzettelPage = lazy(() => import('./pages/StundenzettelPage').then(m 
 const BulkGridPage = lazy(() => import('./pages/BulkGridPage').then(m => ({ default: m.BulkGridPage })));
 const ArbeitszeitberichtPage = lazy(() => import('./pages/ArbeitszeitberichtPage').then(m => ({ default: m.ArbeitszeitberichtPage })));
 const ComplianceMonthlyPage = lazy(() => import('./pages/ComplianceMonthlyPage').then(m => ({ default: m.ComplianceMonthlyPage })));
+const CompliancePage = lazy(() => import('./pages/CompliancePage'));
 
 
 function PageFallback() {
@@ -128,7 +129,8 @@ export function App() {
           <Route path="/samsara-km" element={<DispatcherRoute><SamsaraKmPage /></DispatcherRoute>} />
           <Route path="/analysis" element={<ProtectedRoute><AnalysisPage /></ProtectedRoute>} />
           <Route path="/arbeitszeitbericht" element={<DispatcherRoute><ArbeitszeitberichtPage /></DispatcherRoute>} />
-          <Route path="/compliance" element={<DispatcherRoute><ComplianceMonthlyPage /></DispatcherRoute>} />
+          <Route path="/compliance" element={<DispatcherRoute><CompliancePage /></DispatcherRoute>} />
+          <Route path="/compliance-monthly" element={<DispatcherRoute><ComplianceMonthlyPage /></DispatcherRoute>} />
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

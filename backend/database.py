@@ -286,6 +286,27 @@ def init_db():
             '' if engine == 'postgresql' else 'AUTOINCREMENT',
         ))
 
+        # violation_statuses — per-violation status persistence for the
+        # activity-based compliance engine. ``violation_id`` is the
+        # content-addressable id produced by the engine, so the same
+        # violation gets the same row across evaluations.
+        db.executescript('''
+            CREATE TABLE IF NOT EXISTS violation_statuses (
+                id            {} PRIMARY KEY {},
+                violation_id  TEXT NOT NULL UNIQUE,
+                rule_code     TEXT NOT NULL DEFAULT '',
+                driver_card   TEXT NOT NULL DEFAULT '',
+                status        TEXT NOT NULL DEFAULT 'NEW',
+                note          TEXT NOT NULL DEFAULT '',
+                signed_token  TEXT NOT NULL DEFAULT '',
+                updated_at    TEXT NOT NULL,
+                updated_by    TEXT NOT NULL DEFAULT ''
+            );
+        '''.format(
+            'SERIAL' if engine == 'postgresql' else 'INTEGER',
+            '' if engine == 'postgresql' else 'AUTOINCREMENT',
+        ))
+
         db.commit()
 
     # SQLite-specific migrations (add columns if missing)

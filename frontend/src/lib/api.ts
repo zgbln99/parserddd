@@ -241,6 +241,93 @@ export const evaluateParserAnalysis = (
     },
   );
 
+// ---------------------------------------------------------------------------
+// Range-based compliance — server-side: fetches Dropbox DDD files for the
+// requested driver + range, parses them, runs the activity-based engine,
+// merges per-violation status from violation_statuses.
+// ---------------------------------------------------------------------------
+
+export interface ComplianceRangeViolation extends ComplianceViolation {
+  statusNote?: string;
+  signedToken?: string;
+  statusUpdatedAt?: string;
+}
+
+export interface ComplianceRangeResponse {
+  driver_card: string;
+  driver_name: string;
+  vehicle: string | null;
+  period: { from: string; to: string };
+  countryProfile: string;
+  violations: ComplianceRangeViolation[];
+  summary: {
+    count: number;
+    bySeverity: Record<string, number>;
+    byRule: Record<string, number>;
+  };
+}
+
+export const evaluateComplianceRange = (body: {
+  driver_card: string;
+  driver_name?: string;
+  date_from: string;
+  date_to: string;
+  file_paths: string[];
+  locale?: 'de' | 'en' | 'pl';
+  country_profile?: string;
+}) =>
+  request<ComplianceRangeResponse>(
+    '/api/compliance/violations/evaluate',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    },
+  );
+
+export type ViolationStatus =
+  | 'NEW' | 'REVIEWED' | 'EXPLAINED' | 'DRIVER_NOTIFIED'
+  | 'TRAINING_REQUIRED' | 'DISMISSED_FALSE_POSITIVE' | 'SIGNED';
+
+export const setViolationStatus = (body: {
+  violation_id: string;
+  status: ViolationStatus;
+  note?: string;
+  rule_code?: string;
+  driver_card?: string;
+}) =>
+  request<{ ok: boolean; violation_id: string; status: string }>(
+    '/api/compliance/violations/status',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    },
+  );
+
+export interface ComplianceSignLinkResponse {
+  token: string;
+  url: string;
+  expires_at: string;
+  payload_hash: string;
+}
+
+export const createComplianceSignLink = (body: {
+  driver_card: string;
+  driver_name?: string;
+  locale?: 'de' | 'en' | 'pl';
+  period_label?: string;
+  violations: ComplianceViolation[];
+}) =>
+  request<ComplianceSignLinkResponse>(
+    '/api/compliance/violations/sign-link',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    },
+  );
+
 
 // Stundenzettel OCR parsing
 export interface StundenzettelDay {

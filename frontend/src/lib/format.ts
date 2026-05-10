@@ -34,6 +34,33 @@ export function formatBytes(bytes: number): string {
   return `${Math.round(bytes / 1024)} KB`;
 }
 
+/**
+ * Render a minute count as a compact "Xh Y min" / "Xh" / "Y min" string.
+ *
+ *   0   -> "0 min"
+ *   15  -> "15 min"
+ *   60  -> "1h"
+ *   75  -> "1h 15 min"
+ *   90  -> "1h 30 min"
+ *   540 -> "9h"
+ *   525 -> "8h 45 min"
+ *
+ * ``null`` / ``undefined`` / non-finite -> empty string (so it slots into
+ * tables without leaking "null" / "NaN").
+ */
+export function formatDurationMinutes(minutes: number | null | undefined): string {
+  if (minutes === null || minutes === undefined) return '';
+  if (typeof minutes !== 'number' || !Number.isFinite(minutes)) return '';
+  const sign = minutes < 0 ? '-' : '';
+  const abs = Math.abs(Math.trunc(minutes));
+  if (abs === 0) return '0 min';
+  const h = Math.floor(abs / 60);
+  const m = abs % 60;
+  if (h && m) return `${sign}${h}h ${m} min`;
+  if (h) return `${sign}${h}h`;
+  return `${sign}${m} min`;
+}
+
 export function daysLabel(days: number | null, locale: string = 'pl'): string {
   if (days === null || days === undefined) return locale === 'de' ? 'keine Daten' : 'brak danych';
   if (days === 0) return `0 ${locale === 'de' ? 'Tage' : 'dni'}`;

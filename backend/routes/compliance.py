@@ -24,9 +24,9 @@ import sys
 import tempfile
 import traceback
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 # Ensure the *parent* of ``backend/`` is on sys.path so that
 # ``from backend.compliance.service import ...`` resolves regardless of
@@ -475,3 +475,292 @@ def api_evaluate_parser_analysis():
         }), 500
 
     return jsonify(result)
+
+
+# ---------------------------------------------------------------------------
+# Range-based violations API — built on top of the activity-based engine.
+# Uses the existing month-loading machinery (Dropbox + parse_ddd_auto +
+# build_timeline) but filters the final violation list by an explicit
+# date_from / date_to range and persists per-violation status.
+# ---------------------------------------------------------------------------
+
+from services import violations_service as _vs
+from services.sign_service import SigningError as _SigningError
+from services import sign_service as _sign_service
+
+
+def _load_timeline_for_range(
+    *,
+    dbx,
+    file_paths: list[str],
+    range_start: datetime,
+    range_end: datetime,
+) -> tuple[
+    list[tuple[datetime, datetime, int, bool]],
+    dict[str, Any],
+    list[dict[str, Any]],
+    str | None,
+]:
+    """Download/parse listed DDD files and assemble timeline + metadata."""
+    timeline_intervals: list[tuple[datetime, datetime, int, bool]] = []
+    vehicles: list[dict[str, Any]] = []
+    seen_record_dates: set[str] = set()
+    di_for_card: dict[str, Any] = {}
+
+    tmp_paths: list[str] = []
+    try:
+        for path in file_paths:
+            try:
+                _meta, response = dbx.files_download(path)
+            except Exception as exc:  # pragma: no cover
+                _log.warning("dropbox download failed for %s: %s", path, exc)
+                continue
+            with tempfile.NamedTemporaryFile(suffix=".ddd", delete=False) as tmp:
+                tmp.write(response.content)
+                tmp_paths.append(tmp.name)
+            parsed = parse_ddd_auto(tmp.name)
+
+            recs_in_range: list[dict[str, Any]] = []
+            for rec in get_activity_records(parsed):
+                ds_raw = rec.get("activity_record_date") or ""
+                ds = str(ds_raw)[:10]
+                if not ds or len(ds) != 10 or ds in seen_record_dates:
+                    continue
+                try:
+                    rec_d = datetime.strptime(ds, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+                except ValueError:
+                    continue
+                if range_start <= rec_d < range_end:
+                    recs_in_range.append(rec)
+                    seen_record_dates.add(ds)
+
+            if recs_in_range:
+                timeline_intervals.extend(build_timeline(recs_in_range))
+
+            vehicles.extend(get_vehicle_records(parsed))
+            di = get_driver_info(parsed)
+            if not di_for_card and di.get("card_number"):
+                di_for_card = di
+    finally:
+        for p in tmp_paths:
+            try:
+                os.unlink(p)
+            except OSError:
+                pass
+
+    plate = None
+    if vehicles:
+        sorted_vehicles = sorted(
+            vehicles, key=lambda v: (v.get("last_use") or ""), reverse=True,
+        )
+        plate = (sorted_vehicles[0] or {}).get("plate") or None
+
+    return timeline_intervals, di_for_card, vehicles, plate
+
+
+def _range_to_utc(date_from: str, date_to: str) -> tuple[datetime, datetime]:
+    """Inclusive start, exclusive end of the requested range in UTC."""
+    s = datetime.strptime(date_from, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+    e = (
+        datetime.strptime(date_to, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        + timedelta(days=1)
+    )
+    return s, e
+
+
+@bp.route("/api/compliance/violations/evaluate", methods=["POST"])
+@login_required
+def api_violations_evaluate():
+    """Evaluate the activity-based engine for a date range + driver."""
+    try:
+        return _api_violations_evaluate_impl()
+    except Exception as exc:
+        _log.exception("compliance/violations/evaluate failed")
+        return jsonify({
+            "error": "compliance evaluation failed",
+            "detail": str(exc),
+        }), 500
+
+
+def _api_violations_evaluate_impl():
+    data = request.get_json(silent=True) or {}
+    if not isinstance(data, Mapping):
+        return jsonify({"error": "invalid body"}), 400
+
+    driver_card = (data.get("driver_card") or "").strip()
+    driver_name = (data.get("driver_name") or "").strip()
+    date_from = (data.get("date_from") or "").strip()
+    date_to = (data.get("date_to") or "").strip()
+    file_paths = data.get("file_paths") or []
+    locale = (data.get("locale") or "de").lower()
+    country_profile = (data.get("country_profile") or "DE").upper()
+
+    if not driver_card:
+        return jsonify({"error": "driver_card is required"}), 400
+    if not date_from or not date_to:
+        return jsonify({"error": "date_from and date_to are required (YYYY-MM-DD)"}), 400
+    if not isinstance(file_paths, list) or not file_paths:
+        return jsonify({"error": "file_paths must be a non-empty list"}), 400
+
+    try:
+        range_start, range_end = _range_to_utc(date_from, date_to)
+    except ValueError:
+        return jsonify({"error": "invalid date format (use YYYY-MM-DD)"}), 400
+
+    dbx = get_server_dropbox_client()
+    if not dbx:
+        return jsonify({"error": "Dropbox client not configured"}), 503
+
+    timeline_intervals, _di, vehicles, plate = _load_timeline_for_range(
+        dbx=dbx, file_paths=file_paths,
+        range_start=range_start, range_end=range_end,
+    )
+
+    if not timeline_intervals:
+        return jsonify({
+            "driver_card": driver_card,
+            "driver_name": driver_name,
+            "vehicle": plate,
+            "period": {"from": date_from, "to": date_to},
+            "violations": [],
+            "summary": {"count": 0},
+        })
+
+    # Build the analyze-card-like payload the new adapter accepts.
+    parser_analysis = {
+        "driver_info": {"card_number": driver_card, "driver_name": driver_name},
+        "vehicles": [{"plate": plate}] if plate else [],
+        "timeline": timeline_intervals,
+    }
+
+    from backend.compliance.service import (
+        evaluate_parser_analysis_for_violations,
+    )
+
+    result = evaluate_parser_analysis_for_violations(
+        parser_analysis,
+        country_profile=country_profile,
+        include_events=False,
+    )
+    violations = result.get("violations", [])
+    violations = _vs.filter_by_range(
+        violations, date_from=date_from, date_to=date_to,
+    )
+    violations = _vs.merge_statuses(violations)
+
+    return jsonify({
+        "driver_card": driver_card,
+        "driver_name": driver_name,
+        "vehicle": plate,
+        "period": {"from": date_from, "to": date_to},
+        "countryProfile": result.get("countryProfile", country_profile),
+        "violations": violations,
+        "summary": {
+            "count": len(violations),
+            "bySeverity": _count_by(violations, "severity"),
+            "byRule": _count_by(violations, "ruleCode"),
+        },
+    })
+
+
+def _count_by(items: list[dict[str, Any]], key: str) -> dict[str, int]:
+    out: dict[str, int] = {}
+    for it in items:
+        v = it.get(key) or ""
+        out[v] = out.get(v, 0) + 1
+    return out
+
+
+@bp.route("/api/compliance/violations/status", methods=["POST"])
+@login_required
+def api_violation_status():
+    """Persist a status change for one violation."""
+    data = request.get_json(silent=True) or {}
+    if not isinstance(data, Mapping):
+        return jsonify({"error": "invalid body"}), 400
+
+    violation_id = (data.get("violation_id") or "").strip()
+    status = (data.get("status") or "").strip().upper()
+    note = (data.get("note") or "").strip()
+    rule_code = (data.get("rule_code") or "").strip()
+    driver_card = (data.get("driver_card") or "").strip()
+
+    if not violation_id:
+        return jsonify({"error": "violation_id is required"}), 400
+    if status not in _vs.ALLOWED_STATUSES:
+        return jsonify({"error": f"invalid status: {status}"}), 400
+
+    try:
+        _vs.set_status(
+            violation_id,
+            status=status, note=note,
+            rule_code=rule_code, driver_card=driver_card,
+            updated_by=str(getattr(request, "remote_addr", "") or ""),
+        )
+    except Exception as exc:
+        _log.exception("violation/status failed")
+        return jsonify({"error": "status update failed", "detail": str(exc)}), 500
+
+    return jsonify({"ok": True, "violation_id": violation_id, "status": status})
+
+
+@bp.route("/api/compliance/violations/sign-link", methods=["POST"])
+@login_required
+def api_violations_sign_link():
+    """Create a public sign URL for a bundle of activity-based violations."""
+    data = request.get_json(silent=True) or {}
+    if not isinstance(data, Mapping):
+        return jsonify({"error": "invalid body"}), 400
+
+    driver_card = (data.get("driver_card") or "").strip()
+    driver_name = (data.get("driver_name") or "").strip()
+    locale = (data.get("locale") or "de").lower()
+    period_label = (data.get("period_label") or "").strip()
+    violations = data.get("violations") or []
+
+    if not driver_card:
+        return jsonify({"error": "driver_card is required"}), 400
+    if not isinstance(violations, list) or not violations:
+        return jsonify({"error": "violations must be a non-empty list"}), 400
+
+    payload = _vs.violations_to_pdf_payload(
+        violations,
+        driver_card=driver_card, driver_name=driver_name,
+        locale=locale, period_label=period_label,
+    )
+
+    try:
+        rec = _sign_service.create_token(
+            driver_card=driver_card,
+            driver_name=driver_name,
+            payload=payload,
+            locale=locale,
+        )
+    except _SigningError as exc:
+        return jsonify({"error": str(exc)}), exc.status
+
+    # Record the token on every violation so the public sign callback can
+    # flip them all to SIGNED in one go.
+    for v in violations:
+        vid = v.get("id") or ""
+        if not vid:
+            continue
+        try:
+            _vs.set_status(
+                vid,
+                status=v.get("status") or "DRIVER_NOTIFIED",
+                rule_code=v.get("ruleCode") or "",
+                driver_card=driver_card,
+                signed_token=rec.token,
+                updated_by="sign-link",
+            )
+        except Exception:
+            _log.warning("could not persist signed_token for %s", vid)
+
+    base_url = request.host_url.rstrip("/")
+    return jsonify({
+        "token": rec.token,
+        "url": f"{base_url}/sign/{rec.token}",
+        "expires_at": rec.expires_at.isoformat(),
+        "payload_hash": rec.payload_hash,
+    })
