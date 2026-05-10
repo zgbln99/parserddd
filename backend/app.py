@@ -230,6 +230,24 @@ def _init_db():
         );
     ''')
 
+    # Activity-based compliance per-violation status. Keyed by the
+    # content-addressable violation_id from backend/compliance — same
+    # input -> same id across evaluations, so a status sticks even
+    # when the dispatcher re-runs the engine.
+    conn.executescript('''
+        CREATE TABLE IF NOT EXISTS violation_statuses (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            violation_id  TEXT NOT NULL UNIQUE,
+            rule_code     TEXT NOT NULL DEFAULT '',
+            driver_card   TEXT NOT NULL DEFAULT '',
+            status        TEXT NOT NULL DEFAULT 'NEW',
+            note          TEXT NOT NULL DEFAULT '',
+            signed_token  TEXT NOT NULL DEFAULT '',
+            updated_at    TEXT NOT NULL,
+            updated_by    TEXT NOT NULL DEFAULT ''
+        );
+    ''')
+
     # Driver-signing tokens (one-time public links sent via WhatsApp).
     # Required by /api/admin/sign-links and /api/sign/<token>. CREATE IF
     # NOT EXISTS so the migration is idempotent across restarts.
