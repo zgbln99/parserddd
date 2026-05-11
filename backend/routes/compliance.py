@@ -568,6 +568,60 @@ def _range_to_utc(date_from: str, date_to: str) -> tuple[datetime, datetime]:
     return s, e
 
 
+def _build_wage_config(
+    driver_card: str,
+    *,
+    period_start: datetime,
+    period_end: datetime,
+):
+    """Assemble the MiLoG wage config: company-wide default monthly gross
+    (admin setting, € 2750 unless changed) plus a per-driver override taken
+    from ``driver_config.monthly_gross_eur`` when set.
+
+    Returns ``None`` only if the compliance models can't be imported (so the
+    caller silently skips the check rather than failing the endpoint).
+    """
+    try:
+        from backend.compliance.models import WageConfig
+    except Exception:  # pragma: no cover — import wiring issue
+        _log.warning("could not import WageConfig; MiLoG check skipped", exc_info=True)
+        return None
+
+    cfg = _load_config()
+    try:
+        min_hourly = float(cfg.get("mindestlohn_min_hourly_eur", 14.0) or 14.0)
+    except (TypeError, ValueError):
+        min_hourly = 14.0
+    try:
+        default_gross = float(cfg.get("mindestlohn_default_monthly_gross_eur", 2750.0) or 0.0)
+    except (TypeError, ValueError):
+        default_gross = 2750.0
+
+    overrides: dict[str, float] = {}
+    if driver_card:
+        try:
+            from database import get_db
+            with get_db() as db:
+                row = db.query_one(
+                    "SELECT monthly_gross_eur FROM driver_config WHERE card_number = ?",
+                    (driver_card,),
+                )
+            if row is not None:
+                g = row.get("monthly_gross_eur")
+                if g is not None and float(g) > 0:
+                    overrides[driver_card] = float(g)
+        except Exception:
+            _log.warning("could not load monthly_gross_eur for %s", driver_card, exc_info=True)
+
+    return WageConfig(
+        min_hourly_eur=min_hourly,
+        default_monthly_gross_eur=default_gross,
+        per_driver_monthly_gross_eur=overrides,
+        period_start=period_start,
+        period_end=period_end,
+    )
+
+
 @bp.route("/api/compliance/violations/evaluate", methods=["POST"])
 @login_required
 def api_violations_evaluate():
@@ -637,10 +691,15 @@ def _api_violations_evaluate_impl():
         evaluate_parser_analysis_for_violations,
     )
 
+    wage_config = _build_wage_config(
+        driver_card, period_start=range_start, period_end=range_end,
+    )
+
     result = evaluate_parser_analysis_for_violations(
         parser_analysis,
         country_profile=country_profile,
         include_events=False,
+        wage_config=wage_config,
     )
     violations = result.get("violations", [])
     violations = _vs.filter_by_range(

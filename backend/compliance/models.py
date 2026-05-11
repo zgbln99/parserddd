@@ -13,7 +13,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Optional
+from typing import Any, Mapping, Optional
 
 
 # ---------------------------------------------------------------------------
@@ -309,6 +309,61 @@ class ComplianceFacts:
 
 
 # ---------------------------------------------------------------------------
+# Wage / minimum-wage configuration
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class WageConfig:
+    """Parameters for the German statutory minimum-wage (MiLoG) check.
+
+    ``default_monthly_gross_eur`` is the company-wide assumed monthly gross
+    salary; ``per_driver_monthly_gross_eur`` overrides it for individual
+    drivers with their real figure. A value of 0 (or absence) means
+    "unknown" — the rule then skips that driver rather than guessing.
+
+    ``period_start`` / ``period_end`` describe the window the monthly gross
+    applies to. The check is only meaningful over whole calendar months, so
+    the rule evaluates only when this window spans an exact number of them.
+
+    ``counted_activity_types`` is what counts as paid working time for the
+    €/h divisor — driving + other work + availability by default.
+    """
+
+    min_hourly_eur: float = 14.0
+    default_monthly_gross_eur: float = 0.0
+    per_driver_monthly_gross_eur: Mapping[str, float] = field(default_factory=dict)
+    period_start: Optional[datetime] = None
+    period_end: Optional[datetime] = None
+    counted_activity_types: tuple[ActivityType, ...] = (
+        ActivityType.DRIVING,
+        ActivityType.WORK,
+        ActivityType.AVAILABILITY,
+    )
+
+    def monthly_gross_for(self, driver_id: str) -> float:
+        """Resolved monthly gross for a driver (override → default → 0)."""
+        v = self.per_driver_monthly_gross_eur.get(driver_id)
+        if v is not None:
+            try:
+                v = float(v)
+            except (TypeError, ValueError):
+                v = 0.0
+            if v > 0:
+                return v
+        try:
+            return float(self.default_monthly_gross_eur or 0.0)
+        except (TypeError, ValueError):
+            return 0.0
+
+    def has_override(self, driver_id: str) -> bool:
+        v = self.per_driver_monthly_gross_eur.get(driver_id)
+        try:
+            return v is not None and float(v) > 0
+        except (TypeError, ValueError):
+            return False
+
+
+# ---------------------------------------------------------------------------
 # Context
 # ---------------------------------------------------------------------------
 
@@ -321,6 +376,7 @@ class ComplianceContext:
     timezone: str = "Europe/Berlin"
     period_start: Optional[datetime] = None
     period_end: Optional[datetime] = None
+    wage_config: Optional[WageConfig] = None
 
 
 # Forward reference resolved at import time.

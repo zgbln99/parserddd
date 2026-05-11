@@ -28,6 +28,7 @@ from backend.compliance.models import (
     Coverage,
     NormalizedActivity,
     Violation,
+    WageConfig,
 )
 from backend.compliance.profiles import CountryProfile, DE_PROFILE
 from backend.compliance.rules import (
@@ -35,6 +36,7 @@ from backend.compliance.rules import (
     daily_driving,
     daily_rest,
     fortnightly_driving,
+    mindestlohn,
     missing_card_or_data_gap,
     weekly_driving,
     weekly_rest,
@@ -55,6 +57,7 @@ DEFAULT_RULES: tuple[RuleFn, ...] = (
     daily_rest.evaluate,
     weekly_rest.evaluate,
     missing_card_or_data_gap.evaluate,
+    mindestlohn.evaluate,
 )
 
 
@@ -66,9 +69,11 @@ class ComplianceEngine:
         *,
         profile: CountryProfile = DE_PROFILE,
         rules: Iterable[RuleFn] = DEFAULT_RULES,
+        wage_config: Optional[WageConfig] = None,
     ):
         self.profile = profile
         self.rules: tuple[RuleFn, ...] = tuple(rules)
+        self.wage_config = wage_config
 
     def build_facts(
         self,
@@ -144,6 +149,7 @@ class ComplianceEngine:
                 timezone=self.profile.timezone,
                 period_start=period_start,
                 period_end=period_end,
+                wage_config=self.wage_config,
             )
             for rule in self.rules:
                 results.extend(rule(context))

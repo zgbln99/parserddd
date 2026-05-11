@@ -184,6 +184,14 @@ def _init_db():
     except Exception:
         conn.execute("ALTER TABLE driver_config ADD COLUMN pause_cap_enabled INTEGER NOT NULL DEFAULT 0")
         conn.commit()
+    # monthly_gross_eur on driver_config — per-driver override of the
+    # company-wide assumed monthly gross used by the MiLoG check (0 = use
+    # the global default from admin config).
+    try:
+        conn.execute("SELECT monthly_gross_eur FROM driver_config LIMIT 1")
+    except Exception:
+        conn.execute("ALTER TABLE driver_config ADD COLUMN monthly_gross_eur REAL NOT NULL DEFAULT 0")
+        conn.commit()
 
     conn.executescript('''
         CREATE TABLE IF NOT EXISTS driver_monthly_days (

@@ -501,6 +501,8 @@ export interface SyncConfig {
   night_includes_breaks: boolean;
   hidden_features: string[];
   company_name: string;
+  mindestlohn_default_monthly_gross_eur: number;
+  mindestlohn_min_hourly_eur: number;
 }
 
 export const fetchConfig = () =>
@@ -521,6 +523,7 @@ export interface DriverConfig {
   personal_nr: string;
   double_diet: number; // 0 or 1
   diet_rate: number;
+  monthly_gross_eur: number; // 0 = use the global default from admin config (MiLoG check)
   night_40_enabled: number; // 0 or 1 — 40% night premium for pre-midnight shifts
   pause_cap_enabled: number; // 0 or 1 — cap break at 45min when driving < 4.5h
   notes: string;

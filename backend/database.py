@@ -192,6 +192,7 @@ def init_db():
                 personal_nr   TEXT NOT NULL DEFAULT '',
                 double_diet   INTEGER NOT NULL DEFAULT 0,
                 diet_rate     REAL NOT NULL DEFAULT 14.0,
+                monthly_gross_eur REAL NOT NULL DEFAULT 0,
                 notes         TEXT NOT NULL DEFAULT '',
                 card_expiry_date TEXT NOT NULL DEFAULT '',
                 created_at    TEXT NOT NULL,
@@ -352,6 +353,13 @@ def _run_sqlite_migrations():
             db.execute("SELECT pause_cap_enabled FROM driver_config LIMIT 1")
         except Exception:
             db.execute("ALTER TABLE driver_config ADD COLUMN pause_cap_enabled INTEGER NOT NULL DEFAULT 0")
+            db.commit()
+        # monthly_gross_eur on driver_config (per-driver override of the
+        # company-wide assumed monthly gross used by the MiLoG check)
+        try:
+            db.execute("SELECT monthly_gross_eur FROM driver_config LIMIT 1")
+        except Exception:
+            db.execute("ALTER TABLE driver_config ADD COLUMN monthly_gross_eur REAL NOT NULL DEFAULT 0")
             db.commit()
 
 

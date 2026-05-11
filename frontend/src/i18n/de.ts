@@ -199,6 +199,10 @@ export const de: Record<TranslationKey, string> = {
   adminPauseCapHint: 'Pro Schicht max 45 Min Pause, Rest als Bereitschaft',
   adminWeekendDiet: 'Wochenend-Verpflegung',
   adminWeekendDietHint: 'Verpflegung auch an Samstagen und Sonntagen (ab 01.04)',
+  adminMindestlohn: 'Mindestlohn — Basis-Brutto',
+  adminMindestlohnHint: 'Angenommenes Monatsbrutto pro Fahrer (EUR) für die Mindestlohnprüfung; in der Fahrerkonfiguration durch den tatsächlichen Betrag überschreibbar',
+  adminMindestlohnMin: 'Mindestlohn — Grenze €/h',
+  adminMindestlohnMinHint: 'Mindeststundenlohn brutto (EUR/h), unter dem ein Verstoß gemeldet wird',
 
   // Reader
   readerTitle: 'DDD-Kartenleser',
@@ -284,6 +288,8 @@ export const de: Record<TranslationKey, string> = {
   driverNight40: '40% nur bei Beginn vor Mitternacht',
   driverPauseCap: 'Max 45 Min Pause pro Schicht',
   driverDietRate: 'Verpflegungssatz',
+  driverMonthlyGross: 'Monatsbrutto (EUR)',
+  driverMonthlyGrossHint: '0 = Standardwert aus den Einstellungen verwenden; tatsächlichen Betrag eintragen, um zu überschreiben',
   driverNotes: 'Notizen',
   driverNotesPlaceholder: 'Zusätzliche Informationen...',
   driverConfigs: 'Fahrerkonfigurationen',

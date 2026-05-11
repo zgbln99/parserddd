@@ -37,6 +37,7 @@ from backend.compliance.models import (
     ActivityType,
     NormalizedActivity,
     Violation,
+    WageConfig,
 )
 from backend.compliance.profiles import (
     DE_PROFILE,
@@ -63,6 +64,7 @@ def evaluate_parser_analysis_for_violations(
     *,
     country_profile: str | CountryProfile = "DE",
     include_events: bool = False,
+    wage_config: Optional[WageConfig] = None,
 ) -> dict[str, Any]:
     """Run compliance on the output of the existing parser/analysis layer.
 
@@ -78,6 +80,11 @@ def evaluate_parser_analysis_for_violations(
       ``driver_info`` / ``vehicles`` (handy when a caller wants to reuse
       the result of ``analyze_card`` without re-parsing).
 
+    ``wage_config`` enables the MiLoG minimum-wage check (skipped when
+    ``None``). It carries the assumed monthly gross (company default plus
+    per-driver overrides) and the calendar-month window the gross applies
+    to; see :class:`backend.compliance.models.WageConfig`.
+
     Returns::
 
         {
@@ -89,7 +96,7 @@ def evaluate_parser_analysis_for_violations(
     profile = _resolve_profile(country_profile)
     activities = _normalize_activities(parser_analysis)
 
-    engine = ComplianceEngine(profile=profile)
+    engine = ComplianceEngine(profile=profile, wage_config=wage_config)
     violations: list[Violation] = engine.evaluate(activities)
 
     payload: dict[str, Any] = {

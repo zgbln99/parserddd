@@ -75,6 +75,22 @@ def severity_for_short_weekly_rest(actual_minutes: int) -> Severity:
     return Severity.CRITICAL
 
 
+def severity_for_wage_shortfall(actual_hourly: float, min_hourly: float) -> Severity:
+    """Grade a sub-minimum effective hourly rate by how far below it sits.
+
+    The statutory minimum is binary in law, so even a small shortfall is at
+    least MEDIUM; the scale just helps triage which cases bite hardest.
+    """
+    if min_hourly <= 0 or actual_hourly >= min_hourly:
+        return Severity.INFO
+    deficit_ratio = (min_hourly - actual_hourly) / min_hourly
+    if deficit_ratio <= 0.05:
+        return Severity.MEDIUM
+    if deficit_ratio <= 0.20:
+        return Severity.HIGH
+    return Severity.CRITICAL
+
+
 def severity_for_data_gap(minutes: int, threshold_high: int = 240) -> Severity:
     """Data gaps are warnings, not hard violations.
 

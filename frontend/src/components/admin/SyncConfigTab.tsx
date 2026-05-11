@@ -26,6 +26,8 @@ function SyncConfigSection() {
   const [nightIncludesBreaks, setNightIncludesBreaks] = useState(false);
   const [hiddenFeatures, setHiddenFeatures] = useState<string[]>([]);
   const [companyNameInput, setCompanyNameInput] = useState('');
+  const [mindestlohnGross, setMindestlohnGross] = useState('2750');
+  const [mindestlohnMin, setMindestlohnMin] = useState('14');
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState('');
 
@@ -41,6 +43,8 @@ function SyncConfigSection() {
         setNightIncludesBreaks(!!cfg.night_includes_breaks);
         setHiddenFeatures(cfg.hidden_features || []);
         setCompanyNameInput(cfg.company_name || 'LTS Logistik GmbH');
+        setMindestlohnGross(String(cfg.mindestlohn_default_monthly_gross_eur ?? 2750));
+        setMindestlohnMin(String(cfg.mindestlohn_min_hourly_eur ?? 14));
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -61,6 +65,8 @@ function SyncConfigSection() {
       data.night_includes_breaks = nightIncludesBreaks ? 1 : 0;
       data.hidden_features = hiddenFeatures;
       if (companyNameInput) data.company_name = companyNameInput;
+      data.mindestlohn_default_monthly_gross_eur = parseFloat(mindestlohnGross) || 0;
+      data.mindestlohn_min_hourly_eur = parseFloat(mindestlohnMin) || 14;
       await updateConfig(data);
       setMsg('OK!');
       setSamsaraToken('');
@@ -193,6 +199,34 @@ function SyncConfigSection() {
               <div className="h-5 w-9 rounded-full bg-gray-200 after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-green-500 peer-checked:after:translate-x-full peer-checked:after:border-white dark:bg-gray-700" />
             </label>
             <span className="text-xs text-muted">{t('adminNightBreaksHint')}</span>
+          </div>
+        </div>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+          <label className="text-xs font-semibold text-muted sm:w-40 shrink-0">{t('adminMindestlohn')}</label>
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              step="50"
+              min="0"
+              value={mindestlohnGross}
+              onChange={(e) => setMindestlohnGross(e.target.value)}
+              className="input w-32 rounded-xl px-3 py-1.5 text-sm outline-none"
+            />
+            <span className="text-xs text-muted">{t('adminMindestlohnHint')}</span>
+          </div>
+        </div>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+          <label className="text-xs font-semibold text-muted sm:w-40 shrink-0">{t('adminMindestlohnMin')}</label>
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              value={mindestlohnMin}
+              onChange={(e) => setMindestlohnMin(e.target.value)}
+              className="input w-32 rounded-xl px-3 py-1.5 text-sm outline-none"
+            />
+            <span className="text-xs text-muted">{t('adminMindestlohnMinHint')}</span>
           </div>
         </div>
         <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3">

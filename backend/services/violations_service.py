@@ -244,6 +244,7 @@ _CATEGORY_BY_RULE = {
     "EU_561_WEEKLY_REST_SHORT": ("REST", "Wöchentliche Ruhezeit"),
     "EU_561_WEEKLY_REST_REDUCED": ("REST", "Wöchentliche Ruhezeit"),
     "EU_165_MISSING_CARD_OR_DATA_GAP": ("CARD", "Karte / Datenlücken"),
+    "DE_MILOG_MINDESTLOHN": ("WORKING_TIME", "Mindestlohn (MiLoG)"),
 }
 
 _DEFAULT_CATEGORY = ("OTHER", "Sonstige")

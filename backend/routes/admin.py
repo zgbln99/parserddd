@@ -91,6 +91,7 @@ def api_get_driver_config(card_number):
         'personal_nr': '',
         'double_diet': 0,
         'diet_rate': 14.0,
+        'monthly_gross_eur': 0.0,
         'notes': '',
         'night_40_enabled': 1,
     })
@@ -120,6 +121,13 @@ def api_upsert_driver_config():
     except (ValueError, TypeError):
         diet_rate = 14.0
 
+    try:
+        monthly_gross_eur = float(data.get('monthly_gross_eur', 0.0) or 0.0)
+        if monthly_gross_eur < 0 or monthly_gross_eur > 100000:
+            monthly_gross_eur = 0.0
+    except (ValueError, TypeError):
+        monthly_gross_eur = 0.0
+
     now = datetime.now(UTC).isoformat()
     conn = _get_db()
     existing = conn.execute('SELECT * FROM driver_config WHERE card_number = ?', (card_number,)).fetchone()
@@ -127,7 +135,7 @@ def api_upsert_driver_config():
     changes = []
     if existing:
         old = dict(existing)
-        field_map = {'driver_name': driver_name, 'personal_nr': personal_nr, 'double_diet': double_diet, 'diet_rate': diet_rate, 'notes': notes, 'night_40_enabled': night_40_enabled}
+        field_map = {'driver_name': driver_name, 'personal_nr': personal_nr, 'double_diet': double_diet, 'diet_rate': diet_rate, 'monthly_gross_eur': monthly_gross_eur, 'notes': notes, 'night_40_enabled': night_40_enabled}
         for field, new_val in field_map.items():
             old_val = old.get(field, '')
             if str(old_val) != str(new_val):
@@ -135,15 +143,15 @@ def api_upsert_driver_config():
         conn.execute('''
             UPDATE driver_config SET
                 driver_name = ?, personal_nr = ?, double_diet = ?,
-                diet_rate = ?, notes = ?, night_40_enabled = ?, updated_at = ?
+                diet_rate = ?, monthly_gross_eur = ?, notes = ?, night_40_enabled = ?, updated_at = ?
             WHERE card_number = ?
-        ''', (driver_name, personal_nr, double_diet, diet_rate, notes, night_40_enabled, now, card_number))
+        ''', (driver_name, personal_nr, double_diet, diet_rate, monthly_gross_eur, notes, night_40_enabled, now, card_number))
     else:
         changes.append({'field': '*', 'old': '', 'new': 'created'})
         conn.execute('''
-            INSERT INTO driver_config (card_number, driver_name, personal_nr, double_diet, diet_rate, notes, night_40_enabled, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (card_number, driver_name, personal_nr, double_diet, diet_rate, notes, night_40_enabled, now, now))
+            INSERT INTO driver_config (card_number, driver_name, personal_nr, double_diet, diet_rate, monthly_gross_eur, notes, night_40_enabled, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (card_number, driver_name, personal_nr, double_diet, diet_rate, monthly_gross_eur, notes, night_40_enabled, now, now))
 
     conn.commit()
     conn.close()
@@ -196,6 +204,14 @@ def api_bulk_driver_config():
                         vals.append(rate)
                 except (ValueError, TypeError):
                     pass
+            if 'monthly_gross_eur' in updates:
+                try:
+                    g = float(updates['monthly_gross_eur'] or 0.0)
+                    if 0 <= g <= 100000:
+                        sets.append('monthly_gross_eur = ?')
+                        vals.append(g)
+                except (ValueError, TypeError):
+                    pass
             if 'personal_nr' in updates:
                 sets.append('personal_nr = ?')
                 vals.append(_sanitize_text(str(updates['personal_nr']), 50))
@@ -217,12 +233,18 @@ def api_bulk_driver_config():
                     diet_rate = 14.0
             except (ValueError, TypeError):
                 diet_rate = 14.0
+            try:
+                monthly_gross_eur = float(updates.get('monthly_gross_eur', 0.0) or 0.0)
+                if monthly_gross_eur < 0 or monthly_gross_eur > 100000:
+                    monthly_gross_eur = 0.0
+            except (ValueError, TypeError):
+                monthly_gross_eur = 0.0
             conn.execute('''
-                INSERT INTO driver_config (card_number, driver_name, personal_nr, double_diet, diet_rate, notes, night_40_enabled, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO driver_config (card_number, driver_name, personal_nr, double_diet, diet_rate, monthly_gross_eur, notes, night_40_enabled, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 cn, '', _sanitize_text(str(updates.get('personal_nr', '')), 50),
-                double_diet, diet_rate, _sanitize_text(str(updates.get('notes', '')), 500),
+                double_diet, diet_rate, monthly_gross_eur, _sanitize_text(str(updates.get('notes', '')), 500),
                 night_40_enabled, now, now,
             ))
         count += 1
@@ -379,6 +401,8 @@ def api_get_config():
         'night_includes_breaks': bool(cfg.get('night_includes_breaks', False)),
         'hidden_features': cfg.get('hidden_features', []),
         'company_name': cfg.get('company_name', 'LTS Logistik GmbH'),
+        'mindestlohn_default_monthly_gross_eur': float(cfg.get('mindestlohn_default_monthly_gross_eur', 2750.0) or 0.0),
+        'mindestlohn_min_hourly_eur': float(cfg.get('mindestlohn_min_hourly_eur', 14.0) or 0.0),
     })
 
 
@@ -406,6 +430,20 @@ def api_update_config():
         cfg['hidden_features'] = list(data['hidden_features']) if isinstance(data['hidden_features'], list) else []
     if 'company_name' in data:
         cfg['company_name'] = str(data['company_name'])[:100]
+    if 'mindestlohn_default_monthly_gross_eur' in data:
+        try:
+            v = float(data['mindestlohn_default_monthly_gross_eur'])
+            if 0 <= v <= 100000:
+                cfg['mindestlohn_default_monthly_gross_eur'] = v
+        except (TypeError, ValueError):
+            pass
+    if 'mindestlohn_min_hourly_eur' in data:
+        try:
+            v = float(data['mindestlohn_min_hourly_eur'])
+            if 0 <= v <= 1000:
+                cfg['mindestlohn_min_hourly_eur'] = v
+        except (TypeError, ValueError):
+            pass
     _save_config(cfg)
     # Clear analysis cache when settings change
     try:

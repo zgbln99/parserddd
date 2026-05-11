@@ -22,6 +22,7 @@ export function DriverConfigEditor({ cardNumber, driverName, onClose, onSaved }:
   const [personalNr, setPersonalNr] = useState('');
   const [doubleDiet, setDoubleDiet] = useState(false);
   const [dietRate, setDietRate] = useState('14.00');
+  const [monthlyGross, setMonthlyGross] = useState('0');
   const [night40Enabled, setNight40Enabled] = useState(true);
   const [notes, setNotes] = useState('');
   const [showHistory, setShowHistory] = useState(false);
@@ -35,6 +36,7 @@ export function DriverConfigEditor({ cardNumber, driverName, onClose, onSaved }:
         setPersonalNr(cfg.personal_nr || '');
         setDoubleDiet(!!cfg.double_diet);
         setDietRate(String(cfg.diet_rate || 14.0));
+        setMonthlyGross(String(cfg.monthly_gross_eur ?? 0));
         setNight40Enabled(cfg.night_40_enabled !== 0);
         setNotes(cfg.notes || '');
         setLoading(false);
@@ -52,6 +54,7 @@ export function DriverConfigEditor({ cardNumber, driverName, onClose, onSaved }:
         personal_nr: personalNr,
         double_diet: doubleDiet ? 1 : 0,
         diet_rate: parseFloat(dietRate) || 14.0,
+        monthly_gross_eur: parseFloat(monthlyGross) || 0,
         night_40_enabled: night40Enabled ? 1 : 0,
         notes,
       });
@@ -63,7 +66,7 @@ export function DriverConfigEditor({ cardNumber, driverName, onClose, onSaved }:
     } finally {
       setSaving(false);
     }
-  }, [cardNumber, driverName, personalNr, doubleDiet, dietRate, night40Enabled, notes, onSaved]);
+  }, [cardNumber, driverName, personalNr, doubleDiet, dietRate, monthlyGross, night40Enabled, notes, onSaved]);
 
   if (loading) return <Spinner />;
 
@@ -107,6 +110,19 @@ export function DriverConfigEditor({ cardNumber, driverName, onClose, onSaved }:
             className={`mt-1 block w-full ${inputCls}`}
             disabled={!isAdmin}
           />
+        </div>
+        <div>
+          <label className={labelCls}>{t('driverMonthlyGross')}</label>
+          <input
+            type="number"
+            step="50"
+            min="0"
+            value={monthlyGross}
+            onChange={(e) => setMonthlyGross(e.target.value)}
+            className={`mt-1 block w-full ${inputCls}`}
+            disabled={!isAdmin}
+          />
+          <p className="mt-1 text-[10px] text-muted">{t('driverMonthlyGrossHint')}</p>
         </div>
         <div className="flex items-center gap-3">
           <label className="relative inline-flex cursor-pointer items-center">

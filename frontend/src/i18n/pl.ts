@@ -197,6 +197,10 @@ export const pl = {
   adminPauseCapHint: 'Na zmianę max 45 min pauzy, reszta jako Bereitschaft',
   adminWeekendDiet: 'Diety weekendowe',
   adminWeekendDietHint: 'Diety liczone też w soboty i niedziele (od 01.04)',
+  adminMindestlohn: 'Mindestlohn — brutto bazowe',
+  adminMindestlohnHint: 'Domyślne miesięczne brutto kierowcy (EUR) do kontroli płacy minimalnej; można nadpisać kwotą rzeczywistą w konfiguracji kierowcy',
+  adminMindestlohnMin: 'Mindestlohn — próg €/h',
+  adminMindestlohnMinHint: 'Minimalna stawka godzinowa brutto (EUR/h), poniżej której zgłaszane jest naruszenie',
 
   // Reader
   readerTitle: 'Czytnik kart DDD',
@@ -282,6 +286,8 @@ export const pl = {
   driverNight40: '40% tylko przy starcie przed północą',
   driverPauseCap: 'Max 45 min pauzy na zmianę',
   driverDietRate: 'Stawka diety',
+  driverMonthlyGross: 'Miesięczne brutto (EUR)',
+  driverMonthlyGrossHint: '0 = użyj wartości domyślnej z ustawień; wpisz rzeczywistą kwotę, aby nadpisać',
   driverNotes: 'Notatki',
   driverNotesPlaceholder: 'Dodatkowe informacje...',
   driverConfigs: 'Konfiguracje kierowców',
