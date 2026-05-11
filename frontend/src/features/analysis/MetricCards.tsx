@@ -70,28 +70,29 @@ export function MetricCards({ s, nightH, totalKm, vma, monthlyDays, mindestlohn,
             {vma.doubleDiet && <span className="ml-1 text-[11px] font-normal opacity-60">(2×{vma.ratePerDay / 2}€)</span>}
           </p>
         </div>
-        {/* Mindestlohn (MiLoG) — effective €/h vs statutory floor */}
-        {mindestlohn && (
-          <div
-            className={`rounded-[10px] p-5 shadow-1 text-center ${mindestlohn.ok ? 'bg-emerald-600' : 'bg-rose-600'}`}
-            title={`${fmtNum(Math.round(mindestlohn.monthlyGrossEur))} € / ${mindestlohn.workHours.toFixed(1)} h — ` +
-              (mindestlohn.grossSource === 'driver'
-                ? (locale === 'de' ? 'Brutto: Fahrerwert' : 'brutto: wartość kierowcy')
-                : (locale === 'de' ? 'Brutto: Standardwert' : 'brutto: wartość domyślna'))}
-          >
-            <p className="text-[12px] font-semibold uppercase tracking-wide text-white/70">
-              {locale === 'de' ? `Mindestlohn (≥ ${mindestlohn.minHourlyEur} €/h)` : `Płaca min. (≥ ${mindestlohn.minHourlyEur} €/h)`}
-            </p>
-            <p className="mt-1.5 text-3xl font-semibold text-white" style={{ letterSpacing: '-0.28px' }}>
-              {mindestlohn.effectiveHourlyEur.toFixed(2).replace('.', ',')} €/h
-            </p>
-            <p className="mt-1 text-[12px] font-medium text-white/80">
-              {fmtNum(Math.round(mindestlohn.monthlyGrossEur))} € / {mindestlohn.workHours.toFixed(1)} h
-              {!mindestlohn.ok && ` · ${locale === 'de' ? 'fehlen' : 'brakuje'} ${mindestlohn.shortfallEur.toFixed(2).replace('.', ',')} €`}
-            </p>
-          </div>
-        )}
       </div>
+
+      {/* Mindestlohn (MiLoG) — slim line when ok, loud alert when below */}
+      {mindestlohn && (mindestlohn.ok ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-[10px] bg-emerald-50 px-4 py-2 text-sm dark:bg-emerald-900/20">
+          <span className="font-semibold text-emerald-800 dark:text-emerald-300">
+            {locale === 'de' ? 'Mindestlohn' : 'Płaca minimalna'} · {mindestlohn.effectiveHourlyEur.toFixed(2).replace('.', ',')} €/h
+            <span className="ml-1.5 font-normal text-emerald-700/70 dark:text-emerald-400/70">
+              ({fmtNum(Math.round(mindestlohn.monthlyGrossEur))} € / {mindestlohn.workHours.toFixed(1)} h)
+            </span>
+          </span>
+          <span className="font-bold text-emerald-700 dark:text-emerald-400">≥ {mindestlohn.minHourlyEur} €/h ✓</span>
+        </div>
+      ) : (
+        <div className="flex items-start gap-2.5 rounded-[10px] border-2 border-rose-400 bg-rose-50 px-4 py-3 dark:border-rose-600 dark:bg-rose-900/25">
+          <span className="text-xl leading-none">⚠</span>
+          <span className="text-sm font-bold text-rose-800 dark:text-rose-200">
+            {locale === 'de'
+              ? `Stundenlohn ${mindestlohn.effectiveHourlyEur.toFixed(2).replace('.', ',')} €/h liegt unter dem Mindestlohn (${mindestlohn.minHourlyEur} €/h)! Es fehlen ${mindestlohn.shortfallEur.toFixed(2).replace('.', ',')} € brutto im Zeitraum (${fmtNum(Math.round(mindestlohn.monthlyGrossEur))} € / ${mindestlohn.workHours.toFixed(1)} h).`
+              : `Stawka ${mindestlohn.effectiveHourlyEur.toFixed(2).replace('.', ',')} €/h jest poniżej płacy minimalnej (${mindestlohn.minHourlyEur} €/h)! Brakuje ${mindestlohn.shortfallEur.toFixed(2).replace('.', ',')} € brutto w tym okresie (${fmtNum(Math.round(mindestlohn.monthlyGrossEur))} € / ${mindestlohn.workHours.toFixed(1)} h).`}
+          </span>
+        </div>
+      ))}
 
       {/* Duration breakdown + total km */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
