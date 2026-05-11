@@ -132,6 +132,31 @@ def _filter_report_by_categories(
     }
 
 
+@bp.route("/api/mindestlohn/settings", methods=["GET"])
+@login_required
+def api_mindestlohn_settings():
+    """Company-wide MiLoG parameters (login-only, not admin-only).
+
+    The analysis and settlement views read this to flag drivers whose
+    effective €/h falls below the floor. The per-driver override lives on
+    ``driver_config.monthly_gross_eur`` and is returned with the driver
+    configs, not here.
+    """
+    cfg = _load_config()
+    try:
+        default_gross = float(cfg.get("mindestlohn_default_monthly_gross_eur", 2750.0) or 0.0)
+    except (TypeError, ValueError):
+        default_gross = 2750.0
+    try:
+        min_hourly = float(cfg.get("mindestlohn_min_hourly_eur", 14.0) or 14.0)
+    except (TypeError, ValueError):
+        min_hourly = 14.0
+    return jsonify({
+        "default_monthly_gross_eur": default_gross,
+        "min_hourly_eur": min_hourly,
+    })
+
+
 @bp.route("/api/compliance/months", methods=["GET"])
 @login_required
 def api_list_months():

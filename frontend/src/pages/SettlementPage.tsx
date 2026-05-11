@@ -2,10 +2,11 @@ import { useState, useCallback, useMemo, useRef } from 'react';
 import { Download, RefreshCw, AlertCircle, Calendar, Users, Clock, Moon, UtensilsCrossed, FileText } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { useDateFilter } from '../hooks/useDateFilter';
-import { fetchDrivers, analyzeDropboxFile, exportDatevBatch, fetchDriverConfigs } from '../lib/api';
-import type { SettlementDriver } from '../lib/api';
+import { fetchDrivers, analyzeDropboxFile, exportDatevBatch, fetchDriverConfigs, fetchMindestlohnSettings } from '../lib/api';
+import type { SettlementDriver, MindestlohnSettings } from '../lib/api';
 import { generateSettlementPdf } from '../lib/pdf-generator';
 import type { DriverConfig } from '../lib/api';
+import { computeMindestlohn } from '../lib/mindestlohn';
 import type { Driver, ShiftDetail } from '../types';
 import { Card } from '../components/Card';
 import { Badge } from '../components/Badge';
@@ -19,6 +20,7 @@ export function SettlementPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [drivers, setDrivers] = useState<SettlementDriver[]>([]);
+  const [mlzSettings, setMlzSettings] = useState<MindestlohnSettings | null>(null);
   const [period, setPeriod] = useState('');
   const [exporting, setExporting] = useState(false);
   const [progress, setProgress] = useState({ current: 0, total: 0, name: '' });
@@ -42,11 +44,13 @@ export function SettlementPage() {
     setProgress({ current: 0, total: 0, name: '' });
 
     try {
-      // Step 1: Load driver list and configs
-      const [driversData, configsData] = await Promise.all([
+      // Step 1: Load driver list, configs and the MiLoG parameters
+      const [driversData, configsData, mlz] = await Promise.all([
         fetchDrivers(),
         fetchDriverConfigs(),
+        fetchMindestlohnSettings().catch(() => null),
       ]);
+      setMlzSettings(mlz);
 
       const allDrivers = driversData.drivers.filter((d: Driver) => d.files.length > 0);
       const configMap = new Map<string, DriverConfig>();
@@ -89,12 +93,17 @@ export function SettlementPage() {
           // diet_count stays the same, VMA doubles the rate
           const vmaPerDay = doubleDiet ? dietRate * 2 : dietRate;
 
+          const mindestlohn = mlz
+            ? computeMindestlohn(totalWork, { monthlyGrossOverride: dcfg?.monthly_gross_eur, settings: mlz })
+            : null;
+
           results.push({
             driver_name: driver.name,
             card_number: cardNumber,
             personal_nr: personalNr,
             double_diet: doubleDiet,
             diet_rate: dietRate,
+            mindestlohn,
             summary: {
               total_work_minutes: totalWork,
               total_work_hm: minutesToHm(totalWork),
@@ -156,7 +165,7 @@ export function SettlementPage() {
   }, [drivers, period]);
 
   const totals = useMemo(() => {
-    let work = 0, n25 = 0, n40 = 0, diets = 0, vma = 0, shifts = 0;
+    let work = 0, n25 = 0, n40 = 0, diets = 0, vma = 0, shifts = 0, belowMlz = 0;
     for (const d of drivers) {
       work += d.summary.total_work_minutes;
       n25 += d.summary.night_25_minutes;
@@ -164,9 +173,27 @@ export function SettlementPage() {
       diets += d.summary.effective_diet_count;
       vma += d.summary.vma_amount;
       shifts += d.summary.total_shifts;
+      if (d.mindestlohn && !d.mindestlohn.ok) belowMlz++;
     }
-    return { work, n25, n40, diets, vma, shifts };
+    return { work, n25, n40, diets, vma, shifts, belowMlz };
   }, [drivers]);
+
+  const fmtRate = (d: SettlementDriver) => {
+    const ml = d.mindestlohn;
+    if (!ml) return <span className="text-muted">—</span>;
+    const txt = `${ml.effectiveHourlyEur.toFixed(2).replace('.', ',')} €`;
+    const title = `${Math.round(ml.monthlyGrossEur)} € / ${ml.workHours.toFixed(1)} h` +
+      (ml.grossSource === 'driver' ? '' : ` (${locale === 'de' ? 'Standard' : 'domyślne'})`) +
+      (ml.ok ? '' : ` · ${locale === 'de' ? 'fehlen' : 'brakuje'} ${ml.shortfallEur.toFixed(2).replace('.', ',')} €`);
+    return (
+      <span
+        title={title}
+        className={ml.ok ? 'font-mono text-emerald-600 dark:text-emerald-400' : 'font-mono font-bold text-rose-600 dark:text-rose-400'}
+      >
+        {txt}{ml.ok ? '' : ' ⚠'}
+      </span>
+    );
+  };
 
   const fmtH = (min: number) => {
     const h = Math.floor(min / 60);
@@ -304,6 +331,13 @@ export function SettlementPage() {
               <p className="text-2xl font-bold">{fmtEur(totals.vma)}</p>
               <p className="text-xs text-muted">VMA</p>
             </Card>
+            {mlzSettings && (
+              <Card className={`p-4 text-center ${totals.belowMlz > 0 ? 'ring-1 ring-rose-300 dark:ring-rose-700' : ''}`}>
+                <AlertCircle size={20} className={`mx-auto mb-1 ${totals.belowMlz > 0 ? 'text-rose-500' : 'text-emerald-500'}`} />
+                <p className="text-2xl font-bold">{totals.belowMlz}</p>
+                <p className="text-xs text-muted">{t('settlementBelowMin')}</p>
+              </Card>
+            )}
           </div>
 
           {/* Driver table */}
@@ -327,6 +361,7 @@ export function SettlementPage() {
                   {d.personal_nr && <CardField label={t('settlementPersonalNr')} value={<span className="font-mono text-xs">{d.personal_nr}</span>} />}
                   <CardField label={t('analysisShifts')} value={<Badge variant="gray">{d.summary.total_shifts}</Badge>} />
                   <CardField label={t('analysisWorkTime')} value={<span className="font-mono">{d.summary.total_work_hm}</span>} />
+                  <CardField label={t('settlementHourlyRate')} value={fmtRate(d)} />
                   <CardField label={t('analysisNight25')} value={<span className="font-mono text-indigo-600 dark:text-indigo-400">{fmtDec(d.summary.night_25_minutes)}</span>} />
                   <CardField label={t('analysisNight40')} value={<span className="font-mono text-purple-600 dark:text-purple-400">{fmtDec(d.summary.night_40_minutes)}</span>} />
                   <CardField label={t('analysisDiet')} value={
@@ -345,6 +380,7 @@ export function SettlementPage() {
                 <CardField label={t('analysisNight40')} value={<span className="font-mono font-bold text-purple-600 dark:text-purple-400">{fmtDec(totals.n40)}</span>} />
                 <CardField label={t('analysisDiet')} value={<span className="font-bold">{totals.diets}</span>} />
                 <CardField label="VMA" value={<span className="font-bold text-emerald-600 dark:text-emerald-400">{fmtEur(totals.vma)}</span>} />
+                {totals.belowMlz > 0 && <CardField label={t('settlementBelowMin')} value={<span className="font-bold text-rose-600 dark:text-rose-400">{totals.belowMlz}</span>} />}
               </div>
             </div>
 
@@ -358,6 +394,7 @@ export function SettlementPage() {
                     <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted">{t('driversName')}</th>
                     <th className="whitespace-nowrap px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-muted">{t('analysisShifts')}</th>
                     <th className="whitespace-nowrap px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-muted">{t('analysisWorkTime')}</th>
+                    <th className="whitespace-nowrap px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-muted">{t('settlementHourlyRate')}</th>
                     <th className="whitespace-nowrap px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-muted">{t('analysisNight25')}</th>
                     <th className="whitespace-nowrap px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-muted">{t('analysisNight40')}</th>
                     <th className="whitespace-nowrap px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-muted">{t('analysisDiet')}</th>
@@ -374,6 +411,7 @@ export function SettlementPage() {
                         <Badge variant="gray">{d.summary.total_shifts}</Badge>
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 text-right font-mono">{d.summary.total_work_hm}</td>
+                      <td className="whitespace-nowrap px-4 py-3 text-right">{fmtRate(d)}</td>
                       <td className="whitespace-nowrap px-4 py-3 text-right font-mono text-indigo-600 dark:text-indigo-400">{fmtDec(d.summary.night_25_minutes)}</td>
                       <td className="whitespace-nowrap px-4 py-3 text-right font-mono text-purple-600 dark:text-purple-400">{fmtDec(d.summary.night_40_minutes)}</td>
                       <td className="whitespace-nowrap px-4 py-3 text-right">
@@ -394,6 +432,7 @@ export function SettlementPage() {
                     <td className="px-4 py-3" colSpan={3}>{t('settlementTotal')}</td>
                     <td className="whitespace-nowrap px-4 py-3 text-right">{totals.shifts}</td>
                     <td className="whitespace-nowrap px-4 py-3 text-right font-mono">{fmtH(totals.work)}</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-right text-xs">{totals.belowMlz > 0 ? <span className="font-bold text-rose-600 dark:text-rose-400">{totals.belowMlz} ⚠</span> : <span className="text-emerald-600 dark:text-emerald-400">✓</span>}</td>
                     <td className="whitespace-nowrap px-4 py-3 text-right font-mono text-indigo-600 dark:text-indigo-400">{fmtDec(totals.n25)}</td>
                     <td className="whitespace-nowrap px-4 py-3 text-right font-mono text-purple-600 dark:text-purple-400">{fmtDec(totals.n40)}</td>
                     <td className="whitespace-nowrap px-4 py-3 text-right">{totals.diets}</td>

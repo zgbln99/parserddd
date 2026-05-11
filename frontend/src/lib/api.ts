@@ -508,6 +508,15 @@ export interface SyncConfig {
 export const fetchConfig = () =>
   request<SyncConfig>('/api/admin/config');
 
+// MiLoG minimum-wage parameters (login-only, not admin-only)
+export interface MindestlohnSettings {
+  default_monthly_gross_eur: number;
+  min_hourly_eur: number;
+}
+
+export const fetchMindestlohnSettings = () =>
+  request<MindestlohnSettings>('/api/mindestlohn/settings');
+
 export const updateConfig = (data: Record<string, string | number | string[]>) =>
   request<{ ok: boolean }>('/api/admin/config', {
     method: 'POST',
@@ -659,6 +668,7 @@ export interface SettlementDriver {
   diet_rate: number;
   summary: SettlementDriverSummary;
   shifts: unknown[];
+  mindestlohn?: import('./mindestlohn').MindestlohnResult | null;
 }
 
 export const fetchSettlement = (period: string) =>

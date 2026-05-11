@@ -341,6 +341,8 @@ export const de: Record<TranslationKey, string> = {
   settlementDrivers: 'Fahrer',
   settlementPersonalNr: 'Personalnr.',
   settlementTotal: 'GESAMT',
+  settlementHourlyRate: 'Stundenlohn €/h',
+  settlementBelowMin: 'Unter Mindestlohn',
 
   // Vehicles (controlling)
   navVehicles: 'Fahrzeuge',

@@ -339,6 +339,8 @@ export const pl = {
   settlementDrivers: 'Kierowców',
   settlementPersonalNr: 'Nr personalny',
   settlementTotal: 'RAZEM',
+  settlementHourlyRate: 'Stawka €/h',
+  settlementBelowMin: 'Poniżej Mindestlohn',
 
   // Vehicles (controlling)
   navVehicles: 'Pojazdy',

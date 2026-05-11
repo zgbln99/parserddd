@@ -2,8 +2,9 @@ import { useMemo, useState, useCallback, useRef, useEffect } from 'react';
 import { useI18n } from '../i18n';
 import { formatDate } from '../lib/format';
 import { getHolidayMap } from '../lib/holidays';
-import { exportCsv, exportDatev, fetchDriverConfig, fetchMonthlyDays, saveMonthlyDays } from '../lib/api';
-import type { DriverConfig, MonthlyDays } from '../lib/api';
+import { exportCsv, exportDatev, fetchDriverConfig, fetchMonthlyDays, saveMonthlyDays, fetchMindestlohnSettings } from '../lib/api';
+import type { DriverConfig, MonthlyDays, MindestlohnSettings } from '../lib/api';
+import { computeMindestlohn, parseHmToMinutes } from '../lib/mindestlohn';
 import { Badge } from '../components/Badge';
 import { Spinner } from '../components/Spinner';
 import { BarChart } from '../components/BarChart';
@@ -71,6 +72,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
   const allShifts = data.shift_details;
   const [showConfig, setShowConfig] = useState(false);
   const [driverConfig, setDriverConfig] = useState<DriverConfig | null>(null);
+  const [mindestlohnSettings, setMindestlohnSettings] = useState<MindestlohnSettings | null>(null);
 
   // Load driver config for VMA calculation
   useEffect(() => {
@@ -80,6 +82,13 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
         .catch(() => setDriverConfig(null));
     }
   }, [di.card_number]);
+
+  // MiLoG minimum-wage parameters (company-wide default + threshold)
+  useEffect(() => {
+    fetchMindestlohnSettings()
+      .then(setMindestlohnSettings)
+      .catch(() => setMindestlohnSettings(null));
+  }, []);
 
   // Filter shifts by date range
   const shifts = useMemo(() => {
@@ -260,6 +269,17 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
         .catch(() => setMonthlyDays(null));
     }
   }, [di.card_number, period]);
+
+  // MiLoG check: monthly gross / Arbeitszeit (override hours win when set).
+  const mindestlohn = useMemo(() => {
+    if (!mindestlohnSettings) return null;
+    const overrideMin = parseHmToMinutes(monthlyDays?.override_work_hm);
+    const workMin = overrideMin ?? s.total_work_minutes;
+    return computeMindestlohn(workMin, {
+      monthlyGrossOverride: driverConfig?.monthly_gross_eur,
+      settings: mindestlohnSettings,
+    });
+  }, [mindestlohnSettings, monthlyDays?.override_work_hm, s.total_work_minutes, driverConfig?.monthly_gross_eur]);
 
   const handleMonthlyChange = useCallback((field: 'vacation_days' | 'sick_days' | 'overtime_hm', value: string) => {
     setMonthlyDays((prev) => {
@@ -570,7 +590,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
         </div>
       )}
 
-      <MetricCards s={s} nightH={nightH} totalKm={totalKm} vma={vma} monthlyDays={monthlyDays} fv={fv} />
+      <MetricCards s={s} nightH={nightH} totalKm={totalKm} vma={vma} monthlyDays={monthlyDays} mindestlohn={mindestlohn} fv={fv} />
 
 
       {/* Monthly grid copy block (hidden on mobile - 31-col table) */}
