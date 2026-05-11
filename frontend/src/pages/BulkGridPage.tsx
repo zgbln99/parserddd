@@ -7,6 +7,7 @@ import type { DriverConfig } from '../lib/api';
 import type { Driver, ShiftDetail } from '../types';
 import { Card } from '../components/Card';
 import { Spinner } from '../components/Spinner';
+import { MonthSelect } from '../components/MonthSelect';
 import { minutesToHm } from '../lib/utils';
 
 interface BulkDriverRow {
@@ -193,10 +194,9 @@ export function BulkGridPage() {
       <Card className="p-4">
         <div className="flex flex-wrap items-center gap-3">
           <Calendar size={16} className="text-muted" />
-          <input
-            type="month"
+          <MonthSelect
             value={selectedPeriod}
-            onChange={(e) => setSelectedPeriod(e.target.value)}
+            onChange={setSelectedPeriod}
             className="input rounded-lg px-3 py-2 text-sm"
           />
           {!driversLoaded ? (

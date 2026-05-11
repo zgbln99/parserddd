@@ -10,6 +10,7 @@ import { fetchDrivers, parseVacationPdf, fetchPayrollStatus, setPayrollStatus, a
 import { Card, StatCard } from '../components/Card';
 import { Badge } from '../components/Badge';
 import { Spinner } from '../components/Spinner';
+import { MonthSelect } from '../components/MonthSelect';
 import type { Driver } from '../types';
 
 // Match vacation name to driver name (fuzzy: compare last names)
@@ -281,10 +282,9 @@ export function PayrollPage() {
           <p className="text-sm text-muted mt-1">{t('payrollSubtitle')}</p>
         </div>
         <div className="flex items-center gap-3">
-          <input
-            type="month"
+          <MonthSelect
             value={period}
-            onChange={e => setPeriod(e.target.value)}
+            onChange={setPeriod}
             className="input rounded-lg px-3 py-2 text-sm"
           />
           <button

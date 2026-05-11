@@ -250,6 +250,8 @@ export const pl = {
   filterThisMonth: 'Ten miesiąc',
   filterLastMonth: 'Poprzedni miesiąc',
   filterLast30: 'Ostatnie 30 dni',
+  filterMonth: 'Wybierz miesiąc',
+  filterCustomRange: 'Własny zakres',
 
   // PDF export
   analysisExportPdf: 'Eksport PDF',

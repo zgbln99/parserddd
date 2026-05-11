@@ -9,6 +9,7 @@ import { parseStundenzettel, fetchConfig, type StundenzettelDay } from '../lib/a
 import { Card, StatCard } from '../components/Card';
 import { Badge } from '../components/Badge';
 import { Spinner } from '../components/Spinner';
+import { MonthSelect } from '../components/MonthSelect';
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: string | null }> {
   state = { error: null as string | null };
@@ -315,10 +316,9 @@ export function StundenzettelPage() {
           <p className="text-sm text-muted mt-1">{t('stzSubtitle')}</p>
         </div>
         <div className="flex items-center gap-2">
-          <input
-            type="month"
+          <MonthSelect
             value={period}
-            onChange={e => handlePeriodChange(e.target.value)}
+            onChange={handlePeriodChange}
             className="input rounded-lg px-3 py-2 text-sm"
           />
         </div>

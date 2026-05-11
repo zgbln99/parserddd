@@ -252,6 +252,8 @@ export const de: Record<TranslationKey, string> = {
   filterThisMonth: 'Dieser Monat',
   filterLastMonth: 'Letzter Monat',
   filterLast30: 'Letzte 30 Tage',
+  filterMonth: 'Monat wählen',
+  filterCustomRange: 'Eigener Zeitraum',
 
   // PDF export
   analysisExportPdf: 'PDF-Export',

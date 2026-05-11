@@ -12,6 +12,7 @@ import { Card } from '../components/Card';
 import { Badge } from '../components/Badge';
 import { Spinner } from '../components/Spinner';
 import { CardField } from '../components/MobileCards';
+import { MonthSelect } from '../components/MonthSelect';
 import { minutesToHm, monthLabel } from '../lib/utils';
 
 export function SettlementPage() {
@@ -216,10 +217,9 @@ export function SettlementPage() {
             <label className="mb-1 block text-sm font-medium text-muted">
               {t('settlementPeriod')}
             </label>
-            <input
-              type="month"
+            <MonthSelect
               value={selectedPeriod || defaultPeriod}
-              onChange={(e) => setSelectedPeriod(e.target.value)}
+              onChange={setSelectedPeriod}
               className="input rounded-xl px-3 py-2 text-sm outline-none"
             />
           </div>

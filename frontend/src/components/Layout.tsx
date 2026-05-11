@@ -14,6 +14,8 @@ import { clsx } from 'clsx';
 import type { ReactNode } from 'react';
 import { AccentPicker } from './AccentPicker';
 import { PageTransition } from './PageTransition';
+import { MonthSelect } from './MonthSelect';
+import { monthRange, dateRangeToMonth } from '../lib/utils';
 
 const baseNavItems = [
   { to: '/', icon: LayoutDashboard, labelKey: 'navDashboard' as const, permission: 'dashboard' },
@@ -317,6 +319,14 @@ export function Layout({ children }: { children: ReactNode }) {
             {/* Date filter */}
             <Calendar size={14} className="hidden text-muted sm:block" />
             <div className="flex flex-1 flex-wrap items-center gap-2">
+              <MonthSelect
+                value={dateRangeToMonth(dateFrom, dateTo)}
+                onChange={(v) => { if (v) { const r = monthRange(v); setDateFrom(r.from); setDateTo(r.to); } }}
+                allowEmpty
+                emptyLabel={t('filterCustomRange')}
+                title={t('filterMonth')}
+                className="input rounded-lg px-3 py-2 text-sm sm:text-xs sm:px-2 sm:py-1 min-h-[44px] sm:min-h-0"
+              />
               {[
                 { label: t('filterThisMonth'), fn: () => { const now = new Date(); setDateFrom(`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`); const last = new Date(now.getFullYear(), now.getMonth()+1, 0); setDateTo(`${last.getFullYear()}-${String(last.getMonth()+1).padStart(2,'0')}-${String(last.getDate()).padStart(2,'0')}`); }},
                 { label: t('filterLastMonth'), fn: () => { const now = new Date(); const first = new Date(now.getFullYear(), now.getMonth()-1, 1); const last = new Date(now.getFullYear(), now.getMonth(), 0); setDateFrom(`${first.getFullYear()}-${String(first.getMonth()+1).padStart(2,'0')}-01`); setDateTo(`${last.getFullYear()}-${String(last.getMonth()+1).padStart(2,'0')}-${String(last.getDate()).padStart(2,'0')}`); }},
