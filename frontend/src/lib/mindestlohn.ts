@@ -7,6 +7,12 @@
 
 import type { MindestlohnSettings } from './api';
 
+/** Fallback used when /api/mindestlohn/settings is unavailable. */
+export const DEFAULT_MINDESTLOHN_SETTINGS: MindestlohnSettings = {
+  default_monthly_gross_eur: 2750,
+  min_hourly_eur: 14,
+};
+
 export interface MindestlohnResult {
   workMinutes: number;
   workHours: number;

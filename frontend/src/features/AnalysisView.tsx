@@ -4,7 +4,7 @@ import { formatDate } from '../lib/format';
 import { getHolidayMap } from '../lib/holidays';
 import { exportCsv, exportDatev, fetchDriverConfig, fetchMonthlyDays, saveMonthlyDays, fetchMindestlohnSettings } from '../lib/api';
 import type { DriverConfig, MonthlyDays, MindestlohnSettings } from '../lib/api';
-import { computeMindestlohn, parseHmToMinutes } from '../lib/mindestlohn';
+import { computeMindestlohn, parseHmToMinutes, DEFAULT_MINDESTLOHN_SETTINGS } from '../lib/mindestlohn';
 import { Badge } from '../components/Badge';
 import { Spinner } from '../components/Spinner';
 import { BarChart } from '../components/BarChart';
@@ -72,7 +72,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
   const allShifts = data.shift_details;
   const [showConfig, setShowConfig] = useState(false);
   const [driverConfig, setDriverConfig] = useState<DriverConfig | null>(null);
-  const [mindestlohnSettings, setMindestlohnSettings] = useState<MindestlohnSettings | null>(null);
+  const [mindestlohnSettings, setMindestlohnSettings] = useState<MindestlohnSettings>(DEFAULT_MINDESTLOHN_SETTINGS);
 
   // Load driver config for VMA calculation
   useEffect(() => {
@@ -83,11 +83,13 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
     }
   }, [di.card_number]);
 
-  // MiLoG minimum-wage parameters (company-wide default + threshold)
+  // MiLoG minimum-wage parameters (company-wide default + threshold).
+  // Falls back to sensible defaults so the tile shows even on an
+  // older backend without the /api/mindestlohn/settings endpoint.
   useEffect(() => {
     fetchMindestlohnSettings()
       .then(setMindestlohnSettings)
-      .catch(() => setMindestlohnSettings(null));
+      .catch(() => setMindestlohnSettings(DEFAULT_MINDESTLOHN_SETTINGS));
   }, []);
 
   // Filter shifts by date range

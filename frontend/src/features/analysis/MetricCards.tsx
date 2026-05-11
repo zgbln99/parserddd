@@ -70,43 +70,28 @@ export function MetricCards({ s, nightH, totalKm, vma, monthlyDays, mindestlohn,
             {vma.doubleDiet && <span className="ml-1 text-[11px] font-normal opacity-60">(2×{vma.ratePerDay / 2}€)</span>}
           </p>
         </div>
-      </div>
-
-      {/* Mindestlohn (MiLoG) — effective €/h vs statutory floor */}
-      {mindestlohn && (
-        <div className={`rounded-[10px] p-4 shadow-1 ${mindestlohn.ok ? 'bg-emerald-50 dark:bg-emerald-900/20' : 'bg-rose-50 dark:bg-rose-900/20'}`}>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p className="text-[12px] font-semibold uppercase tracking-wide text-muted">
-                {locale === 'de' ? 'Mindestlohn (MiLoG)' : 'Płaca minimalna (Mindestlohn)'}
-              </p>
-              <p className={`mt-1 text-2xl font-bold ${mindestlohn.ok ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-700 dark:text-rose-400'}`}>
-                {mindestlohn.effectiveHourlyEur.toFixed(2).replace('.', ',')} €/h
-                <span className="ml-2 text-sm font-medium text-muted">
-                  ({fmtNum(Math.round(mindestlohn.monthlyGrossEur))} € / {mindestlohn.workHours.toFixed(1)} h)
-                </span>
-              </p>
-            </div>
-            <div className="text-right">
-              <span className={`inline-block rounded-full px-3 py-1 text-sm font-bold text-white ${mindestlohn.ok ? 'bg-emerald-600' : 'bg-rose-600'}`}>
-                {mindestlohn.ok
-                  ? `≥ ${mindestlohn.minHourlyEur} €/h ✓`
-                  : (locale === 'de' ? `unter ${mindestlohn.minHourlyEur} €/h!` : `poniżej ${mindestlohn.minHourlyEur} €/h!`)}
-              </span>
-              {!mindestlohn.ok && (
-                <p className="mt-1 text-xs font-medium text-rose-700 dark:text-rose-400">
-                  {locale === 'de' ? 'fehlen' : 'brakuje'} {mindestlohn.shortfallEur.toFixed(2).replace('.', ',')} € brutto
-                </p>
-              )}
-              <p className="mt-1 text-[11px] text-muted">
-                {mindestlohn.grossSource === 'driver'
-                  ? (locale === 'de' ? 'Brutto: Fahrerwert' : 'Brutto: wartość kierowcy')
-                  : (locale === 'de' ? 'Brutto: Standardwert' : 'Brutto: wartość domyślna')}
-              </p>
-            </div>
+        {/* Mindestlohn (MiLoG) — effective €/h vs statutory floor */}
+        {mindestlohn && (
+          <div
+            className={`rounded-[10px] p-5 shadow-1 text-center ${mindestlohn.ok ? 'bg-emerald-600' : 'bg-rose-600'}`}
+            title={`${fmtNum(Math.round(mindestlohn.monthlyGrossEur))} € / ${mindestlohn.workHours.toFixed(1)} h — ` +
+              (mindestlohn.grossSource === 'driver'
+                ? (locale === 'de' ? 'Brutto: Fahrerwert' : 'brutto: wartość kierowcy')
+                : (locale === 'de' ? 'Brutto: Standardwert' : 'brutto: wartość domyślna'))}
+          >
+            <p className="text-[12px] font-semibold uppercase tracking-wide text-white/70">
+              {locale === 'de' ? `Mindestlohn (≥ ${mindestlohn.minHourlyEur} €/h)` : `Płaca min. (≥ ${mindestlohn.minHourlyEur} €/h)`}
+            </p>
+            <p className="mt-1.5 text-3xl font-semibold text-white" style={{ letterSpacing: '-0.28px' }}>
+              {mindestlohn.effectiveHourlyEur.toFixed(2).replace('.', ',')} €/h
+            </p>
+            <p className="mt-1 text-[12px] font-medium text-white/80">
+              {fmtNum(Math.round(mindestlohn.monthlyGrossEur))} € / {mindestlohn.workHours.toFixed(1)} h
+              {!mindestlohn.ok && ` · ${locale === 'de' ? 'fehlen' : 'brakuje'} ${mindestlohn.shortfallEur.toFixed(2).replace('.', ',')} €`}
+            </p>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Duration breakdown + total km */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">

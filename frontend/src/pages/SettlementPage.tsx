@@ -6,7 +6,7 @@ import { fetchDrivers, analyzeDropboxFile, exportDatevBatch, fetchDriverConfigs,
 import type { SettlementDriver, MindestlohnSettings } from '../lib/api';
 import { generateSettlementPdf } from '../lib/pdf-generator';
 import type { DriverConfig } from '../lib/api';
-import { computeMindestlohn } from '../lib/mindestlohn';
+import { computeMindestlohn, DEFAULT_MINDESTLOHN_SETTINGS } from '../lib/mindestlohn';
 import type { Driver, ShiftDetail } from '../types';
 import { Card } from '../components/Card';
 import { Badge } from '../components/Badge';
@@ -49,7 +49,7 @@ export function SettlementPage() {
       const [driversData, configsData, mlz] = await Promise.all([
         fetchDrivers(),
         fetchDriverConfigs(),
-        fetchMindestlohnSettings().catch(() => null),
+        fetchMindestlohnSettings().catch(() => DEFAULT_MINDESTLOHN_SETTINGS),
       ]);
       setMlzSettings(mlz);
 
