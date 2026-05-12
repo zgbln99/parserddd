@@ -1,12 +1,12 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   Users, RefreshCw, CheckCircle, Circle, AlertCircle,
-  FileText, Clock, CheckSquare, Square, Filter, BarChart3,
+  FileText, FileSpreadsheet, Download, Clock, CheckSquare, Square, Filter, BarChart3,
   Upload, Palmtree, X, Zap,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useI18n } from '../i18n';
-import { fetchDrivers, parseVacationPdf, fetchPayrollStatus, setPayrollStatus, analyzeDropboxFile, type VacationEntry, type PayrollStatusValue } from '../lib/api';
+import { fetchDrivers, parseVacationPdf, fetchPayrollStatus, setPayrollStatus, analyzeDropboxFile, uploadFahrerliste, fahrerlisteStatus, fahrerlisteDownloadUrl, type VacationEntry, type PayrollStatusValue, type FahrerlisteStatus } from '../lib/api';
 import { Card, StatCard } from '../components/Card';
 import { Badge } from '../components/Badge';
 import { Spinner } from '../components/Spinner';
@@ -104,6 +104,34 @@ export function PayrollPage() {
       if (vacFileRef.current) vacFileRef.current.value = '';
     }
   }, []);
+
+  // Fahrerliste (accountant's monthly Excel) for the selected period
+  const flFileRef = useRef<HTMLInputElement>(null);
+  const [flStatus, setFlStatus] = useState<FahrerlisteStatus | null>(null);
+  const [flUploading, setFlUploading] = useState(false);
+
+  useEffect(() => {
+    if (!period) { setFlStatus(null); return; }
+    let cancelled = false;
+    fahrerlisteStatus(period).then((s) => { if (!cancelled) setFlStatus(s); }).catch(() => { if (!cancelled) setFlStatus(null); });
+    return () => { cancelled = true; };
+  }, [period]);
+
+  const handleFahrerlisteUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !period) return;
+    setFlUploading(true);
+    try {
+      await uploadFahrerliste(period, file);
+      const s = await fahrerlisteStatus(period);
+      setFlStatus(s);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setFlUploading(false);
+      if (flFileRef.current) flFileRef.current.value = '';
+    }
+  }, [period]);
 
   const loadDrivers = useCallback(async (refresh = false) => {
     setLoading(true);
@@ -339,6 +367,32 @@ export function PayrollPage() {
             </button>
           </span>
         )}
+
+        {/* Fahrerliste (accountant's monthly Excel) */}
+        <div className="ml-auto flex items-center gap-3 flex-wrap">
+          <label className="btn-secondary inline-flex items-center gap-2 px-3 py-2 text-sm cursor-pointer" title={t('fahrerlisteUpload')}>
+            <FileSpreadsheet size={14} />
+            {flStatus?.exists ? (locale === 'de' ? 'Fahrerliste ersetzen' : 'Podmień listę') : t('fahrerlisteUpload')}
+            <input ref={flFileRef} type="file" accept=".xlsx,.xlsm" className="hidden" onChange={handleFahrerlisteUpload} />
+          </label>
+          {flUploading && <Spinner />}
+          {flStatus?.exists ? (
+            <>
+              <span className="text-xs text-muted">
+                {flStatus.count ?? 0} {t('fahrerlisteCount')}
+              </span>
+              <a
+                href={fahrerlisteDownloadUrl(period)}
+                className="btn-secondary inline-flex items-center gap-2 px-3 py-2 text-sm"
+              >
+                <Download size={14} />
+                {t('fahrerlisteDownload')}
+              </a>
+            </>
+          ) : (
+            <span className="text-xs text-muted">{t('fahrerlisteNone')}</span>
+          )}
+        </div>
       </div>
 
       {/* Filters */}

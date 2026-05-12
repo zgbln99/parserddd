@@ -2,13 +2,13 @@ import { useMemo, useState, useCallback, useRef, useEffect } from 'react';
 import { useI18n } from '../i18n';
 import { formatDate } from '../lib/format';
 import { getHolidayMap } from '../lib/holidays';
-import { exportCsv, exportDatev, fetchDriverConfig, fetchMonthlyDays, saveMonthlyDays, fetchMindestlohnSettings } from '../lib/api';
+import { exportCsv, exportDatev, fetchDriverConfig, fetchMonthlyDays, saveMonthlyDays, fetchMindestlohnSettings, fahrerlisteFill } from '../lib/api';
 import type { DriverConfig, MonthlyDays, MindestlohnSettings } from '../lib/api';
 import { computeMindestlohn, parseHmToMinutes, DEFAULT_MINDESTLOHN_SETTINGS } from '../lib/mindestlohn';
 import { Badge } from '../components/Badge';
 import { Spinner } from '../components/Spinner';
 import { BarChart } from '../components/BarChart';
-import { ClipboardCopy, Check, Printer, BarChart3, UtensilsCrossed, FileText, Settings, CalendarDays, HardDrive, Pencil, RotateCcw, Scissors, Trash2, Plus } from 'lucide-react';
+import { ClipboardCopy, Check, Printer, BarChart3, UtensilsCrossed, FileText, FileSpreadsheet, Settings, CalendarDays, HardDrive, Pencil, RotateCcw, Scissors, Trash2, Plus } from 'lucide-react';
 import type { AnalysisResult, ShiftDetail } from '../types';
 import { DriverConfigEditor } from './DriverConfigEditor';
 import { ArbeitszeitReport } from './ArbeitszeitReport';
@@ -263,6 +263,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
 
   const [monthlyDays, setMonthlyDays] = useState<MonthlyDays | null>(null);
   const [savingMonthly, setSavingMonthly] = useState(false);
+  const [sendingToList, setSendingToList] = useState(false);
 
   useEffect(() => {
     if (di.card_number && period) {
@@ -529,6 +530,60 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
     pw.print();
   }, [shifts, di, s, t, locale]);
 
+  const handleSendToFahrerliste = useCallback(async () => {
+    if (!period) {
+      toast(locale === 'de' ? 'Kein Monat ausgewählt' : 'Nie wybrano miesiąca', 'error');
+      return;
+    }
+    setSendingToList(true);
+    try {
+      const hm = (m: number) => `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}`;
+      const dayMin: Record<number, number> = {};
+      for (let i = 0; i < workingShifts.length; i++) {
+        const sh = applyOverride(workingShifts[i], i);
+        const ds = sh.grid_date || sh.shift_date;
+        if (!ds || ds.slice(0, 7) !== period) continue;
+        const d = parseInt(ds.slice(8, 10), 10);
+        if (!isNaN(d)) dayMin[d] = (dayMin[d] || 0) + (sh.duration_minutes || 0);
+      }
+      const days: Record<string, string> = {};
+      for (const [d, m] of Object.entries(dayMin)) if (m > 0) days[d] = hm(m);
+      const absences: Record<string, string> = {};
+      const ad = monthlyDays?.absence_days;
+      if (ad && typeof ad === 'object') {
+        for (const [dateStr, mark] of Object.entries(ad)) {
+          if (typeof dateStr === 'string' && dateStr.slice(0, 7) === period) {
+            const d = parseInt(dateStr.slice(8, 10), 10);
+            if (!isNaN(d)) absences[String(d)] = String(mark);
+          }
+        }
+      }
+      const res = await fahrerlisteFill({
+        period,
+        driver_name: di.driver_name || '',
+        driver_card: di.card_number || '',
+        days,
+        absences,
+        n25: monthlyDays?.override_n25 || +(s.night_25_minutes / 60).toFixed(2),
+        n40: monthlyDays?.override_n40 || +(s.night_40_minutes / 60).toFixed(2),
+        vma: s.diet_count,
+        az: monthlyDays?.override_work_hm || hm(s.total_work_minutes || 0),
+        ur: monthlyDays?.vacation_days || undefined,
+        kr: monthlyDays?.sick_days || undefined,
+      });
+      toast(
+        (locale === 'de' ? 'In die Fahrerliste eingetragen' : 'Wpisano do listy księgowej')
+          + ` (${res.filled?.length || 1}×)`,
+        'success',
+      );
+    } catch (e) {
+      toast((e as Error).message, 'error');
+    } finally {
+      setSendingToList(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [period, workingShifts, monthlyDays, s, di, locale, toast]);
+
   const hasDateFilter = onDateFromChange && onDateToChange;
 
   return (
@@ -581,6 +636,17 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
             >
               <HardDrive size={13} />
               {locale === 'de' ? 'DDD herunterladen' : 'Pobierz DDD'}
+            </button>
+          )}
+          {workingShifts.length > 0 && period && (
+            <button
+              onClick={handleSendToFahrerliste}
+              disabled={sendingToList}
+              title={locale === 'de' ? 'Diesen Fahrer in die hochgeladene Fahrerliste (Excel) eintragen' : 'Wpisz tego kierowcę do wgranej listy księgowej (Excel)'}
+              className="flex items-center gap-1.5 rounded-lg border border-primary-300 px-3 py-1.5 text-xs font-semibold text-primary-700 transition hover:bg-primary-50 disabled:opacity-50 dark:border-primary-700 dark:text-primary-300 dark:hover:bg-primary-900/20"
+            >
+              <FileSpreadsheet size={13} />
+              {sendingToList ? '...' : t('analysisSendToList')}
             </button>
           )}
           {/* Excel copy – inline (hidden on mobile, too wide) */}

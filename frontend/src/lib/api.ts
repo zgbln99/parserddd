@@ -186,6 +186,54 @@ export const analyzeMergedDropboxFiles = (paths: string[]) =>
     body: JSON.stringify({ paths }),
   });
 
+// Fahrerliste — the accountant's monthly driver-list Excel
+export interface FahrerlisteStatus {
+  exists: boolean;
+  period?: string;
+  count?: number;
+  drivers?: string[];
+  sheets?: string[];
+  updated_at?: string;
+  error?: string;
+}
+
+export interface FahrerlisteFillPayload {
+  period: string;
+  driver_name: string;
+  driver_card?: string;
+  days?: Record<string, string>;
+  absences?: Record<string, string>;
+  n25?: number | string;
+  n40?: number | string;
+  vma?: number;
+  az?: string;
+  ur?: number;
+  kr?: number;
+}
+
+export const uploadFahrerliste = (period: string, file: File) => {
+  const form = new FormData();
+  form.append('period', period);
+  form.append('file', file);
+  return request<{ period: string; count: number; drivers: string[]; sheets: string[] }>('/api/fahrerliste/upload', {
+    method: 'POST',
+    body: form,
+  });
+};
+
+export const fahrerlisteStatus = (period: string) =>
+  request<FahrerlisteStatus>(`/api/fahrerliste/status?period=${encodeURIComponent(period)}`);
+
+export const fahrerlisteFill = (payload: FahrerlisteFillPayload) =>
+  request<{ ok: boolean; filled: { sheet: string; row: number }[]; matched_name: string }>('/api/fahrerliste/fill', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+export const fahrerlisteDownloadUrl = (period: string) =>
+  `/api/fahrerliste/download?period=${encodeURIComponent(period)}`;
+
 // ---------------------------------------------------------------------------
 // Compliance (activity-based violation detection on the current analysis
 // result). The endpoint never re-parses the file — it consumes whatever
