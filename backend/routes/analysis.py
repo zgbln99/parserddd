@@ -241,16 +241,18 @@ def _build_merged_ddd(parsed_list):
     events_combined = []
 
     for data in parsed_list:
+        if not isinstance(data, dict):
+            continue
         for key in ('card_driver_activity_1', 'card_driver_activity_2'):
             act = data.get(key)
-            if act:
-                all_records.extend(act.get('decoded_activity_daily_records', []))
-        di = get_driver_info(data)
+            if isinstance(act, dict):
+                all_records.extend(act.get('decoded_activity_daily_records') or [])
+        di = get_driver_info(data) or {}
         if di.get('card_number'):
             driver_info_combined = di
-        vehicles_combined.extend(get_vehicle_records(data))
-        places_combined.extend(get_card_places(data))
-        events_combined.extend(get_card_events(data))
+        vehicles_combined.extend(get_vehicle_records(data) or [])
+        places_combined.extend(get_card_places(data) or [])
+        events_combined.extend(get_card_events(data) or [])
 
     # Deduplicate activity records by date (keep the one with more changes).
     by_date = {}
