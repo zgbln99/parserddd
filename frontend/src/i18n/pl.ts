@@ -98,6 +98,8 @@ export const pl = {
   // Analysis
   analysisTitle: 'Analiza pliku',
   analysisLoading: 'Analizowanie pliku...',
+  analysisMergeCard: 'Połącz z drugą kartą',
+  analysisMerged: 'Połączono karty',
   analysisWorkTime: 'Czas pracy',
   analysisDriving: 'Jazda',
   analysisNight25: 'Nocne 25%',

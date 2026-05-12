@@ -100,6 +100,8 @@ export const de: Record<TranslationKey, string> = {
   // Analysis
   analysisTitle: 'Dateianalyse',
   analysisLoading: 'Datei wird analysiert...',
+  analysisMergeCard: 'Mit zweiter Karte verbinden',
+  analysisMerged: 'Karten verbunden',
   analysisWorkTime: 'Arbeitszeit',
   analysisDriving: 'Fahren',
   analysisNight25: 'Nacht 25 %',

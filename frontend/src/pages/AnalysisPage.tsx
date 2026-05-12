@@ -1,17 +1,27 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, AlertCircle } from 'lucide-react';
+import { ArrowLeft, AlertCircle, Layers, X } from 'lucide-react';
 import { playNotificationSound } from '../components/Notifications';
 import { useI18n } from '../i18n';
-import { analyzeDropboxFile } from '../lib/api';
+import { analyzeDropboxFile, analyzeMergedDropboxFiles, fetchDrivers } from '../lib/api';
 import { Card } from '../components/Card';
 import { Spinner } from '../components/Spinner';
 import { AnalysisView } from '../features/AnalysisView';
 import { useDateFilter } from '../hooks/useDateFilter';
-import type { AnalysisResult } from '../types';
+import type { AnalysisResult, DriverFile } from '../types';
+
+type MergedAnalysisResult = AnalysisResult & {
+  merged?: boolean;
+  merged_files?: string[];
+  merged_days?: number;
+};
+
+function fileLabel(f: DriverFile): string {
+  return f.file_date || f.name || f.path;
+}
 
 export function AnalysisPage() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const filePath = params.get('path') || '';
@@ -19,11 +29,15 @@ export function AnalysisPage() {
   const driverName = params.get('driver') || '';
   const { dateFrom, dateTo, setDateFrom, setDateTo } = useDateFilter();
 
-  const [data, setData] = useState<AnalysisResult | null>(null);
+  const [data, setData] = useState<MergedAnalysisResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [timerStart, setTimerStart] = useState(0);
   const [timerNow, setTimerNow] = useState(0);
+
+  // Merge another card (old/new card in the same month).
+  const [otherFiles, setOtherFiles] = useState<DriverFile[]>([]);
+  const [extraPaths, setExtraPaths] = useState<string[]>([]);
 
   useEffect(() => {
     if (!loading) return;
@@ -42,31 +56,57 @@ export function AnalysisPage() {
     }
     setLoading(true);
     setError('');
-    analyzeDropboxFile(filePath)
+    const req = extraPaths.length > 0
+      ? analyzeMergedDropboxFiles([filePath, ...extraPaths])
+      : analyzeDropboxFile(filePath);
+    req
       .then((d) => {
-        setData(d);
+        setData(d as MergedAnalysisResult);
         playNotificationSound();
-        // Save to recent analyses
-        try {
-          const name = d.driver_info?.driver_name || driverName || fileName;
-          const url = `/analysis?${new URLSearchParams({ path: filePath, name: fileName, driver: driverName })}`;
-          const recent = JSON.parse(localStorage.getItem('recent-analyses') || '[]');
-          const filtered = recent.filter((r: any) => r.url !== url);
-          filtered.unshift({ name, url });
-          localStorage.setItem('recent-analyses', JSON.stringify(filtered.slice(0, 5)));
-        } catch {}
+        if (extraPaths.length === 0) {
+          try {
+            const name = d.driver_info?.driver_name || driverName || fileName;
+            const url = `/analysis?${new URLSearchParams({ path: filePath, name: fileName, driver: driverName })}`;
+            const recent = JSON.parse(localStorage.getItem('recent-analyses') || '[]');
+            const filtered = recent.filter((r: any) => r.url !== url);
+            filtered.unshift({ name, url });
+            localStorage.setItem('recent-analyses', JSON.stringify(filtered.slice(0, 5)));
+          } catch {}
+        }
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => {
-    runAnalysis();
-  }, [filePath]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { runAnalysis(); }, [filePath, extraPaths]);
 
-  const goBack = () => {
-    navigate(-1);
+  // Discover the driver's other DDD files so a second card can be merged.
+  useEffect(() => {
+    if (!filePath || otherFiles.length > 0) return;
+    fetchDrivers()
+      .then((res) => {
+        const driver = res.drivers.find((d) =>
+          (d.files || []).some((f) => f.path === filePath)
+        );
+        if (driver) {
+          setOtherFiles((driver.files || []).filter((f) => f.path !== filePath));
+        }
+      })
+      .catch(() => {});
+  }, [filePath, otherFiles.length]);
+
+  const addMergeFile = (path: string) => {
+    if (!path || extraPaths.includes(path)) return;
+    setExtraPaths((prev) => [...prev, path]);
   };
+
+  const clearMerge = () => setExtraPaths([]);
+
+  const goBack = () => navigate(-1);
+
+  const availableMergeFiles = otherFiles.filter((f) => !extraPaths.includes(f.path));
+  const mergedCount = extraPaths.length > 0 ? extraPaths.length + 1 : 0;
 
   return (
     <div className="animate-slide-up">
@@ -80,7 +120,7 @@ export function AnalysisPage() {
       </nav>
 
       {/* Header with back button */}
-      <div className="mb-6 flex items-center gap-4">
+      <div className="mb-4 flex flex-wrap items-center gap-4">
         <button
           onClick={goBack}
           className="flex items-center gap-2 rounded-xl border border-border px-4 py-2 text-sm font-medium transition hover:bg-surface"
@@ -95,6 +135,43 @@ export function AnalysisPage() {
           <p className="truncate text-sm text-muted">{fileName}</p>
         </div>
       </div>
+
+      {/* Merge a second card (old + new card in the same month) */}
+      {(availableMergeFiles.length > 0 || extraPaths.length > 0) && (
+        <div className="mb-6 flex flex-wrap items-center gap-2 rounded-xl border border-border bg-surface/50 px-3 py-2 text-sm">
+          <Layers size={16} className="text-primary-500" />
+          {mergedCount > 0 ? (
+            <span className="font-medium text-primary-700 dark:text-primary-400">
+              {t('analysisMerged')} ({mergedCount} {locale === 'de' ? 'Karten' : 'kart'}{data?.merged_days ? `, ${data.merged_days} ${locale === 'de' ? 'Tage' : 'dni'}` : ''})
+            </span>
+          ) : (
+            <span className="font-medium text-muted">{t('analysisMergeCard')}:</span>
+          )}
+          {availableMergeFiles.length > 0 && (
+            <select
+              value=""
+              onChange={(e) => addMergeFile(e.target.value)}
+              disabled={loading}
+              className="input rounded-lg px-2 py-1 text-xs"
+            >
+              <option value="">{mergedCount > 0 ? (locale === 'de' ? '+ weitere Karte…' : '+ kolejna karta…') : t('analysisMergeCard') + '…'}</option>
+              {availableMergeFiles.map((f) => (
+                <option key={f.path} value={f.path}>{fileLabel(f)}</option>
+              ))}
+            </select>
+          )}
+          {extraPaths.length > 0 && (
+            <button
+              onClick={clearMerge}
+              disabled={loading}
+              className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-danger transition hover:bg-danger/5"
+            >
+              <X size={12} />
+              {locale === 'de' ? 'Einzelne Karte' : 'Pojedyncza karta'}
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Loading */}
       {loading && (

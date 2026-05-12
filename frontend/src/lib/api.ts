@@ -179,6 +179,13 @@ export const analyzeMergedFiles = async (file1: File, file2: File) => {
   });
 };
 
+export const analyzeMergedDropboxFiles = (paths: string[]) =>
+  request<import('../types').AnalysisResult & { merged?: boolean; merged_files?: string[]; merged_days?: number }>('/api/analyze/merge-dropbox', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ paths }),
+  });
+
 // ---------------------------------------------------------------------------
 // Compliance (activity-based violation detection on the current analysis
 // result). The endpoint never re-parses the file — it consumes whatever
