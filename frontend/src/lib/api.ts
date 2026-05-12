@@ -225,7 +225,14 @@ export const fahrerlisteStatus = (period: string) =>
   request<FahrerlisteStatus>(`/api/fahrerliste/status?period=${encodeURIComponent(period)}`);
 
 export const fahrerlisteFill = (payload: FahrerlisteFillPayload) =>
-  request<{ ok: boolean; filled: { sheet: string; row: number }[]; matched_name: string }>('/api/fahrerliste/fill', {
+  request<{
+    ok: boolean;
+    matched_name: string;
+    index_sheet: string;
+    target_sheet: string;
+    created_sheet?: string | null;
+    filled: { sheet: string; row: number }[];
+  }>('/api/fahrerliste/fill', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),

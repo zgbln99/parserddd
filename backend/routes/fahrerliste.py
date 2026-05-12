@@ -180,8 +180,7 @@ def _index_workbook(wb):
         if not meta:
             continue
         sheets_meta[sn] = meta
-        last = min(ws.max_row, meta['day_row'] + 200)
-        for r in range(meta['day_row'] + 1, last + 1):
+        for r in range(meta['day_row'] + 1, ws.max_row + 1):
             nv = ws.cell(row=r, column=meta['name_col']).value
             if not isinstance(nv, str) or len(nv.strip()) <= 3:
                 continue
@@ -192,18 +191,17 @@ def _index_workbook(wb):
     return sheets_meta, rows
 
 
-def _match_row(rows, driver_name):
-    """Match ``driver_name`` to driver row(s) by name-token overlap.
+_PAGE_SIZE = 42
 
-    Returns ``(target_rows, candidate_names)``. ``target_rows`` is a list —
-    the same driver can appear on several sheets (e.g. a per-page sheet plus
-    an overview), and all matching rows get filled. ``target_rows`` is empty
-    when nothing matches well enough or when distinct drivers tie (then
-    ``candidate_names`` lists the colliding cell texts).
+
+def _best_match(rows, driver_name):
+    """Single best driver-row match among ``rows`` by name-token overlap.
+
+    Returns ``(row_or_None, candidate_names)``.
     """
     want = _name_tokens(driver_name)
     if not want:
-        return [], []
+        return None, []
     scored = []
     for r in rows:
         common = want & r['tokens']
@@ -211,15 +209,73 @@ def _match_row(rows, driver_name):
             continue
         scored.append((len(common) / len(want), r))
     if not scored:
-        return [], []
+        return None, []
     best_cov = max(c for c, _ in scored)
     if best_cov < 0.5:
-        return [], [r['name'] for c, r in scored if c == best_cov][:5]
+        return None, [r['name'] for c, r in scored if c == best_cov][:5]
     top = [r for c, r in scored if abs(c - best_cov) < 1e-9]
-    distinct = {r['tokens'] for r in top}
-    if len(distinct) > 1:
-        return [], [r['name'] for r in top][:5]
-    return top, []
+    if len({r['tokens'] for r in top}) > 1:
+        return None, [r['name'] for r in top][:5]
+    return top[0], []
+
+
+def _main_sheet_name(rows):
+    """Sheet with the most driver rows = the 'index' sheet (e.g. LKW)."""
+    counts = {}
+    for r in rows:
+        counts[r['sheet']] = counts.get(r['sheet'], 0) + 1
+    return max(counts, key=counts.get) if counts else None
+
+
+def _last_data_row(ws, meta):
+    """Last row that still holds a driver name on a page/index sheet."""
+    last = meta['day_row'] + 1
+    for r in range(meta['day_row'] + 2, ws.max_row + 1):
+        v = ws.cell(row=r, column=meta['name_col']).value
+        if isinstance(v, str) and len(v.strip()) > 3:
+            last = r
+    return last
+
+
+def _copy_row_style(ws, src_row, dst_row, max_col):
+    from copy import copy as _copy
+    for c in range(1, max_col + 1):
+        s = ws.cell(row=src_row, column=c)
+        if s.has_style:
+            ws.cell(row=dst_row, column=c)._style = _copy(s._style)
+
+
+def _find_sheet_ci(wb, name):
+    """Case-insensitive lookup of a sheet by name; returns the actual name or None."""
+    low = name.strip().lower()
+    for sn in wb.sheetnames:
+        if sn.strip().lower() == low:
+            return sn
+    return None
+
+
+def _ensure_page_sheet(wb, name, template_sheet_name):
+    """Return ``(actual_name, ws, meta)`` for page sheet ``name``; create it
+    (header rows kept, driver rows cleared) from ``template_sheet_name`` when
+    missing. Sheet lookup is case-insensitive.
+
+    A freshly-cleared sheet has no name cells for :func:`_scan_sheet` to key
+    on, so a new sheet reuses the template's scan metadata (column layout is
+    identical after a copy).
+    """
+    existing = _find_sheet_ci(wb, name)
+    if existing:
+        ws = wb[existing]
+        return existing, ws, _scan_sheet(ws)
+    tpl_ws = wb[template_sheet_name]
+    tpl_meta = _scan_sheet(tpl_ws)
+    new = wb.copy_worksheet(tpl_ws)
+    new.title = name
+    if tpl_meta:
+        first = tpl_meta['day_row'] + 2
+        if new.max_row >= first:
+            new.delete_rows(first, new.max_row - first + 1)
+    return name, new, tpl_meta
 
 
 # ---------------------------------------------------------------------------
@@ -317,14 +373,63 @@ def fahrerliste_fill():
         wb = openpyxl.load_workbook(path, data_only=False)
     except Exception as exc:
         return jsonify({'error': f'Nie można odczytać listy: {exc}'}), 500
-    _m, rows = _index_workbook(wb)
-    target_rows, candidates = _match_row(rows, driver_name)
-    if not target_rows:
+
+    sheets_meta, rows = _index_workbook(wb)
+    if not rows:
         wb.close()
-        msg = f'Nie znaleziono kierowcy „{driver_name}" w liście' + (
-            f' — podobne wpisy: {", ".join(candidates)}' if candidates else ''
-        )
-        return jsonify({'error': msg, 'not_found': True, 'candidates': candidates}), 404
+        return jsonify({'error': 'Wgrana lista nie zawiera rozpoznawalnych arkuszy'}), 400
+
+    main_sn = _main_sheet_name(rows)
+    main_meta = sheets_meta[main_sn]
+    main_ws = wb[main_sn]
+    main_rows = [r for r in rows if r['sheet'] == main_sn]
+    # The 'assignment' column on the index sheet: the one just left of the
+    # name column (where the file already keeps 's4'/'s7'/...).
+    assign_col = main_meta['name_col'] - 1 if main_meta['name_col'] > 1 else None
+
+    # A page-style sheet to clone when a new s-sheet is needed.
+    page_template = next((sn for sn in sheets_meta if sn != main_sn), main_sn)
+
+    # ---- find / pick the target page sheet -------------------------------
+    main_match, candidates = _best_match(main_rows, driver_name)
+    display_name = main_match['name'] if main_match else driver_name
+
+    assigned = None
+    if main_match and assign_col:
+        av = main_ws.cell(row=main_match['row'], column=assign_col).value
+        if isinstance(av, str) and av.strip():
+            assigned = av.strip()
+
+    # how many drivers are currently assigned to each sheet (per index column),
+    # keyed case-insensitively so "s1" and "S1" count together.
+    assign_counts = {}
+    if assign_col:
+        for r in main_rows:
+            av = main_ws.cell(row=r['row'], column=assign_col).value
+            if isinstance(av, str) and av.strip():
+                k = av.strip().lower()
+                assign_counts[k] = assign_counts.get(k, 0) + 1
+
+    if assigned:
+        target_req = assigned
+    else:
+        target_req = 's1'
+        i = 1
+        while i < 100:
+            name = f's{i}'
+            if assign_counts.get(name.lower(), 0) < _PAGE_SIZE:
+                target_req = name
+                break
+            i += 1
+
+    # never write the index sheet itself as a "page"
+    if (_find_sheet_ci(wb, target_req) or '').strip() == main_sn or target_req.lower() == main_sn.lower():
+        target_req = 's_pages'
+
+    target_sn, target_ws, target_meta = _ensure_page_sheet(wb, target_req, page_template)
+    if target_meta is None:
+        wb.close()
+        return jsonify({'error': f'Nie udało się przygotować arkusza {target_req}'}), 500
 
     def _num_str(v):
         if v is None or v == '':
@@ -334,8 +439,6 @@ def fahrerliste_fill():
         return f'{float(v):.2f}'.replace('.', ',')
 
     def _fill_row(ws, r, meta):
-        # Day cells: clear the whole row first, then write this month's
-        # values, so a re-run produces a clean, consistent row.
         for col in meta['day_cols'].values():
             ws.cell(row=r, column=col, value=None)
         for d, col in meta['day_cols'].items():
@@ -360,18 +463,49 @@ def fahrerliste_fill():
             except (TypeError, ValueError):
                 ws.cell(row=r, column=meta['vma_col'], value=vma)
         _set(meta.get('az_col'), str(az) if az not in (None, '') else None)
-        for key, val in (('ur_col', ur), ('kr_col', kr)):
+        for key, v in (('ur_col', ur), ('kr_col', kr)):
             col = meta.get(key)
-            if col and val not in (None, '', 0):
+            if col and v not in (None, '', 0):
                 try:
-                    ws.cell(row=r, column=col, value=int(val))
+                    ws.cell(row=r, column=col, value=int(v))
                 except (TypeError, ValueError):
                     pass
 
     filled = []
-    for ri in target_rows:
-        _fill_row(wb[ri['sheet']], ri['row'], ri['meta'])
-        filled.append({'sheet': ri['sheet'], 'row': ri['row']})
+
+    # ---- index sheet: fill data + write the page-sheet name --------------
+    if main_match:
+        main_r = main_match['row']
+    else:
+        main_r = _last_data_row(main_ws, main_meta) + 1
+        _copy_row_style(main_ws, main_r - 1, main_r, main_ws.max_column)
+        main_ws.cell(row=main_r, column=main_meta['name_col'], value=display_name)
+    _fill_row(main_ws, main_r, main_meta)
+    if assign_col:
+        main_ws.cell(row=main_r, column=assign_col, value=target_sn)
+    filled.append({'sheet': main_sn, 'row': main_r})
+
+    # ---- target page sheet: update existing row or append a new one ------
+    page_rows = []
+    tlast = target_meta['day_row'] + 1
+    for r in range(target_meta['day_row'] + 2, target_ws.max_row + 1):
+        nv = target_ws.cell(row=r, column=target_meta['name_col']).value
+        if isinstance(nv, str) and len(nv.strip()) > 3:
+            tlast = r
+            toks = _name_tokens(nv)
+            if toks:
+                page_rows.append({'sheet': target_sn, 'row': r, 'name': nv.strip(),
+                                  'tokens': toks, 'meta': target_meta})
+    pm, _cands = _best_match(page_rows, driver_name)
+    if pm:
+        page_r = pm['row']
+    else:
+        page_r = tlast + 1
+        _copy_row_style(target_ws, page_r - 1, page_r,
+                        max(target_meta['day_cols'].values()) if target_meta['day_cols'] else target_ws.max_column)
+        target_ws.cell(row=page_r, column=target_meta['name_col'], value=display_name)
+    _fill_row(target_ws, page_r, target_meta)
+    filled.append({'sheet': target_sn, 'row': page_r})
 
     try:
         wb.save(path)
@@ -379,9 +513,16 @@ def fahrerliste_fill():
         wb.close()
         return jsonify({'error': f'Nie można zapisać listy: {exc}'}), 500
     wb.close()
-    matched_name = target_rows[0]['name']
-    _log_activity('fahrerliste_fill', f'{period} — {driver_name} → {len(filled)} rows')
-    return jsonify({'ok': True, 'filled': filled, 'matched_name': matched_name})
+    _log_activity('fahrerliste_fill', f'{period} — {driver_name} → {main_sn}/{target_sn}')
+    return jsonify({
+        'ok': True,
+        'matched_name': display_name,
+        'index_sheet': main_sn,
+        'target_sheet': target_sn,
+        'filled': filled,
+        'created_sheet': target_sn if target_sn not in sheets_meta else None,
+        'candidates': candidates if not main_match else [],
+    })
 
 
 @bp.route('/api/fahrerliste/download', methods=['GET'])

@@ -573,7 +573,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
       });
       toast(
         (locale === 'de' ? 'In die Fahrerliste eingetragen' : 'Wpisano do listy księgowej')
-          + ` (${res.filled?.length || 1}×)`,
+          + ` → ${res.target_sheet}${res.created_sheet ? ' (' + (locale === 'de' ? 'neu' : 'nowy') + ')' : ''} + ${res.index_sheet}`,
         'success',
       );
     } catch (e) {
