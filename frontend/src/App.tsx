@@ -119,18 +119,18 @@ export function App() {
           <Route path="/sync" element={<PermissionRoute permission="sync"><SyncPage /></PermissionRoute>} />
           <Route path="/admin" element={<AdminRoute><AdminPage /></AdminRoute>} />
           <Route path="/config" element={<AdminRoute><DriverConfigPage /></AdminRoute>} />
-          <Route path="/payroll" element={<DispatcherRoute><PayrollPage /></DispatcherRoute>} />
-          <Route path="/payroll/:card" element={<DispatcherRoute><PayrollAnalysisPage /></DispatcherRoute>} />
-          <Route path="/stundenzettel" element={<DispatcherRoute><StundenzettelPage /></DispatcherRoute>} />
-          <Route path="/bulk-grid" element={<DispatcherRoute><BulkGridPage /></DispatcherRoute>} />
-          <Route path="/vehicles" element={<DispatcherRoute><VehiclesPage /></DispatcherRoute>} />
-          <Route path="/driver-km" element={<DispatcherRoute><DriverKmPage /></DispatcherRoute>} />
-          <Route path="/toll" element={<DispatcherRoute><TollCollectPage /></DispatcherRoute>} />
-          <Route path="/samsara-km" element={<DispatcherRoute><SamsaraKmPage /></DispatcherRoute>} />
+          <Route path="/payroll" element={<PermissionRoute permission="settlement"><PayrollPage /></PermissionRoute>} />
+          <Route path="/payroll/:card" element={<PermissionRoute permission="settlement"><PayrollAnalysisPage /></PermissionRoute>} />
+          <Route path="/stundenzettel" element={<PermissionRoute permission="settlement"><StundenzettelPage /></PermissionRoute>} />
+          <Route path="/bulk-grid" element={<PermissionRoute permission="settlement"><BulkGridPage /></PermissionRoute>} />
+          <Route path="/vehicles" element={<PermissionRoute permission="vehicles"><VehiclesPage /></PermissionRoute>} />
+          <Route path="/driver-km" element={<PermissionRoute permission="driver_km"><DriverKmPage /></PermissionRoute>} />
+          <Route path="/toll" element={<PermissionRoute permission="toll"><TollCollectPage /></PermissionRoute>} />
+          <Route path="/samsara-km" element={<PermissionRoute permission="samsara_km"><SamsaraKmPage /></PermissionRoute>} />
           <Route path="/analysis" element={<ProtectedRoute><AnalysisPage /></ProtectedRoute>} />
-          <Route path="/arbeitszeitbericht" element={<DispatcherRoute><ArbeitszeitberichtPage /></DispatcherRoute>} />
-          <Route path="/compliance" element={<DispatcherRoute><CompliancePage /></DispatcherRoute>} />
-          <Route path="/compliance-monthly" element={<DispatcherRoute><ComplianceMonthlyPage /></DispatcherRoute>} />
+          <Route path="/arbeitszeitbericht" element={<PermissionRoute permission="settlement"><ArbeitszeitberichtPage /></PermissionRoute>} />
+          <Route path="/compliance" element={<PermissionRoute permission="settlement"><CompliancePage /></PermissionRoute>} />
+          <Route path="/compliance-monthly" element={<PermissionRoute permission="settlement"><ComplianceMonthlyPage /></PermissionRoute>} />
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
