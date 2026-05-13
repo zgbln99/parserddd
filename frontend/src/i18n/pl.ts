@@ -299,7 +299,7 @@ export const pl = {
   driverMonthlyGross: 'Miesięczne brutto (EUR)',
   driverMonthlyGrossHint: '0 = użyj wartości domyślnej z ustawień; wpisz rzeczywistą kwotę, aby nadpisać',
   driverCharter: 'Charter (Übernachtung)',
-  driverCharterHint: 'Mo/Fr 2× dieta, Di/Mi/Do 2× dieta + 8 € Übernachtung; Sa/So jak dziś',
+  driverCharterHint: 'Mo/Fr 2× dieta, Di/Mi/Do 2× dieta + 9 € Übernachtung; Sa/So jak dziś',
   driverNotes: 'Notatki',
   driverNotesPlaceholder: 'Dodatkowe informacje...',
   driverConfigs: 'Konfiguracje kierowców',

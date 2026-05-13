@@ -1,13 +1,14 @@
 // Charter diet rule — for drivers running charter trips, the per-shift
 // allowance follows a weekday pattern:
 //   Mon / Fri : 2 × diet_rate (no Übernachtung)
-//   Tue / Wed / Thu : 2 × diet_rate + 8 € Übernachtung
+//   Tue / Wed / Thu : 2 × diet_rate + 9 € Übernachtung (statutory truck-cabin
+//                     overnight allowance, raised from 8 € in 2024)
 //   Sat / Sun : current behaviour (only if the shift's has_diet is true)
 //
 // Non-charter drivers keep today's logic (count of has_diet shifts × rate,
 // doubled when `double_diet` is set).
 
-export const UBERNACHTUNG_EUR = 8;
+export const UBERNACHTUNG_EUR = 9;
 
 export interface CharterShift {
   shift_date?: string;
