@@ -76,13 +76,34 @@ def api_logout():
 @bp.route('/api/auth/status')
 def api_auth_status():
     role = session.get('role', 'user')
+    username = session.get('username', '')
     custom_perms = session.get('permissions', [])
+
+    # Refresh role + permissions from the user record for real (non-portal)
+    # logins so admin-side changes take effect on the next status poll —
+    # otherwise the user has to log out + back in to see new features.
+    # The portal/admin magic logins have no DB row; we keep the session
+    # values for those.
+    if username and username not in ('user', 'admin'):
+        try:
+            for u in _load_users():
+                if u.get('name') == username:
+                    db_role = u.get('role') or role
+                    if db_role in ROLE_PERMISSIONS:
+                        role = db_role
+                    custom_perms = u.get('permissions', []) or []
+                    session['role'] = role
+                    session['permissions'] = custom_perms
+                    break
+        except Exception:
+            pass
+
     perms = list(set(ROLE_PERMISSIONS.get(role, []) + custom_perms))
     cfg = _load_global_config()
     return jsonify({
         'logged_in': bool(session.get('logged_in')),
         'role': role,
-        'username': session.get('username', ''),
+        'username': username,
         'permissions': perms,
         'hidden_features': cfg.get('hidden_features', []) if role != 'admin' else [],
         'company_name': cfg.get('company_name', 'LTS Logistik GmbH'),
