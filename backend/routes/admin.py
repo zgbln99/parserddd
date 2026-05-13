@@ -364,6 +364,56 @@ def api_delete_user(user_id):
     return jsonify({'ok': True})
 
 
+@bp.route('/api/admin/users/<int:user_id>', methods=['PATCH'])
+@admin_required
+def api_update_user(user_id):
+    """Update a user's role / permissions / password (any subset).
+
+    ``permissions`` is the user's *extra* feature grants on top of the role
+    defaults — see :data:`ROLE_PERMISSIONS`. The set is validated against the
+    universe of known feature keys (everything any role currently exposes)
+    so the UI can only grant real features.
+    """
+    data = request.get_json(silent=True) or {}
+    users = _load_users()
+    target = next((u for u in users if u.get('id') == user_id), None)
+    if not target:
+        return jsonify({'error': 'User not found'}), 404
+
+    changed = []
+    if 'role' in data:
+        role = data.get('role') or 'user'
+        if role not in ('user', 'admin', 'dispatcher', 'driver'):
+            return jsonify({'error': f'invalid role: {role}'}), 400
+        if target.get('role') != role:
+            target['role'] = role
+            changed.append('role')
+    if 'permissions' in data:
+        perms_in = data.get('permissions') or []
+        if not isinstance(perms_in, list):
+            return jsonify({'error': 'permissions must be a list'}), 400
+        known = {p for plist in ROLE_PERMISSIONS.values() for p in plist}
+        perms = [str(p) for p in perms_in if str(p) in known]
+        if sorted(target.get('permissions', []) or []) != sorted(perms):
+            target['permissions'] = perms
+            changed.append('permissions')
+    if 'password' in data and data.get('password'):
+        target['password_hash'] = _hash_password(str(data['password']))
+        changed.append('password')
+    if 'name' in data:
+        new_name = str(data['name']).strip()
+        if new_name and new_name != target.get('name'):
+            target['name'] = new_name
+            changed.append('name')
+
+    if not changed:
+        return jsonify({'ok': True, 'changed': []})
+
+    _save_users(users)
+    _log_activity('update_user', f"id={user_id} ({', '.join(changed)})")
+    return jsonify({'ok': True, 'changed': changed})
+
+
 # --- Password change ---
 
 

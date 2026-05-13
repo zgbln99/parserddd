@@ -542,6 +542,23 @@ export const createUser = (name: string, password: string, role: string, permiss
 export const deleteUser = (id: number) =>
   request<{ ok: boolean }>(`/api/admin/users/${id}`, { method: 'DELETE' });
 
+export interface UserUpdatePatch {
+  name?: string;
+  role?: string;
+  permissions?: string[];
+  password?: string;
+}
+
+export const updateUser = (id: number, patch: UserUpdatePatch) =>
+  request<{ ok: boolean; changed: string[] }>(`/api/admin/users/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  });
+
+export const fetchRoles = () =>
+  request<{ roles: Record<string, string[]> }>('/api/admin/roles');
+
 // Password change
 export const changePassword = (target: 'portal' | 'admin', newPassword: string) =>
   request<{ ok: boolean }>('/api/admin/change-password', {
