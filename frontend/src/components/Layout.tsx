@@ -26,7 +26,7 @@ const baseNavItems = [
 export function Layout({ children }: { children: ReactNode }) {
   const { t, locale, setLocale } = useI18n();
   const { theme, toggle } = useTheme();
-  const { logout, isAdmin, isDispatcher, role, hasPermission, companyName } = useAuth();
+  const { logout, role, hasPermission, companyName } = useAuth();
   const { dateFrom, dateTo, setDateFrom, setDateTo, clear } = useDateFilter();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -41,36 +41,27 @@ export function Layout({ children }: { children: ReactNode }) {
     });
   };
 
+  // Catalogue of every nav item. The `hasPermission` filter below decides
+  // which ones the current user actually sees — that's also how per-user
+  // grants work (an admin can give a 'user'-role account `vehicles` and
+  // they'll see the Pojazdy entry without changing their role).
   const allNavItems = [
     ...baseNavItems,
-    ...(isDispatcher
-      ? [
-          { to: '/payroll', icon: ClipboardCheck, labelKey: 'navPayroll' as const, permission: 'settlement' },
-          { to: '/stundenzettel', icon: FileText, labelKey: 'navStundenzettel' as const, permission: 'settlement' },
-          { to: '/bulk-grid', icon: Users, labelKey: 'navBulkGrid' as const, permission: 'settlement' },
-          { to: '/arbeitszeitbericht', icon: Clock, labelKey: 'navArbeitszeitbericht' as const, permission: 'settlement' },
-          { to: '/compliance', icon: ShieldCheck, labelKey: 'navCompliance' as const, permission: 'settlement' },
-          { to: '/vehicles', icon: Truck, labelKey: 'navVehicles' as const, permission: 'vehicles' },
-          { to: '/driver-km', icon: Gauge, labelKey: 'navDriverKm' as const, permission: 'driver_km' },
-          { to: '/toll', icon: Coins, labelKey: 'navTollCollect' as const, permission: 'toll' },
-          { to: '/samsara-km', icon: Route, labelKey: 'navSamsaraKm' as const, permission: 'samsara_km' },
-        ]
-      : []
-    ),
-    ...(isAdmin
-      ? [
-          { to: '/config', icon: UserCog, labelKey: 'navDriverConfig' as const, permission: 'config' },
-          { to: '/admin', icon: Shield, labelKey: 'navAdmin' as const, permission: 'admin' },
-        ]
-      : []
-    ),
-    ...(!isAdmin && !isDispatcher && hasPermission('sync')
-      ? [{ to: '/sync', icon: RefreshCw, labelKey: 'navSync' as const, permission: 'sync' }]
-      : []
-    ),
+    { to: '/payroll', icon: ClipboardCheck, labelKey: 'navPayroll' as const, permission: 'settlement' },
+    { to: '/stundenzettel', icon: FileText, labelKey: 'navStundenzettel' as const, permission: 'settlement' },
+    { to: '/bulk-grid', icon: Users, labelKey: 'navBulkGrid' as const, permission: 'settlement' },
+    { to: '/arbeitszeitbericht', icon: Clock, labelKey: 'navArbeitszeitbericht' as const, permission: 'settlement' },
+    { to: '/compliance', icon: ShieldCheck, labelKey: 'navCompliance' as const, permission: 'settlement' },
+    { to: '/vehicles', icon: Truck, labelKey: 'navVehicles' as const, permission: 'vehicles' },
+    { to: '/driver-km', icon: Gauge, labelKey: 'navDriverKm' as const, permission: 'driver_km' },
+    { to: '/toll', icon: Coins, labelKey: 'navTollCollect' as const, permission: 'toll' },
+    { to: '/samsara-km', icon: Route, labelKey: 'navSamsaraKm' as const, permission: 'samsara_km' },
+    { to: '/sync', icon: RefreshCw, labelKey: 'navSync' as const, permission: 'sync' },
+    { to: '/config', icon: UserCog, labelKey: 'navDriverConfig' as const, permission: 'config' },
+    { to: '/admin', icon: Shield, labelKey: 'navAdmin' as const, permission: 'admin' },
   ];
 
-  // Filter by permissions
+  // Filter by permissions — single source of truth.
   const navItems = allNavItems.filter((item) => hasPermission(item.permission));
 
   // Group nav items into compact sections
