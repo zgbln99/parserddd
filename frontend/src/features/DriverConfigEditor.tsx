@@ -24,6 +24,7 @@ export function DriverConfigEditor({ cardNumber, driverName, onClose, onSaved }:
   const [dietRate, setDietRate] = useState('14.00');
   const [monthlyGross, setMonthlyGross] = useState('0');
   const [night40Enabled, setNight40Enabled] = useState(true);
+  const [charterEnabled, setCharterEnabled] = useState(false);
   const [notes, setNotes] = useState('');
   const [showHistory, setShowHistory] = useState(false);
   const [history, setHistory] = useState<ConfigAuditEntry[]>([]);
@@ -38,6 +39,7 @@ export function DriverConfigEditor({ cardNumber, driverName, onClose, onSaved }:
         setDietRate(String(cfg.diet_rate || 14.0));
         setMonthlyGross(String(cfg.monthly_gross_eur ?? 0));
         setNight40Enabled(cfg.night_40_enabled !== 0);
+        setCharterEnabled(cfg.charter_enabled === 1);
         setNotes(cfg.notes || '');
         setLoading(false);
       })
@@ -56,6 +58,7 @@ export function DriverConfigEditor({ cardNumber, driverName, onClose, onSaved }:
         diet_rate: parseFloat(dietRate) || 14.0,
         monthly_gross_eur: parseFloat(monthlyGross) || 0,
         night_40_enabled: night40Enabled ? 1 : 0,
+        charter_enabled: charterEnabled ? 1 : 0,
         notes,
       });
       setMsg('OK!');
@@ -66,7 +69,7 @@ export function DriverConfigEditor({ cardNumber, driverName, onClose, onSaved }:
     } finally {
       setSaving(false);
     }
-  }, [cardNumber, driverName, personalNr, doubleDiet, dietRate, monthlyGross, night40Enabled, notes, onSaved]);
+  }, [cardNumber, driverName, personalNr, doubleDiet, dietRate, monthlyGross, night40Enabled, charterEnabled, notes, onSaved]);
 
   if (loading) return <Spinner />;
 
@@ -149,6 +152,22 @@ export function DriverConfigEditor({ cardNumber, driverName, onClose, onSaved }:
             <div className="h-5 w-9 rounded-full bg-gray-200 after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-green-500 peer-checked:after:translate-x-full peer-checked:after:border-white dark:bg-gray-700" />
           </label>
           <span className={labelCls}>{t('driverNight40')}</span>
+        </div>
+        <div className="flex items-start gap-3">
+          <label className="relative inline-flex cursor-pointer items-center mt-0.5">
+            <input
+              type="checkbox"
+              checked={charterEnabled}
+              onChange={(e) => setCharterEnabled(e.target.checked)}
+              className="peer sr-only"
+              disabled={!isAdmin}
+            />
+            <div className="h-5 w-9 rounded-full bg-gray-200 after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-green-500 peer-checked:after:translate-x-full peer-checked:after:border-white dark:bg-gray-700" />
+          </label>
+          <div className="leading-tight">
+            <p className={labelCls}>{t('driverCharter')}</p>
+            <p className="text-[10px] text-muted">{t('driverCharterHint')}</p>
+          </div>
         </div>
         <div>
           <label className={labelCls}>{t('driverNotes')}</label>

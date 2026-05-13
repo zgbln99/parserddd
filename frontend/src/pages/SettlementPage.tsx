@@ -7,6 +7,7 @@ import type { SettlementDriver, MindestlohnSettings } from '../lib/api';
 import { generateSettlementPdf } from '../lib/pdf-generator';
 import type { DriverConfig } from '../lib/api';
 import { computeMindestlohn, DEFAULT_MINDESTLOHN_SETTINGS } from '../lib/mindestlohn';
+import { computeVma } from '../lib/charter';
 import type { Driver, ShiftDetail } from '../types';
 import { Card } from '../components/Card';
 import { Badge } from '../components/Badge';
@@ -89,10 +90,11 @@ export function SettlementPage() {
           const dcfg = configMap.get(cardNumber);
           const personalNr = dcfg?.personal_nr || cardNumber;
           const doubleDiet = dcfg?.double_diet === 1;
+          const charterEnabled = dcfg?.charter_enabled === 1;
           const dietRate = dcfg?.diet_rate ?? 14.0;
-          // Double diet = two separate allowances per day (14€ + 14€ = 28€/day)
-          // diet_count stays the same, VMA doubles the rate
-          const vmaPerDay = doubleDiet ? dietRate * 2 : dietRate;
+          const vmaCalc = computeVma({
+            shifts: monthShifts, dietRate, charterEnabled, doubleDiet,
+          });
 
           const mindestlohn = mlz
             ? computeMindestlohn(totalWork, { monthlyGrossOverride: dcfg?.monthly_gross_eur, settings: mlz })
@@ -104,6 +106,7 @@ export function SettlementPage() {
             personal_nr: personalNr,
             double_diet: doubleDiet,
             diet_rate: dietRate,
+            charter_enabled: charterEnabled,
             mindestlohn,
             summary: {
               total_work_minutes: totalWork,
@@ -118,8 +121,9 @@ export function SettlementPage() {
               night_40_minutes: totalN40,
               night_40_hm: minutesToHm(totalN40),
               diet_count: dietCount,
-              effective_diet_count: dietCount,
-              vma_amount: dietCount * vmaPerDay,
+              effective_diet_count: vmaCalc.dietCount || dietCount,
+              vma_amount: vmaCalc.totalAmount,
+              vma_ubernachtung: vmaCalc.ubernachtungAmount,
               total_shifts: monthShifts.length,
             },
             shifts: monthShifts,

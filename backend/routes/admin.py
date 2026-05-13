@@ -92,6 +92,7 @@ def api_get_driver_config(card_number):
         'double_diet': 0,
         'diet_rate': 14.0,
         'monthly_gross_eur': 0.0,
+        'charter_enabled': 0,
         'notes': '',
         'night_40_enabled': 1,
     })
@@ -112,6 +113,7 @@ def api_upsert_driver_config():
     personal_nr = _sanitize_text(data.get('personal_nr', ''), 50)
     notes = _sanitize_text(data.get('notes', ''), 500)
     double_diet = 1 if data.get('double_diet') else 0
+    charter_enabled = 1 if data.get('charter_enabled') else 0
     night_40_enabled = 1 if data.get('night_40_enabled', True) else 0
 
     try:
@@ -135,7 +137,7 @@ def api_upsert_driver_config():
     changes = []
     if existing:
         old = dict(existing)
-        field_map = {'driver_name': driver_name, 'personal_nr': personal_nr, 'double_diet': double_diet, 'diet_rate': diet_rate, 'monthly_gross_eur': monthly_gross_eur, 'notes': notes, 'night_40_enabled': night_40_enabled}
+        field_map = {'driver_name': driver_name, 'personal_nr': personal_nr, 'double_diet': double_diet, 'diet_rate': diet_rate, 'monthly_gross_eur': monthly_gross_eur, 'charter_enabled': charter_enabled, 'notes': notes, 'night_40_enabled': night_40_enabled}
         for field, new_val in field_map.items():
             old_val = old.get(field, '')
             if str(old_val) != str(new_val):
@@ -143,15 +145,15 @@ def api_upsert_driver_config():
         conn.execute('''
             UPDATE driver_config SET
                 driver_name = ?, personal_nr = ?, double_diet = ?,
-                diet_rate = ?, monthly_gross_eur = ?, notes = ?, night_40_enabled = ?, updated_at = ?
+                diet_rate = ?, monthly_gross_eur = ?, charter_enabled = ?, notes = ?, night_40_enabled = ?, updated_at = ?
             WHERE card_number = ?
-        ''', (driver_name, personal_nr, double_diet, diet_rate, monthly_gross_eur, notes, night_40_enabled, now, card_number))
+        ''', (driver_name, personal_nr, double_diet, diet_rate, monthly_gross_eur, charter_enabled, notes, night_40_enabled, now, card_number))
     else:
         changes.append({'field': '*', 'old': '', 'new': 'created'})
         conn.execute('''
-            INSERT INTO driver_config (card_number, driver_name, personal_nr, double_diet, diet_rate, monthly_gross_eur, notes, night_40_enabled, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (card_number, driver_name, personal_nr, double_diet, diet_rate, monthly_gross_eur, notes, night_40_enabled, now, now))
+            INSERT INTO driver_config (card_number, driver_name, personal_nr, double_diet, diet_rate, monthly_gross_eur, charter_enabled, notes, night_40_enabled, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (card_number, driver_name, personal_nr, double_diet, diet_rate, monthly_gross_eur, charter_enabled, notes, night_40_enabled, now, now))
 
     conn.commit()
     conn.close()
@@ -212,6 +214,9 @@ def api_bulk_driver_config():
                         vals.append(g)
                 except (ValueError, TypeError):
                     pass
+            if 'charter_enabled' in updates:
+                sets.append('charter_enabled = ?')
+                vals.append(1 if updates['charter_enabled'] else 0)
             if 'personal_nr' in updates:
                 sets.append('personal_nr = ?')
                 vals.append(_sanitize_text(str(updates['personal_nr']), 50))
@@ -239,12 +244,14 @@ def api_bulk_driver_config():
                     monthly_gross_eur = 0.0
             except (ValueError, TypeError):
                 monthly_gross_eur = 0.0
+            charter_enabled = 1 if updates.get('charter_enabled') else 0
             conn.execute('''
-                INSERT INTO driver_config (card_number, driver_name, personal_nr, double_diet, diet_rate, monthly_gross_eur, notes, night_40_enabled, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO driver_config (card_number, driver_name, personal_nr, double_diet, diet_rate, monthly_gross_eur, charter_enabled, notes, night_40_enabled, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 cn, '', _sanitize_text(str(updates.get('personal_nr', '')), 50),
-                double_diet, diet_rate, monthly_gross_eur, _sanitize_text(str(updates.get('notes', '')), 500),
+                double_diet, diet_rate, monthly_gross_eur, charter_enabled,
+                _sanitize_text(str(updates.get('notes', '')), 500),
                 night_40_enabled, now, now,
             ))
         count += 1

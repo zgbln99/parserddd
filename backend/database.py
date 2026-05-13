@@ -193,6 +193,7 @@ def init_db():
                 double_diet   INTEGER NOT NULL DEFAULT 0,
                 diet_rate     REAL NOT NULL DEFAULT 14.0,
                 monthly_gross_eur REAL NOT NULL DEFAULT 0,
+                charter_enabled INTEGER NOT NULL DEFAULT 0,
                 notes         TEXT NOT NULL DEFAULT '',
                 card_expiry_date TEXT NOT NULL DEFAULT '',
                 created_at    TEXT NOT NULL,
@@ -360,6 +361,12 @@ def _run_sqlite_migrations():
             db.execute("SELECT monthly_gross_eur FROM driver_config LIMIT 1")
         except Exception:
             db.execute("ALTER TABLE driver_config ADD COLUMN monthly_gross_eur REAL NOT NULL DEFAULT 0")
+            db.commit()
+        # charter_enabled on driver_config (special diet rule for charter trips)
+        try:
+            db.execute("SELECT charter_enabled FROM driver_config LIMIT 1")
+        except Exception:
+            db.execute("ALTER TABLE driver_config ADD COLUMN charter_enabled INTEGER NOT NULL DEFAULT 0")
             db.commit()
 
 

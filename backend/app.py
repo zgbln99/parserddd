@@ -192,6 +192,13 @@ def _init_db():
     except Exception:
         conn.execute("ALTER TABLE driver_config ADD COLUMN monthly_gross_eur REAL NOT NULL DEFAULT 0")
         conn.commit()
+    # charter_enabled on driver_config — drivers on charter trips get the
+    # Mon/Fri 2× diet + Tue–Thu 2× diet + 8 € Übernachtung pattern.
+    try:
+        conn.execute("SELECT charter_enabled FROM driver_config LIMIT 1")
+    except Exception:
+        conn.execute("ALTER TABLE driver_config ADD COLUMN charter_enabled INTEGER NOT NULL DEFAULT 0")
+        conn.commit()
 
     conn.executescript('''
         CREATE TABLE IF NOT EXISTS driver_monthly_days (

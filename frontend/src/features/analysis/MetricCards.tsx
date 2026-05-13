@@ -31,7 +31,15 @@ export interface MetricCardsProps {
   };
   nightH: number;
   totalKm: number;
-  vma: { amount: number; ratePerDay: number; doubleDiet: boolean };
+  vma: {
+    amount: number;
+    ratePerDay: number;
+    doubleDiet: boolean;
+    charter?: boolean;
+    count?: number;
+    dietAmount?: number;
+    ubernachtungAmount?: number;
+  };
   monthlyDays: MonthlyDays | null;
   mindestlohn?: MindestlohnResult | null;
   fv: (feature: string) => boolean;
@@ -63,11 +71,22 @@ export function MetricCards({ s, nightH, totalKm, vma, monthlyDays, mindestlohn,
           <p className="mt-1 text-[12px] text-muted">{monthlyDays?.override_n40 ? '' : s.night_40_hm}</p>
         </div>}
         <div className="rounded-[10px] bg-white p-5 shadow-1 text-center dark:bg-[#1f2a37]" title="Verpflegungsmehraufwand - dieta za podróż służbową">
-          <p className="text-[12px] font-semibold uppercase tracking-wide text-muted">{t('analysisDietCount')}</p>
-          <p className="mt-1.5 text-3xl font-semibold text-ink" style={{ letterSpacing: '-0.28px' }}>{s.diet_count}</p>
+          <p className="text-[12px] font-semibold uppercase tracking-wide text-muted">
+            {vma.charter ? (locale === 'de' ? 'VMA (Charter)' : 'VMA (Charter)') : t('analysisDietCount')}
+          </p>
+          <p className="mt-1.5 text-3xl font-semibold text-ink" style={{ letterSpacing: '-0.28px' }}>
+            {vma.charter ? `${vma.amount.toFixed(2).replace('.', ',')} €` : s.diet_count}
+          </p>
           <p className="mt-1 text-[12px] font-medium text-muted">
-            {vma.amount.toFixed(2).replace('.', ',')} €
-            {vma.doubleDiet && <span className="ml-1 text-[11px] font-normal opacity-60">(2×{vma.ratePerDay / 2}€)</span>}
+            {vma.charter
+              ? <>
+                  {(vma.dietAmount ?? 0).toFixed(2).replace('.', ',')} € + {(vma.ubernachtungAmount ?? 0).toFixed(2).replace('.', ',')} € Ü
+                  {(vma.count ?? 0) > 0 && <span className="ml-1 text-[11px] opacity-60">({vma.count}d)</span>}
+                </>
+              : <>
+                  {vma.amount.toFixed(2).replace('.', ',')} €
+                  {vma.doubleDiet && <span className="ml-1 text-[11px] font-normal opacity-60">(2×{vma.ratePerDay / 2}€)</span>}
+                </>}
           </p>
         </div>
       </div>

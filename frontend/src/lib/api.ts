@@ -595,6 +595,7 @@ export interface DriverConfig {
   double_diet: number; // 0 or 1
   diet_rate: number;
   monthly_gross_eur: number; // 0 = use the global default from admin config (MiLoG check)
+  charter_enabled: number; // 0 or 1 — charter trip diet rule (Mo/Fr 2×, Tue–Thu 2× + 8 € Übernachtung)
   night_40_enabled: number; // 0 or 1 — 40% night premium for pre-midnight shifts
   pause_cap_enabled: number; // 0 or 1 — cap break at 45min when driving < 4.5h
   notes: string;
@@ -719,6 +720,7 @@ export interface SettlementDriverSummary {
   diet_count: number;
   effective_diet_count: number;
   vma_amount: number;
+  vma_ubernachtung?: number;
   total_shifts: number;
 }
 
@@ -727,6 +729,7 @@ export interface SettlementDriver {
   card_number: string;
   personal_nr: string;
   double_diet: boolean;
+  charter_enabled?: boolean;
   diet_rate: number;
   summary: SettlementDriverSummary;
   shifts: unknown[];

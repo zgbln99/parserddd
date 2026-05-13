@@ -5,6 +5,7 @@ import { getHolidayMap } from '../lib/holidays';
 import { exportCsv, exportDatev, fetchDriverConfig, fetchMonthlyDays, saveMonthlyDays, fetchMindestlohnSettings, fahrerlisteFill } from '../lib/api';
 import type { DriverConfig, MonthlyDays, MindestlohnSettings } from '../lib/api';
 import { computeMindestlohn, parseHmToMinutes, DEFAULT_MINDESTLOHN_SETTINGS } from '../lib/mindestlohn';
+import { computeVma } from '../lib/charter';
 import { Badge } from '../components/Badge';
 import { Spinner } from '../components/Spinner';
 import { BarChart } from '../components/BarChart';
@@ -242,17 +243,27 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
     }, 0);
   }, [data.vehicles, dateFrom, dateTo]);
 
-  // VMA calculation
+  // VMA calculation — respects the charter rule when enabled per driver
   const vma = useMemo(() => {
     const dietRate = driverConfig?.diet_rate ?? 14.0;
     const doubleDiet = driverConfig?.double_diet === 1;
-    const ratePerDay = doubleDiet ? dietRate * 2 : dietRate;
+    const charter = driverConfig?.charter_enabled === 1;
+    const res = computeVma({
+      shifts: workingShifts.map((sh, i) => applyOverride(sh, i)),
+      dietRate, charterEnabled: charter, doubleDiet,
+    });
+    const ratePerDay = (charter || doubleDiet) ? dietRate * 2 : dietRate;
     return {
-      amount: s.diet_count * ratePerDay,
+      amount: res.totalAmount,
+      dietAmount: res.dietAmount,
+      ubernachtungAmount: res.ubernachtungAmount,
+      count: res.dietCount,
       ratePerDay,
       doubleDiet,
+      charter,
     };
-  }, [s.diet_count, driverConfig]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workingShifts, shiftOverrides, driverConfig]);
 
   // Monthly days (vacation/sick) - determine period from dateFrom or first shift
   const period = useMemo(() => {
@@ -558,6 +569,9 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
           }
         }
       }
+      // Excel VMA column: count of diet-days for normal drivers, total €
+      // (diet + Übernachtung) when charter mode is on for this driver.
+      const vmaCell = vma.charter ? Math.round(vma.amount) : s.diet_count;
       const res = await fahrerlisteFill({
         period,
         driver_name: di.driver_name || '',
@@ -566,7 +580,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
         absences,
         n25: monthlyDays?.override_n25 || +(s.night_25_minutes / 60).toFixed(2),
         n40: monthlyDays?.override_n40 || +(s.night_40_minutes / 60).toFixed(2),
-        vma: s.diet_count,
+        vma: vmaCell,
         az: monthlyDays?.override_work_hm || hm(s.total_work_minutes || 0),
         ur: monthlyDays?.vacation_days || undefined,
         kr: monthlyDays?.sick_days || undefined,
@@ -582,7 +596,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
       setSendingToList(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [period, workingShifts, monthlyDays, s, di, locale, toast]);
+  }, [period, workingShifts, monthlyDays, s, di, vma, locale, toast]);
 
   const hasDateFilter = onDateFromChange && onDateToChange;
 

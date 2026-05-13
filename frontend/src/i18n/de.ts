@@ -300,6 +300,8 @@ export const de: Record<TranslationKey, string> = {
   driverDietRate: 'Verpflegungssatz',
   driverMonthlyGross: 'Monatsbrutto (EUR)',
   driverMonthlyGrossHint: '0 = Standardwert aus den Einstellungen verwenden; tatsächlichen Betrag eintragen, um zu überschreiben',
+  driverCharter: 'Charter (Übernachtung)',
+  driverCharterHint: 'Mo/Fr 2× Verpflegung, Di/Mi/Do 2× Verpflegung + 8 € Übernachtung; Sa/So wie bisher',
   driverNotes: 'Notizen',
   driverNotesPlaceholder: 'Zusätzliche Informationen...',
   driverConfigs: 'Fahrerkonfigurationen',
