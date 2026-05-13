@@ -5,7 +5,7 @@ from zoneinfo import ZoneInfo
 from flask import Blueprint, jsonify, request, current_app
 import requests as http_requests
 
-from auth.decorators import admin_required
+from auth.decorators import permission_required
 from auth.helpers import _log_activity, _get_db
 from config import (
     SAMSARA_API_TOKEN,
@@ -21,7 +21,7 @@ CET = ZoneInfo('Europe/Berlin')
 
 
 @bp.route('/api/vehicles', methods=['GET'])
-@admin_required
+@permission_required('vehicles')
 def api_vehicles_list():
     """List vehicles from Samsara."""
     if not SAMSARA_API_TOKEN:
@@ -65,7 +65,7 @@ def api_vehicles_list():
 
 
 @bp.route('/api/vehicles/activity', methods=['POST'])
-@admin_required
+@permission_required('vehicles')
 def api_vehicles_activity():
     """
     Fetch vehicle activity from Samsara using trips/stream endpoint.
