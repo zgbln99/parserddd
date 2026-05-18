@@ -10,6 +10,7 @@ import {
   type TollCollectFile,
 } from '../lib/api';
 import { exportTollToXlsx, type TollVehicleGroup } from '../lib/xlsx-export';
+import { exportDachserMaut, exportDachserLkw } from '../lib/dachser-export';
 
 interface TollRow {
   plate: string;
@@ -460,6 +461,17 @@ export function TollCollectPage() {
       : new Date().toISOString().slice(0, 7);
 
     exportTollToXlsx(selected, periodStr, 'LTS Logistik GmbH', showMonthDiff, addExtras, dailyRate, kmRate, splitDayNight ? { nightStart, nightEnd, plates: splitPlates, tours: splitTours } : undefined, cityName, auftragNr);
+  };
+
+  // Dachser Schönefeld export — two raw files for the selected vehicles.
+  const handleExportDachser = () => {
+    if (selectedPlates.size === 0) return;
+    const rows = allRows
+      .filter((r) => selectedPlates.has(r.plate))
+      .map((r) => ({ plate: r.plate, date: r.date, time: r.time, raw: r.raw }));
+    if (rows.length === 0) return;
+    exportDachserMaut(rows);
+    exportDachserLkw(rows, tours);
   };
 
   return (
@@ -921,6 +933,17 @@ export function TollCollectPage() {
             >
               <Download className="w-3.5 h-3.5" />
               {t('tollExportExcel')}
+            </button>
+            <button
+              onClick={handleExportDachser}
+              disabled={selectedPlates.size === 0}
+              title={locale === 'de'
+                ? 'Zwei Rohdateien für Dachser Schönefeld (Maut + LKW-Matrix) für die ausgewählten Fahrzeuge'
+                : 'Dwa surowe pliki dla Dachser Schönefeld (maut + macierz aut) dla zaznaczonych pojazdów'}
+              className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-medium bg-indigo-600 text-white hover:bg-indigo-700 dark:bg-indigo-700 dark:hover:bg-indigo-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <Download className="w-3.5 h-3.5" />
+              Dachser Schönefeld
             </button>
           </div>
 
