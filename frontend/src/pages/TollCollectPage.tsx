@@ -464,6 +464,8 @@ export function TollCollectPage() {
   };
 
   // Dachser Schönefeld export — two raw files for the selected vehicles.
+  // The two downloads are spaced out: browsers drop a second programmatic
+  // download fired in the same tick.
   const handleExportDachser = () => {
     if (selectedPlates.size === 0) return;
     const rows = allRows
@@ -471,7 +473,14 @@ export function TollCollectPage() {
       .map((r) => ({ plate: r.plate, date: r.date, time: r.time, raw: r.raw }));
     if (rows.length === 0) return;
     exportDachserMaut(rows);
-    exportDachserLkw(rows, tours);
+    setTimeout(() => {
+      const ok = exportDachserLkw(rows, tours);
+      if (!ok) {
+        setError(locale === 'de'
+          ? 'LKW-Matrix: keine Datumsangaben in den Daten gefunden.'
+          : 'Macierz LKW: brak dat w danych — plik nie został wygenerowany.');
+      }
+    }, 800);
   };
 
   return (

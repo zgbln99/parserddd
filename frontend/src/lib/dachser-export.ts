@@ -9,7 +9,7 @@ import * as XLSX from 'xlsx-js-style';
 
 export interface DachserTollRow {
   plate: string;
-  date: string;            // ISO YYYY-MM-DD
+  date: string;            // ISO YYYY-MM-DD (may be empty)
   time: string;
   raw: Record<string, string>;
 }
@@ -33,6 +33,17 @@ export function normalizePlate(p: string): string {
   return (p || '').trim().toUpperCase().replace(/[\s.\-_]+/g, '-').replace(/^-|-$/g, '');
 }
 
+/** Coerce a date string (ISO or DD.MM.YYYY) to ISO YYYY-MM-DD, or '' . */
+function toIso(s: string): string {
+  if (!s) return '';
+  const t = s.trim();
+  let m = /^(\d{4})-(\d{2})-(\d{2})/.exec(t);
+  if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+  m = /^(\d{1,2})\.(\d{1,2})\.(\d{4})/.exec(t);
+  if (m) return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
+  return '';
+}
+
 /** Map each Dachser column to the matching key in a row's raw record. */
 function buildHeaderMap(rawKeys: string[]): Record<string, string> {
   const normRaw = rawKeys.map((k) => [normKey(k), k] as const);
@@ -45,19 +56,37 @@ function buildHeaderMap(rawKeys: string[]): Record<string, string> {
   return map;
 }
 
+/** ISO date for a row — from the parsed field, falling back to the raw
+ *  "Datum" column (handles data loaded without date detection). */
+function rowIso(r: DachserTollRow): string {
+  const direct = toIso(r.date);
+  if (direct) return direct;
+  for (const [k, v] of Object.entries(r.raw || {})) {
+    if (normKey(k) === 'datum') {
+      const iso = toIso(String(v));
+      if (iso) return iso;
+    }
+  }
+  return '';
+}
+
 function periodLabel(rows: DachserTollRow[]): string {
-  const dates = rows.map((r) => r.date).filter(Boolean).sort();
-  if (!dates.length) return new Date().toISOString().slice(0, 7).split('-').reverse().join('.');
+  const dates = rows.map(rowIso).filter(Boolean).sort();
+  if (!dates.length) {
+    const n = new Date();
+    return `${String(n.getMonth() + 1).padStart(2, '0')}.${n.getFullYear()}`;
+  }
   return `${dates[0].slice(5, 7)}.${dates[0].slice(0, 4)}`; // MM.YYYY
 }
 
 /** File 1 — raw toll rows for the selected vehicles in Dachser's layout. */
-export function exportDachserMaut(rows: DachserTollRow[]): void {
+export function exportDachserMaut(rows: DachserTollRow[]): boolean {
+  if (!rows.length) return false;
   const sorted = [...rows].sort(
     (a, b) =>
       normalizePlate(a.plate).localeCompare(normalizePlate(b.plate)) ||
-      a.date.localeCompare(b.date) ||
-      a.time.localeCompare(b.time),
+      rowIso(a).localeCompare(rowIso(b)) ||
+      (a.time || '').localeCompare(b.time || ''),
   );
   const rawKeys = sorted.length ? Object.keys(sorted[0].raw || {}) : [];
   const hmap = buildHeaderMap(rawKeys);
@@ -73,26 +102,28 @@ export function exportDachserMaut(rows: DachserTollRow[]): void {
     );
   }
   const wb = XLSX.utils.book_new();
-  const ws = XLSX.utils.aoa_to_sheet(aoa);
-  XLSX.utils.book_append_sheet(wb, ws, 'Arkusz1');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), 'Arkusz1');
   XLSX.writeFile(wb, `Schönefeld ${periodLabel(rows)} maut.xlsx`);
+  return true;
 }
 
-/** File 2 — the date × tour matrix of which vehicle drove on which day. */
+/** File 2 — the date × tour matrix of which vehicle drove on which day.
+ *  Returns false when no usable dates were found (nothing to build). */
 export function exportDachserLkw(
   rows: DachserTollRow[],
   tourByPlate: Record<string, string>,
-): void {
+): boolean {
   const daysByPlate: Record<string, Set<string>> = {};
   let minD = '';
   let maxD = '';
   for (const r of rows) {
-    if (!r.date) continue;
-    (daysByPlate[r.plate] ??= new Set()).add(r.date);
-    if (!minD || r.date < minD) minD = r.date;
-    if (!maxD || r.date > maxD) maxD = r.date;
+    const iso = rowIso(r);
+    if (!iso) continue;
+    (daysByPlate[r.plate] ??= new Set()).add(iso);
+    if (!minD || iso < minD) minD = iso;
+    if (!maxD || iso > maxD) maxD = iso;
   }
-  if (!minD) return;
+  if (!minD || !Object.keys(daysByPlate).length) return false;
 
   const cols = Object.keys(daysByPlate)
     .map((plate) => ({ plate, tour: (tourByPlate[plate] || plate).trim() }))
@@ -108,9 +139,8 @@ export function exportDachserLkw(
     });
 
   const aoa: (string | Date)[][] = [['', ...cols.map((c) => c.tour)]];
-  const start = new Date(minD + 'T00:00:00Z');
   const end = new Date(maxD + 'T00:00:00Z');
-  for (let d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
+  for (let d = new Date(minD + 'T00:00:00Z'); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
     const iso = d.toISOString().slice(0, 10);
     aoa.push([
       new Date(d),
@@ -120,11 +150,11 @@ export function exportDachserLkw(
 
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.aoa_to_sheet(aoa, { cellDates: true });
-  // Format the date column as DD.MM.YYYY
   for (let r = 1; r < aoa.length; r++) {
     const addr = XLSX.utils.encode_cell({ r, c: 0 });
     if (ws[addr]) ws[addr].z = 'dd.mm.yyyy';
   }
   XLSX.utils.book_append_sheet(wb, ws, 'Arkusz1');
   XLSX.writeFile(wb, `Schönefeld LKWs ${periodLabel(rows)}.xlsx`);
+  return true;
 }
