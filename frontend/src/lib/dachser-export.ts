@@ -79,9 +79,37 @@ function periodLabel(rows: DachserTollRow[]): string {
   return `${dates[0].slice(5, 7)}.${dates[0].slice(0, 4)}`; // MM.YYYY
 }
 
+/** Build the .xlsx bytes and trigger a download via an anchor — more
+ *  reliable than XLSX.writeFile when two files download back-to-back. */
+function downloadWorkbook(wb: XLSX.WorkBook, filename: string): void {
+  const data = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+  const blob = new Blob([data], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.rel = 'noopener';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => {
+    a.remove();
+    URL.revokeObjectURL(url);
+  }, 2000);
+}
+
+export interface DachserExportResult {
+  ok: boolean;
+  /** maut: data rows written; lkw: day rows written */
+  count: number;
+  /** lkw only: number of tour/vehicle columns */
+  vehicles?: number;
+}
+
 /** File 1 — raw toll rows for the selected vehicles in Dachser's layout. */
-export function exportDachserMaut(rows: DachserTollRow[]): boolean {
-  if (!rows.length) return false;
+export function exportDachserMaut(rows: DachserTollRow[]): DachserExportResult {
+  if (!rows.length) return { ok: false, count: 0 };
   const sorted = [...rows].sort(
     (a, b) =>
       normalizePlate(a.plate).localeCompare(normalizePlate(b.plate)) ||
@@ -103,16 +131,15 @@ export function exportDachserMaut(rows: DachserTollRow[]): boolean {
   }
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), 'Arkusz1');
-  XLSX.writeFile(wb, `Schönefeld ${periodLabel(rows)} maut.xlsx`);
-  return true;
+  downloadWorkbook(wb, `Schönefeld ${periodLabel(rows)} maut.xlsx`);
+  return { ok: true, count: sorted.length };
 }
 
-/** File 2 — the date × tour matrix of which vehicle drove on which day.
- *  Returns false when no usable dates were found (nothing to build). */
+/** File 2 — the date × tour matrix of which vehicle drove on which day. */
 export function exportDachserLkw(
   rows: DachserTollRow[],
   tourByPlate: Record<string, string>,
-): boolean {
+): DachserExportResult {
   const daysByPlate: Record<string, Set<string>> = {};
   let minD = '';
   let maxD = '';
@@ -123,7 +150,7 @@ export function exportDachserLkw(
     if (!minD || iso < minD) minD = iso;
     if (!maxD || iso > maxD) maxD = iso;
   }
-  if (!minD || !Object.keys(daysByPlate).length) return false;
+  if (!minD || !Object.keys(daysByPlate).length) return { ok: false, count: 0 };
 
   const cols = Object.keys(daysByPlate)
     .map((plate) => ({ plate, tour: (tourByPlate[plate] || plate).trim() }))
@@ -155,6 +182,6 @@ export function exportDachserLkw(
     if (ws[addr]) ws[addr].z = 'dd.mm.yyyy';
   }
   XLSX.utils.book_append_sheet(wb, ws, 'Arkusz1');
-  XLSX.writeFile(wb, `Schönefeld LKWs ${periodLabel(rows)}.xlsx`);
-  return true;
+  downloadWorkbook(wb, `Schönefeld LKWs ${periodLabel(rows)}.xlsx`);
+  return { ok: true, count: aoa.length - 1, vehicles: cols.length };
 }

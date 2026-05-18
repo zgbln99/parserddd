@@ -199,6 +199,7 @@ export function TollCollectPage() {
   const [excludedMonths, setExcludedMonths] = useState<Record<string, Set<string>>>({});
   const [cityName, setCityName] = useState('');
   const [auftragNr, setAuftragNr] = useState('');
+  const [dachserMsg, setDachserMsg] = useState('');
 
   // All rows merged from all months
   const allRows = useMemo(() => months.flatMap(m => m.rows), [months]);
@@ -471,15 +472,20 @@ export function TollCollectPage() {
     const rows = allRows
       .filter((r) => selectedPlates.has(r.plate))
       .map((r) => ({ plate: r.plate, date: r.date, time: r.time, raw: r.raw }));
-    if (rows.length === 0) return;
-    exportDachserMaut(rows);
+    if (rows.length === 0) {
+      setDachserMsg(locale === 'de' ? 'Keine Daten für die gewählten Fahrzeuge.' : 'Brak danych dla wybranych aut.');
+      return;
+    }
+    const m = exportDachserMaut(rows);
     setTimeout(() => {
-      const ok = exportDachserLkw(rows, tours);
-      if (!ok) {
-        setError(locale === 'de'
-          ? 'LKW-Matrix: keine Datumsangaben in den Daten gefunden.'
-          : 'Macierz LKW: brak dat w danych — plik nie został wygenerowany.');
-      }
+      const l = exportDachserLkw(rows, tours);
+      const parts = [
+        `maut: ${m.count} ${locale === 'de' ? 'Zeilen' : 'wierszy'}`,
+        l.ok
+          ? `LKW: ${l.count} ${locale === 'de' ? 'Tage' : 'dni'} × ${l.vehicles} ${locale === 'de' ? 'Fahrzeuge' : 'aut'}`
+          : (locale === 'de' ? 'LKW: keine Datumsangaben gefunden' : 'LKW: brak dat w danych'),
+      ];
+      setDachserMsg(parts.join('  ·  '));
     }, 800);
   };
 
@@ -954,6 +960,7 @@ export function TollCollectPage() {
               <Download className="w-3.5 h-3.5" />
               Dachser Schönefeld
             </button>
+            {dachserMsg && <span className="text-xs text-muted">{dachserMsg}</span>}
           </div>
 
           {/* Vehicle table */}
