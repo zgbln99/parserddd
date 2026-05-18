@@ -197,6 +197,9 @@ export function TollCollectPage() {
   const [splitTours, setSplitTours] = useState<Record<string, { day: string; night: string }>>({});
   // Per-plate excluded months (e.g. "2026-02") — only applies when > 2 months loaded
   const [excludedMonths, setExcludedMonths] = useState<Record<string, Set<string>>>({});
+  // Per-plate excluded single days (ISO YYYY-MM-DD) — vehicle drove something
+  // else that day, so its toll must not be billed to the contractor.
+  const [excludedDays, setExcludedDays] = useState<Record<string, Set<string>>>({});
   const [cityName, setCityName] = useState('');
   const [auftragNr, setAuftragNr] = useState('');
   const [dachserMsg, setDachserMsg] = useState('');
@@ -351,20 +354,50 @@ export function TollCollectPage() {
 
   // Group by vehicle
   const byVehicle = useMemo(() => {
-    const map = new Map<string, { rows: TollRow[]; totalKm: number; totalAmount: number }>();
+    const map = new Map<string, {
+      rows: TollRow[]; totalKm: number; totalAmount: number;
+      excludedKm: number; excludedAmount: number; excludedDayCount: number;
+    }>();
     for (const r of filtered) {
       const key = r.plate || '(brak)';
-      if (!map.has(key)) map.set(key, { rows: [], totalKm: 0, totalAmount: 0 });
+      if (!map.has(key)) map.set(key, { rows: [], totalKm: 0, totalAmount: 0, excludedKm: 0, excludedAmount: 0, excludedDayCount: 0 });
       const entry = map.get(key)!;
       entry.rows.push(r);
-      entry.totalKm += r.km;
-      entry.totalAmount += r.amount;
+      if (excludedDays[key]?.has(r.date)) {
+        entry.excludedKm += r.km;
+        entry.excludedAmount += r.amount;
+      } else {
+        entry.totalKm += r.km;
+        entry.totalAmount += r.amount;
+      }
+    }
+    for (const [key, entry] of map) {
+      entry.excludedDayCount = excludedDays[key]?.size || 0;
     }
     return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]));
-  }, [filtered]);
+  }, [filtered, excludedDays]);
 
-  const grandTotalKm = useMemo(() => filtered.reduce((s, r) => s + r.km, 0), [filtered]);
-  const grandTotalAmount = useMemo(() => filtered.reduce((s, r) => s + r.amount, 0), [filtered]);
+  const grandTotalKm = useMemo(
+    () => filtered.reduce((s, r) => s + (excludedDays[r.plate]?.has(r.date) ? 0 : r.km), 0),
+    [filtered, excludedDays],
+  );
+  const grandTotalAmount = useMemo(
+    () => filtered.reduce((s, r) => s + (excludedDays[r.plate]?.has(r.date) ? 0 : r.amount), 0),
+    [filtered, excludedDays],
+  );
+
+  const toggleExcludedDay = (plate: string, date: string) => {
+    if (!date) return;
+    setExcludedDays(prev => {
+      const next = { ...prev };
+      const set = new Set(next[plate] || []);
+      if (set.has(date)) set.delete(date);
+      else set.add(date);
+      if (set.size === 0) delete next[plate];
+      else next[plate] = set;
+      return next;
+    });
+  };
 
   const togglePlate = (plate: string) => {
     setExpandedPlates(prev => {
@@ -425,6 +458,10 @@ export function TollCollectPage() {
         if (excluded && excluded.size > 0) {
           exportRows = exportRows.filter(r => !excluded.has(r.date.slice(0, 7)));
         }
+        const exDays = excludedDays[plate];
+        if (exDays && exDays.size > 0) {
+          exportRows = exportRows.filter(r => !exDays.has(r.date));
+        }
         const totalKm = exportRows.reduce((s, r) => s + r.km, 0);
         const totalAmount = exportRows.reduce((s, r) => s + r.amount, 0);
         return {
@@ -470,7 +507,7 @@ export function TollCollectPage() {
   const handleExportDachser = () => {
     if (selectedPlates.size === 0) return;
     const rows = allRows
-      .filter((r) => selectedPlates.has(r.plate))
+      .filter((r) => selectedPlates.has(r.plate) && !excludedDays[r.plate]?.has(r.date))
       .map((r) => ({ plate: r.plate, date: r.date, time: r.time, raw: r.raw }));
     if (rows.length === 0) {
       setDachserMsg(locale === 'de' ? 'Keine Daten für die gewählten Fahrzeuge.' : 'Brak danych dla wybranych aut.');
@@ -1126,6 +1163,11 @@ export function TollCollectPage() {
                           </td>
                           <td className="px-3 py-3 text-muted text-xs" colSpan={2}>
                             {data.rows.length} {t('tollTripsCount')}
+                            {data.excludedDayCount > 0 && (
+                              <span className="ml-1 text-rose-500 font-medium">
+                                ({data.excludedDayCount} {locale === 'de' ? 'Tag(e) ausgeschl.' : 'dni wykl.'}, −{fmtEur(data.excludedAmount)})
+                              </span>
+                            )}
                           </td>
                           <td className="px-3 py-3 hidden lg:table-cell" />
                           <td className="px-3 py-3 hidden md:table-cell" />
@@ -1190,17 +1232,35 @@ export function TollCollectPage() {
                           </tr>
                         )}
 
-                        {/* Expanded trip rows */}
-                        {isExpanded && data.rows.map((r, idx) => (
+                        {/* Expanded trip rows — click a date to exclude the
+                            whole day (vehicle drove something else). */}
+                        {isExpanded && data.rows.map((r, idx) => {
+                          const dayExcluded = excludedDays[plate]?.has(r.date) ?? false;
+                          return (
                           <tr
                             key={`${plate}-${idx}`}
-                            className="border-b border-gray-50 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/20 text-xs"
+                            className={`border-b border-gray-50 dark:border-gray-800 text-xs ${dayExcluded ? 'bg-rose-50/60 dark:bg-rose-900/15 text-rose-400 line-through' : 'bg-gray-50/50 dark:bg-gray-800/20'}`}
                           >
                             <td className="px-3 py-2" />
                             <td className="px-1 py-2" />
                             <td className="px-3 py-2 hidden sm:table-cell" />
                             <td className="px-3 py-2 font-mono text-muted">{r.bookingNr}</td>
-                            <td className="px-3 py-2 text-gray-700 dark:text-gray-300">{r.date}</td>
+                            <td className="px-3 py-2">
+                              <button
+                                onClick={(e) => { e.stopPropagation(); toggleExcludedDay(plate, r.date); }}
+                                title={dayExcluded
+                                  ? (locale === 'de' ? 'Tag wieder einrechnen' : 'Przywróć dzień do rozliczenia')
+                                  : (locale === 'de' ? 'Diesen Tag von der Maut-Abrechnung ausschließen' : 'Wyklucz ten dzień z rozliczenia maut')}
+                                className={`no-underline inline-flex items-center gap-1 rounded px-1.5 py-0.5 font-medium transition-colors ${
+                                  dayExcluded
+                                    ? 'bg-rose-500 text-white'
+                                    : 'text-gray-700 dark:text-gray-300 hover:bg-rose-100 dark:hover:bg-rose-900/30'
+                                }`}
+                              >
+                                {dayExcluded && <X className="w-3 h-3" />}
+                                {r.date}
+                              </button>
+                            </td>
                             <td className="px-3 py-2 text-muted">{r.time}</td>
                             <td className="px-3 py-2 text-muted hidden lg:table-cell max-w-xs truncate" title={r.route}>
                               {r.route}
@@ -1215,7 +1275,8 @@ export function TollCollectPage() {
                               {fmtEur(r.amount)}
                             </td>
                           </tr>
-                        ))}
+                          );
+                        })}
                       </>
                     );
                   })}
