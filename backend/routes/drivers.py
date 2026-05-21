@@ -10,7 +10,6 @@ Endpoints:
 import os
 from datetime import datetime
 
-import dropbox
 from flask import Blueprint, request, jsonify
 
 from auth.decorators import login_required
@@ -48,7 +47,7 @@ def api_drivers():
 
     dbx = get_server_dropbox_client()
     if not dbx:
-        return jsonify({'error': 'Brak polaczenia z Dropbox (brak DROPBOX_REFRESH_TOKEN)'}), 500
+        return jsonify({'error': 'Storage nie skonfigurowany (brak MEGA_S4_* w env)'}), 500
 
     sync_folder = os.environ.get('SYNC_DEST_FOLDER', '/Samsara-DDD')
     try:
@@ -75,11 +74,11 @@ def api_add_driver():
     sync_folder = os.environ.get('SYNC_DEST_FOLDER', '/Samsara-DDD')
     folder_path = f"{sync_folder}/{driver_name}"
 
+    # Object storage has no real folders — a driver appears once their first
+    # file is uploaded. This is a no-op kept for API compatibility.
     try:
         dbx.files_create_folder_v2(folder_path)
-    except dropbox.exceptions.ApiError as e:
-        if 'conflict' in str(e).lower() or 'path/conflict' in str(e).lower():
-            return jsonify({'error': 'Folder juz istnieje'}), 409
+    except Exception as e:
         return jsonify({'error': str(e)}), 500
 
     # Invalidate cache
@@ -124,11 +123,7 @@ def api_reader_save_to_dropbox():
 
     try:
         file_data = file.read()
-        dbx.files_upload(
-            file_data,
-            dbx_path,
-            mode=dropbox.files.WriteMode.overwrite,
-        )
+        dbx.files_upload(file_data, dbx_path)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

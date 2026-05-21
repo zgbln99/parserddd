@@ -41,11 +41,26 @@ DATABASE_FILE = os.environ.get('DATABASE_FILE', '/opt/ddd-reader/ddd_portal.db')
 # External services
 # ---------------------------------------------------------------------------
 
-DROPBOX_APP_KEY = os.environ.get('DROPBOX_APP_KEY', 'j9ntkihedd9495i')
-DROPBOX_APP_SECRET = os.environ.get('DROPBOX_APP_SECRET', 'd3hr43reha9kky8')
+# Legacy Dropbox config — kept only so older code/imports don't break;
+# the app now stores files in MEGA S4 (S3-compatible), see below.
+DROPBOX_APP_KEY = os.environ.get('DROPBOX_APP_KEY', '')
+DROPBOX_APP_SECRET = os.environ.get('DROPBOX_APP_SECRET', '')
 DROPBOX_REFRESH_TOKEN = os.environ.get('DROPBOX_REFRESH_TOKEN', '')
 SAMSARA_API_TOKEN = os.environ.get('SAMSARA_API_TOKEN', '')
 SAMSARA_API_BASE = 'https://api.eu.samsara.com'
+
+# ---------------------------------------------------------------------------
+# Object storage (MEGA S4 / S3-compatible) — replaces Dropbox.
+# Credentials come from the environment only; never hard-code keys. The
+# bucket stays private; files are streamed through the backend, never via
+# public URLs.
+# ---------------------------------------------------------------------------
+
+MEGA_S4_ACCESS_KEY_ID = os.environ.get('MEGA_S4_ACCESS_KEY_ID', '')
+MEGA_S4_SECRET_ACCESS_KEY = os.environ.get('MEGA_S4_SECRET_ACCESS_KEY', '')
+MEGA_S4_BUCKET = os.environ.get('MEGA_S4_BUCKET', '')
+MEGA_S4_ENDPOINT = os.environ.get('MEGA_S4_ENDPOINT', 'https://s3.g.s4.mega.io')
+MEGA_S4_REGION = os.environ.get('MEGA_S4_REGION', 'eu-central-1')
 
 # ---------------------------------------------------------------------------
 # Cache

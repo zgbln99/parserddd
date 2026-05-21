@@ -27,14 +27,15 @@ import os
 import sys
 from datetime import datetime, timedelta, timezone
 
-import dropbox
 import requests
 
 SAMSARA_API_TOKEN = os.environ.get('SAMSARA_API_TOKEN', '')
 SAMSARA_API_BASE = 'https://api.eu.samsara.com'
-DROPBOX_REFRESH_TOKEN = os.environ.get('DROPBOX_REFRESH_TOKEN', '')
-DROPBOX_APP_KEY = os.environ.get('DROPBOX_APP_KEY', 'j9ntkihedd9495i')
-DROPBOX_APP_SECRET = os.environ.get('DROPBOX_APP_SECRET', 'd3hr43reha9kky8')
+MEGA_S4_ACCESS_KEY_ID = os.environ.get('MEGA_S4_ACCESS_KEY_ID', '')
+MEGA_S4_SECRET_ACCESS_KEY = os.environ.get('MEGA_S4_SECRET_ACCESS_KEY', '')
+MEGA_S4_BUCKET = os.environ.get('MEGA_S4_BUCKET', '')
+MEGA_S4_ENDPOINT = os.environ.get('MEGA_S4_ENDPOINT', 'https://s3.g.s4.mega.io')
+MEGA_S4_REGION = os.environ.get('MEGA_S4_REGION', 'eu-central-1')
 STATE_FILE = os.environ.get('SYNC_STATE_FILE', '/opt/ddd-reader/samsara_sync_state.json')
 SYNC_HISTORY_FILE = os.environ.get('SYNC_HISTORY_FILE', '/opt/ddd-reader/samsara_sync_history.json')
 DEST_FOLDER = os.environ.get('SYNC_DEST_FOLDER', '/Samsara-DDD')
@@ -120,21 +121,17 @@ def fetch_samsara_files():
     return all_data
 
 
-def upload_to_dropbox(dbx, content, path):
-    """Upload file content to Dropbox."""
-    dbx.files_upload(
-        content,
-        path,
-        mode=dropbox.files.WriteMode.overwrite,
-    )
+def upload_to_storage(s3, content, path):
+    """Upload file content to the MEGA S4 bucket (overwrites)."""
+    s3.put_object(Bucket=MEGA_S4_BUCKET, Key=path.lstrip('/'), Body=content)
 
 
 def main():
     if not SAMSARA_API_TOKEN:
         log('ERROR: SAMSARA_API_TOKEN not set')
         sys.exit(1)
-    if not DROPBOX_REFRESH_TOKEN:
-        log('ERROR: DROPBOX_REFRESH_TOKEN not set')
+    if not (MEGA_S4_ACCESS_KEY_ID and MEGA_S4_SECRET_ACCESS_KEY and MEGA_S4_BUCKET):
+        log('ERROR: MEGA S4 storage not configured')
         sys.exit(1)
 
     log(f'Starting sync (last {DAYS_BACK} days)...')
@@ -191,17 +188,22 @@ def main():
 
     log(f'Found {len(new_files)} new files to sync.')
 
-    # Connect to Dropbox using refresh token (auto-renews access token)
+    # Connect to MEGA S4 (S3-compatible) using credentials from the env
     try:
-        dbx = dropbox.Dropbox(
-            oauth2_refresh_token=DROPBOX_REFRESH_TOKEN,
-            app_key=DROPBOX_APP_KEY,
-            app_secret=DROPBOX_APP_SECRET,
+        import boto3
+        from botocore.config import Config
+        s3 = boto3.client(
+            's3',
+            endpoint_url=MEGA_S4_ENDPOINT,
+            region_name=MEGA_S4_REGION,
+            aws_access_key_id=MEGA_S4_ACCESS_KEY_ID,
+            aws_secret_access_key=MEGA_S4_SECRET_ACCESS_KEY,
+            config=Config(signature_version='s3v4', s3={'addressing_style': 'path'}),
         )
-        acct = dbx.users_get_current_account()
-        log(f'Dropbox connected: {acct.name.display_name}')
+        s3.head_bucket(Bucket=MEGA_S4_BUCKET)
+        log(f'MEGA S4 connected: bucket {MEGA_S4_BUCKET}')
     except Exception as e:
-        log(f'ERROR: Dropbox connection failed: {e}')
+        log(f'ERROR: MEGA S4 connection failed: {e}')
         save_sync_history({
             'timestamp': datetime.now(tz=timezone.utc).isoformat() + 'Z',
             'status': 'error',
@@ -243,7 +245,7 @@ def main():
                 })
                 continue
 
-            upload_to_dropbox(dbx, resp.content, dbx_path)
+            upload_to_storage(s3, resp.content, dbx_path)
             synced_ids.add(f['id'])
             uploaded += 1
             log(f'  OK {dbx_path} ({len(resp.content)} bytes)')

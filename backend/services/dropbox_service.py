@@ -1,5 +1,9 @@
-"""
-Dropbox integration — client factory, driver listing, portal cache.
+"""Storage integration — client factory, driver listing, portal cache.
+
+Historically backed by Dropbox; now backed by MEGA S4 (S3-compatible) via
+:mod:`services.storage_service`. The function names are kept so existing
+call sites don't change: ``get_server_dropbox_client`` returns a storage
+client whose method names mirror the old Dropbox SDK.
 """
 
 import json
@@ -7,55 +11,43 @@ import os
 import re
 from datetime import datetime
 
-import dropbox
-
-from config import (
-    DROPBOX_APP_KEY, DROPBOX_APP_SECRET, DROPBOX_REFRESH_TOKEN,
-    PORTAL_CACHE_FILE, PORTAL_CACHE_MAX_AGE,
-)
+from config import PORTAL_CACHE_FILE, PORTAL_CACHE_MAX_AGE
 from core.constants import UTC
+from services import storage_service
 
 
 def get_server_dropbox_client():
-    """Get a Dropbox client using the server-side refresh token."""
-    if not DROPBOX_REFRESH_TOKEN:
-        return None
-    try:
-        return dropbox.Dropbox(
-            oauth2_refresh_token=DROPBOX_REFRESH_TOKEN,
-            app_key=DROPBOX_APP_KEY,
-            app_secret=DROPBOX_APP_SECRET,
-        )
-    except Exception:
-        return None
+    """Return the server-side storage client (or None when not configured)."""
+    return storage_service.get_client()
 
 
 def build_drivers_data(dbx, sync_folder):
-    """Build driver list with files from Dropbox folder structure."""
+    """Build the driver list from the storage folder structure.
+
+    Layout: ``{sync_folder}/{driver_name}/{filename}``. Object storage has
+    no real folders, so drivers are derived from the file keys themselves.
+    """
     result = dbx.files_list_folder(sync_folder, recursive=True)
     all_entries = list(result.entries)
-    while result.has_more:
+    while getattr(result, 'has_more', False):
         result = dbx.files_list_folder_continue(result.cursor)
         all_entries.extend(result.entries)
 
-    driver_files = {}
-    driver_paths = {}
+    base = sync_folder.rstrip('/')
+    driver_files: dict[str, list] = {}
+    driver_paths: dict[str, str] = {}
+
     for entry in all_entries:
-        if isinstance(entry, dropbox.files.FolderMetadata):
-            rel = entry.path_display[len(sync_folder):].strip('/')
-            if '/' not in rel and rel:
-                driver_paths[rel] = entry.path_display
+        if not getattr(entry, 'is_file', True):
             continue
-        if not isinstance(entry, dropbox.files.FileMetadata):
-            continue
-        rel = entry.path_display[len(sync_folder):].strip('/')
+        path_display = entry.path_display
+        rel = (path_display[len(base):] if path_display.startswith(base) else path_display).strip('/')
         parts = rel.split('/')
         if len(parts) != 2:
             continue
-        driver_name = parts[0]
-        fname = parts[1]
-        if driver_name not in driver_files:
-            driver_files[driver_name] = []
+        driver_name, fname = parts
+        driver_paths.setdefault(driver_name, f'{base}/{driver_name}')
+        driver_files.setdefault(driver_name, [])
 
         card_number = ''
         file_date = ''
@@ -64,11 +56,19 @@ def build_drivers_data(dbx, sync_folder):
             card_number = m.group(1)
             file_date = m.group(2)
 
+        modified = ''
+        sm = getattr(entry, 'server_modified', None)
+        if sm:
+            try:
+                modified = sm.isoformat()
+            except Exception:
+                modified = str(sm)
+
         driver_files[driver_name].append({
             'name': fname,
-            'path': entry.path_display,
-            'size': entry.size,
-            'modified': entry.server_modified.isoformat() if entry.server_modified else '',
+            'path': path_display,
+            'size': getattr(entry, 'size', 0),
+            'modified': modified,
             'card_number': card_number,
             'file_date': file_date,
         })
@@ -104,7 +104,7 @@ def build_drivers_data(dbx, sync_folder):
 
         drivers.append({
             'name': driver_name,
-            'path': driver_paths.get(driver_name, f'{sync_folder}/{driver_name}'),
+            'path': driver_paths.get(driver_name, f'{base}/{driver_name}'),
             'card_number': card_number,
             'file_count': len(files),
             'earliest_date': earliest_date,

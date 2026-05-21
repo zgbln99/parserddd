@@ -1083,19 +1083,18 @@ def upload_signed_pdf_to_dropbox(
     signed_at: datetime,
     token: str,
 ) -> str:
-    from dropbox.files import WriteMode  # type: ignore[import-untyped]
     from services.dropbox_service import get_server_dropbox_client
 
     safe_driver = _safe_path_component(driver_name or driver_card)
     date = signed_at.astimezone(timezone.utc).strftime("%Y-%m-%d")
-    folder = os.environ.get("DROPBOX_SIGNED_FOLDER", "/Verstoesse-Unterschriften")
+    folder = os.environ.get("SIGNED_PDF_FOLDER", os.environ.get("DROPBOX_SIGNED_FOLDER", "/Verstoesse-Unterschriften"))
     filename = f"{date}_{token[:8]}.pdf"
     path = f"{folder}/{safe_driver}/{filename}"
 
     dbx = get_server_dropbox_client()
     if dbx is None:
-        raise RuntimeError("Dropbox client not configured (missing refresh token)")
-    dbx.files_upload(pdf_bytes, path, mode=WriteMode.overwrite, mute=True)
+        raise RuntimeError("Storage client not configured (missing MEGA S4 credentials)")
+    dbx.files_upload(pdf_bytes, path)
     return path
 
 

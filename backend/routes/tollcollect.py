@@ -1,10 +1,9 @@
 """
-TollCollect Blueprint — Dropbox file storage for toll CSV files.
+TollCollect Blueprint — object storage (MEGA S4) for toll CSV files.
 """
 
 import re
 
-import dropbox
 from flask import Blueprint, request, jsonify
 
 from auth.decorators import login_required
@@ -29,14 +28,12 @@ def api_tollcollect_files():
         while result.has_more:
             result = dbx.files_list_folder_continue(result.cursor)
             entries.extend(result.entries)
-    except dropbox.exceptions.ApiError as e:
-        if 'not_found' in str(e):
-            return jsonify({'files': []})
+    except Exception as e:
         return jsonify({'error': str(e)}), 500
 
     files = []
     for entry in entries:
-        if not isinstance(entry, dropbox.files.FileMetadata):
+        if not getattr(entry, 'is_file', True):
             continue
         files.append({
             'name': entry.name,
@@ -72,11 +69,7 @@ def api_tollcollect_upload():
     dbx_path = f"{TOLLCOLLECT_FOLDER}/{safe_name}"
     try:
         file_data = file.read()
-        dbx.files_upload(
-            file_data,
-            dbx_path,
-            mode=dropbox.files.WriteMode.overwrite,
-        )
+        dbx.files_upload(file_data, dbx_path)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
