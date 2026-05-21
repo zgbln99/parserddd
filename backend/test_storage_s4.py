@@ -22,6 +22,15 @@ import uuid
 # Allow running from the backend/ dir.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+# Load a .env (searched in cwd and parent dirs) so this test sees the same
+# vars the app does. NOTE: systemd `Environment=` lines only apply to the
+# service process — for this manual test put the vars in .env or export them.
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 from services import storage_service as st  # noqa: E402
 from config import MEGA_S4_ENDPOINT, MEGA_S4_BUCKET  # noqa: E402
 
