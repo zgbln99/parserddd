@@ -63,16 +63,32 @@ def _dbx():
 
 
 def main() -> int:
-    args = [a for a in sys.argv[1:] if not a.startswith('-')]
-    dry_run = '--dry-run' in sys.argv
+    raw = sys.argv[1:]
+    dry_run = '--dry-run' in raw
+    verify = '--verify' in raw
     workers = 8
-    for a in sys.argv:
-        if a.startswith('--workers'):
+    folders = []
+    i = 0
+    while i < len(raw):
+        a = raw[i]
+        if a == '--workers':
+            i += 1
+            if i < len(raw):
+                try:
+                    workers = int(raw[i])
+                except ValueError:
+                    pass
+        elif a.startswith('--workers='):
             try:
-                workers = int(a.split('=')[1]) if '=' in a else int(sys.argv[sys.argv.index(a) + 1])
-            except (ValueError, IndexError):
+                workers = int(a.split('=', 1)[1])
+            except ValueError:
                 pass
-    folders = args or DEFAULT_FOLDERS
+        elif a.startswith('-'):
+            pass  # other flags (--dry-run, --verify)
+        else:
+            folders.append(a)
+        i += 1
+    folders = folders or DEFAULT_FOLDERS
 
     if not st.is_configured():
         print('ERROR: MEGA S4 not configured (set MEGA_S4_* env vars).')
@@ -89,7 +105,7 @@ def main() -> int:
 
     acct = _dbx().users_get_current_account()
     print(f'Dropbox connected: {acct.name.display_name}  | workers={workers}'
-          + ('  | DRY RUN' if dry_run else ('  | VERIFY' if '--verify' in sys.argv else '')))
+          + ('  | DRY RUN' if dry_run else ('  | VERIFY' if verify else '')))
 
     # 1) list everything (fast, single-threaded)
     todo = []  # (path, size)
@@ -111,7 +127,7 @@ def main() -> int:
     print(f'Total candidates: {len(todo)}')
 
     # --verify: compare Dropbox vs S4 by key + size, report only (no writes).
-    if '--verify' in sys.argv:
+    if verify:
         dbx_keys = {st.key_for(p): s for p, s in todo}
         s4_keys: dict[str, int] = {}
         for folder in folders:
