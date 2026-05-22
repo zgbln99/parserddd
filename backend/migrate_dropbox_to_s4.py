@@ -89,7 +89,7 @@ def main() -> int:
 
     acct = _dbx().users_get_current_account()
     print(f'Dropbox connected: {acct.name.display_name}  | workers={workers}'
-          + ('  | DRY RUN' if dry_run else ''))
+          + ('  | DRY RUN' if dry_run else ('  | VERIFY' if '--verify' in sys.argv else '')))
 
     # 1) list everything (fast, single-threaded)
     todo = []  # (path, size)
@@ -109,6 +109,27 @@ def main() -> int:
             todo.append((e.path_display, e.size))
 
     print(f'Total candidates: {len(todo)}')
+
+    # --verify: compare Dropbox vs S4 by key + size, report only (no writes).
+    if '--verify' in sys.argv:
+        dbx_keys = {st.key_for(p): s for p, s in todo}
+        s4_keys: dict[str, int] = {}
+        for folder in folders:
+            for it in st.list_prefix(folder):
+                s4_keys[it['key']] = it['size']
+        missing = [k for k in dbx_keys if k not in s4_keys]
+        size_diff = [k for k in dbx_keys if k in s4_keys and s4_keys[k] != dbx_keys[k]]
+        extra = [k for k in s4_keys if k not in dbx_keys]
+        print(f'\nVERIFY: Dropbox {len(dbx_keys)}  | S4 {len(s4_keys)}')
+        print(f'  missing in S4 : {len(missing)}')
+        print(f'  size mismatch : {len(size_diff)}')
+        print(f'  extra in S4   : {len(extra)}  (objects in S4 not in Dropbox)')
+        for k in (missing[:20] + size_diff[:20]):
+            print(f'    ! {k}')
+        if len(missing) + len(size_diff) == 0:
+            print('  OK — every Dropbox file has a matching object in S4.')
+        return 1 if (missing or size_diff) else 0
+
     if dry_run:
         for p, s in todo[:50]:
             print(f'  [dry] {p} ({s} B)')
@@ -120,6 +141,9 @@ def main() -> int:
 
     def _one(path, size):
         try:
+            # Idempotent: the S3 key == the path, so a re-copy overwrites the
+            # same object (never a duplicate). Skip when already present with
+            # the same size so re-runs are cheap.
             existing = st.head(path)
             if existing and existing.get('size') == size:
                 with _lock:
