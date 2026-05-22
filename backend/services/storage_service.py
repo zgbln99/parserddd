@@ -104,6 +104,7 @@ def _s3_client():
                 signature_version='s3v4',
                 s3={'addressing_style': 'path'},  # forcePathStyle
                 retries={'max_attempts': 3, 'mode': 'standard'},
+                max_pool_connections=50,
             ),
         )
         return _s3
