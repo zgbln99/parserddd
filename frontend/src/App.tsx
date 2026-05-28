@@ -24,6 +24,7 @@ const AnalysisPage = lazy(() => import('./pages/AnalysisPage').then(m => ({ defa
 const DriverKmPage = lazy(() => import('./pages/DriverKmPage').then(m => ({ default: m.DriverKmPage })));
 const TollCollectPage = lazy(() => import('./pages/TollCollectPage').then(m => ({ default: m.TollCollectPage })));
 const SamsaraKmPage = lazy(() => import('./pages/SamsaraKmPage').then(m => ({ default: m.SamsaraKmPage })));
+const OdometerPage = lazy(() => import('./pages/OdometerPage').then(m => ({ default: m.OdometerPage })));
 const PayrollPage = lazy(() => import('./pages/PayrollPage').then(m => ({ default: m.PayrollPage })));
 const PayrollAnalysisPage = lazy(() => import('./pages/PayrollAnalysisPage').then(m => ({ default: m.PayrollAnalysisPage })));
 const StundenzettelPage = lazy(() => import('./pages/StundenzettelPage').then(m => ({ default: m.StundenzettelPage })));
@@ -127,6 +128,7 @@ export function App() {
           <Route path="/driver-km" element={<PermissionRoute permission="driver_km"><DriverKmPage /></PermissionRoute>} />
           <Route path="/toll" element={<PermissionRoute permission="toll"><TollCollectPage /></PermissionRoute>} />
           <Route path="/samsara-km" element={<PermissionRoute permission="samsara_km"><SamsaraKmPage /></PermissionRoute>} />
+          <Route path="/odometer" element={<PermissionRoute permission="vehicles"><OdometerPage /></PermissionRoute>} />
           <Route path="/analysis" element={<ProtectedRoute><AnalysisPage /></ProtectedRoute>} />
           <Route path="/arbeitszeitbericht" element={<PermissionRoute permission="settlement"><ArbeitszeitberichtPage /></PermissionRoute>} />
           <Route path="/compliance" element={<PermissionRoute permission="settlement"><CompliancePage /></PermissionRoute>} />

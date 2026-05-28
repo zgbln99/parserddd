@@ -725,6 +725,26 @@ export const pl = {
   readerOnlyDdd: 'Obsługiwane są tylko pliki .ddd',
   readerFilesQueued: 'plików w kolejce',
   readerProcessing: 'Przetwarzanie',
+
+  // Odometer page
+  navOdometer: 'Przebieg',
+  odoTitle: 'Przebieg pojazdów (Samsara)',
+  odoSubtitle: 'Aktualny przebieg lub przebieg w wybranym dniu z tachografu OBD',
+  odoModeCurrent: 'Aktualny',
+  odoDayMode: 'Dzień',
+  odoDate: 'Data',
+  odoFetch: 'Pobierz',
+  odoVehicle: 'Pojazd',
+  odoPlate: 'Tablica',
+  odoCurrentKm: 'Przebieg (km)',
+  odoStartKm: 'Przebieg początek',
+  odoEndKm: 'Przebieg koniec',
+  odoDrivenKm: 'Km przejechane',
+  odoUpdated: 'Aktualizacja',
+  odoNoData: 'Brak danych OBD dla wybranych pojazdów',
+  odoLoading: 'Pobieranie danych z Samsara…',
+  odoReadings: 'odczytów',
+  odoAllVehicles: 'Wszystkie pojazdy',
 } as const;
 
 export type TranslationKey = keyof typeof pl;

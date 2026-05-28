@@ -53,6 +53,7 @@ export function Layout({ children }: { children: ReactNode }) {
     { to: '/arbeitszeitbericht', icon: Clock, labelKey: 'navArbeitszeitbericht' as const, permission: 'settlement' },
     { to: '/compliance', icon: ShieldCheck, labelKey: 'navCompliance' as const, permission: 'settlement' },
     { to: '/vehicles', icon: Truck, labelKey: 'navVehicles' as const, permission: 'vehicles' },
+    { to: '/odometer', icon: Gauge, labelKey: 'navOdometer' as const, permission: 'vehicles' },
     { to: '/driver-km', icon: Gauge, labelKey: 'navDriverKm' as const, permission: 'driver_km' },
     { to: '/toll', icon: Coins, labelKey: 'navTollCollect' as const, permission: 'toll' },
     { to: '/samsara-km', icon: Route, labelKey: 'navSamsaraKm' as const, permission: 'samsara_km' },
@@ -76,7 +77,7 @@ export function Layout({ children }: { children: ReactNode }) {
   const payrollItems = navItems.filter(i => payrollKeys.has(i.to));
   if (payrollItems.length > 0) navSections.push({ label: locale === 'de' ? 'Abrechnung' : 'Rozliczenia', items: payrollItems });
 
-  const vehicleKeys = new Set(['/vehicles', '/driver-km', '/toll', '/samsara-km']);
+  const vehicleKeys = new Set(['/vehicles', '/odometer', '/driver-km', '/toll', '/samsara-km']);
   const vehicleItems = navItems.filter(i => vehicleKeys.has(i.to));
   if (vehicleItems.length > 0) navSections.push({ label: locale === 'de' ? 'Fahrzeuge & Maut' : 'Pojazdy i maut', items: vehicleItems });
 

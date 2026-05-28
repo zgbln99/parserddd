@@ -913,4 +913,39 @@ export const deleteTollCollectFile = (path: string) =>
     body: JSON.stringify({ path }),
   });
 
+// ─── Odometer ───
+
+export interface OdometerCurrentEntry {
+  vehicle_id: string;
+  vehicle_name: string;
+  license_plate: string;
+  odometer_km: number;
+  updated_at: string;
+}
+
+export interface OdometerDayEntry {
+  vehicle_id: string;
+  vehicle_name: string;
+  license_plate: string;
+  odometer_start_km: number | null;
+  odometer_end_km: number | null;
+  driven_km: number | null;
+  readings_count: number;
+  updated_at: string | null;
+}
+
+export const fetchOdometerCurrent = (vehicleIds?: string[]) => {
+  const params = vehicleIds && vehicleIds.length > 0
+    ? `?vehicle_ids=${vehicleIds.join(',')}`
+    : '';
+  return request<{ vehicles: OdometerCurrentEntry[]; mode: 'current' }>(`/api/vehicles/odometer${params}`);
+};
+
+export const fetchOdometerDay = (date: string, vehicleIds?: string[]) => {
+  const vParam = vehicleIds && vehicleIds.length > 0
+    ? `&vehicle_ids=${vehicleIds.join(',')}`
+    : '';
+  return request<{ vehicles: OdometerDayEntry[]; mode: 'day'; date: string }>(`/api/vehicles/odometer?date=${date}${vParam}`);
+};
+
 
