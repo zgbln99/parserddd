@@ -731,9 +731,11 @@ export const de: Record<TranslationKey, string> = {
   // Odometer page
   navOdometer: 'Kilometerstand',
   odoTitle: 'Kilometerstand Fahrzeuge (Samsara)',
-  odoSubtitle: 'Aktueller Kilometerstand oder Tageskilometer aus dem OBD-Tachographen',
+  odoSubtitle: 'Aktueller Kilometerstand oder Tageskilometer (Zeitraum) aus dem OBD-Tachographen',
   odoModeCurrent: 'Aktuell',
-  odoDayMode: 'Tag',
+  odoModeRange: 'Zeitraum',
+  odoDateFrom: 'Von',
+  odoDateTo: 'Bis',
   odoDate: 'Datum',
   odoFetch: 'Abrufen',
   odoVehicle: 'Fahrzeug',
@@ -747,4 +749,9 @@ export const de: Record<TranslationKey, string> = {
   odoLoading: 'Daten von Samsara werden abgerufen…',
   odoReadings: 'Messwerte',
   odoAllVehicles: 'Alle Fahrzeuge',
+  odoToday: 'Heute',
+  odo7Days: '7 Tage',
+  odoThisMonth: 'Dieser Monat',
+  odoLastMonth: 'Letzter Monat',
+  odoTotal: 'Gesamt',
 };

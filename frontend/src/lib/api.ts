@@ -923,15 +923,15 @@ export interface OdometerCurrentEntry {
   updated_at: string;
 }
 
-export interface OdometerDayEntry {
+export interface OdometerRangeRow {
   vehicle_id: string;
   vehicle_name: string;
   license_plate: string;
+  date: string;
   odometer_start_km: number | null;
   odometer_end_km: number | null;
   driven_km: number | null;
   readings_count: number;
-  updated_at: string | null;
 }
 
 export const fetchOdometerCurrent = (vehicleIds?: string[]) => {
@@ -941,11 +941,20 @@ export const fetchOdometerCurrent = (vehicleIds?: string[]) => {
   return request<{ vehicles: OdometerCurrentEntry[]; mode: 'current' }>(`/api/vehicles/odometer${params}`);
 };
 
-export const fetchOdometerDay = (date: string, vehicleIds?: string[]) => {
+export const fetchOdometerRange = (
+  dateFrom: string,
+  dateTo: string,
+  vehicleIds?: string[],
+) => {
   const vParam = vehicleIds && vehicleIds.length > 0
     ? `&vehicle_ids=${vehicleIds.join(',')}`
     : '';
-  return request<{ vehicles: OdometerDayEntry[]; mode: 'day'; date: string }>(`/api/vehicles/odometer?date=${date}${vParam}`);
+  return request<{
+    rows: OdometerRangeRow[];
+    mode: 'range';
+    date_from: string;
+    date_to: string;
+  }>(`/api/vehicles/odometer?date_from=${dateFrom}&date_to=${dateTo}${vParam}`);
 };
 
 

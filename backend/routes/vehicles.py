@@ -592,22 +592,26 @@ def api_vehicles_activity():
 @permission_required('vehicles')
 def api_vehicles_odometer():
     """
-    Current OBD odometer for all vehicles (or filtered by vehicle_ids).
-    Also accepts ?date=YYYY-MM-DD to get start/end readings for that day.
+    OBD odometer data for vehicles from Samsara.
 
     Query params:
-      vehicle_ids  comma-separated Samsara vehicle IDs (optional, all if omitted)
-      date         YYYY-MM-DD  (optional, defaults to current reading)
+      vehicle_ids   comma-separated Samsara vehicle IDs (optional, all if omitted)
+      date_from     YYYY-MM-DD  range start (CET)  → triggers range mode
+      date_to       YYYY-MM-DD  range end   (CET)  → triggers range mode
+      (omit both for current-reading mode)
     """
+    import re
+
     if not SAMSARA_API_TOKEN:
         return jsonify({'error': 'Samsara API not configured'}), 400
 
     vehicle_ids_param = request.args.get('vehicle_ids', '')
-    date_str = request.args.get('date', '')
+    date_from = request.args.get('date_from', '').strip()
+    date_to = request.args.get('date_to', '').strip()
 
     headers = {'Authorization': f'Bearer {SAMSARA_API_TOKEN}'}
 
-    # Fetch full vehicle list to resolve names/plates
+    # ── fetch vehicle metadata ──────────────────────────────────────────────
     vehicle_meta = {}
     after = None
     for _ in range(20):
@@ -640,30 +644,42 @@ def api_vehicles_odometer():
     if not ids_list:
         return jsonify({'vehicles': [], 'mode': 'current'})
 
-    results = []
-
-    if date_str and len(date_str) == 10:
-        # Historical mode: get readings over the specified day (CET)
-        import re
-        if not re.match(r'^\d{4}-\d{2}-\d{2}$', date_str):
+    # ── range mode ──────────────────────────────────────────────────────────
+    if date_from and date_to:
+        date_pat = re.compile(r'^\d{4}-\d{2}-\d{2}$')
+        if not date_pat.match(date_from) or not date_pat.match(date_to):
             return jsonify({'error': 'Invalid date format (expected YYYY-MM-DD)'}), 400
+        if date_from > date_to:
+            return jsonify({'error': 'date_from must be <= date_to'}), 400
 
-        # Build UTC window that covers the full CET day
-        day_start_cet = datetime.fromisoformat(f'{date_str}T00:00:00').replace(tzinfo=CET)
-        day_end_cet = datetime.fromisoformat(f'{date_str}T23:59:59').replace(tzinfo=CET)
-        start_time = day_start_cet.astimezone(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
-        end_time = day_end_cet.astimezone(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+        # Single Samsara call covering the whole CET range
+        start_utc = (
+            datetime.fromisoformat(f'{date_from}T00:00:00')
+            .replace(tzinfo=CET)
+            .astimezone(timezone.utc)
+            .strftime('%Y-%m-%dT%H:%M:%SZ')
+        )
+        end_utc = (
+            datetime.fromisoformat(f'{date_to}T23:59:59')
+            .replace(tzinfo=CET)
+            .astimezone(timezone.utc)
+            .strftime('%Y-%m-%dT%H:%M:%SZ')
+        )
 
-        # Fetch stats history for the day
-        all_readings = {vid: [] for vid in ids_list}
+        def ts_to_cet_date(ts: str) -> str:
+            dt = datetime.fromisoformat(ts.replace('Z', '+00:00')).astimezone(CET)
+            return dt.strftime('%Y-%m-%d')
+
+        # Group readings: {vid: {date_str: [(ts, meters)]}}
+        daily: dict = {}
         ids_param = ','.join(ids_list[:50])
         stat_after = None
-        for _ in range(50):
+        for _ in range(100):
             stat_params = {
                 'vehicleIds': ids_param,
                 'types': 'obdOdometerMeters',
-                'startTime': start_time,
-                'endTime': end_time,
+                'startTime': start_utc,
+                'endTime': end_utc,
             }
             if stat_after:
                 stat_params['after'] = stat_after
@@ -677,86 +693,91 @@ def api_vehicles_odometer():
                 sdata = sresp.json()
             except Exception as e:
                 return jsonify({'error': str(e)}), 502
+
             for entry in sdata.get('data', []):
                 vid = entry.get('id', '')
                 for pt in entry.get('obdOdometerMeters', []):
                     val = pt.get('value')
                     ts = pt.get('time', '')
-                    if val is not None and ts:
-                        all_readings.setdefault(vid, []).append((ts, float(val)))
+                    if val is None or not ts:
+                        continue
+                    cet_day = ts_to_cet_date(ts)
+                    if cet_day < date_from or cet_day > date_to:
+                        continue
+                    daily.setdefault(vid, {}).setdefault(cet_day, []).append((ts, float(val)))
+
             pag = sdata.get('pagination', {})
             if pag.get('hasNextPage') and pag.get('endCursor'):
                 stat_after = pag['endCursor']
             else:
                 break
 
+        rows = []
         for vid in ids_list:
             meta = vehicle_meta.get(vid, {'name': vid, 'license_plate': '', 'vin': ''})
-            readings = sorted(all_readings.get(vid, []), key=lambda x: x[0])
-            if not readings:
-                results.append({
+            vehicle_days = daily.get(vid, {})
+            for day in sorted(vehicle_days.keys()):
+                pts = sorted(vehicle_days[day], key=lambda x: x[0])
+                odo_start = pts[0][1]
+                odo_end = pts[-1][1]
+                driven = max(0.0, round((odo_end - odo_start) / 1000, 1))
+                rows.append({
                     'vehicle_id': vid,
                     'vehicle_name': meta['name'],
                     'license_plate': meta['license_plate'],
-                    'odometer_start_km': None,
-                    'odometer_end_km': None,
-                    'driven_km': None,
-                    'readings_count': 0,
-                    'updated_at': None,
+                    'date': day,
+                    'odometer_start_km': round(odo_start / 1000, 0),
+                    'odometer_end_km': round(odo_end / 1000, 0),
+                    'driven_km': driven,
+                    'readings_count': len(pts),
                 })
-                continue
-            odo_start_m = readings[0][1]
-            odo_end_m = readings[-1][1]
-            driven_km = round((odo_end_m - odo_start_m) / 1000, 1) if odo_end_m >= odo_start_m else 0.0
-            results.append({
-                'vehicle_id': vid,
-                'vehicle_name': meta['name'],
-                'license_plate': meta['license_plate'],
-                'odometer_start_km': round(odo_start_m / 1000, 0),
-                'odometer_end_km': round(odo_end_m / 1000, 0),
-                'driven_km': driven_km,
-                'readings_count': len(readings),
-                'updated_at': readings[-1][0],
-            })
 
-        _log_activity('vehicles_odometer_day', f'{date_str}: {len(results)} vehicles')
-        return jsonify({'vehicles': results, 'mode': 'day', 'date': date_str})
+        _log_activity(
+            'vehicles_odometer_range',
+            f'{date_from}–{date_to}: {len(rows)} vehicle-day rows',
+        )
+        return jsonify({
+            'rows': rows,
+            'mode': 'range',
+            'date_from': date_from,
+            'date_to': date_to,
+        })
 
-    else:
-        # Current mode: fetch latest stat for each vehicle
-        ids_param = ','.join(ids_list[:50])
-        try:
-            cresp = http_requests.get(
-                f'{SAMSARA_API_BASE}/fleet/vehicles/stats',
-                headers=headers,
-                params={'vehicleIds': ids_param, 'types': 'obdOdometerMeters'},
-                timeout=15,
-            )
-            if cresp.status_code != 200:
-                return jsonify({'error': f'Samsara stats error: {cresp.status_code}'}), 502
-            cdata = cresp.json()
-        except Exception as e:
-            return jsonify({'error': str(e)}), 502
+    # ── current mode ────────────────────────────────────────────────────────
+    ids_param = ','.join(ids_list[:50])
+    try:
+        cresp = http_requests.get(
+            f'{SAMSARA_API_BASE}/fleet/vehicles/stats',
+            headers=headers,
+            params={'vehicleIds': ids_param, 'types': 'obdOdometerMeters'},
+            timeout=15,
+        )
+        if cresp.status_code != 200:
+            return jsonify({'error': f'Samsara stats error: {cresp.status_code}'}), 502
+        cdata = cresp.json()
+    except Exception as e:
+        return jsonify({'error': str(e)}), 502
 
-        for entry in cdata.get('data', []):
-            vid = entry.get('id', '')
-            meta = vehicle_meta.get(vid, {'name': vid, 'license_plate': '', 'vin': ''})
-            odo_list = entry.get('obdOdometerMeters', [])
-            if odo_list:
-                latest = odo_list[0]  # current stats returns single latest value
-                odo_m = float(latest.get('value', 0) or 0)
-                ts = latest.get('time', '')
-            else:
-                odo_m = 0.0
-                ts = ''
-            results.append({
-                'vehicle_id': vid,
-                'vehicle_name': meta['name'],
-                'license_plate': meta['license_plate'],
-                'odometer_km': round(odo_m / 1000, 0),
-                'updated_at': ts,
-            })
+    results = []
+    for entry in cdata.get('data', []):
+        vid = entry.get('id', '')
+        meta = vehicle_meta.get(vid, {'name': vid, 'license_plate': '', 'vin': ''})
+        odo_list = entry.get('obdOdometerMeters', [])
+        if odo_list:
+            latest = odo_list[0]
+            odo_m = float(latest.get('value', 0) or 0)
+            ts = latest.get('time', '')
+        else:
+            odo_m = 0.0
+            ts = ''
+        results.append({
+            'vehicle_id': vid,
+            'vehicle_name': meta['name'],
+            'license_plate': meta['license_plate'],
+            'odometer_km': round(odo_m / 1000, 0),
+            'updated_at': ts,
+        })
 
-        results.sort(key=lambda r: r['vehicle_name'])
-        _log_activity('vehicles_odometer_current', f'{len(results)} vehicles')
-        return jsonify({'vehicles': results, 'mode': 'current'})
+    results.sort(key=lambda r: r['vehicle_name'])
+    _log_activity('vehicles_odometer_current', f'{len(results)} vehicles')
+    return jsonify({'vehicles': results, 'mode': 'current'})
