@@ -1780,7 +1780,9 @@ def analyze_card(data, night_start_hour=None):
             parsed_date = parse_date_safe(d)
             wd_idx = parsed_date.weekday() if parsed_date else 0
             is_weekday = wd_idx < 5
-            has_diet = duration >= 480 and is_weekday
+            # Diet on Mon-Fri or Sun (Saturday excluded).
+            is_diet_day = is_weekday or wd_idx == 6
+            has_diet = duration >= 480 and is_diet_day
 
             calendar_days[d] = {
                 'date': d,
@@ -1881,7 +1883,10 @@ def analyze_card(data, night_start_hour=None):
         total_n40 += night_40
         total_manual += manual_minutes
         is_weekday = cet_start.weekday() < 5
-        has_diet = duration_minutes >= 8 * 60 and is_weekday
+        # Diet eligible: Mon-Fri or Sun (shift starting Sunday also qualifies).
+        # Saturday-start shifts remain excluded.
+        is_diet_day = is_weekday or cet_start.weekday() == 6
+        has_diet = duration_minutes >= 8 * 60 and is_diet_day
         if has_diet:
             diet_count += 1
 
