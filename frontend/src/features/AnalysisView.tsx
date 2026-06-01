@@ -711,6 +711,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
             savingMonthly={savingMonthly}
             vacationRanges={vacationRanges}
             calendarDays={data.calendar_days}
+            driverConfig={driverConfig}
           />
         </div>
       )}
@@ -1499,6 +1500,7 @@ function MonthlyGridCopy({
   savingMonthly,
   vacationRanges,
   calendarDays,
+  driverConfig,
 }: {
   shifts: ShiftDetail[];
   summary: Record<string, unknown>;
@@ -1510,6 +1512,7 @@ function MonthlyGridCopy({
   savingMonthly?: boolean;
   vacationRanges?: { von: string; bis: string; tage: number }[];
   calendarDays?: Record<string, { work_minutes: number }>;
+  driverConfig?: DriverConfig | null;
 }) {
   const { t } = useI18n();
   const [copied, setCopied] = useState(false);
@@ -1583,7 +1586,21 @@ function MonthlyGridCopy({
   const s = summary;
   const n25 = monthlyDays?.override_n25 || ((s.night_25_minutes as number) / 60).toFixed(2).replace('.', ',');
   const n40 = monthlyDays?.override_n40 || ((s.night_40_minutes as number) / 60).toFixed(2).replace('.', ',');
-  const vma = String(s.diet_count ?? 0);
+
+  // VMA / Übernachtung in € (matches the per-shift table). Works for both
+  // charter and non-charter drivers — charter uses the delegation-period
+  // rule; non-charter is diet_count × diet_rate (×2 if double_diet).
+  const charter = driverConfig?.charter_enabled === 1;
+  const charterTotals = useMemo(() => {
+    return computeVma({
+      shifts: shifts as unknown as { shift_date?: string; grid_date?: string; has_diet?: boolean }[],
+      dietRate: driverConfig?.diet_rate ?? 14.0,
+      charterEnabled: charter,
+      doubleDiet: driverConfig?.double_diet === 1,
+    });
+  }, [charter, shifts, driverConfig]);
+
+  const vma = Math.round(charterTotals.dietAmount).toString();
   const azMin = s.total_work_minutes as number;
   const az = monthlyDays?.override_work_hm || `${Math.floor(azMin / 60)}:${String(azMin % 60).padStart(2, '0')}`;
 
@@ -1592,7 +1609,9 @@ function MonthlyGridCopy({
   const krCount = Object.values(absenceDays).filter(v => v === 'Kr').length;
   const urVal = urCount > 0 ? String(urCount) : (monthlyDays?.vacation_days ? String(monthlyDays.vacation_days) : '');
   const krVal = krCount > 0 ? String(krCount) : (monthlyDays?.sick_days ? String(monthlyDays.sick_days) : '');
-  const ueVal = monthlyDays?.overtime_hm || '';
+  const ueVal = charterTotals.ubernachtungAmount > 0
+    ? Math.round(charterTotals.ubernachtungAmount).toString()
+    : (monthlyDays?.overtime_hm || '');
 
   const summaryHeaders = ['25%', '40%', 'Ü', 'Ur', 'Kr', 'VMA', 'AZ'];
   const summaryValues = [n25, n40, ueVal, urVal, krVal, vma, az];
