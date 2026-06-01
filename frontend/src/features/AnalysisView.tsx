@@ -1524,18 +1524,58 @@ function MonthlyGridCopy({
   const holidayMap = useMemo(() => getHolidayMap(year), [year]);
 
   // Build a map: day number -> total duration minutes for that day.
-  // Uses shift_date (start day) to match the per-shift table — grid_date
-  // (midpoint-based) collapses two consecutive overnight shifts onto the
-  // same calendar day and double-counts duration.
+  //
+  // Attribution rule (collision-aware):
+  //  1. Each shift defaults to its grid_date (backend midpoint) so a single
+  //     overnight shift lands on the day where most work happened.
+  //  2. If two shifts would collide on the same calendar day, the shift
+  //     whose shift_date already matches that day stays — the other one
+  //     falls back to its own shift_date.
+  //
+  // Example that motivates this:
+  //   Tue 19:45 → Wed 06:45 (grid_date=Wed) +
+  //   Wed 19:47 → Thu 03:37 (grid_date=Wed) → both midpoints on Wed.
+  // Without resolution the grid sums them as 18:50 on Wed.
+  // With resolution: A (shift_date=Tue) → Tue, B (shift_date=Wed) → Wed.
   const dayWorkMap = useMemo(() => {
-    const map: Record<number, number> = {};
-    for (const sh of shifts) {
-      const dateStr = sh.shift_date || sh.grid_date;
-      const d = parseInt(dateStr.slice(8, 10), 10);
-      if (!isNaN(d)) {
-        map[d] = (map[d] || 0) + sh.duration_minutes;
+    const dayOf = (s?: string) => {
+      if (!s) return NaN;
+      const d = parseInt(s.slice(8, 10), 10);
+      return isNaN(d) ? NaN : d;
+    };
+
+    // Pass 1: tentative assignment by grid_date.
+    const assignment = new Map<number, number>(); // shift index → day
+    const dayBucket = new Map<number, number[]>(); // day → shift indices
+    shifts.forEach((sh, i) => {
+      const d = dayOf(sh.grid_date) || dayOf(sh.shift_date);
+      if (isNaN(d)) return;
+      assignment.set(i, d);
+      const bucket = dayBucket.get(d) ?? [];
+      bucket.push(i);
+      dayBucket.set(d, bucket);
+    });
+
+    // Pass 2: collision resolution — push tied shifts back to shift_date
+    // if it disambiguates.
+    for (const [day, idxs] of dayBucket) {
+      if (idxs.length <= 1) continue;
+      // Prefer the shift whose shift_date already matches this day.
+      let keepIdx = idxs.find(i => dayOf(shifts[i].shift_date) === day);
+      if (keepIdx == null) keepIdx = idxs[0];
+      for (const i of idxs) {
+        if (i === keepIdx) continue;
+        const altDay = dayOf(shifts[i].shift_date);
+        if (!isNaN(altDay) && altDay !== day) assignment.set(i, altDay);
       }
     }
+
+    const map: Record<number, number> = {};
+    shifts.forEach((sh, i) => {
+      const d = assignment.get(i);
+      if (d == null) return;
+      map[d] = (map[d] || 0) + sh.duration_minutes;
+    });
     return map;
   }, [shifts]);
 
