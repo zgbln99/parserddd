@@ -35,11 +35,15 @@ def api_tollcollect_files():
     for entry in entries:
         if not getattr(entry, 'is_file', True):
             continue
+        sm = entry.server_modified
+        if sm and getattr(sm, 'tzinfo', None) is not None:
+            from core.constants import UTC
+            sm = sm.astimezone(UTC)
         files.append({
             'name': entry.name,
             'path': entry.path_display,
             'size': entry.size,
-            'modified': entry.server_modified.isoformat() if entry.server_modified else '',
+            'modified': sm.strftime('%Y-%m-%dT%H:%M:%SZ') if sm else '',
         })
 
     files.sort(key=lambda f: f['modified'], reverse=True)

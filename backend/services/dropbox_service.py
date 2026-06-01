@@ -60,7 +60,11 @@ def build_drivers_data(dbx, sync_folder):
         sm = getattr(entry, 'server_modified', None)
         if sm:
             try:
-                modified = sm.isoformat()
+                # Normalize to UTC with 'Z' suffix so the string survives URL
+                # round-trips (the '+' in '+00:00' gets eaten by URLSearchParams).
+                if getattr(sm, 'tzinfo', None) is not None:
+                    sm = sm.astimezone(UTC)
+                modified = sm.strftime('%Y-%m-%dT%H:%M:%SZ')
             except Exception:
                 modified = str(sm)
 

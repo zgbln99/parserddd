@@ -470,7 +470,7 @@ export function PayrollPage() {
                     onClick={() => {
                       if (d.files.length > 0) {
                         const vacParam = vacation ? `&vacation=${encodeURIComponent(JSON.stringify(vacation.ranges))}` : '';
-                        const fileInfo = `&fileDate=${d.files[0].file_date || ''}&fileModified=${d.files[0].modified || ''}`;
+                        const fileInfo = `&fileDate=${encodeURIComponent(d.files[0].file_date || '')}&fileModified=${encodeURIComponent(d.files[0].modified || '')}`;
                         navigate(`/payroll/${encodeURIComponent(d.card_number || d.name)}?period=${period}&path=${encodeURIComponent(d.files[0].path)}&name=${encodeURIComponent(d.name)}${vacParam}${fileInfo}`);
                       }
                     }}
