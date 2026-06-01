@@ -5,7 +5,7 @@ import { getHolidayMap } from '../lib/holidays';
 import { exportCsv, exportDatev, fetchDriverConfig, fetchMonthlyDays, saveMonthlyDays, fetchMindestlohnSettings, fahrerlisteFill } from '../lib/api';
 import type { DriverConfig, MonthlyDays, MindestlohnSettings } from '../lib/api';
 import { computeMindestlohn, parseHmToMinutes, DEFAULT_MINDESTLOHN_SETTINGS } from '../lib/mindestlohn';
-import { computeVma } from '../lib/charter';
+import { computeVma, shiftCost } from '../lib/charter';
 import { Badge } from '../components/Badge';
 import { Spinner } from '../components/Spinner';
 import { BarChart } from '../components/BarChart';
@@ -966,7 +966,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
               <tr className="border-b border-border">
                 {[t('analysisWeekday'), t('analysisStart'), t('analysisEnd'), t('analysisTime'), t('analysisVehicle'),
                   t('analysisWorkTime'), t('analysisDriving'), t('analysisWork'), t('analysisAvailability'), t('analysisBreaks'),
-                  t('analysisNight25'), t('analysisNight40'), t('analysisDiet'), t('analysisDietEur'),
+                  t('analysisNight25'), t('analysisNight40'), t('analysisDiet'), t('analysisDietEur'), t('analysisUbernachtung'),
                 ].map((h) => (
                   <th key={h} className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold text-muted">
                     {h}
@@ -978,6 +978,12 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
               {workingShifts.map((rawSh, i) => {
                 const sh = applyOverride(rawSh, i);
                 const isWeekend = sh.weekday === 'So' || sh.weekday === 'Nd';
+                const costs = shiftCost(
+                  sh,
+                  driverConfig?.diet_rate ?? 14.0,
+                  driverConfig?.charter_enabled === 1,
+                  driverConfig?.double_diet === 1,
+                );
                 const wd = localizeWeekday(sh.weekday, locale);
                 const hasOverride = !!shiftOverrides[i];
                 const isEditing = editingShift === i;
@@ -1106,14 +1112,19 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
                       : <span className="text-muted">{t('no')}</span>}
                   </td>
                   <td className="whitespace-nowrap px-3 py-2 font-mono">
-                    {sh.has_diet
-                      ? <span className="font-semibold text-emerald-600 dark:text-emerald-400">{vma.ratePerDay.toFixed(2)} €</span>
+                    {costs.diet > 0
+                      ? <span className="font-semibold text-emerald-600 dark:text-emerald-400">{costs.diet.toFixed(2)} €</span>
+                      : <span className="text-muted">–</span>}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2 font-mono">
+                    {costs.ubernachtung > 0
+                      ? <span className="font-semibold text-blue-600 dark:text-blue-400">{costs.ubernachtung.toFixed(2)} €</span>
                       : <span className="text-muted">–</span>}
                   </td>
                 </tr>
                 {isEditing && (
                   <tr key={`edit-${i}`} onClick={e => e.stopPropagation()}>
-                    <td colSpan={14} className="px-4 py-3 bg-[#f7f9fc] dark:bg-[#1f2a37]">
+                    <td colSpan={15} className="px-4 py-3 bg-[#f7f9fc] dark:bg-[#1f2a37]">
                       <div className="flex flex-wrap items-end gap-3">
                         <div className="w-28">
                           <label className="block text-[10px] font-medium text-[#6b7280] mb-0.5">{locale === 'de' ? 'Datum' : 'Data'}</label>
@@ -1211,7 +1222,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
                 )}
                 {selectedShiftReport === i && !isEditing && (
                   <tr key={`report-${i}`}>
-                    <td colSpan={14} className="p-4 bg-surface">
+                    <td colSpan={15} className="p-4 bg-surface">
                       <ArbeitszeitReport shift={sh} />
                     </td>
                   </tr>
