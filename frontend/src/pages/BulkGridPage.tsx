@@ -338,7 +338,7 @@ export function BulkGridPage() {
                           <td
                             key={d}
                             className={`${tdCls} ${cellBg} ${v ? 'font-semibold text-gray-800 dark:text-gray-200' : ''}`}
-                            title={isWeekendDiet ? 'Sobota: dieta naliczona (weekend_diet)' : undefined}
+                            title={isWeekendDiet ? 'Sobota: dieta naliczona' : undefined}
                           >
                             {v}
                           </td>

@@ -53,7 +53,7 @@ function parseTimeToMin(t: string): number | null {
   return parseInt(m[1]) * 60 + parseInt(m[2]);
 }
 
-function calcDay(d: EditableDay, weekend = false, weekendDiet = false) {
+function calcDay(d: EditableDay, isSunday = false, _weekendDiet = false) {
   const startMin = parseTimeToMin(d.start);
   const endMin = parseTimeToMin(d.end);
   if (startMin === null || endMin === null) return { work: 0, night25: 0, night40: 0, diet: false };
@@ -73,7 +73,8 @@ function calcDay(d: EditableDay, weekend = false, weekendDiet = false) {
     }
   }
 
-  return { work, night25, night40, diet: (!weekend || weekendDiet) && gross >= 480 };
+  // Diet: Mon-Sat (>=8h gross). Sunday never gets diet.
+  return { work, night25, night40, diet: !isSunday && gross >= 480 };
 }
 
 function daysInMonth(year: number, month: number): number {
@@ -93,6 +94,10 @@ function getWeekday(year: number, month: number, day: number): string {
 
 function isWeekend(year: number, month: number, day: number): boolean {
   try { const d = new Date(year, month - 1, day).getDay(); return d === 0 || d === 6; } catch { return false; }
+}
+
+function isSunday(year: number, month: number, day: number): boolean {
+  try { return new Date(year, month - 1, day).getDay() === 0; } catch { return false; }
 }
 
 function getCurrentPeriod() {
@@ -235,7 +240,7 @@ export function StundenzettelPage() {
       if (d.code === 'U') { vacation++; continue; }
       if (d.code === 'F') { holidays++; continue; }
       if (d.code) continue;
-      const c = calcDay(d, isWeekend(year, month, d.day), weekendDiet);
+      const c = calcDay(d, isSunday(year, month, d.day), weekendDiet);
       if (c.work > 0) {
         workMin += c.work; n25 += c.night25; n40 += c.night40; workDays++;
         if (c.diet) diets++;
@@ -463,7 +468,7 @@ export function StundenzettelPage() {
               {days.map((day, idx) => {
                 const wd = getWeekday(year, month, day.day);
                 const weekend = isWeekend(year, month, day.day);
-                const c = calcDay(day, weekend, weekendDiet);
+                const c = calcDay(day, isSunday(year, month, day.day), weekendDiet);
                 const hasCode = !!day.code;
                 const rowColor = day.code ? (CODE_COLORS[day.code] || '') : weekend ? 'bg-gray-50/50 dark:bg-gray-800/20' : '';
 
@@ -537,7 +542,7 @@ function StzCopyGrid({ days, year, month, totals, weekendDiet = false }: {
       if (d.code === 'U') return 'Ur';
       if (d.code === 'F') return 'F';
       if (d.code) return d.code;
-      const c = calcDay(d, isWeekend(year, month, d.day), weekendDiet);
+      const c = calcDay(d, isSunday(year, month, d.day), weekendDiet);
       return c.work > 0 ? hm(c.work) : '';
     });
   }, [days]);
