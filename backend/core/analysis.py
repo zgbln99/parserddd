@@ -301,7 +301,13 @@ def analyze_card(data, night_start_hour=None, config_loader=None, night_40_check
         total_manual += manual_minutes
         is_weekday = cet_start.weekday() < 5
         # Diet eligible: Mon-Sat (>=8h). Sunday never gets diet.
-        is_diet_day = cet_start.weekday() < 6  # Mon (0) through Sat (5)
+        # Use the midpoint of the shift, not its start, so a shift that starts
+        # Sun evening but mostly works into Mon is correctly attributed to Mon
+        # (and gets a diet). A shift starting Sat 22:00 → Sun 06:00 midpoints
+        # on Sun and loses the diet, which matches the "Sunday work" rule.
+        midpoint = shift_start + (shift_end - shift_start) / 2
+        cet_mid = _to_cet(midpoint)
+        is_diet_day = cet_mid.weekday() < 6  # Mon (0) through Sat (5)
         has_diet = duration_minutes >= 8 * 60 and is_diet_day
         if has_diet:
             diet_count += 1
