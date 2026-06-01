@@ -5,7 +5,7 @@ import { getHolidayMap } from '../lib/holidays';
 import { exportCsv, exportDatev, fetchDriverConfig, fetchMonthlyDays, saveMonthlyDays, fetchMindestlohnSettings, fahrerlisteFill } from '../lib/api';
 import type { DriverConfig, MonthlyDays, MindestlohnSettings } from '../lib/api';
 import { computeMindestlohn, parseHmToMinutes, DEFAULT_MINDESTLOHN_SETTINGS } from '../lib/mindestlohn';
-import { computeVma, shiftCost } from '../lib/charter';
+import { computeVma, shiftCost, computeCharterCosts } from '../lib/charter';
 import { Badge } from '../components/Badge';
 import { Spinner } from '../components/Spinner';
 import { BarChart } from '../components/BarChart';
@@ -262,6 +262,28 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
       doubleDiet,
       charter,
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workingShifts, shiftOverrides, driverConfig]);
+
+  // Per-shift cost map — keyed by shift index. Attributes the day's
+  // diet/Übernachtung to the first shift of that date so multi-shift days
+  // don't double-count in the table.
+  const perShiftCosts = useMemo(() => {
+    const dietRate = driverConfig?.diet_rate ?? 14.0;
+    const charter = driverConfig?.charter_enabled === 1;
+    const doubleDiet = driverConfig?.double_diet === 1;
+    const overridden = workingShifts.map((sh, i) => applyOverride(sh, i));
+    const charterMap = charter ? computeCharterCosts(overridden, dietRate) : null;
+    const seenDates = new Set<string>();
+    return overridden.map(sh => {
+      const date = sh.grid_date || sh.shift_date || '';
+      const full = shiftCost(sh, dietRate, charter, doubleDiet, charterMap ?? undefined);
+      if (date && seenDates.has(date)) {
+        return { diet: 0, ubernachtung: 0 };
+      }
+      if (date) seenDates.add(date);
+      return full;
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workingShifts, shiftOverrides, driverConfig]);
 
@@ -978,12 +1000,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
               {workingShifts.map((rawSh, i) => {
                 const sh = applyOverride(rawSh, i);
                 const isWeekend = sh.weekday === 'So' || sh.weekday === 'Nd';
-                const costs = shiftCost(
-                  sh,
-                  driverConfig?.diet_rate ?? 14.0,
-                  driverConfig?.charter_enabled === 1,
-                  driverConfig?.double_diet === 1,
-                );
+                const costs = perShiftCosts[i] ?? { diet: 0, ubernachtung: 0 };
                 const wd = localizeWeekday(sh.weekday, locale);
                 const hasOverride = !!shiftOverrides[i];
                 const isEditing = editingShift === i;

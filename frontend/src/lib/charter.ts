@@ -1,12 +1,21 @@
-// Charter diet rule — for drivers running charter trips, the per-shift
-// allowance follows a weekday pattern:
-//   Mon / Fri : 1 × diet_rate (no Übernachtung — driver sleeps at home)
-//   Tue / Wed / Thu : 2 × diet_rate + 9 € Übernachtung (truck-cabin overnight)
-//   Sat : current behaviour (1 × diet_rate if has_diet)
-//   Sun : never gets diet
+// Charter diet rule — German Spesen (delegation per multi-day trip).
 //
-// Non-charter drivers keep today's logic (count of has_diet shifts × rate,
-// doubled when `double_diet` is set).
+// For Charter drivers:
+//   * Group all work shifts into continuous "delegation periods"
+//     (consecutive calendar days, gap > 1 day = new period).
+//   * First day of period          → 14 €              (departure)
+//   * Each full middle day (24h)   → 28 €              (in-trip)
+//   * Last day of period           → 14 €              (return)
+//   * Each overnight in cab during the trip → +9 €
+//     (attached to the day the driver wakes up — i.e. every day except
+//      the first day of the period).
+//   * A single-day trip            → 14 € only, no Übernachtung.
+//
+// Day-of-week is irrelevant under this rule — Sun in the middle of a
+// trip still counts.
+//
+// Non-charter drivers keep the old behaviour (per-shift has_diet flag,
+// optionally 2× with double_diet).
 
 export const UBERNACHTUNG_EUR = 9;
 
@@ -18,60 +27,94 @@ export interface CharterShift {
 
 export interface CharterInputs {
   shifts: CharterShift[];
-  dietRate: number;          // base diet (€/half-day)
+  dietRate: number;          // base diet (€/half-day), default 14
   charterEnabled: boolean;
-  doubleDiet: boolean;       // ignored when charter (charter implies 2× rate)
+  doubleDiet: boolean;       // ignored when charter
 }
 
 export interface CharterResult {
-  /** How many shift-days count toward the VMA total (used as the count in
-   *  the Excel VMA column when charter is OFF). */
   dietCount: number;
-  /** Total diet € (charter Mo–Fr 2×rate, weekends per existing rule). */
   dietAmount: number;
-  /** Total Übernachtung € (charter Tue–Thu × 8 €). */
   ubernachtungAmount: number;
-  /** Total to show on the VMA tile / write into the Excel VMA cell when
-   *  charter is on. */
   totalAmount: number;
-  /** Per-weekday counts for diagnostics / tooltips (0..6, Mon=1..Sun=0). */
   byWeekday: Record<number, number>;
 }
 
-/** JS Date: 0 = Sunday, 1 = Mon, ..., 6 = Sat. */
-function shiftWeekday(sh: CharterShift): number | null {
-  const ds = sh.grid_date || sh.shift_date || '';
-  if (!ds) return null;
-  const d = new Date(ds + 'T00:00:00Z');
-  if (isNaN(d.getTime())) return null;
-  return d.getUTCDay();
-}
-
-/** Cost breakdown for a single shift — used for per-row UI display. */
 export interface ShiftCost {
   diet: number;
   ubernachtung: number;
 }
 
+function shiftDate(sh: CharterShift): string {
+  return sh.grid_date || sh.shift_date || '';
+}
+
+function shiftWeekday(sh: CharterShift): number | null {
+  const ds = shiftDate(sh);
+  if (!ds) return null;
+  const d = new Date(ds + 'T00:00:00Z');
+  return isNaN(d.getTime()) ? null : d.getUTCDay();
+}
+
+function dayDiff(a: string, b: string): number {
+  const da = new Date(a + 'T00:00:00Z').getTime();
+  const db = new Date(b + 'T00:00:00Z').getTime();
+  return Math.round((db - da) / 86400000);
+}
+
+/** Build per-date charter cost map by detecting continuous delegation
+ *  periods (consecutive calendar days). */
+export function computeCharterCosts(
+  shifts: CharterShift[],
+  dietRate: number,
+): Map<string, ShiftCost> {
+  const result = new Map<string, ShiftCost>();
+  const uniqDates = Array.from(new Set(shifts.map(shiftDate).filter(Boolean))).sort();
+  if (uniqDates.length === 0) return result;
+
+  // Split into consecutive-day groups.
+  const groups: string[][] = [];
+  let current: string[] = [uniqDates[0]];
+  for (let i = 1; i < uniqDates.length; i++) {
+    if (dayDiff(uniqDates[i - 1], uniqDates[i]) === 1) {
+      current.push(uniqDates[i]);
+    } else {
+      groups.push(current);
+      current = [uniqDates[i]];
+    }
+  }
+  groups.push(current);
+
+  for (const group of groups) {
+    if (group.length === 1) {
+      // Single-day trip: 14 € only.
+      result.set(group[0], { diet: dietRate, ubernachtung: 0 });
+      continue;
+    }
+    // First day — departure (14 €, no overnight).
+    result.set(group[0], { diet: dietRate, ubernachtung: 0 });
+    // Middle days — full 24h (28 € + 9 € for the previous night in cab).
+    for (let i = 1; i < group.length - 1; i++) {
+      result.set(group[i], { diet: dietRate * 2, ubernachtung: UBERNACHTUNG_EUR });
+    }
+    // Last day — return (14 € + 9 € for the previous night in cab).
+    result.set(group[group.length - 1], { diet: dietRate, ubernachtung: UBERNACHTUNG_EUR });
+  }
+  return result;
+}
+
+/** Per-shift cost for table rendering. */
 export function shiftCost(
   sh: CharterShift,
   dietRate: number,
   charterEnabled: boolean,
   doubleDiet: boolean,
+  charterCosts?: Map<string, ShiftCost>,
 ): ShiftCost {
-  const ds = sh.grid_date || sh.shift_date || '';
-  const d = ds ? new Date(ds + 'T00:00:00Z') : null;
-  const wd = d && !isNaN(d.getTime()) ? d.getUTCDay() : null;
-
   if (charterEnabled) {
-    if (wd === 1 || wd === 5) return { diet: dietRate, ubernachtung: 0 };
-    if (wd === 2 || wd === 3 || wd === 4) {
-      return { diet: dietRate * 2, ubernachtung: UBERNACHTUNG_EUR };
-    }
-    // Sat (6) / Sun (0): use has_diet flag at 1× rate
-    return sh.has_diet ? { diet: dietRate, ubernachtung: 0 } : { diet: 0, ubernachtung: 0 };
+    const map = charterCosts ?? computeCharterCosts([sh], dietRate);
+    return map.get(shiftDate(sh)) ?? { diet: 0, ubernachtung: 0 };
   }
-  // Non-charter
   if (!sh.has_diet) return { diet: 0, ubernachtung: 0 };
   return { diet: doubleDiet ? dietRate * 2 : dietRate, ubernachtung: 0 };
 }
@@ -81,46 +124,36 @@ export function computeVma(inputs: CharterInputs): CharterResult {
   let dietCount = 0;
   let dietAmount = 0;
   let ubernachtungAmount = 0;
-  const ratePerShift = (inputs.charterEnabled || inputs.doubleDiet)
-    ? inputs.dietRate * 2
-    : inputs.dietRate;
 
+  if (inputs.charterEnabled) {
+    const costs = computeCharterCosts(inputs.shifts, inputs.dietRate);
+    // Count each delegation day once (regardless of multi-shift days).
+    for (const [date, c] of costs) {
+      if (c.diet > 0) {
+        dietCount += 1;
+        const wd = new Date(date + 'T00:00:00Z').getUTCDay();
+        if (!isNaN(wd)) byWeekday[wd] += 1;
+      }
+      dietAmount += c.diet;
+      ubernachtungAmount += c.ubernachtung;
+    }
+    return {
+      dietCount,
+      dietAmount,
+      ubernachtungAmount,
+      totalAmount: dietAmount + ubernachtungAmount,
+      byWeekday,
+    };
+  }
+
+  // Non-charter: per-shift has_diet rule.
+  const ratePerShift = inputs.doubleDiet ? inputs.dietRate * 2 : inputs.dietRate;
   for (const sh of inputs.shifts) {
+    if (!sh.has_diet) continue;
     const wd = shiftWeekday(sh);
-    if (wd == null) continue;
-    const isWeekend = wd === 0 || wd === 6;
-
-    if (inputs.charterEnabled) {
-      // Mon (1) / Fri (5): 1× diet, no Übernachtung
-      if (wd === 1 || wd === 5) {
-        dietCount += 1;
-        dietAmount += inputs.dietRate;
-        byWeekday[wd] += 1;
-        continue;
-      }
-      // Tue (2) / Wed (3) / Thu (4): 2× diet + 9 € Übernachtung
-      if (wd === 2 || wd === 3 || wd === 4) {
-        dietCount += 1;
-        dietAmount += inputs.dietRate * 2;
-        ubernachtungAmount += UBERNACHTUNG_EUR;
-        byWeekday[wd] += 1;
-        continue;
-      }
-      // Sat (6) / Sun (0) — fall back to has_diet flag (Sat=14€, Sun=0).
-      if (sh.has_diet) {
-        dietCount += 1;
-        dietAmount += inputs.dietRate;
-        byWeekday[wd] += 1;
-      }
-      continue;
-    }
-
-    // Non-charter: today's rule — count only has_diet shifts at ratePerShift.
-    if (sh.has_diet) {
-      dietCount += 1;
-      dietAmount += ratePerShift;
-      byWeekday[wd] += 1;
-    }
+    dietCount += 1;
+    dietAmount += ratePerShift;
+    if (wd != null) byWeekday[wd] += 1;
   }
 
   return {

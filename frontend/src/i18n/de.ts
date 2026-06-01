@@ -307,7 +307,7 @@ export const de: Record<TranslationKey, string> = {
   driverMonthlyGross: 'Monatsbrutto (EUR)',
   driverMonthlyGrossHint: '0 = Standardwert aus den Einstellungen verwenden; tatsächlichen Betrag eintragen, um zu überschreiben',
   driverCharter: 'Charter (Übernachtung)',
-  driverCharterHint: 'Mo/Fr 1× Verpflegung; Di/Mi/Do 2× Verpflegung + 9 € Übernachtung; Sa 1× (ohne So.)',
+  driverCharterHint: 'Dienstreise: 1. Tag 14 €, volle Tage 28 € + 9 €, letzter Tag 14 € + 9 €',
   driverNotes: 'Notizen',
   driverNotesPlaceholder: 'Zusätzliche Informationen...',
   driverConfigs: 'Fahrerkonfigurationen',
