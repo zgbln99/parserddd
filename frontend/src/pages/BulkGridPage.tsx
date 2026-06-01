@@ -14,6 +14,7 @@ interface BulkDriverRow {
   driver_name: string;
   personal_nr: string;
   dayWork: Record<number, number>; // day number → work minutes
+  dayDiet: Record<number, boolean>; // day number → has diet
   n25: number;
   n40: number;
   dietCount: number;
@@ -120,10 +121,14 @@ export function BulkGridPage() {
           if (monthShifts.length === 0) return;
 
           const dayWork: Record<number, number> = {};
+          const dayDiet: Record<number, boolean> = {};
           for (const sh of monthShifts) {
             const dateStr = (sh as any).grid_date || sh.shift_date;
             const d = parseInt(dateStr.slice(8, 10), 10);
-            if (!isNaN(d)) dayWork[d] = (dayWork[d] || 0) + sh.duration_minutes;
+            if (!isNaN(d)) {
+              dayWork[d] = (dayWork[d] || 0) + sh.duration_minutes;
+              if (sh.has_diet) dayDiet[d] = true;
+            }
           }
 
           const cardNumber = driver.card_number || analysis.driver_info?.card_number || '';
@@ -133,6 +138,7 @@ export function BulkGridPage() {
             driver_name: driver.name,
             personal_nr: dcfg?.personal_nr || '',
             dayWork,
+            dayDiet,
             n25: monthShifts.reduce((s: number, sh: ShiftDetail) => s + (sh.night_25_minutes || 0), 0),
             n40: monthShifts.reduce((s: number, sh: ShiftDetail) => s + (sh.night_40_minutes || 0), 0),
             dietCount: monthShifts.filter((sh: ShiftDetail) => sh.has_diet).length,
@@ -325,7 +331,18 @@ export function BulkGridPage() {
                       <td className={tdCls} />
                       {dayNumbers.map(d => {
                         const v = fmtWork(r.dayWork[d] || 0);
-                        return <td key={d} className={`${tdCls} ${v ? 'font-semibold text-gray-800 dark:text-gray-200' : ''}`}>{v}</td>;
+                        const dow = new Date(year, month - 1, d).getDay(); // 0=Sun, 6=Sat
+                        const isWeekendDiet = !!r.dayDiet[d] && dow === 6;
+                        const cellBg = isWeekendDiet ? '!bg-amber-100 dark:!bg-amber-900/40' : '';
+                        return (
+                          <td
+                            key={d}
+                            className={`${tdCls} ${cellBg} ${v ? 'font-semibold text-gray-800 dark:text-gray-200' : ''}`}
+                            title={isWeekendDiet ? 'Sobota: dieta naliczona (weekend_diet)' : undefined}
+                          >
+                            {v}
+                          </td>
+                        );
                       })}
                       <td className={`${tdCls} font-bold`}>{n25}</td>
                       <td className={`${tdCls} font-bold`}>{n40}</td>
