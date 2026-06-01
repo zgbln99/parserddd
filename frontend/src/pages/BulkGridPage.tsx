@@ -330,7 +330,7 @@ export function BulkGridPage() {
                       <td className={`${tdCls} font-bold`}>{n25}</td>
                       <td className={`${tdCls} font-bold`}>{n40}</td>
                       <td className={`${tdCls} font-bold`}>{r.dietCount || ''}</td>
-                      <td className={`${tdCls} font-bold`}>{az}</td>
+                      <td className={`${tdCls} font-bold ${r.totalWork >= 190 * 60 ? 'text-red-600 dark:text-red-400' : ''}`}>{az}</td>
                     </tr>
                   );
                 })}
