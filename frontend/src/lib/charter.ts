@@ -1,18 +1,19 @@
-// Charter diet rule — German Spesen (delegation per multi-day trip).
+// Charter diet rule — German Spesen, split by work-week.
 //
 // For Charter drivers:
-//   * Group all work shifts into continuous "delegation periods"
-//     (consecutive calendar days, gap > 1 day = new period).
-//   * First day of period          → 14 €              (departure)
+//   * Weekends (Sat/Sun) never count — driver is at home.
+//   * Within each Mon–Fri block, group consecutive workdays into one
+//     delegation period (gap > 1 weekday = new period).
+//   * First weekday of period      → 14 €              (departure)
 //   * Each full middle day (24h)   → 28 €              (in-trip)
-//   * Last day of period           → 14 €              (return)
+//   * Last weekday of period       → 14 €              (return)
 //   * Each overnight in cab during the trip → +9 €
 //     (attached to the day the driver wakes up — i.e. every day except
 //      the first day of the period).
 //   * A single-day trip            → 14 € only, no Übernachtung.
 //
-// Day-of-week is irrelevant under this rule — Sun in the middle of a
-// trip still counts.
+// A new week always starts a fresh delegation: Fri → Mon naturally
+// splits because the calendar gap is 3 days (Sat/Sun excluded).
 //
 // Non-charter drivers keep the old behaviour (per-shift has_diet flag,
 // optionally 2× with double_diet).
@@ -64,12 +65,21 @@ function dayDiff(a: string, b: string): number {
 
 /** Build per-date charter cost map by detecting continuous delegation
  *  periods (consecutive calendar days). */
+function isWeekendDate(dateStr: string): boolean {
+  const d = new Date(dateStr + 'T00:00:00Z');
+  if (isNaN(d.getTime())) return false;
+  const wd = d.getUTCDay();
+  return wd === 0 || wd === 6;
+}
+
 export function computeCharterCosts(
   shifts: CharterShift[],
   dietRate: number,
 ): Map<string, ShiftCost> {
   const result = new Map<string, ShiftCost>();
-  const uniqDates = Array.from(new Set(shifts.map(shiftDate).filter(Boolean))).sort();
+  const uniqDates = Array.from(new Set(shifts.map(shiftDate).filter(Boolean)))
+    .filter(d => !isWeekendDate(d))   // weekends never part of delegation
+    .sort();
   if (uniqDates.length === 0) return result;
 
   // Split into consecutive-day groups.

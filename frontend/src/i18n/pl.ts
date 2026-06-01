@@ -305,7 +305,7 @@ export const pl = {
   driverMonthlyGross: 'Miesięczne brutto (EUR)',
   driverMonthlyGrossHint: '0 = użyj wartości domyślnej z ustawień; wpisz rzeczywistą kwotę, aby nadpisać',
   driverCharter: 'Charter (Übernachtung)',
-  driverCharterHint: 'Delegacja: 1. dzień 14 €, dni pełne 28 € + 9 €, ostatni dzień 14 € + 9 €',
+  driverCharterHint: 'Delegacja per tydzień (Pn–Pt): 1. dzień 14 €, środkowe 28 € + 9 €, ostatni 14 € + 9 €. Weekend pomijany.',
   driverNotes: 'Notatki',
   driverNotesPlaceholder: 'Dodatkowe informacje...',
   driverConfigs: 'Konfiguracje kierowców',
