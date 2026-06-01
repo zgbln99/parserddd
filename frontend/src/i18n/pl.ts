@@ -113,6 +113,7 @@ export const pl = {
   analysisBreaks: 'Przerwy',
   analysisAvailability: 'Dyspozycyjność',
   analysisDiet: 'Dieta',
+  analysisDietEur: 'Dieta €',
   analysisManualEntries: 'Wpisy manualne',
   analysisManualType: 'Typ',
   analysisManualNone: 'Brak wpisów manualnych',

@@ -115,6 +115,7 @@ export const de: Record<TranslationKey, string> = {
   analysisBreaks: 'Pausen',
   analysisAvailability: 'Bereitschaft',
   analysisDiet: 'Verpflegung',
+  analysisDietEur: 'Verpflegung €',
   analysisManualEntries: 'Manuelle Einträge',
   analysisManualType: 'Typ',
   analysisManualNone: 'Keine manuellen Einträge',
