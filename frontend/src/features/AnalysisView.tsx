@@ -1525,23 +1525,64 @@ function MonthlyGridCopy({
 
   // Build a map: day number -> total duration minutes for that day.
   //
-  // Always attribute each shift to its shift_date (the day it started) —
-  // same convention as the per-shift table below. The midpoint-based
-  // grid_date alternative causes collisions when consecutive overnight
-  // shifts midpoint into the same day (e.g. Tue 19:45→Wed and
-  // Wed 19:47→Thu both midpoint on Wed), and any attempt to redistribute
-  // cascades into neighbouring days. shift_date is each shift's natural
-  // home and never overlaps with another shift's shift_date.
+  // Default attribution: grid_date (backend midpoint) — puts each shift on
+  // the day where most of the work actually happened.
+  //
+  // Collision fix (non-cascading): when two shifts midpoint into the same
+  // calendar day, look at each shift's *other* candidate day (the side of
+  // midnight that grid_date didn't pick). If exactly one of them has its
+  // alternative day FREE, move that one there. Never push onto a day that
+  // already has a shift — prevents the cascade where the moved shift just
+  // collides with its neighbour.
   const dayWorkMap = useMemo(() => {
-    const map: Record<number, number> = {};
-    for (const sh of shifts) {
-      const dateStr = sh.shift_date || sh.grid_date;
-      if (!dateStr) continue;
-      const d = parseInt(dateStr.slice(8, 10), 10);
-      if (!isNaN(d)) {
-        map[d] = (map[d] || 0) + sh.duration_minutes;
+    const dayOf = (s?: string) => {
+      if (!s) return NaN;
+      const d = parseInt(s.slice(8, 10), 10);
+      return isNaN(d) ? NaN : d;
+    };
+
+    // Pass 1: tentative assignment by grid_date.
+    const assignment = new Map<number, number>();
+    const dayOccupancy = new Map<number, number[]>();
+    shifts.forEach((sh, i) => {
+      const d = !isNaN(dayOf(sh.grid_date)) ? dayOf(sh.grid_date) : dayOf(sh.shift_date);
+      if (isNaN(d)) return;
+      assignment.set(i, d);
+      const bucket = dayOccupancy.get(d) ?? [];
+      bucket.push(i);
+      dayOccupancy.set(d, bucket);
+    });
+
+    const isFree = (d: number) => !(dayOccupancy.get(d)?.length);
+
+    // Pass 2: for each colliding day, try to move shifts whose alternative
+    // candidate (shift_date or end_date — whichever grid_date didn't pick)
+    // is empty. Only moves into genuinely free days, so no cascades.
+    for (const [day, idxs] of dayOccupancy) {
+      if (idxs.length <= 1) continue;
+      // Snapshot — we mutate dayOccupancy as we move shifts.
+      for (const i of [...idxs]) {
+        const current = dayOccupancy.get(day) ?? [];
+        if (current.length <= 1) break; // collision resolved
+        const sh = shifts[i];
+        const startDay = dayOf(sh.shift_date);
+        const endDay = dayOf(sh.shift_end);
+        // The "other" candidate — the side of midnight grid_date didn't pick.
+        const altDay = day === startDay ? endDay : startDay;
+        if (isNaN(altDay) || altDay === day || !isFree(altDay)) continue;
+        // Move shift i from `day` to `altDay`.
+        assignment.set(i, altDay);
+        dayOccupancy.set(day, current.filter(j => j !== i));
+        dayOccupancy.set(altDay, [i]);
       }
     }
+
+    const map: Record<number, number> = {};
+    shifts.forEach((sh, i) => {
+      const d = assignment.get(i);
+      if (d == null) return;
+      map[d] = (map[d] || 0) + sh.duration_minutes;
+    });
     return map;
   }, [shifts]);
 
