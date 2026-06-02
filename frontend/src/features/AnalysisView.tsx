@@ -932,35 +932,110 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
       {workingShifts.length > 0 && (
         <>
         {/* Mobile shifts cards */}
-        <div className="block sm:hidden space-y-2">
-          {shifts.map((sh, i) => {
-            const isWeekend = sh.weekday === 'So' || sh.weekday === 'Nd';
+        <div className="block sm:hidden space-y-2.5">
+          {workingShifts.map((rawSh, i) => {
+            const sh = applyOverride(rawSh, i);
+            const isSun = sh.weekday === 'Nd' || sh.weekday === 'So' || sh.weekday === 'Sun';
+            const isSat = sh.weekday === 'Sa' || sh.weekday === 'Sb';
+            const isWeekend = isSun || isSat;
             const wd = localizeWeekday(sh.weekday, locale);
+            const costs = perShiftCosts[i] ?? { diet: 0, ubernachtung: 0 };
+            const totalEur = costs.diet + costs.ubernachtung;
             return (
-              <div key={i} className={`rounded-xl border p-3 ${isWeekend ? 'border-border bg-rose-50/30 dark:bg-rose-900/10' : 'border-border bg-white/50 '}`}>
-                <div className="flex items-center justify-between mb-2">
-                  <span className={`text-sm font-bold ${isWeekend ? 'text-danger' : ''}`}>{wd} {sh.shift_date?.slice(5)}</span>
-                  <span className="text-sm font-bold">{sh.duration_hm}</span>
+              <div
+                key={i}
+                className={`rounded-xl border p-3.5 shadow-sm ${
+                  isSun
+                    ? 'border-rose-200 bg-rose-50/40 dark:border-rose-900/40 dark:bg-rose-900/10'
+                    : isSat
+                    ? 'border-amber-200 bg-amber-50/40 dark:border-amber-900/40 dark:bg-amber-900/10'
+                    : 'border-border bg-white dark:bg-[#122031]'
+                }`}
+              >
+                {/* Top row: weekday + date + duration */}
+                <div className="flex items-baseline justify-between mb-2.5">
+                  <div className="flex items-baseline gap-2">
+                    <span className={`text-base font-bold ${isWeekend ? 'text-rose-600 dark:text-rose-400' : ''}`}>
+                      {wd}
+                    </span>
+                    <span className="text-sm text-muted">{sh.shift_date?.slice(5)}</span>
+                  </div>
+                  <span className="text-base font-bold">{sh.duration_hm}</span>
                 </div>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-                  <span className="text-muted">{t('analysisStart')}</span>
-                  <span className="font-medium text-emerald-600 dark:text-emerald-400">{sh.shift_start?.split(' ')[1] || sh.shift_start}</span>
-                  <span className="text-muted">{t('analysisEnd')}</span>
-                  <span className="font-medium text-danger dark:text-rose-400">{sh.shift_end?.split(' ')[1] || sh.shift_end}</span>
-                  <span className="text-muted">{t('analysisWorkTime')}</span>
-                  <span className="font-bold">{sh.work_hm}</span>
-                  <span className="text-muted">{t('analysisDriving')}</span>
-                  <span className="font-medium">{sh.driving_hm}</span>
-                  <span className="text-muted">{t('analysisWork')}</span>
-                  <span>{sh.work_only_hm}</span>
-                  <span className="text-muted">{t('analysisAvailability')}</span>
-                  <span>{sh.avail_hm}</span>
-                  <span className="text-muted">{t('analysisBreaks')}</span>
-                  <span>{sh.break_hm}</span>
-                  {sh.has_diet && <>
-                    <span className="text-muted">{t('analysisDiet')}</span>
-                    <Badge variant="green">{t('yes')}</Badge>
-                  </>}
+
+                {/* Time range */}
+                <div className="flex items-center gap-2 mb-2.5 text-sm">
+                  <span className="font-mono font-semibold text-emerald-600 dark:text-emerald-400">
+                    {sh.shift_start?.split(' ')[1] || sh.shift_start}
+                  </span>
+                  <span className="text-muted">→</span>
+                  <span className="font-mono font-semibold text-rose-600 dark:text-rose-400">
+                    {sh.shift_end?.split(' ')[1] || sh.shift_end}
+                  </span>
+                  {sh.vehicles?.length > 0 && (
+                    <span className="ml-auto text-[11px] text-muted font-mono truncate max-w-[120px]">
+                      {sh.vehicles.join(', ')}
+                    </span>
+                  )}
+                </div>
+
+                {/* Diet € — highlighted */}
+                {(costs.diet > 0 || costs.ubernachtung > 0) && (
+                  <div className="-mx-1.5 mb-2.5 flex items-center justify-between gap-2 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 px-2.5 py-1.5">
+                    <span className="text-[11px] font-medium uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
+                      {t('analysisDiet')}
+                    </span>
+                    <div className="flex items-baseline gap-2 font-mono text-sm font-bold">
+                      <span className="text-emerald-700 dark:text-emerald-300">
+                        {costs.diet.toFixed(2)} €
+                      </span>
+                      {costs.ubernachtung > 0 && (
+                        <>
+                          <span className="text-muted text-xs">+</span>
+                          <span className="text-blue-700 dark:text-blue-300">
+                            {costs.ubernachtung.toFixed(2)} € Ü
+                          </span>
+                          <span className="ml-1 rounded bg-emerald-200 dark:bg-emerald-800 px-1.5 py-0.5 text-[10px] text-emerald-900 dark:text-emerald-100">
+                            ={totalEur.toFixed(2)} €
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Compact metrics grid */}
+                <div className="grid grid-cols-3 gap-1.5 text-[11px]">
+                  <div className="rounded bg-black/[0.03] dark:bg-white/[0.04] px-2 py-1">
+                    <div className="text-muted">{t('analysisWorkTime')}</div>
+                    <div className="font-bold font-mono">{sh.work_hm}</div>
+                  </div>
+                  <div className="rounded bg-black/[0.03] dark:bg-white/[0.04] px-2 py-1">
+                    <div className="text-muted">{t('analysisDriving')}</div>
+                    <div className="font-mono">{sh.driving_hm}</div>
+                  </div>
+                  <div className="rounded bg-black/[0.03] dark:bg-white/[0.04] px-2 py-1">
+                    <div className="text-muted">{t('analysisBreaks')}</div>
+                    <div className="font-mono">{sh.break_hm}</div>
+                  </div>
+                  {sh.night_25_minutes > 0 && (
+                    <div className="rounded bg-violet-50 dark:bg-violet-900/20 px-2 py-1">
+                      <div className="text-muted">{t('analysisNight25')}</div>
+                      <div className="font-mono font-semibold text-violet-700 dark:text-violet-300">{sh.night_25_hm}</div>
+                    </div>
+                  )}
+                  {sh.night_40_minutes > 0 && (
+                    <div className="rounded bg-violet-50 dark:bg-violet-900/20 px-2 py-1">
+                      <div className="text-muted">{t('analysisNight40')}</div>
+                      <div className="font-mono font-semibold text-violet-700 dark:text-violet-300">{sh.night_40_hm}</div>
+                    </div>
+                  )}
+                  {sh.avail_minutes > 0 && (
+                    <div className="rounded bg-black/[0.03] dark:bg-white/[0.04] px-2 py-1">
+                      <div className="text-muted">{t('analysisAvailability')}</div>
+                      <div className="font-mono">{sh.avail_hm}</div>
+                    </div>
+                  )}
                 </div>
               </div>
             );
