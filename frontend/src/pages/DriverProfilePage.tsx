@@ -41,6 +41,19 @@ interface DataResponse {
 
 type Stage = 'loading' | 'locked' | 'invalid' | 'ready';
 
+// Shared gradient palette for icon chips / accents.
+const GRADIENTS = {
+  blue: 'from-sky-500 to-indigo-500',
+  violet: 'from-violet-500 to-fuchsia-500',
+  green: 'from-emerald-500 to-teal-500',
+  amber: 'from-amber-500 to-orange-500',
+} as const;
+type Tone = keyof typeof GRADIENTS;
+
+// The signature hero gradient, reused across hero / login / invalid screens.
+const HERO_BG =
+  'bg-gradient-to-br from-indigo-600 via-indigo-700 to-sky-500';
+
 export function DriverProfilePage() {
   const { token = '' } = useParams<{ token: string }>();
   const { t, locale, setLocale } = useI18n();
@@ -235,116 +248,122 @@ export function DriverProfilePage() {
     }
   };
 
-  return (
-    <div className="min-h-screen bg-[#f6f7f9] text-gray-900 antialiased dark:bg-[#0f141a] dark:text-gray-100">
-      {/* Header */}
-      <header className="border-b border-black/5 bg-white/80 backdrop-blur dark:border-white/10 dark:bg-white/5">
-        <div className="mx-auto flex max-w-[1500px] items-center justify-between px-3 py-3 sm:px-6">
-          <div className="flex items-center gap-2.5">
-            <img src="/icon.svg" alt="" className="size-8 rounded-lg" />
+  // --- Loading / invalid / locked are full-screen branded screens --------
+
+  if (stage === 'loading') {
+    return (
+      <div className={`flex min-h-screen items-center justify-center ${HERO_BG}`}>
+        <Spinner size="lg" className="!border-white/30 !border-t-white" />
+      </div>
+    );
+  }
+
+  if (stage === 'invalid') {
+    return (
+      <CenteredHero>
+        <div className="w-full max-w-sm rounded-3xl border border-white/15 bg-white/10 p-8 text-center text-white shadow-2xl backdrop-blur-xl">
+          <div className="mx-auto mb-4 grid size-14 place-items-center rounded-2xl bg-white/15">
+            <Lock size={24} />
+          </div>
+          <p className="text-sm text-white/90">{t('profileInvalid')}</p>
+        </div>
+      </CenteredHero>
+    );
+  }
+
+  if (stage === 'locked') {
+    return (
+      <CenteredHero>
+        <div className="absolute right-4 top-4">
+          <LangSwitch locale={locale} setLocale={setLocale} glass />
+        </div>
+        <div className="w-full max-w-sm rounded-3xl border border-white/15 bg-white/10 p-8 text-white shadow-2xl backdrop-blur-xl">
+          <div className="mb-6 flex flex-col items-center gap-3 text-center">
+            <div className="grid size-16 place-items-center rounded-2xl bg-white/15 ring-1 ring-white/25">
+              <Lock size={26} />
+            </div>
             <div>
-              <div className="text-sm font-semibold leading-tight">{t('profileTitle')}</div>
-              <div className="text-[11px] text-muted">LTS Logistik GmbH</div>
+              <h1 className="text-lg font-bold tracking-tight">
+                {driverName ? `${t('profileGreeting')}, ${driverName}` : t('profileTitle')}
+              </h1>
+              <p className="mt-0.5 text-sm text-white/70">{t('profilePasswordPrompt')}</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <LangSwitch locale={locale} setLocale={setLocale} />
-            {stage === 'ready' && (
+          <form onSubmit={onLogin} className="grid gap-3">
+            <input
+              autoFocus
+              required
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="h-12 w-full rounded-2xl border border-white/20 bg-white/10 px-4 text-center text-base text-white placeholder-white/40 outline-none transition focus:border-white/50 focus:bg-white/15"
+              placeholder={t('profilePasswordLabel')}
+            />
+            {loginError && (
+              <div className="rounded-xl bg-rose-500/20 px-3 py-2 text-center text-xs font-medium text-rose-100">
+                {loginError}
+              </div>
+            )}
+            <button
+              type="submit"
+              disabled={loggingIn}
+              className="mt-1 inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-white text-sm font-bold text-indigo-700 shadow-lg transition hover:bg-white/90 disabled:opacity-60"
+            >
+              {loggingIn ? <Spinner size="sm" /> : t('profileLoginBtn')}
+            </button>
+          </form>
+        </div>
+      </CenteredHero>
+    );
+  }
+
+  // --- Ready: the full profile dashboard ---------------------------------
+
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-[#eef2ff] to-[#f6f7fb] text-gray-900 antialiased dark:from-[#0b1020] dark:to-[#0b0e14] dark:text-gray-100">
+      {/* HERO banner */}
+      <div className={`relative overflow-hidden rounded-b-[2.5rem] pb-24 shadow-xl ${HERO_BG}`}>
+        <div className="pointer-events-none absolute -right-16 -top-24 size-72 rounded-full bg-white/10 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-24 -left-12 size-72 rounded-full bg-sky-300/20 blur-3xl" />
+
+        <div className="relative mx-auto max-w-[1500px] px-4 sm:px-6">
+          {/* top bar */}
+          <div className="flex items-center justify-between py-4">
+            <div className="flex items-center gap-2.5 text-white">
+              <img src="/icon.svg" alt="" className="size-9 rounded-xl ring-1 ring-white/30" />
+              <span className="text-sm font-semibold tracking-tight">LTS Logistik GmbH</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <LangSwitch locale={locale} setLocale={setLocale} glass />
               <button
                 onClick={onLogout}
-                className="inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs font-medium text-muted hover:bg-surface"
+                className="inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur transition hover:bg-white/20"
               >
                 <LogOut size={13} />
-                {t('profileLogout')}
+                <span className="hidden sm:inline">{t('profileLogout')}</span>
               </button>
-            )}
-          </div>
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-[1500px] px-3 py-4 sm:px-6 sm:py-6">
-        {stage === 'loading' && (
-          <div className="flex justify-center py-24">
-            <Spinner size="lg" />
-          </div>
-        )}
-
-        {stage === 'invalid' && (
-          <div className="mx-auto mt-16 max-w-sm rounded-2xl border border-border bg-white p-8 text-center dark:bg-white/5">
-            <div className="mx-auto mb-3 grid size-12 place-items-center rounded-full bg-red-500/10 text-red-500">
-              <Lock size={20} />
             </div>
-            <p className="text-sm text-muted">{t('profileInvalid')}</p>
           </div>
-        )}
 
-        {stage === 'locked' && (
-          <div className="mx-auto mt-12 max-w-sm rounded-2xl border border-border bg-white p-8 dark:bg-white/5">
-            <div className="mb-5 flex items-center gap-3">
-              <span className="grid size-10 place-items-center rounded-xl bg-[#0071e3]/10 text-[#0071e3]">
-                <Lock size={18} />
-              </span>
-              <div>
-                <h1 className="text-base font-semibold">
-                  {driverName ? `${t('profileGreeting')}, ${driverName}` : t('profileTitle')}
-                </h1>
-                <p className="text-xs text-muted">{t('profilePasswordPrompt')}</p>
-              </div>
+          {/* profile identity */}
+          <div className="flex flex-col items-center gap-4 pb-2 pt-6 text-center">
+            <div className="grid size-20 place-items-center rounded-3xl bg-white/15 text-2xl font-extrabold text-white ring-2 ring-white/30 backdrop-blur">
+              {initials(driverName)}
             </div>
-            <form onSubmit={onLogin} className="grid gap-3">
-              <label className="text-sm">
-                <span className="mb-1.5 block text-xs font-medium text-muted">
-                  {t('profilePasswordLabel')}
-                </span>
-                <input
-                  autoFocus
-                  required
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="h-11 w-full rounded-xl border border-border bg-transparent px-4 text-sm focus:border-[#0071e3] focus:outline-none focus:ring-1 focus:ring-[#0071e3]"
-                  placeholder="••••••••"
-                />
-              </label>
-              {loginError && (
-                <div className="rounded-lg bg-red-500/10 px-3 py-2 text-xs text-red-600 dark:text-red-300">
-                  {loginError}
-                </div>
-              )}
-              <button
-                type="submit"
-                disabled={loggingIn}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#0071e3] text-sm font-semibold text-white transition hover:bg-[#0077ed] disabled:opacity-60"
-              >
-                {loggingIn ? <Spinner size="sm" /> : t('profileLoginBtn')}
-              </button>
-            </form>
-          </div>
-        )}
-
-        {stage === 'ready' && (
-          <div className="space-y-6">
-            {/* Profile hero */}
-            <div className="flex flex-col items-center gap-3 pt-2 text-center">
-              <div className="grid size-16 place-items-center rounded-2xl bg-gradient-to-br from-[#0071e3] to-[#0a84ff] text-xl font-bold text-white shadow-lg shadow-[#0071e3]/25">
-                {initials(driverName)}
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold tracking-tight text-ink">
-                  {driverName || t('profileTitle')}
-                </h1>
-                <p className="mt-0.5 text-sm text-muted">{t('profileTitle')} · LTS Logistik GmbH</p>
-              </div>
+            <div>
+              <h1 className="text-2xl font-extrabold tracking-tight text-white sm:text-3xl">
+                {driverName || t('profileTitle')}
+              </h1>
+              <p className="mt-1 text-sm text-white/75">{t('profileTitle')} · LTS Logistik GmbH</p>
             </div>
 
-            {/* Month picker — centered */}
-            <div className="flex items-center justify-center gap-2">
-              <CalendarDays size={16} className="text-[#0071e3]" />
-              <span className="text-sm font-semibold">{t('profileMonth')}</span>
+            {/* month selector */}
+            <div className="mt-1 inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/15 py-1.5 pl-3.5 pr-2 text-white shadow-lg backdrop-blur">
+              <CalendarDays size={15} className="text-white/80" />
               <select
                 value={month}
                 onChange={(e) => onMonthChange(e.target.value)}
-                className="h-10 rounded-xl border border-border bg-white px-3 text-sm font-medium shadow-sm dark:bg-white/5"
+                className="cursor-pointer bg-transparent pr-1 text-sm font-semibold text-white outline-none [&>option]:text-gray-900"
               >
                 {months.map((m) => (
                   <option key={m} value={m}>
@@ -353,86 +372,133 @@ export function DriverProfilePage() {
                 ))}
               </select>
             </div>
+          </div>
+        </div>
+      </div>
 
-            {dataLoading && (
-              <div className="flex justify-center py-16">
-                <Spinner size="lg" />
+      {/* CONTENT — overlaps the hero */}
+      <main className="relative z-10 mx-auto -mt-16 max-w-[1500px] px-4 pb-16 sm:px-6">
+        {dataLoading && (
+          <div className="flex justify-center rounded-3xl bg-white p-16 shadow-lg dark:bg-white/[0.06]">
+            <Spinner size="lg" />
+          </div>
+        )}
+
+        {!dataLoading && dataError && (
+          <div className="rounded-3xl bg-white p-10 text-center text-sm text-muted shadow-lg dark:bg-white/[0.06]">
+            {dataError}
+          </div>
+        )}
+
+        {!dataLoading && !dataError && data && (
+          <div className="space-y-5">
+            {/* Summary cards */}
+            {data.shifts.length > 0 && (
+              <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+                <StatCard icon={<Truck size={20} />} tone="blue" label={t('analysisShifts')} value={String(totals.shifts)} />
+                <StatCard icon={<Clock size={20} />} tone="violet" label={t('analysisWorkTime')} value={totals.workHm} />
+                <StatCard icon={<UtensilsCrossed size={20} />} tone="green" label={t('profileDietHeading')} value={`${data.summary.diet_count} / ${data.summary.total_shifts}`} />
+                <StatCard icon={<CalendarX size={20} />} tone="amber" label={t('profileMissingWorkLabel')} value={String(missingDays.length)} />
               </div>
             )}
 
-            {!dataLoading && dataError && (
-              <div className="rounded-xl border border-border bg-white p-6 text-center text-sm text-muted dark:bg-white/5">
-                {dataError}
-              </div>
-            )}
-
-            {!dataLoading && !dataError && data && (
-              <>
-                {/* Summary cards */}
-                {data.shifts.length > 0 && (
-                  <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-                    <StatCard icon={<Truck size={18} />} tone="blue" label={t('analysisShifts')} value={String(totals.shifts)} />
-                    <StatCard icon={<Clock size={18} />} tone="violet" label={t('analysisWorkTime')} value={totals.workHm} />
-                    <StatCard icon={<UtensilsCrossed size={18} />} tone="green" label={t('profileDietHeading')} value={`${data.summary.diet_count} / ${data.summary.total_shifts}`} />
-                    <StatCard icon={<CalendarX size={18} />} tone="amber" label={t('profileMissingWorkLabel')} value={String(missingDays.length)} />
-                  </div>
-                )}
-
-                {/* Missing working days */}
-                {missingDays.length > 0 && (
-                  <section className="rounded-2xl border border-amber-300/60 bg-amber-50 p-4 dark:border-amber-500/30 dark:bg-amber-500/10">
-                    <h2 className="mb-1 flex items-center gap-2 text-base font-semibold text-amber-900 dark:text-amber-200">
-                      <CalendarX size={17} />
+            {/* Missing working days */}
+            {missingDays.length > 0 && (
+              <section className="overflow-hidden rounded-3xl border border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 p-5 shadow-sm dark:border-amber-500/20 dark:from-amber-500/10 dark:to-orange-500/5">
+                <div className="flex items-start gap-3">
+                  <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-amber-500 to-orange-500 text-white shadow-sm">
+                    <CalendarX size={19} />
+                  </span>
+                  <div>
+                    <h2 className="text-sm font-bold text-amber-900 dark:text-amber-200">
                       {t('profileMissingWorkLabel')}
                     </h2>
-                    <p className="text-sm text-amber-800 dark:text-amber-100/90">
+                    <p className="mt-0.5 text-sm text-amber-800 dark:text-amber-100/90">
                       {t('profileMissingWorkIntro')}{' '}
-                      <span className="font-semibold">
-                        {missingDays.join(', ')}
-                      </span>
-                      {' '}({missingDays.length})
+                      <span className="font-bold">{missingDays.join(', ')}</span>{' '}
+                      ({missingDays.length})
                     </p>
-                  </section>
-                )}
+                  </div>
+                </div>
+              </section>
+            )}
 
-                {/* Shifts */}
-                <section className="rounded-2xl border border-border bg-white p-3 sm:p-6 dark:bg-white/5">
-                  <h2 className="mb-3 flex items-center gap-2 text-base font-semibold">
-                    <Truck size={17} className="text-[#0071e3]" />
-                    {t('profileShiftsHeading')}
-                  </h2>
-                  {data.shifts.length === 0 ? (
-                    <p className="py-6 text-center text-sm text-muted">{t('profileNoData')}</p>
-                  ) : (
-                    <ProfileShiftTable shifts={data.shifts} />
-                  )}
-                </section>
+            {/* Shifts */}
+            <Panel>
+              <SectionHeader icon={<Truck size={18} />} tone="blue" title={t('profileShiftsHeading')} />
+              {data.shifts.length === 0 ? (
+                <p className="py-8 text-center text-sm text-muted">{t('profileNoData')}</p>
+              ) : (
+                <ProfileShiftTable shifts={data.shifts} />
+              )}
+            </Panel>
 
-                {/* Diets */}
-                {data.shifts.length > 0 && (
-                  <section className="rounded-2xl border border-border bg-white p-3 sm:p-6 dark:bg-white/5">
-                    <div className="mb-3 flex items-center justify-between">
-                      <h2 className="flex items-center gap-2 text-base font-semibold">
-                        <UtensilsCrossed size={17} className="text-emerald-500" />
-                        {t('profileDietHeading')}
-                      </h2>
-                      <span className="rounded-full bg-emerald-500/10 px-3 py-1 text-sm font-bold text-emerald-600 dark:text-emerald-400">
-                        {data.summary.diet_count} / {data.summary.total_shifts}
-                      </span>
-                    </div>
-                    <DietReport
-                      shifts={data.shifts}
-                      driverName={data.driver_name}
-                      cardNumber=""
-                      summary={data.summary}
-                    />
-                  </section>
-                )}
-              </>
+            {/* Diets */}
+            {data.shifts.length > 0 && (
+              <Panel>
+                <SectionHeader
+                  icon={<UtensilsCrossed size={18} />}
+                  tone="green"
+                  title={t('profileDietHeading')}
+                  right={
+                    <span className="rounded-full bg-emerald-500/10 px-3 py-1 text-sm font-bold text-emerald-600 dark:text-emerald-400">
+                      {data.summary.diet_count} / {data.summary.total_shifts}
+                    </span>
+                  }
+                />
+                <DietReport
+                  shifts={data.shifts}
+                  driverName={data.driver_name}
+                  cardNumber=""
+                  summary={data.summary}
+                />
+              </Panel>
             )}
           </div>
         )}
       </main>
+    </div>
+  );
+}
+
+/* ------------------------------ building blocks ------------------------ */
+
+function CenteredHero({ children }: { children: ReactNode }) {
+  return (
+    <div className={`relative flex min-h-screen items-center justify-center overflow-hidden px-4 ${HERO_BG}`}>
+      <div className="pointer-events-none absolute -right-16 -top-24 size-80 rounded-full bg-white/10 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-24 -left-12 size-80 rounded-full bg-sky-300/20 blur-3xl" />
+      <div className="relative w-full max-w-sm">{children}</div>
+    </div>
+  );
+}
+
+function Panel({ children }: { children: ReactNode }) {
+  return (
+    <section className="rounded-3xl border border-black/5 bg-white p-4 shadow-sm shadow-black/[0.03] sm:p-6 dark:border-white/10 dark:bg-white/[0.06]">
+      {children}
+    </section>
+  );
+}
+
+function SectionHeader({
+  icon,
+  title,
+  tone,
+  right,
+}: {
+  icon: ReactNode;
+  title: string;
+  tone: Tone;
+  right?: ReactNode;
+}) {
+  return (
+    <div className="mb-4 flex items-center gap-3">
+      <span className={`grid size-9 shrink-0 place-items-center rounded-xl bg-gradient-to-br ${GRADIENTS[tone]} text-white shadow-sm`}>
+        {icon}
+      </span>
+      <h2 className="text-base font-bold tracking-tight text-ink">{title}</h2>
+      {right && <div className="ml-auto">{right}</div>}
     </div>
   );
 }
@@ -446,23 +512,19 @@ function StatCard({
   icon: ReactNode;
   label: string;
   value: string;
-  tone: 'blue' | 'violet' | 'green' | 'amber';
+  tone: Tone;
 }) {
-  const tones: Record<typeof tone, string> = {
-    blue: 'bg-[#0071e3]/10 text-[#0071e3]',
-    violet: 'bg-violet-500/10 text-violet-500',
-    green: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
-    amber: 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
-  };
   return (
-    <div className="rounded-2xl border border-border bg-white p-4 dark:bg-white/5">
-      <div className="flex items-center gap-2.5">
-        <span className={`grid size-9 shrink-0 place-items-center rounded-xl ${tones[tone]}`}>
+    <div className="group rounded-3xl border border-black/5 bg-white p-4 shadow-sm shadow-black/[0.03] transition hover:-translate-y-0.5 hover:shadow-md sm:p-5 dark:border-white/10 dark:bg-white/[0.06]">
+      <div className="flex items-center gap-3">
+        <span className={`grid size-11 shrink-0 place-items-center rounded-2xl bg-gradient-to-br ${GRADIENTS[tone]} text-white shadow-sm`}>
           {icon}
         </span>
         <div className="min-w-0">
-          <div className="truncate text-lg font-bold leading-tight text-ink">{value}</div>
-          <div className="truncate text-xs text-muted">{label}</div>
+          <div className="truncate text-2xl font-extrabold leading-none tracking-tight text-ink">
+            {value}
+          </div>
+          <div className="mt-1.5 truncate text-xs font-medium text-muted">{label}</div>
         </div>
       </div>
     </div>
@@ -472,23 +534,38 @@ function StatCard({
 function LangSwitch({
   locale,
   setLocale,
+  glass,
 }: {
   locale: 'pl' | 'de';
   setLocale: (l: 'pl' | 'de') => void;
+  glass?: boolean;
 }) {
   return (
-    <div className="flex overflow-hidden rounded-full border border-border text-xs font-semibold">
-      {(['de', 'pl'] as const).map((l) => (
-        <button
-          key={l}
-          onClick={() => setLocale(l)}
-          className={`px-2.5 py-1.5 transition ${
-            locale === l ? 'bg-[#0071e3] text-white' : 'text-muted hover:bg-surface'
-          }`}
-        >
-          {l.toUpperCase()}
-        </button>
-      ))}
+    <div
+      className={`flex overflow-hidden rounded-full text-xs font-bold ${
+        glass ? 'border border-white/25 bg-white/10 backdrop-blur' : 'border border-border'
+      }`}
+    >
+      {(['de', 'pl'] as const).map((l) => {
+        const active = locale === l;
+        return (
+          <button
+            key={l}
+            onClick={() => setLocale(l)}
+            className={`px-3 py-1.5 transition ${
+              active
+                ? glass
+                  ? 'bg-white text-indigo-700'
+                  : 'bg-[#0071e3] text-white'
+                : glass
+                  ? 'text-white/80 hover:bg-white/10'
+                  : 'text-muted hover:bg-surface'
+            }`}
+          >
+            {l.toUpperCase()}
+          </button>
+        );
+      })}
     </div>
   );
 }
