@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
 import { Layout } from './components/Layout';
 import { LoginPage } from './pages/LoginPage';
@@ -102,14 +102,24 @@ function PermissionRoute({ children, permission }: { children: React.ReactNode; 
 
 export function App() {
   const { loggedIn, isAdmin } = useAuth();
+  const location = useLocation();
+
+  // Public, token-bearer pages (driver profile, signing) must never show the
+  // internal app chrome — even when an admin opens them while logged in.
+  const isPublicPage =
+    location.pathname.startsWith('/profil/') || location.pathname.startsWith('/sign/');
 
   return (
     <>
-      <OfflineBanner />
-      <GlobalSearch />
-      {loggedIn && isAdmin && <Changelog />}
-      {loggedIn && <InstallPrompt />}
-      {loggedIn && <NewFilesNotification />}
+      {!isPublicPage && (
+        <>
+          <OfflineBanner />
+          <GlobalSearch />
+          {loggedIn && isAdmin && <Changelog />}
+          {loggedIn && <InstallPrompt />}
+          {loggedIn && <NewFilesNotification />}
+        </>
+      )}
       <Suspense fallback={<PageFallback />}>
         <Routes>
           {/* Public driver-signing flow — no auth, token-bearer */}

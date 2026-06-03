@@ -58,6 +58,9 @@ export function ProfileShiftTable({ shifts }: { shifts: ShiftDetail[] }) {
                   {sh.duration_hm}
                 </span>
               </div>
+              {sh.vehicles.length > 0 && (
+                <div className="mb-2 text-xs font-medium text-muted">{sh.vehicles.join(', ')}</div>
+              )}
               <div className="mb-2.5 flex items-center gap-2 text-sm">
                 <span className="font-semibold text-emerald-600 dark:text-emerald-400">
                   {hhmm(sh.shift_start)}
@@ -93,6 +96,7 @@ export function ProfileShiftTable({ shifts }: { shifts: ShiftDetail[] }) {
             <tr className="border-b border-border text-left">
               {[
                 t('analysisWeekday'),
+                t('analysisVehicle'),
                 t('analysisStart'),
                 t('analysisEnd'),
                 t('analysisTime'),
@@ -127,6 +131,7 @@ export function ProfileShiftTable({ shifts }: { shifts: ShiftDetail[] }) {
                   <td className={`whitespace-nowrap px-3 py-2.5 font-bold ${weekend ? 'text-danger' : 'text-ink'}`}>
                     {wd(sh.weekday, locale)} <span className="font-medium text-muted">{ddmm(sh.shift_date)}</span>
                   </td>
+                  <td className="whitespace-nowrap px-3 py-2.5 text-muted">{sh.vehicles.join(', ') || '—'}</td>
                   <td className="whitespace-nowrap px-3 py-2.5 font-medium text-emerald-600 dark:text-emerald-400">
                     {hhmm(sh.shift_start)}
                   </td>

@@ -213,6 +213,15 @@ export function DriverProfilePage() {
     };
   }, [data]);
 
+  const initials = (name: string) =>
+    name
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((n) => n[0])
+      .join('')
+      .slice(0, 2)
+      .toUpperCase() || '?';
+
   const fmtMonth = (ym: string) => {
     const [y, m] = ym.split('-');
     const d = new Date(Number(y), Number(m) - 1, 1);
@@ -315,16 +324,27 @@ export function DriverProfilePage() {
 
         {stage === 'ready' && (
           <div className="space-y-6">
-            {/* Month picker */}
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="flex items-center gap-2 text-sm font-semibold">
-                <CalendarDays size={16} className="text-[#0071e3]" />
-                {t('profileMonth')}
+            {/* Profile hero */}
+            <div className="flex flex-col items-center gap-3 pt-2 text-center">
+              <div className="grid size-16 place-items-center rounded-2xl bg-gradient-to-br from-[#0071e3] to-[#0a84ff] text-xl font-bold text-white shadow-lg shadow-[#0071e3]/25">
+                {initials(driverName)}
               </div>
+              <div>
+                <h1 className="text-2xl font-bold tracking-tight text-ink">
+                  {driverName || t('profileTitle')}
+                </h1>
+                <p className="mt-0.5 text-sm text-muted">{t('profileTitle')} · LTS Logistik GmbH</p>
+              </div>
+            </div>
+
+            {/* Month picker — centered */}
+            <div className="flex items-center justify-center gap-2">
+              <CalendarDays size={16} className="text-[#0071e3]" />
+              <span className="text-sm font-semibold">{t('profileMonth')}</span>
               <select
                 value={month}
                 onChange={(e) => onMonthChange(e.target.value)}
-                className="h-10 rounded-lg border border-border bg-transparent px-3 text-sm"
+                className="h-10 rounded-xl border border-border bg-white px-3 text-sm font-medium shadow-sm dark:bg-white/5"
               >
                 {months.map((m) => (
                   <option key={m} value={m}>
@@ -353,7 +373,7 @@ export function DriverProfilePage() {
                   <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
                     <StatCard icon={<Truck size={18} />} tone="blue" label={t('analysisShifts')} value={String(totals.shifts)} />
                     <StatCard icon={<Clock size={18} />} tone="violet" label={t('analysisWorkTime')} value={totals.workHm} />
-                    <StatCard icon={<UtensilsCrossed size={18} />} tone="green" label={t('profileDietHeading')} value={`${data.summary.diet_count} · ${data.diet_total_eur.toFixed(2)} €`} />
+                    <StatCard icon={<UtensilsCrossed size={18} />} tone="green" label={t('profileDietHeading')} value={`${data.summary.diet_count} / ${data.summary.total_shifts}`} />
                     <StatCard icon={<CalendarX size={18} />} tone="amber" label={t('profileMissingWorkLabel')} value={String(missingDays.length)} />
                   </div>
                 )}
@@ -396,12 +416,9 @@ export function DriverProfilePage() {
                         <UtensilsCrossed size={17} className="text-emerald-500" />
                         {t('profileDietHeading')}
                       </h2>
-                      <div className="text-right text-sm">
-                        <span className="text-muted">{t('profileDietTotal')}: </span>
-                        <span className="font-bold text-emerald-600 dark:text-emerald-400">
-                          {data.diet_total_eur.toFixed(2)} €
-                        </span>
-                      </div>
+                      <span className="rounded-full bg-emerald-500/10 px-3 py-1 text-sm font-bold text-emerald-600 dark:text-emerald-400">
+                        {data.summary.diet_count} / {data.summary.total_shifts}
+                      </span>
                     </div>
                     <DietReport
                       shifts={data.shifts}
