@@ -309,11 +309,18 @@ def _init_db():
             token         TEXT NOT NULL UNIQUE,
             password_hash TEXT NOT NULL DEFAULT '',
             enabled       INTEGER NOT NULL DEFAULT 1,
+            avatar_key    TEXT NOT NULL DEFAULT '',
             created_at    TEXT NOT NULL,
             updated_at    TEXT NOT NULL,
             last_access   TEXT NOT NULL DEFAULT ''
         );
     ''')
+    # Migration: add avatar_key to driver_profiles created before avatars.
+    try:
+        conn.execute("SELECT avatar_key FROM driver_profiles LIMIT 1")
+    except Exception:
+        conn.execute("ALTER TABLE driver_profiles ADD COLUMN avatar_key TEXT NOT NULL DEFAULT ''")
+        conn.commit()
 
     conn.commit()
     conn.close()

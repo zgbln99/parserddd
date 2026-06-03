@@ -27,6 +27,7 @@ interface LoginResponse {
   driver_name: string;
   months: string[];
   default_month: string;
+  has_avatar: boolean;
 }
 
 interface DataResponse {
@@ -58,6 +59,8 @@ export function DriverProfilePage() {
 
   const [stage, setStage] = useState<Stage>('loading');
   const [driverName, setDriverName] = useState('');
+  const [hasAvatar, setHasAvatar] = useState(false);
+  const avatarUrl = hasAvatar ? `${BASE}/api/profile/${encodeURIComponent(token)}/avatar` : '';
 
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
@@ -86,6 +89,7 @@ export function DriverProfilePage() {
         }
         const j = await res.json();
         setDriverName(j.driver_name || '');
+        setHasAvatar(Boolean(j.has_avatar));
         setStage('locked');
       } catch {
         if (!cancelled) setStage('invalid');
@@ -158,6 +162,7 @@ export function DriverProfilePage() {
       const j: LoginResponse = await res.json();
       setAccessToken(j.access_token);
       setDriverName(j.driver_name || driverName);
+      setHasAvatar(Boolean(j.has_avatar));
       setMonths(j.months || []);
       setPassword('');
       setStage('ready');
@@ -189,7 +194,7 @@ export function DriverProfilePage() {
   // Working days (Mon–Fri, minus German public holidays) in the selected
   // month that have NO shift — i.e. days the driver "is missing work". For
   // the current month we only look back up to today, never flag the future.
-  const missingDays = useMemo<number[]>(() => {
+  const missingDays = useMemo<{ day: number; label: string }[]>(() => {
     if (!data || !month) return [];
     const [y, m] = month.split('-').map(Number);
     if (!y || !m) return [];
@@ -198,7 +203,8 @@ export function DriverProfilePage() {
     const today = new Date();
     today.setHours(23, 59, 59, 999);
     const daysInMonth = new Date(y, m, 0).getDate();
-    const out: number[] = [];
+    const loc = locale === 'de' ? 'de-DE' : 'pl-PL';
+    const out: { day: number; label: string }[] = [];
     for (let day = 1; day <= daysInMonth; day++) {
       const d = new Date(y, m - 1, day);
       const dow = d.getDay(); // 0 = Sun, 6 = Sat
@@ -206,10 +212,18 @@ export function DriverProfilePage() {
       if (d > today) continue;
       const iso = `${month}-${String(day).padStart(2, '0')}`;
       if (holidays.has(iso)) continue;
-      if (!worked.has(iso)) out.push(day);
+      if (!worked.has(iso)) {
+        // e.g. "pon. 13.05" / "Mo. 13.05." — unambiguous which day it is
+        const label = d.toLocaleDateString(loc, {
+          weekday: 'short',
+          day: '2-digit',
+          month: '2-digit',
+        });
+        out.push({ day, label });
+      }
     }
     return out;
-  }, [data, month]);
+  }, [data, month, locale]);
 
   // Month totals for the summary cards (computed from the shift rows).
   const totals = useMemo(() => {
@@ -277,9 +291,17 @@ export function DriverProfilePage() {
         </div>
         <div className="w-full max-w-sm rounded-3xl border border-white/15 bg-white/10 p-8 text-white shadow-2xl backdrop-blur-xl">
           <div className="mb-6 flex flex-col items-center gap-3 text-center">
-            <div className="grid size-16 place-items-center rounded-2xl bg-white/15 ring-1 ring-white/25">
-              <Lock size={26} />
-            </div>
+            {avatarUrl ? (
+              <img
+                src={avatarUrl}
+                alt={driverName}
+                className="size-16 rounded-2xl object-cover ring-2 ring-white/30"
+              />
+            ) : (
+              <div className="grid size-16 place-items-center rounded-2xl bg-white/15 ring-1 ring-white/25">
+                <Lock size={26} />
+              </div>
+            )}
             <div>
               <h1 className="text-lg font-bold tracking-tight">
                 {driverName ? `${t('profileGreeting')}, ${driverName}` : t('profileTitle')}
@@ -345,9 +367,17 @@ export function DriverProfilePage() {
 
           {/* profile identity */}
           <div className="flex flex-col items-center gap-4 pb-2 pt-6 text-center">
-            <div className="grid size-20 place-items-center rounded-3xl bg-white/15 text-2xl font-extrabold text-white ring-2 ring-white/30 backdrop-blur">
-              {initials(driverName)}
-            </div>
+            {avatarUrl ? (
+              <img
+                src={avatarUrl}
+                alt={driverName}
+                className="size-20 rounded-3xl object-cover ring-2 ring-white/40 shadow-lg"
+              />
+            ) : (
+              <div className="grid size-20 place-items-center rounded-3xl bg-white/15 text-2xl font-extrabold text-white ring-2 ring-white/30 backdrop-blur">
+                {initials(driverName)}
+              </div>
+            )}
             <div>
               <h1 className="text-2xl font-extrabold tracking-tight text-white sm:text-3xl">
                 {driverName || t('profileTitle')}
@@ -407,15 +437,23 @@ export function DriverProfilePage() {
                   <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-rose-500 to-red-600 text-white shadow-sm">
                     <CalendarX size={19} />
                   </span>
-                  <div>
+                  <div className="min-w-0">
                     <h2 className="text-sm font-bold text-rose-900 dark:text-rose-200">
-                      {t('profileMissingWorkLabel')}
+                      {t('profileMissingWorkLabel')} ({missingDays.length})
                     </h2>
                     <p className="mt-0.5 text-sm text-rose-800 dark:text-rose-100/90">
-                      {t('profileMissingWorkIntro')}{' '}
-                      <span className="font-bold">{missingDays.join(', ')}</span>{' '}
-                      ({missingDays.length})
+                      {t('profileMissingWorkIntro')}
                     </p>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {missingDays.map(({ day, label }) => (
+                        <span
+                          key={day}
+                          className="rounded-lg bg-white/70 px-2.5 py-1 text-xs font-bold capitalize text-rose-700 ring-1 ring-rose-200 dark:bg-rose-500/10 dark:text-rose-200 dark:ring-rose-500/30"
+                        >
+                          {label}
+                        </span>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </section>

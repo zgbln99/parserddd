@@ -787,6 +787,8 @@ export const de: Record<TranslationKey, string> = {
   profileAdminLink: 'Link',
   profileAdminCopy: 'Link kopieren',
   profileAdminCopied: 'Kopiert',
+  profileAdminAvatar: 'Avatar',
+  profileAdminAvatarRemove: 'Avatar entfernen',
   profileAdminResetPw: 'Passwort ändern',
   profileAdminEnable: 'Aktivieren',
   profileAdminDisable: 'Deaktivieren',

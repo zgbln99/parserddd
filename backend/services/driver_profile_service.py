@@ -63,6 +63,7 @@ def _row_to_dict(row: Mapping[str, Any]) -> dict[str, Any]:
         "token": row["token"],
         "password_hash": row["password_hash"],
         "enabled": bool(row["enabled"]),
+        "avatar_key": (row["avatar_key"] if "avatar_key" in row.keys() else "") or "",
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
         "last_access": row["last_access"],
@@ -149,6 +150,17 @@ def set_enabled(card_number: str, enabled: bool) -> None:
         db.commit()
 
 
+def set_avatar(card_number: str, avatar_key: str) -> None:
+    if not get_by_card(card_number):
+        raise ProfileError("profile not found", status=404)
+    with get_db() as db:
+        db.execute(
+            "UPDATE driver_profiles SET avatar_key = ?, updated_at = ? WHERE card_number = ?",
+            (avatar_key, _now_iso(), card_number),
+        )
+        db.commit()
+
+
 def delete_profile(card_number: str) -> None:
     with get_db() as db:
         db.execute("DELETE FROM driver_profiles WHERE card_number = ?", (card_number,))
@@ -161,7 +173,7 @@ def list_profiles() -> list[dict[str, Any]]:
         rows = db.execute(
             """
             SELECT card_number, driver_name, token, password_hash, enabled,
-                   created_at, updated_at, last_access
+                   avatar_key, created_at, updated_at, last_access
             FROM driver_profiles
             ORDER BY LOWER(driver_name), card_number
             """
@@ -176,6 +188,7 @@ def list_profiles() -> list[dict[str, Any]]:
                 "token": d["token"],
                 "enabled": d["enabled"],
                 "has_password": bool(d["password_hash"]),
+                "has_avatar": bool(d["avatar_key"]),
                 "created_at": d["created_at"],
                 "updated_at": d["updated_at"],
                 "last_access": d["last_access"],

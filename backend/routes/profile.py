@@ -19,10 +19,12 @@ month. No compliance, no fines, no admin data — "nic więcej".
 from __future__ import annotations
 
 import os
+import re
 import tempfile
 from datetime import date, datetime, timedelta
+from io import BytesIO
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, send_file
 
 from auth.decorators import login_required
 from auth.helpers import (
@@ -36,6 +38,7 @@ from core.analysis import analyze_card
 from core.parsers import parse_ddd_auto
 from routes.analysis import _build_merged_ddd, _get_driver_analysis_flags
 from services import driver_profile_service as svc
+from services import storage_service
 from services.driver_profile_service import ProfileError
 from services.dropbox_service import (
     build_drivers_data,
@@ -44,6 +47,21 @@ from services.dropbox_service import (
 )
 
 bp = Blueprint("profile", __name__)
+
+# Avatars live in the same private MEGA S4 bucket as the DDD files and are
+# always streamed through the backend (the bucket stays private).
+_AVATAR_TYPES = {
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+    "image/webp": ".webp",
+}
+_EXT_TYPES = {v: k for k, v in _AVATAR_TYPES.items()}
+_MAX_AVATAR_BYTES = 5 * 1024 * 1024  # 5 MB
+
+
+def _avatar_key(card_number: str, ext: str) -> str:
+    safe = re.sub(r"[^A-Za-z0-9_-]", "_", card_number).strip("_") or "driver"
+    return f"Avatars/{safe}{ext}"
 
 
 # ---------------------------------------------------------------------------
@@ -231,6 +249,7 @@ def api_profile_meta(token: str):
             "driver_name": profile["driver_name"],
             "company_name": cfg.get("company_name", "LTS Logistik GmbH"),
             "needs_password": True,
+            "has_avatar": bool(profile["avatar_key"]),
         }
     )
 
@@ -262,6 +281,7 @@ def api_profile_login(token: str):
             "driver_name": profile["driver_name"] or driver_name,
             "months": months,
             "default_month": months[0] if months else "",
+            "has_avatar": bool(profile["avatar_key"]),
         }
     )
 
@@ -293,6 +313,28 @@ def api_profile_data(token: str):
     return jsonify(result)
 
 
+@bp.route("/api/profile/<token>/avatar", methods=["GET"])
+def api_profile_avatar(token: str):
+    """Stream the driver's avatar from the private bucket (token-bearer)."""
+    profile = svc.get_by_token(token)
+    if not profile or not profile["enabled"] or not profile["avatar_key"]:
+        return jsonify({"error": "not found"}), 404
+    key = profile["avatar_key"]
+    try:
+        blob = storage_service.download_bytes(key)
+    except Exception:
+        return jsonify({"error": "not found"}), 404
+    ext = os.path.splitext(key)[1].lower()
+    resp = send_file(
+        BytesIO(blob),
+        mimetype=_EXT_TYPES.get(ext, "application/octet-stream"),
+        download_name=os.path.basename(key),
+    )
+    # Avatars rarely change; let the browser cache briefly.
+    resp.headers["Cache-Control"] = "private, max-age=300"
+    return resp
+
+
 # ---------------------------------------------------------------------------
 # Admin
 # ---------------------------------------------------------------------------
@@ -302,6 +344,9 @@ def _with_url(profile: dict) -> dict:
     base = request.host_url.rstrip("/")
     profile = dict(profile)
     profile["url"] = f"{base}/profil/{profile['token']}"
+    profile["avatar_url"] = (
+        f"{base}/api/profile/{profile['token']}/avatar" if profile.get("has_avatar") else ""
+    )
     return profile
 
 
@@ -336,6 +381,7 @@ def api_admin_create_profile():
         "token": profile["token"],
         "enabled": profile["enabled"],
         "has_password": bool(profile["password_hash"]),
+        "has_avatar": bool(profile["avatar_key"]),
         "created_at": profile["created_at"],
         "updated_at": profile["updated_at"],
         "last_access": profile["last_access"],
@@ -371,9 +417,83 @@ def api_admin_toggle_profile(card_number: str):
     return jsonify({"ok": True})
 
 
+@bp.route("/api/admin/driver-profiles/<card_number>/avatar", methods=["POST"])
+@login_required
+def api_admin_upload_avatar(card_number: str):
+    profile = svc.get_by_card(card_number)
+    if not profile:
+        return jsonify({"error": "profile not found"}), 404
+    if "file" not in request.files:
+        return jsonify({"error": "no file"}), 400
+    file = request.files["file"]
+    content_type = (file.mimetype or "").lower()
+    ext = _AVATAR_TYPES.get(content_type)
+    if not ext:
+        return jsonify({"error": "unsupported image type (use JPG, PNG or WEBP)"}), 400
+
+    data = file.read()
+    if not data:
+        return jsonify({"error": "empty file"}), 400
+    if len(data) > _MAX_AVATAR_BYTES:
+        return jsonify({"error": "image too large (max 5 MB)"}), 413
+
+    key = _avatar_key(card_number, ext)
+    try:
+        storage_service.upload_bytes(key, data, content_type=content_type)
+    except Exception as exc:
+        return jsonify({"error": f"storage error: {exc}"}), 502
+
+    # Remove a previous avatar with a different extension so we don't orphan it.
+    old = profile.get("avatar_key")
+    if old and old != key:
+        try:
+            storage_service.delete(old)
+        except Exception:
+            pass
+
+    svc.set_avatar(card_number, key)
+    _log_activity("driver_profile_avatar", card_number)
+    p = svc.get_by_card(card_number) or {}
+    item = {
+        "card_number": p.get("card_number", card_number),
+        "driver_name": p.get("driver_name", ""),
+        "token": p.get("token", ""),
+        "enabled": p.get("enabled", True),
+        "has_password": bool(p.get("password_hash")),
+        "has_avatar": bool(p.get("avatar_key")),
+        "created_at": p.get("created_at", ""),
+        "updated_at": p.get("updated_at", ""),
+        "last_access": p.get("last_access", ""),
+    }
+    return jsonify(_with_url(item))
+
+
+@bp.route("/api/admin/driver-profiles/<card_number>/avatar", methods=["DELETE"])
+@login_required
+def api_admin_delete_avatar(card_number: str):
+    profile = svc.get_by_card(card_number)
+    if not profile:
+        return jsonify({"error": "profile not found"}), 404
+    key = profile.get("avatar_key")
+    if key:
+        try:
+            storage_service.delete(key)
+        except Exception:
+            pass
+    svc.set_avatar(card_number, "")
+    _log_activity("driver_profile_avatar_delete", card_number)
+    return jsonify({"ok": True})
+
+
 @bp.route("/api/admin/driver-profiles/<card_number>", methods=["DELETE"])
 @login_required
 def api_admin_delete_profile(card_number: str):
+    profile = svc.get_by_card(card_number)
+    if profile and profile.get("avatar_key"):
+        try:
+            storage_service.delete(profile["avatar_key"])
+        except Exception:
+            pass
     svc.delete_profile(card_number)
     _log_activity("driver_profile_delete", card_number)
     return jsonify({"ok": True})

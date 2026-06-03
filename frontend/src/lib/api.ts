@@ -141,10 +141,12 @@ export interface DriverProfileItem {
   token: string;
   enabled: boolean;
   has_password: boolean;
+  has_avatar: boolean;
   created_at: string;
   updated_at: string;
   last_access: string;
   url: string;
+  avatar_url: string;
 }
 
 export const listDriverProfiles = () =>
@@ -184,6 +186,21 @@ export const toggleDriverProfile = (cardNumber: string, enabled: boolean) =>
 export const deleteDriverProfile = (cardNumber: string) =>
   request<{ ok: boolean }>(
     `/api/admin/driver-profiles/${encodeURIComponent(cardNumber)}`,
+    { method: 'DELETE' },
+  );
+
+export const uploadDriverProfileAvatar = (cardNumber: string, file: File) => {
+  const form = new FormData();
+  form.append('file', file);
+  return request<DriverProfileItem>(
+    `/api/admin/driver-profiles/${encodeURIComponent(cardNumber)}/avatar`,
+    { method: 'POST', body: form },
+  );
+};
+
+export const deleteDriverProfileAvatar = (cardNumber: string) =>
+  request<{ ok: boolean }>(
+    `/api/admin/driver-profiles/${encodeURIComponent(cardNumber)}/avatar`,
     { method: 'DELETE' },
   );
 

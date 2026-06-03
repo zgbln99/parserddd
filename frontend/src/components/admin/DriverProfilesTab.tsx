@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Copy, Check, KeyRound, Trash2, Eye, EyeOff, UserPlus, Search, X } from 'lucide-react';
+import { Copy, Check, KeyRound, Trash2, Eye, EyeOff, UserPlus, Search, X, ImagePlus } from 'lucide-react';
 import { useI18n } from '../../i18n';
 import {
   fetchDrivers,
@@ -8,6 +8,8 @@ import {
   setDriverProfilePassword,
   toggleDriverProfile,
   deleteDriverProfile,
+  uploadDriverProfileAvatar,
+  deleteDriverProfileAvatar,
   type DriverProfileItem,
 } from '../../lib/api';
 import type { Driver } from '../../types';
@@ -33,6 +35,9 @@ export function DriverProfilesTab() {
   const [listFilter, setListFilter] = useState('');
 
   const [copied, setCopied] = useState('');
+  // bumped after an avatar upload/delete to bust the <img> cache
+  const [avatarBust, setAvatarBust] = useState(0);
+  const [avatarBusy, setAvatarBusy] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -134,6 +139,34 @@ export function DriverProfilesTab() {
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const handleAvatarSelect = async (card: string, file: File | null | undefined) => {
+    if (!file) return;
+    setAvatarBusy(card);
+    setError('');
+    try {
+      await uploadDriverProfileAvatar(card, file);
+      setAvatarBust(Date.now());
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setAvatarBusy('');
+    }
+  };
+
+  const handleAvatarRemove = async (card: string) => {
+    setAvatarBusy(card);
+    try {
+      await deleteDriverProfileAvatar(card);
+      setAvatarBust(Date.now());
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setAvatarBusy('');
     }
   };
 
@@ -274,26 +307,51 @@ export function DriverProfilesTab() {
                 key={p.card_number}
                 className="glass-card flex flex-col gap-3 rounded-xl p-4 sm:flex-row sm:items-center sm:justify-between"
               >
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold">{p.driver_name || p.card_number}</span>
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                        p.enabled
-                          ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-300'
-                          : 'bg-gray-400/20 text-muted'
-                      }`}
-                    >
-                      {p.enabled ? t('profileAdminEnabled') : t('profileAdminDisabled')}
-                    </span>
-                  </div>
-                  <div className="mt-0.5 truncate text-xs text-muted">{p.card_number}</div>
-                  <div className="mt-1 truncate font-mono text-[11px] text-muted">{p.url}</div>
-                  <div className="mt-0.5 text-[11px] text-muted">
-                    {t('profileAdminLastAccess')}: {p.last_access ? p.last_access.slice(0, 16).replace('T', ' ') : t('profileAdminNever')}
+                <div className="flex min-w-0 flex-1 items-center gap-3">
+                  <Avatar p={p} bust={avatarBust} />
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold">{p.driver_name || p.card_number}</span>
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                          p.enabled
+                            ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-300'
+                            : 'bg-gray-400/20 text-muted'
+                        }`}
+                      >
+                        {p.enabled ? t('profileAdminEnabled') : t('profileAdminDisabled')}
+                      </span>
+                    </div>
+                    <div className="mt-0.5 truncate text-xs text-muted">{p.card_number}</div>
+                    <div className="mt-1 truncate font-mono text-[11px] text-muted">{p.url}</div>
+                    <div className="mt-0.5 text-[11px] text-muted">
+                      {t('profileAdminLastAccess')}: {p.last_access ? p.last_access.slice(0, 16).replace('T', ' ') : t('profileAdminNever')}
+                    </div>
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-1.5">
+                  <label className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium transition hover:bg-surface">
+                    {avatarBusy === p.card_number ? <Spinner size="sm" /> : <ImagePlus size={13} />}
+                    {t('profileAdminAvatar')}
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      className="hidden"
+                      onChange={(e) => {
+                        handleAvatarSelect(p.card_number, e.target.files?.[0]);
+                        e.target.value = '';
+                      }}
+                    />
+                  </label>
+                  {p.has_avatar && (
+                    <button
+                      onClick={() => handleAvatarRemove(p.card_number)}
+                      title={t('profileAdminAvatarRemove')}
+                      className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-muted transition hover:bg-surface"
+                    >
+                      <X size={13} />
+                    </button>
+                  )}
                   <button
                     onClick={() => handleCopy(p.url, p.card_number)}
                     className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium transition hover:bg-surface"
@@ -329,5 +387,35 @@ export function DriverProfilesTab() {
         )}
       </div>
     </div>
+  );
+}
+
+function initials(name: string): string {
+  return (
+    name
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((n) => n[0])
+      .join('')
+      .slice(0, 2)
+      .toUpperCase() || '?'
+  );
+}
+
+function Avatar({ p, bust }: { p: DriverProfileItem; bust: number }) {
+  if (p.has_avatar && p.avatar_url) {
+    const sep = p.avatar_url.includes('?') ? '&' : '?';
+    return (
+      <img
+        src={`${p.avatar_url}${sep}t=${bust}`}
+        alt=""
+        className="size-11 shrink-0 rounded-full object-cover ring-1 ring-border"
+      />
+    );
+  }
+  return (
+    <span className="grid size-11 shrink-0 place-items-center rounded-full bg-gradient-to-br from-zinc-700 to-zinc-900 text-sm font-bold text-white">
+      {initials(p.driver_name || p.card_number)}
+    </span>
   );
 }
