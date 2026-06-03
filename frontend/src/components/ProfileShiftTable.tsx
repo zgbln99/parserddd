@@ -54,7 +54,7 @@ export function ProfileShiftTable({ shifts }: { shifts: ShiftDetail[] }) {
                 <span className={`text-base font-bold ${weekend ? 'text-danger' : 'text-ink'}`}>
                   {wd(sh.weekday, locale)} {ddmm(sh.shift_date)}
                 </span>
-                <span className="rounded-full bg-[#0071e3]/10 px-2.5 py-1 text-sm font-bold text-[#0071e3]">
+                <span className="rounded-full bg-red-500/10 px-2.5 py-1 text-sm font-bold text-red-600 dark:text-red-400">
                   {sh.duration_hm}
                 </span>
               </div>
@@ -62,11 +62,11 @@ export function ProfileShiftTable({ shifts }: { shifts: ShiftDetail[] }) {
                 <div className="mb-2 text-xs font-medium text-muted">{sh.vehicles.join(', ')}</div>
               )}
               <div className="mb-2.5 flex items-center gap-2 text-sm">
-                <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                <span className="font-semibold text-zinc-700 dark:text-zinc-200">
                   {hhmm(sh.shift_start)}
                 </span>
                 <span className="text-muted">→</span>
-                <span className="font-semibold text-rose-500 dark:text-rose-400">
+                <span className="font-semibold text-red-600 dark:text-red-400">
                   {hhmm(sh.shift_end)}
                 </span>
                 {sh.has_diet && (
@@ -125,22 +125,22 @@ export function ProfileShiftTable({ shifts }: { shifts: ShiftDetail[] }) {
                 return (
                   <tr
                     key={i}
-                    className={`transition hover:bg-[#0071e3]/[0.04] ${
-                      weekend ? 'bg-rose-50/50 dark:bg-rose-900/10' : ''
+                    className={`transition hover:bg-red-500/[0.04] ${
+                      weekend ? 'bg-rose-50/60 dark:bg-rose-900/10' : ''
                     }`}
                   >
                     <td className={`whitespace-nowrap px-3 py-3 font-bold ${weekend ? 'text-danger' : 'text-ink'}`}>
                       {wd(sh.weekday, locale)} <span className="font-medium text-muted">{ddmm(sh.shift_date)}</span>
                     </td>
                     <td className="whitespace-nowrap px-3 py-3 text-muted">{sh.vehicles.join(', ') || '—'}</td>
-                    <td className="whitespace-nowrap px-3 py-3 font-medium text-emerald-600 dark:text-emerald-400">
+                    <td className="whitespace-nowrap px-3 py-3 font-medium text-zinc-700 dark:text-zinc-200">
                       {hhmm(sh.shift_start)}
                     </td>
-                    <td className="whitespace-nowrap px-3 py-3 font-medium text-rose-500 dark:text-rose-400">
+                    <td className="whitespace-nowrap px-3 py-3 font-medium text-red-600 dark:text-red-400">
                       {hhmm(sh.shift_end)}
                     </td>
                     <td className="whitespace-nowrap px-3 py-3">
-                      <span className="inline-block rounded-full bg-[#0071e3]/10 px-2.5 py-0.5 font-bold text-[#0071e3]">
+                      <span className="inline-block rounded-full bg-red-500/10 px-2.5 py-0.5 font-bold text-red-600 dark:text-red-400">
                         {sh.duration_hm}
                       </span>
                     </td>

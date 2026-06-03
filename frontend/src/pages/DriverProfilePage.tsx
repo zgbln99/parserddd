@@ -41,18 +41,16 @@ interface DataResponse {
 
 type Stage = 'loading' | 'locked' | 'invalid' | 'ready';
 
-// Shared gradient palette for icon chips / accents.
+// Shared gradient palette for icon chips / accents — brand: black + red.
 const GRADIENTS = {
-  blue: 'from-sky-500 to-indigo-500',
-  violet: 'from-violet-500 to-fuchsia-500',
-  green: 'from-emerald-500 to-teal-500',
-  amber: 'from-amber-500 to-orange-500',
+  red: 'from-rose-500 to-red-600',
+  dark: 'from-zinc-700 to-zinc-900',
 } as const;
 type Tone = keyof typeof GRADIENTS;
 
-// The signature hero gradient, reused across hero / login / invalid screens.
+// The signature hero gradient — sleek near-black with a red glow.
 const HERO_BG =
-  'bg-gradient-to-br from-indigo-600 via-indigo-700 to-sky-500';
+  'bg-gradient-to-br from-zinc-900 via-[#0c0c0e] to-[#2a0a0e]';
 
 export function DriverProfilePage() {
   const { token = '' } = useParams<{ token: string }>();
@@ -307,7 +305,7 @@ export function DriverProfilePage() {
             <button
               type="submit"
               disabled={loggingIn}
-              className="mt-1 inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-white text-sm font-bold text-indigo-700 shadow-lg transition hover:bg-white/90 disabled:opacity-60"
+              className="mt-1 inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-white text-sm font-bold text-red-600 shadow-lg transition hover:bg-white/90 disabled:opacity-60"
             >
               {loggingIn ? <Spinner size="sm" /> : t('profileLoginBtn')}
             </button>
@@ -320,11 +318,11 @@ export function DriverProfilePage() {
   // --- Ready: the full profile dashboard ---------------------------------
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#eef2ff] to-[#f6f7fb] text-gray-900 antialiased dark:from-[#0b1020] dark:to-[#0b0e14] dark:text-gray-100">
+    <div className="min-h-screen bg-gradient-to-b from-zinc-100 to-white text-gray-900 antialiased dark:from-[#0b0b0d] dark:to-[#0b0b0d] dark:text-gray-100">
       {/* HERO banner */}
       <div className={`relative overflow-hidden rounded-b-[2.5rem] pb-24 shadow-xl ${HERO_BG}`}>
         <div className="pointer-events-none absolute -right-16 -top-24 size-72 rounded-full bg-white/10 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-24 -left-12 size-72 rounded-full bg-sky-300/20 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-24 -left-12 size-72 rounded-full bg-red-600/30 blur-3xl" />
 
         <div className="relative mx-auto max-w-[1500px] px-4 sm:px-6">
           {/* top bar */}
@@ -395,25 +393,25 @@ export function DriverProfilePage() {
             {/* Summary cards */}
             {data.shifts.length > 0 && (
               <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-                <StatCard icon={<Truck size={20} />} tone="blue" label={t('analysisShifts')} value={String(totals.shifts)} />
-                <StatCard icon={<Clock size={20} />} tone="violet" label={t('analysisWorkTime')} value={totals.workHm} />
-                <StatCard icon={<UtensilsCrossed size={20} />} tone="green" label={t('profileDietHeading')} value={`${data.summary.diet_count} / ${data.summary.total_shifts}`} />
-                <StatCard icon={<CalendarX size={20} />} tone="amber" label={t('profileMissingWorkLabel')} value={String(missingDays.length)} />
+                <StatCard icon={<Truck size={20} />} tone="red" label={t('analysisShifts')} value={String(totals.shifts)} />
+                <StatCard icon={<Clock size={20} />} tone="dark" label={t('analysisWorkTime')} value={totals.workHm} />
+                <StatCard icon={<UtensilsCrossed size={20} />} tone="dark" label={t('profileDietHeading')} value={`${data.summary.diet_count} / ${data.summary.total_shifts}`} />
+                <StatCard icon={<CalendarX size={20} />} tone="red" label={t('profileMissingWorkLabel')} value={String(missingDays.length)} />
               </div>
             )}
 
             {/* Missing working days */}
             {missingDays.length > 0 && (
-              <section className="overflow-hidden rounded-3xl border border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 p-5 shadow-sm dark:border-amber-500/20 dark:from-amber-500/10 dark:to-orange-500/5">
+              <section className="overflow-hidden rounded-3xl border border-rose-200 bg-gradient-to-br from-rose-50 to-red-50 p-5 shadow-sm dark:border-rose-500/20 dark:from-rose-500/10 dark:to-red-500/5">
                 <div className="flex items-start gap-3">
-                  <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-amber-500 to-orange-500 text-white shadow-sm">
+                  <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-rose-500 to-red-600 text-white shadow-sm">
                     <CalendarX size={19} />
                   </span>
                   <div>
-                    <h2 className="text-sm font-bold text-amber-900 dark:text-amber-200">
+                    <h2 className="text-sm font-bold text-rose-900 dark:text-rose-200">
                       {t('profileMissingWorkLabel')}
                     </h2>
-                    <p className="mt-0.5 text-sm text-amber-800 dark:text-amber-100/90">
+                    <p className="mt-0.5 text-sm text-rose-800 dark:text-rose-100/90">
                       {t('profileMissingWorkIntro')}{' '}
                       <span className="font-bold">{missingDays.join(', ')}</span>{' '}
                       ({missingDays.length})
@@ -425,7 +423,7 @@ export function DriverProfilePage() {
 
             {/* Shifts */}
             <Panel>
-              <SectionHeader icon={<Truck size={18} />} tone="blue" title={t('profileShiftsHeading')} />
+              <SectionHeader icon={<Truck size={18} />} tone="dark" title={t('profileShiftsHeading')} />
               {data.shifts.length === 0 ? (
                 <p className="py-8 text-center text-sm text-muted">{t('profileNoData')}</p>
               ) : (
@@ -438,10 +436,10 @@ export function DriverProfilePage() {
               <Panel>
                 <SectionHeader
                   icon={<UtensilsCrossed size={18} />}
-                  tone="green"
+                  tone="red"
                   title={t('profileDietHeading')}
                   right={
-                    <span className="rounded-full bg-emerald-500/10 px-3 py-1 text-sm font-bold text-emerald-600 dark:text-emerald-400">
+                    <span className="rounded-full bg-red-500/10 px-3 py-1 text-sm font-bold text-red-600 dark:text-red-400">
                       {data.summary.diet_count} / {data.summary.total_shifts}
                     </span>
                   }
@@ -466,8 +464,8 @@ export function DriverProfilePage() {
 function CenteredHero({ children }: { children: ReactNode }) {
   return (
     <div className={`relative flex min-h-screen items-center justify-center overflow-hidden px-4 ${HERO_BG}`}>
-      <div className="pointer-events-none absolute -right-16 -top-24 size-80 rounded-full bg-white/10 blur-3xl" />
-      <div className="pointer-events-none absolute -bottom-24 -left-12 size-80 rounded-full bg-sky-300/20 blur-3xl" />
+      <div className="pointer-events-none absolute -right-16 -top-24 size-80 rounded-full bg-red-600/25 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-24 -left-12 size-80 rounded-full bg-white/10 blur-3xl" />
       <div className="relative w-full max-w-sm">{children}</div>
     </div>
   );
@@ -555,8 +553,8 @@ function LangSwitch({
             className={`px-3 py-1.5 transition ${
               active
                 ? glass
-                  ? 'bg-white text-indigo-700'
-                  : 'bg-[#0071e3] text-white'
+                  ? 'bg-white text-red-600'
+                  : 'bg-red-600 text-white'
                 : glass
                   ? 'text-white/80 hover:bg-white/10'
                   : 'text-muted hover:bg-surface'
