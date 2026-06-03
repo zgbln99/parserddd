@@ -31,9 +31,9 @@ import { Spinner } from '../components/Spinner';
 
 const COMPANY_URL = 'https://www.ltslogistik.de';
 // COPY: phone (tel: format + display)
-const PHONE_TEL = '+490000000000';
-const PHONE_HUMAN = '+49 (0) 00 00 00 00 0';
-const MAIL_KARRIERE = 'karriere@ltslogistik.de';
+const PHONE_TEL = '+493081722010';
+const PHONE_HUMAN = '+49 30 81 72 20 10';
+const MAIL_KARRIERE = 'info@ltslogistik.de';
 
 const UNSPLASH_TRUCK =
   'https://images.unsplash.com/photo-1601584115197-04ecc0da31ad?auto=format&fit=crop&w=2400&q=85';
@@ -304,7 +304,14 @@ function FooterBar() {
           <a href={`mailto:${MAIL_KARRIERE}`} className="hover:text-white">
             {MAIL_KARRIERE}
           </a>
-          <a href="#" className="hover:text-white">Impressum</a>
+          <a
+            href={`${COMPANY_URL}/impressum`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-white"
+          >
+            Impressum
+          </a>
         </div>
       </div>
     </footer>
