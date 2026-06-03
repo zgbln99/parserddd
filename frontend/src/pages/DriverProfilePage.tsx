@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { useParams } from 'react-router-dom';
-import { Lock, LogOut, Truck, UtensilsCrossed, CalendarDays, CalendarX } from 'lucide-react';
+import { Lock, LogOut, Truck, UtensilsCrossed, CalendarDays, CalendarX, Clock } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { Spinner } from '../components/Spinner';
-import { ShiftTable } from '../features/analysis/ShiftTable';
+import { ProfileShiftTable } from '../components/ProfileShiftTable';
 import { DietReport } from '../features/analysis/DietReport';
 import { getHolidayMap } from '../lib/holidays';
 import type { ShiftDetail } from '../types';
@@ -200,6 +200,19 @@ export function DriverProfilePage() {
     return out;
   }, [data, month]);
 
+  // Month totals for the summary cards (computed from the shift rows).
+  const totals = useMemo(() => {
+    const s = data?.shifts ?? [];
+    const sum = (f: keyof ShiftDetail) =>
+      s.reduce((a, x) => a + (Number(x[f]) || 0), 0);
+    const hm = (mins: number) => `${Math.floor(mins / 60)}:${String(mins % 60).padStart(2, '0')}`;
+    return {
+      shifts: s.length,
+      workHm: hm(sum('work_minutes')),
+      drivingHm: hm(sum('driving_minutes')),
+    };
+  }, [data]);
+
   const fmtMonth = (ym: string) => {
     const [y, m] = ym.split('-');
     const d = new Date(Number(y), Number(m) - 1, 1);
@@ -217,7 +230,7 @@ export function DriverProfilePage() {
     <div className="min-h-screen bg-[#f6f7f9] text-gray-900 antialiased dark:bg-[#0f141a] dark:text-gray-100">
       {/* Header */}
       <header className="border-b border-black/5 bg-white/80 backdrop-blur dark:border-white/10 dark:bg-white/5">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-3 py-3 sm:px-6">
+        <div className="mx-auto flex max-w-[1500px] items-center justify-between px-3 py-3 sm:px-6">
           <div className="flex items-center gap-2.5">
             <img src="/icon.svg" alt="" className="size-8 rounded-lg" />
             <div>
@@ -240,7 +253,7 @@ export function DriverProfilePage() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl px-3 py-4 sm:px-6 sm:py-6">
+      <main className="mx-auto max-w-[1500px] px-3 py-4 sm:px-6 sm:py-6">
         {stage === 'loading' && (
           <div className="flex justify-center py-24">
             <Spinner size="lg" />
@@ -335,6 +348,16 @@ export function DriverProfilePage() {
 
             {!dataLoading && !dataError && data && (
               <>
+                {/* Summary cards */}
+                {data.shifts.length > 0 && (
+                  <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                    <StatCard icon={<Truck size={18} />} tone="blue" label={t('analysisShifts')} value={String(totals.shifts)} />
+                    <StatCard icon={<Clock size={18} />} tone="violet" label={t('analysisWorkTime')} value={totals.workHm} />
+                    <StatCard icon={<UtensilsCrossed size={18} />} tone="green" label={t('profileDietHeading')} value={`${data.summary.diet_count} · ${data.diet_total_eur.toFixed(2)} €`} />
+                    <StatCard icon={<CalendarX size={18} />} tone="amber" label={t('profileMissingWorkLabel')} value={String(missingDays.length)} />
+                  </div>
+                )}
+
                 {/* Missing working days */}
                 {missingDays.length > 0 && (
                   <section className="rounded-2xl border border-amber-300/60 bg-amber-50 p-4 dark:border-amber-500/30 dark:bg-amber-500/10">
@@ -361,7 +384,7 @@ export function DriverProfilePage() {
                   {data.shifts.length === 0 ? (
                     <p className="py-6 text-center text-sm text-muted">{t('profileNoData')}</p>
                   ) : (
-                    <ShiftTable shifts={data.shifts} />
+                    <ProfileShiftTable shifts={data.shifts} />
                   )}
                 </section>
 
@@ -393,6 +416,38 @@ export function DriverProfilePage() {
           </div>
         )}
       </main>
+    </div>
+  );
+}
+
+function StatCard({
+  icon,
+  label,
+  value,
+  tone,
+}: {
+  icon: ReactNode;
+  label: string;
+  value: string;
+  tone: 'blue' | 'violet' | 'green' | 'amber';
+}) {
+  const tones: Record<typeof tone, string> = {
+    blue: 'bg-[#0071e3]/10 text-[#0071e3]',
+    violet: 'bg-violet-500/10 text-violet-500',
+    green: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+    amber: 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
+  };
+  return (
+    <div className="rounded-2xl border border-border bg-white p-4 dark:bg-white/5">
+      <div className="flex items-center gap-2.5">
+        <span className={`grid size-9 shrink-0 place-items-center rounded-xl ${tones[tone]}`}>
+          {icon}
+        </span>
+        <div className="min-w-0">
+          <div className="truncate text-lg font-bold leading-tight text-ink">{value}</div>
+          <div className="truncate text-xs text-muted">{label}</div>
+        </div>
+      </div>
     </div>
   );
 }
