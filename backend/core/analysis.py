@@ -404,7 +404,51 @@ def analyze_card(data, night_start_hour=None, config_loader=None, night_40_check
             'manual_errors': manual_errors,
         })
 
-    # Summary: work/driving/break/avail from calendar_days, night hours from shifts
+    # ── Per-shift km from tachograph odometer records ─────────────────────
+    # Vehicle records have day-granular ranges and total distance_km. To get
+    # daily km, distribute each record's distance across the days the driver
+    # actually had a shift within [first_use, last_use] — that way rest days
+    # don't dilute the average.
+    if shift_details:
+        from collections import defaultdict
+        shift_date_set = {sd['shift_date'] for sd in shift_details if sd.get('shift_date')}
+        per_day_km = defaultdict(float)
+        for v in vehicles:
+            v_start = parse_date_safe(v.get('first_use', ''))
+            v_end = parse_date_safe(v.get('last_use', ''))
+            dist = v.get('distance_km', 0) or 0
+            if not v_start or not v_end or dist <= 0:
+                continue
+            overlapping = [
+                sd for sd in shift_date_set
+                if v_start <= datetime.strptime(sd, '%Y-%m-%d').date() <= v_end
+            ]
+            if not overlapping:
+                continue
+            share = dist / len(overlapping)
+            for sd in overlapping:
+                per_day_km[sd] += share
+
+        # Attach to each shift_detail. If a calendar day has multiple shifts
+        # (rare), split km proportionally by driving_minutes.
+        by_date_shifts = defaultdict(list)
+        for sd in shift_details:
+            by_date_shifts[sd.get('shift_date', '')].append(sd)
+        for date_str, sds in by_date_shifts.items():
+            day_km = per_day_km.get(date_str, 0)
+            if day_km <= 0:
+                for sd in sds:
+                    sd['distance_km'] = 0
+                continue
+            total_driving = sum(sd.get('driving_minutes', 0) for sd in sds)
+            if total_driving > 0:
+                for sd in sds:
+                    sd['distance_km'] = round(day_km * sd['driving_minutes'] / total_driving, 1)
+            else:
+                # No driving recorded on any shift — split equally.
+                share = round(day_km / len(sds), 1)
+                for sd in sds:
+                    sd['distance_km'] = share
     # (shift-level night calculation respects night_40_check_midnight toggle)
     cd_total_work = sum(cd.get('work_minutes', 0) for cd in calendar_days.values())
     cd_total_driving = sum(cd.get('driving_minutes', 0) for cd in calendar_days.values())

@@ -112,6 +112,7 @@ export const pl = {
   analysisNight40: 'Nocne 40%',
   analysisBreaks: 'Przerwy',
   analysisAvailability: 'Dyspozycyjność',
+  analysisKm: 'Km',
   analysisDiet: 'Dieta',
   analysisDietEur: 'Dieta €',
   analysisUbernachtung: 'Übernachtung €',

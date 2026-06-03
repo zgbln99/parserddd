@@ -960,7 +960,14 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
                     </span>
                     <span className="text-sm text-muted">{sh.shift_date?.slice(5)}</span>
                   </div>
-                  <span className="text-base font-bold">{sh.duration_hm}</span>
+                  <div className="flex items-baseline gap-2">
+                    {sh.distance_km && sh.distance_km > 0 && (
+                      <span className="rounded bg-sky-100 dark:bg-sky-900/40 px-1.5 py-0.5 text-[11px] font-bold font-mono text-sky-700 dark:text-sky-300">
+                        {Math.round(sh.distance_km).toLocaleString('de-DE')} km
+                      </span>
+                    )}
+                    <span className="text-base font-bold">{sh.duration_hm}</span>
+                  </div>
                 </div>
 
                 {/* Time range */}
@@ -1063,7 +1070,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
               <tr className="border-b border-border">
                 {[t('analysisWeekday'), t('analysisStart'), t('analysisEnd'), t('analysisTime'), t('analysisVehicle'),
                   t('analysisWorkTime'), t('analysisDriving'), t('analysisWork'), t('analysisAvailability'), t('analysisBreaks'),
-                  t('analysisNight25'), t('analysisNight40'), t('analysisDiet'), t('analysisDietEur'), t('analysisUbernachtung'),
+                  t('analysisNight25'), t('analysisNight40'), t('analysisKm'), t('analysisDiet'), t('analysisDietEur'), t('analysisUbernachtung'),
                 ].map((h) => (
                   <th key={h} className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold text-muted">
                     {h}
@@ -1198,6 +1205,11 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
                   <td className="whitespace-nowrap px-3 py-2">{sh.break_hm}</td>
                   <td className="whitespace-nowrap px-3 py-2">{fmtNight(sh.night_25_minutes, sh.night_25_hm)}</td>
                   <td className="whitespace-nowrap px-3 py-2">{fmtNight(sh.night_40_minutes, sh.night_40_hm)}</td>
+                  <td className="whitespace-nowrap px-3 py-2 font-mono text-right">
+                    {sh.distance_km && sh.distance_km > 0
+                      ? <span className="font-semibold">{Math.round(sh.distance_km).toLocaleString('de-DE')}</span>
+                      : <span className="text-muted">–</span>}
+                  </td>
                   <td className="whitespace-nowrap px-3 py-2">
                     {sh.has_diet
                       ? <Badge variant="green">{t('yes')}</Badge>
@@ -1216,7 +1228,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
                 </tr>
                 {isEditing && (
                   <tr key={`edit-${i}`} onClick={e => e.stopPropagation()}>
-                    <td colSpan={15} className="px-4 py-3 bg-[#f7f9fc] dark:bg-[#1f2a37]">
+                    <td colSpan={16} className="px-4 py-3 bg-[#f7f9fc] dark:bg-[#1f2a37]">
                       <div className="flex flex-wrap items-end gap-3">
                         <div className="w-28">
                           <label className="block text-[10px] font-medium text-[#6b7280] mb-0.5">{locale === 'de' ? 'Datum' : 'Data'}</label>
@@ -1314,7 +1326,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
                 )}
                 {selectedShiftReport === i && !isEditing && (
                   <tr key={`report-${i}`}>
-                    <td colSpan={15} className="p-4 bg-surface">
+                    <td colSpan={16} className="p-4 bg-surface">
                       <ArbeitszeitReport shift={sh} />
                     </td>
                   </tr>

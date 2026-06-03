@@ -63,6 +63,7 @@ export interface ShiftDetail {
   night_40_hm: string;
   has_diet: boolean;
   vehicles: string[];
+  distance_km?: number;
   manual_minutes: number;
   manual_hm: string;
   driving_segments?: TimeSegment[];

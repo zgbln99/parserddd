@@ -114,6 +114,7 @@ export const de: Record<TranslationKey, string> = {
   analysisNight40: 'Nacht 40 %',
   analysisBreaks: 'Pausen',
   analysisAvailability: 'Bereitschaft',
+  analysisKm: 'Km',
   analysisDiet: 'Verpflegung',
   analysisDietEur: 'Verpflegung €',
   analysisUbernachtung: 'Übernachtung €',
