@@ -89,75 +89,81 @@ export function ProfileShiftTable({ shifts }: { shifts: ShiftDetail[] }) {
         })}
       </div>
 
-      {/* Desktop: full-width table, date first, no Manual */}
-      <div className="hidden overflow-x-auto sm:block">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border text-left">
-              {[
-                t('analysisWeekday'),
-                t('analysisVehicle'),
-                t('analysisStart'),
-                t('analysisEnd'),
-                t('analysisTime'),
-                t('analysisWorkTime'),
-                t('analysisDriving'),
-                t('analysisWork'),
-                t('analysisAvailability'),
-                t('analysisBreaks'),
-                t('analysisNight25'),
-                t('analysisNight40'),
-                t('analysisDiet'),
-              ].map((h) => (
-                <th
-                  key={h}
-                  className="whitespace-nowrap px-3 py-3 text-xs font-semibold uppercase tracking-wide text-muted"
-                >
-                  {h}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {shifts.map((sh, i) => {
-              const weekend = sh.weekday === 'So' || sh.weekday === 'Nd';
-              return (
-                <tr
-                  key={i}
-                  className={`transition hover:bg-surface ${
-                    weekend ? 'bg-rose-50/50 dark:bg-rose-900/10' : ''
-                  }`}
-                >
-                  <td className={`whitespace-nowrap px-3 py-2.5 font-bold ${weekend ? 'text-danger' : 'text-ink'}`}>
-                    {wd(sh.weekday, locale)} <span className="font-medium text-muted">{ddmm(sh.shift_date)}</span>
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-2.5 text-muted">{sh.vehicles.join(', ') || '—'}</td>
-                  <td className="whitespace-nowrap px-3 py-2.5 font-medium text-emerald-600 dark:text-emerald-400">
-                    {hhmm(sh.shift_start)}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-2.5 font-medium text-rose-500 dark:text-rose-400">
-                    {hhmm(sh.shift_end)}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-2.5 font-bold">{sh.duration_hm}</td>
-                  <td className="whitespace-nowrap px-3 py-2.5 font-semibold">{sh.work_hm}</td>
-                  <td className="whitespace-nowrap px-3 py-2.5 text-muted">{sh.driving_hm}</td>
-                  <td className="whitespace-nowrap px-3 py-2.5 text-muted">{sh.work_only_hm}</td>
-                  <td className="whitespace-nowrap px-3 py-2.5 text-muted">{sh.avail_hm}</td>
-                  <td className="whitespace-nowrap px-3 py-2.5 text-muted">{sh.break_hm}</td>
-                  <td className="whitespace-nowrap px-3 py-2.5 text-muted">{sh.night_25_hm}</td>
-                  <td className="whitespace-nowrap px-3 py-2.5 text-muted">{sh.night_40_hm}</td>
-                  <td className="whitespace-nowrap px-3 py-2.5">
-                    {sh.has_diet ? (
-                      <Badge variant="green">{t('yes')}</Badge>
-                    ) : (
-                      <span className="text-muted">{t('no')}</span>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+      {/* Desktop: full-width table, date first, no Manual — all centered */}
+      <div className="hidden overflow-hidden rounded-2xl border border-border sm:block">
+        <div className="overflow-x-auto">
+          <table className="w-full text-center text-sm">
+            <thead>
+              <tr className="bg-surface/70">
+                {[
+                  t('analysisWeekday'),
+                  t('analysisVehicle'),
+                  t('analysisStart'),
+                  t('analysisEnd'),
+                  t('analysisTime'),
+                  t('analysisWorkTime'),
+                  t('analysisDriving'),
+                  t('analysisWork'),
+                  t('analysisAvailability'),
+                  t('analysisBreaks'),
+                  t('analysisNight25'),
+                  t('analysisNight40'),
+                  t('analysisDiet'),
+                ].map((h) => (
+                  <th
+                    key={h}
+                    className="whitespace-nowrap px-3 py-3 text-center text-[11px] font-semibold uppercase tracking-wider text-muted"
+                  >
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {shifts.map((sh, i) => {
+                const weekend = sh.weekday === 'So' || sh.weekday === 'Nd';
+                return (
+                  <tr
+                    key={i}
+                    className={`transition hover:bg-[#0071e3]/[0.04] ${
+                      weekend ? 'bg-rose-50/50 dark:bg-rose-900/10' : ''
+                    }`}
+                  >
+                    <td className={`whitespace-nowrap px-3 py-3 font-bold ${weekend ? 'text-danger' : 'text-ink'}`}>
+                      {wd(sh.weekday, locale)} <span className="font-medium text-muted">{ddmm(sh.shift_date)}</span>
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-3 text-muted">{sh.vehicles.join(', ') || '—'}</td>
+                    <td className="whitespace-nowrap px-3 py-3 font-medium text-emerald-600 dark:text-emerald-400">
+                      {hhmm(sh.shift_start)}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-3 font-medium text-rose-500 dark:text-rose-400">
+                      {hhmm(sh.shift_end)}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-3">
+                      <span className="inline-block rounded-full bg-[#0071e3]/10 px-2.5 py-0.5 font-bold text-[#0071e3]">
+                        {sh.duration_hm}
+                      </span>
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-3 font-semibold text-ink">{sh.work_hm}</td>
+                    <td className="whitespace-nowrap px-3 py-3 text-muted">{sh.driving_hm}</td>
+                    <td className="whitespace-nowrap px-3 py-3 text-muted">{sh.work_only_hm}</td>
+                    <td className="whitespace-nowrap px-3 py-3 text-muted">{sh.avail_hm}</td>
+                    <td className="whitespace-nowrap px-3 py-3 text-muted">{sh.break_hm}</td>
+                    <td className="whitespace-nowrap px-3 py-3 text-muted">{sh.night_25_hm}</td>
+                    <td className="whitespace-nowrap px-3 py-3 text-muted">{sh.night_40_hm}</td>
+                    <td className="whitespace-nowrap px-3 py-3">
+                      {sh.has_diet ? (
+                        <Badge variant="green">{t('yes')}</Badge>
+                      ) : (
+                        <span className="text-muted">{t('no')}</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
     </>
   );
