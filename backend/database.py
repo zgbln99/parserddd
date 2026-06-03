@@ -288,6 +288,29 @@ def init_db():
             '' if engine == 'postgresql' else 'AUTOINCREMENT',
         ))
 
+        # driver_profiles — public, password-gated read-only profiles a
+        # driver opens via a stable link (``/profil/<token>``) to see ONLY
+        # their own shift table + diets for a chosen month. The admin
+        # enables a profile and sets the password from the admin panel;
+        # the token is the secret part of the shareable URL, the password
+        # is the second factor the driver types in.
+        db.executescript('''
+            CREATE TABLE IF NOT EXISTS driver_profiles (
+                id            {} PRIMARY KEY {},
+                card_number   TEXT NOT NULL UNIQUE,
+                driver_name   TEXT NOT NULL DEFAULT '',
+                token         TEXT NOT NULL UNIQUE,
+                password_hash TEXT NOT NULL DEFAULT '',
+                enabled       INTEGER NOT NULL DEFAULT 1,
+                created_at    TEXT NOT NULL,
+                updated_at    TEXT NOT NULL,
+                last_access   TEXT NOT NULL DEFAULT ''
+            );
+        '''.format(
+            'SERIAL' if engine == 'postgresql' else 'INTEGER',
+            '' if engine == 'postgresql' else 'AUTOINCREMENT',
+        ))
+
         # violation_statuses — per-violation status persistence for the
         # activity-based compliance engine. ``violation_id`` is the
         # content-addressable id produced by the engine, so the same

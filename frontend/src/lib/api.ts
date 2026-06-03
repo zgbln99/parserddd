@@ -134,6 +134,59 @@ export const fetchDrivers = (refresh = false) =>
     `/api/drivers${refresh ? '?refresh=1' : ''}`,
   );
 
+// Driver profiles (public, password-gated read-only pages — admin side)
+export interface DriverProfileItem {
+  card_number: string;
+  driver_name: string;
+  token: string;
+  enabled: boolean;
+  has_password: boolean;
+  created_at: string;
+  updated_at: string;
+  last_access: string;
+  url: string;
+}
+
+export const listDriverProfiles = () =>
+  request<{ items: DriverProfileItem[] }>('/api/admin/driver-profiles');
+
+export const createDriverProfile = (payload: {
+  card_number: string;
+  driver_name: string;
+  password?: string;
+}) =>
+  request<DriverProfileItem>('/api/admin/driver-profiles', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+export const setDriverProfilePassword = (cardNumber: string, password: string) =>
+  request<{ ok: boolean }>(
+    `/api/admin/driver-profiles/${encodeURIComponent(cardNumber)}/password`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password }),
+    },
+  );
+
+export const toggleDriverProfile = (cardNumber: string, enabled: boolean) =>
+  request<{ ok: boolean }>(
+    `/api/admin/driver-profiles/${encodeURIComponent(cardNumber)}/toggle`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled }),
+    },
+  );
+
+export const deleteDriverProfile = (cardNumber: string) =>
+  request<{ ok: boolean }>(
+    `/api/admin/driver-profiles/${encodeURIComponent(cardNumber)}`,
+    { method: 'DELETE' },
+  );
+
 // Add driver manually
 export const addDriver = (name: string) =>
   request<{ ok: boolean; path: string }>('/api/drivers/add', {

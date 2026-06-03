@@ -300,6 +300,21 @@ def _init_db():
         );
     ''')
 
+    # Public, password-gated driver profiles (stable link + password).
+    conn.executescript('''
+        CREATE TABLE IF NOT EXISTS driver_profiles (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            card_number   TEXT NOT NULL UNIQUE,
+            driver_name   TEXT NOT NULL DEFAULT '',
+            token         TEXT NOT NULL UNIQUE,
+            password_hash TEXT NOT NULL DEFAULT '',
+            enabled       INTEGER NOT NULL DEFAULT 1,
+            created_at    TEXT NOT NULL,
+            updated_at    TEXT NOT NULL,
+            last_access   TEXT NOT NULL DEFAULT ''
+        );
+    ''')
+
     conn.commit()
     conn.close()
     logger.info('Database initialized: %s', DATABASE_FILE)

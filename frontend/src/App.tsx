@@ -5,6 +5,7 @@ import { Layout } from './components/Layout';
 import { LoginPage } from './pages/LoginPage';
 import { LandingPage } from './pages/LandingPage';
 import { SignPage } from './pages/SignPage';
+import { DriverProfilePage } from './pages/DriverProfilePage';
 import { Spinner } from './components/Spinner';
 import { GlobalSearch } from './components/GlobalSearch';
 import { OfflineBanner } from './components/OfflineBanner';
@@ -113,6 +114,8 @@ export function App() {
         <Routes>
           {/* Public driver-signing flow — no auth, token-bearer */}
           <Route path="/sign/:token" element={<SignPage />} />
+          {/* Public driver profile — no auth, token-bearer + password */}
+          <Route path="/profil/:token" element={<DriverProfilePage />} />
           <Route path="/login" element={loggedIn ? <Navigate to="/" replace /> : <LoginPage />} />
           <Route path="/" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
           <Route path="/drivers" element={<PermissionRoute permission="drivers"><DriversPage /></PermissionRoute>} />
