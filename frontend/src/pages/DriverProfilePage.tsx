@@ -100,6 +100,18 @@ export function DriverProfilePage() {
     };
   }, [token]);
 
+  // --- browser tab title: "Driver Name | Profil kierowcy" (per locale) ---
+  useEffect(() => {
+    const prev = document.title;
+    return () => {
+      document.title = prev;
+    };
+  }, []);
+  useEffect(() => {
+    const base = t('profileTitle');
+    document.title = driverName ? `${driverName} | ${base}` : base;
+  }, [driverName, t]);
+
   // --- data fetch for a month -------------------------------------------
   const loadMonth = useCallback(
     async (ym: string, at: string) => {
