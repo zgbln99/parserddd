@@ -1064,21 +1064,35 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
 
         {/* Desktop shifts table */}
         <div className="hidden sm:block -mx-6 overflow-x-auto px-6">
-          <div className="rounded-xl border border-border">
-          <table className="w-full min-w-[1100px] text-sm">
+          <div className="rounded-2xl border border-border bg-white shadow-sm overflow-hidden dark:bg-[#122031]">
+          <table className="w-full min-w-[1100px] text-sm" style={{ fontVariantNumeric: 'tabular-nums' }}>
             <thead>
-              <tr className="border-b border-border">
-                {[t('analysisWeekday'), t('analysisStart'), t('analysisEnd'), t('analysisTime'), t('analysisVehicle'),
-                  t('analysisWorkTime'), t('analysisDriving'), t('analysisWork'), t('analysisAvailability'), t('analysisBreaks'),
-                  t('analysisNight25'), t('analysisNight40'), t('analysisKm'), t('analysisDiet'), t('analysisDietEur'), t('analysisUbernachtung'),
-                ].map((h) => (
-                  <th key={h} className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold text-muted">
+              <tr className="border-b border-border bg-gray-50/80 dark:bg-[#0f1a29]/80 backdrop-blur sticky top-0 z-10">
+                {[
+                  { h: t('analysisWeekday'),       align: 'text-left' },
+                  { h: t('analysisStart'),         align: 'text-left' },
+                  { h: t('analysisEnd'),           align: 'text-left' },
+                  { h: t('analysisTime'),          align: 'text-right' },
+                  { h: t('analysisVehicle'),       align: 'text-left' },
+                  { h: t('analysisWorkTime'),      align: 'text-right' },
+                  { h: t('analysisDriving'),       align: 'text-right' },
+                  { h: t('analysisWork'),          align: 'text-right' },
+                  { h: t('analysisAvailability'),  align: 'text-right' },
+                  { h: t('analysisBreaks'),        align: 'text-right' },
+                  { h: t('analysisNight25'),       align: 'text-right' },
+                  { h: t('analysisNight40'),       align: 'text-right' },
+                  { h: t('analysisKm'),            align: 'text-right' },
+                  { h: t('analysisDiet'),          align: 'text-center' },
+                  { h: t('analysisDietEur'),       align: 'text-right' },
+                  { h: t('analysisUbernachtung'),  align: 'text-right' },
+                ].map(({ h, align }) => (
+                  <th key={h} className={`whitespace-nowrap px-3 py-3 ${align} text-[11px] font-semibold uppercase tracking-wider text-muted`}>
                     {h}
                   </th>
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-border">
+            <tbody className="divide-y divide-border/60">
               {workingShifts.map((rawSh, i) => {
                 const sh = applyOverride(rawSh, i);
                 const isWeekend = sh.weekday === 'So' || sh.weekday === 'Nd';
@@ -1091,16 +1105,18 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
                 <tr
                   key={i}
                   onClick={() => { if (!isEditing) setSelectedShiftReport(selectedShiftReport === i ? null : i); }}
-                  className={`hover:bg-surface cursor-pointer transition ${
+                  className={`cursor-pointer transition-colors ${
                     isAddedShift
-                      ? 'bg-emerald-50/60 dark:bg-emerald-900/10 border-l-2 border-l-[#22ad5c]'
+                      ? 'bg-emerald-50/60 dark:bg-emerald-900/10 border-l-2 border-l-[#22ad5c] hover:bg-emerald-100/60'
                       : hasOverride
-                      ? 'bg-amber-50/60 dark:bg-amber-900/10'
+                      ? 'bg-amber-50/60 dark:bg-amber-900/10 hover:bg-amber-100/60'
                       : selectedShiftReport === i
-                      ? 'bg-primary-50/50 dark:bg-primary-900/10'
+                      ? 'bg-primary-50/50 dark:bg-primary-900/10 hover:bg-primary-100/50'
                       : isWeekend
-                      ? 'bg-rose-50/40 dark:bg-rose-900/10'
-                      : ''
+                      ? 'bg-rose-50/40 dark:bg-rose-900/10 hover:bg-rose-100/60'
+                      : i % 2 === 0
+                      ? 'bg-white dark:bg-[#122031] hover:bg-gray-50 dark:hover:bg-[#0f1a29]'
+                      : 'bg-gray-50/40 dark:bg-[#0f1a29]/40 hover:bg-gray-100/60 dark:hover:bg-[#0d1726]'
                   }`}
                 >
                   <td className={`whitespace-nowrap px-3 py-2 font-bold ${isWeekend ? 'text-danger' : ''}`}>
@@ -1194,33 +1210,33 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
                       </button>
                     </div>
                   </td>
-                  <td className="whitespace-nowrap px-3 py-2 font-medium">{sh.shift_start}</td>
-                  <td className="whitespace-nowrap px-3 py-2 text-muted">{sh.shift_end}</td>
-                  <td className="whitespace-nowrap px-3 py-2 font-bold">{sh.duration_hm}</td>
-                  <td className="whitespace-nowrap px-3 py-2 text-muted">{sh.vehicles.join(', ')}</td>
-                  <td className="whitespace-nowrap px-3 py-2 font-bold">{sh.work_hm}</td>
-                  <td className="whitespace-nowrap px-3 py-2">{sh.driving_hm}</td>
-                  <td className="whitespace-nowrap px-3 py-2">{sh.work_only_hm}</td>
-                  <td className="whitespace-nowrap px-3 py-2">{sh.avail_hm}</td>
-                  <td className="whitespace-nowrap px-3 py-2">{sh.break_hm}</td>
-                  <td className="whitespace-nowrap px-3 py-2">{fmtNight(sh.night_25_minutes, sh.night_25_hm)}</td>
-                  <td className="whitespace-nowrap px-3 py-2">{fmtNight(sh.night_40_minutes, sh.night_40_hm)}</td>
-                  <td className="whitespace-nowrap px-3 py-2 font-mono text-right">
+                  <td className="whitespace-nowrap px-3 py-2.5 font-mono text-emerald-600 dark:text-emerald-400">{sh.shift_start}</td>
+                  <td className="whitespace-nowrap px-3 py-2.5 font-mono text-muted">{sh.shift_end}</td>
+                  <td className="whitespace-nowrap px-3 py-2.5 text-right font-mono font-bold">{sh.duration_hm}</td>
+                  <td className="whitespace-nowrap px-3 py-2.5 text-muted font-mono text-xs">{sh.vehicles.join(', ')}</td>
+                  <td className="whitespace-nowrap px-3 py-2.5 text-right font-mono font-bold">{sh.work_hm}</td>
+                  <td className="whitespace-nowrap px-3 py-2.5 text-right font-mono">{sh.driving_hm}</td>
+                  <td className="whitespace-nowrap px-3 py-2.5 text-right font-mono">{sh.work_only_hm}</td>
+                  <td className="whitespace-nowrap px-3 py-2.5 text-right font-mono text-muted">{sh.avail_hm}</td>
+                  <td className="whitespace-nowrap px-3 py-2.5 text-right font-mono">{sh.break_hm}</td>
+                  <td className="whitespace-nowrap px-3 py-2.5 text-right font-mono">{fmtNight(sh.night_25_minutes, sh.night_25_hm)}</td>
+                  <td className="whitespace-nowrap px-3 py-2.5 text-right font-mono">{fmtNight(sh.night_40_minutes, sh.night_40_hm)}</td>
+                  <td className="whitespace-nowrap px-3 py-2.5 text-right font-mono">
                     {sh.distance_km && sh.distance_km > 0
-                      ? <span className="font-semibold">{Math.round(sh.distance_km).toLocaleString('de-DE')}</span>
+                      ? <span className="font-semibold text-sky-700 dark:text-sky-300">{Math.round(sh.distance_km).toLocaleString('de-DE')}</span>
                       : <span className="text-muted">–</span>}
                   </td>
-                  <td className="whitespace-nowrap px-3 py-2">
+                  <td className="whitespace-nowrap px-3 py-2.5 text-center">
                     {sh.has_diet
                       ? <Badge variant="green">{t('yes')}</Badge>
                       : <span className="text-muted">{t('no')}</span>}
                   </td>
-                  <td className="whitespace-nowrap px-3 py-2 font-mono">
+                  <td className="whitespace-nowrap px-3 py-2.5 text-right font-mono">
                     {costs.diet > 0
                       ? <span className="font-semibold text-emerald-600 dark:text-emerald-400">{costs.diet.toFixed(2)} €</span>
                       : <span className="text-muted">–</span>}
                   </td>
-                  <td className="whitespace-nowrap px-3 py-2 font-mono">
+                  <td className="whitespace-nowrap px-3 py-2.5 text-right font-mono">
                     {costs.ubernachtung > 0
                       ? <span className="font-semibold text-blue-600 dark:text-blue-400">{costs.ubernachtung.toFixed(2)} €</span>
                       : <span className="text-muted">–</span>}
