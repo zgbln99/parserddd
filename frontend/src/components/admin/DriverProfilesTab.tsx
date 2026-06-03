@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Copy, Check, KeyRound, Trash2, Eye, EyeOff, UserPlus } from 'lucide-react';
+import { Copy, Check, KeyRound, Trash2, Eye, EyeOff, UserPlus, Search, X } from 'lucide-react';
 import { useI18n } from '../../i18n';
 import {
   fetchDrivers,
@@ -24,6 +24,13 @@ export function DriverProfilesTab() {
   const [selectedCard, setSelectedCard] = useState('');
   const [password, setPassword] = useState('');
   const [saving, setSaving] = useState(false);
+
+  // driver picker (searchable combobox)
+  const [pickerQuery, setPickerQuery] = useState('');
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  // filter over the existing-profiles list
+  const [listFilter, setListFilter] = useState('');
 
   const [copied, setCopied] = useState('');
 
@@ -51,6 +58,27 @@ export function DriverProfilesTab() {
     return drivers.filter((d) => d.card_number && !taken.has(d.card_number));
   }, [drivers, profiles]);
 
+  // Picker results filtered by the typed query (name or card number).
+  const pickerResults = useMemo(() => {
+    const q = pickerQuery.toLowerCase().trim();
+    if (!q) return availableDrivers;
+    return availableDrivers.filter(
+      (d) =>
+        d.name.toLowerCase().includes(q) || d.card_number.toLowerCase().includes(q),
+    );
+  }, [availableDrivers, pickerQuery]);
+
+  // Existing profiles filtered by the list search box.
+  const filteredProfiles = useMemo(() => {
+    const q = listFilter.toLowerCase().trim();
+    if (!q) return profiles;
+    return profiles.filter(
+      (p) =>
+        p.driver_name.toLowerCase().includes(q) ||
+        p.card_number.toLowerCase().includes(q),
+    );
+  }, [profiles, listFilter]);
+
   const handleCreate = async () => {
     if (!selectedCard) return;
     const driver = drivers.find((d) => d.card_number === selectedCard);
@@ -68,6 +96,8 @@ export function DriverProfilesTab() {
         password: password || undefined,
       });
       setSelectedCard('');
+      setPickerQuery('');
+      setPickerOpen(false);
       setPassword('');
       await load();
     } catch (e) {
@@ -130,23 +160,65 @@ export function DriverProfilesTab() {
       {/* Create / update form */}
       <div className="glass-card rounded-xl p-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-          <label className="flex-1 text-sm">
+          <div className="relative flex-1 text-sm">
             <span className="mb-1 block text-xs font-medium text-muted">
               {t('profileAdminSelectDriver')}
             </span>
-            <select
-              value={selectedCard}
-              onChange={(e) => setSelectedCard(e.target.value)}
-              className="h-10 w-full rounded-lg border border-border bg-transparent px-3 text-sm"
-            >
-              <option value="">—</option>
-              {availableDrivers.map((d) => (
-                <option key={d.card_number} value={d.card_number}>
-                  {d.name} ({d.card_number})
-                </option>
-              ))}
-            </select>
-          </label>
+            <div className="relative">
+              <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+              <input
+                type="text"
+                value={pickerQuery}
+                onChange={(e) => {
+                  setPickerQuery(e.target.value);
+                  setSelectedCard('');
+                  setPickerOpen(true);
+                }}
+                onFocus={() => setPickerOpen(true)}
+                onBlur={() => setTimeout(() => setPickerOpen(false), 150)}
+                placeholder={t('driversSearch')}
+                className="h-10 w-full rounded-lg border border-border bg-transparent pl-9 pr-8 text-sm"
+              />
+              {(pickerQuery || selectedCard) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPickerQuery('');
+                    setSelectedCard('');
+                    setPickerOpen(false);
+                  }}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted hover:text-ink"
+                  aria-label="clear"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+            {pickerOpen && pickerResults.length > 0 && (
+              <ul className="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-lg border border-border bg-white shadow-lg dark:bg-[#1f2a37]">
+                {pickerResults.slice(0, 50).map((d) => (
+                  <li key={d.card_number}>
+                    <button
+                      type="button"
+                      onMouseDown={(e) => {
+                        // mouseDown fires before input blur, so the pick sticks
+                        e.preventDefault();
+                        setSelectedCard(d.card_number);
+                        setPickerQuery(`${d.name} (${d.card_number})`);
+                        setPickerOpen(false);
+                      }}
+                      className={`flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm transition hover:bg-surface ${
+                        selectedCard === d.card_number ? 'bg-surface' : ''
+                      }`}
+                    >
+                      <span className="truncate font-medium">{d.name}</span>
+                      <span className="shrink-0 font-mono text-xs text-muted">{d.card_number}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
           <label className="flex-1 text-sm">
             <span className="mb-1 block text-xs font-medium text-muted">
               {t('profileAdminPassword')}
@@ -172,16 +244,32 @@ export function DriverProfilesTab() {
 
       {/* Existing profiles */}
       <div>
-        <h3 className="mb-3 text-sm font-semibold">{t('profileAdminExisting')}</h3>
+        <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <h3 className="text-sm font-semibold">{t('profileAdminExisting')}</h3>
+          {profiles.length > 0 && (
+            <div className="relative w-full sm:max-w-xs">
+              <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+              <input
+                type="text"
+                value={listFilter}
+                onChange={(e) => setListFilter(e.target.value)}
+                placeholder={t('driversSearch')}
+                className="h-9 w-full rounded-lg border border-border bg-transparent pl-9 pr-3 text-sm"
+              />
+            </div>
+          )}
+        </div>
         {loading ? (
           <div className="flex justify-center py-8">
             <Spinner />
           </div>
         ) : profiles.length === 0 ? (
           <p className="py-6 text-center text-sm text-muted">{t('profileAdminNoProfiles')}</p>
+        ) : filteredProfiles.length === 0 ? (
+          <p className="py-6 text-center text-sm text-muted">{t('profileAdminNoProfiles')}</p>
         ) : (
           <div className="space-y-2">
-            {profiles.map((p) => (
+            {filteredProfiles.map((p) => (
               <div
                 key={p.card_number}
                 className="glass-card flex flex-col gap-3 rounded-xl p-4 sm:flex-row sm:items-center sm:justify-between"
