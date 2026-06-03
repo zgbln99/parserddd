@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useParams } from 'react-router-dom';
-import { Lock, LogOut, Truck, UtensilsCrossed, CalendarDays } from 'lucide-react';
+import { Lock, LogOut, Truck, UtensilsCrossed, CalendarDays, CalendarX } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { Spinner } from '../components/Spinner';
 import { ShiftTable } from '../features/analysis/ShiftTable';
 import { DietReport } from '../features/analysis/DietReport';
+import { getHolidayMap } from '../lib/holidays';
 import type { ShiftDetail } from '../types';
 
 /**
@@ -174,6 +175,31 @@ export function DriverProfilePage() {
     setStage('locked');
   };
 
+  // Working days (Mon–Fri, minus German public holidays) in the selected
+  // month that have NO shift — i.e. days the driver "is missing work". For
+  // the current month we only look back up to today, never flag the future.
+  const missingDays = useMemo<number[]>(() => {
+    if (!data || !month) return [];
+    const [y, m] = month.split('-').map(Number);
+    if (!y || !m) return [];
+    const worked = new Set(data.shifts.map((s) => s.shift_date || s.grid_date));
+    const holidays = getHolidayMap(y);
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+    const daysInMonth = new Date(y, m, 0).getDate();
+    const out: number[] = [];
+    for (let day = 1; day <= daysInMonth; day++) {
+      const d = new Date(y, m - 1, day);
+      const dow = d.getDay(); // 0 = Sun, 6 = Sat
+      if (dow === 0 || dow === 6) continue;
+      if (d > today) continue;
+      const iso = `${month}-${String(day).padStart(2, '0')}`;
+      if (holidays.has(iso)) continue;
+      if (!worked.has(iso)) out.push(day);
+    }
+    return out;
+  }, [data, month]);
+
   const fmtMonth = (ym: string) => {
     const [y, m] = ym.split('-');
     const d = new Date(Number(y), Number(m) - 1, 1);
@@ -191,7 +217,7 @@ export function DriverProfilePage() {
     <div className="min-h-screen bg-[#f6f7f9] text-gray-900 antialiased dark:bg-[#0f141a] dark:text-gray-100">
       {/* Header */}
       <header className="border-b border-black/5 bg-white/80 backdrop-blur dark:border-white/10 dark:bg-white/5">
-        <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-3">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-3 py-3 sm:px-6">
           <div className="flex items-center gap-2.5">
             <img src="/icon.svg" alt="" className="size-8 rounded-lg" />
             <div>
@@ -214,7 +240,7 @@ export function DriverProfilePage() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-4xl px-4 py-6">
+      <main className="mx-auto max-w-7xl px-3 py-4 sm:px-6 sm:py-6">
         {stage === 'loading' && (
           <div className="flex justify-center py-24">
             <Spinner size="lg" />
@@ -309,8 +335,25 @@ export function DriverProfilePage() {
 
             {!dataLoading && !dataError && data && (
               <>
+                {/* Missing working days */}
+                {missingDays.length > 0 && (
+                  <section className="rounded-2xl border border-amber-300/60 bg-amber-50 p-4 dark:border-amber-500/30 dark:bg-amber-500/10">
+                    <h2 className="mb-1 flex items-center gap-2 text-base font-semibold text-amber-900 dark:text-amber-200">
+                      <CalendarX size={17} />
+                      {t('profileMissingWorkLabel')}
+                    </h2>
+                    <p className="text-sm text-amber-800 dark:text-amber-100/90">
+                      {t('profileMissingWorkIntro')}{' '}
+                      <span className="font-semibold">
+                        {missingDays.join(', ')}
+                      </span>
+                      {' '}({missingDays.length})
+                    </p>
+                  </section>
+                )}
+
                 {/* Shifts */}
-                <section className="rounded-2xl border border-border bg-white p-4 dark:bg-white/5">
+                <section className="rounded-2xl border border-border bg-white p-3 sm:p-6 dark:bg-white/5">
                   <h2 className="mb-3 flex items-center gap-2 text-base font-semibold">
                     <Truck size={17} className="text-[#0071e3]" />
                     {t('profileShiftsHeading')}
@@ -324,7 +367,7 @@ export function DriverProfilePage() {
 
                 {/* Diets */}
                 {data.shifts.length > 0 && (
-                  <section className="rounded-2xl border border-border bg-white p-4 dark:bg-white/5">
+                  <section className="rounded-2xl border border-border bg-white p-3 sm:p-6 dark:bg-white/5">
                     <div className="mb-3 flex items-center justify-between">
                       <h2 className="flex items-center gap-2 text-base font-semibold">
                         <UtensilsCrossed size={17} className="text-emerald-500" />

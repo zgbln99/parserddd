@@ -773,6 +773,8 @@ export const pl = {
   profileDietHeading: 'Diety',
   profileDietTotal: 'Diety razem',
   profileLogout: 'Wyloguj',
+  profileMissingWorkLabel: 'Brakujące dni pracy',
+  profileMissingWorkIntro: 'W tym miesiącu brakuje Ci pracy w dni:',
   // Admin tab
   profileAdminHint: 'Utwórz profil dla kierowcy i ustaw hasło. Udostępnij mu link — po wpisaniu hasła zobaczy tylko swoje zmiany i diety.',
   profileAdminSelectDriver: 'Wybierz kierowcę',

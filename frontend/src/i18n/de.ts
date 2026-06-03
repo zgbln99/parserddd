@@ -775,6 +775,8 @@ export const de: Record<TranslationKey, string> = {
   profileDietHeading: 'Verpflegung',
   profileDietTotal: 'Verpflegung gesamt',
   profileLogout: 'Abmelden',
+  profileMissingWorkLabel: 'Fehlende Arbeitstage',
+  profileMissingWorkIntro: 'In diesem Monat fehlt Arbeit an folgenden Tagen:',
   // Admin tab
   profileAdminHint: 'Profil für einen Fahrer anlegen und Passwort setzen. Teilen Sie den Link — nach Eingabe des Passworts sieht der Fahrer nur seine Schichten und Verpflegung.',
   profileAdminSelectDriver: 'Fahrer wählen',
