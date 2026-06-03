@@ -787,6 +787,7 @@ export const pl = {
   profileAdminCopied: 'Skopiowano',
   profileAdminAvatar: 'Awatar',
   profileAdminAvatarRemove: 'Usuń awatar',
+  profileAvatarAdjust: 'Dopasuj awatar',
   profileAdminResetPw: 'Zmień hasło',
   profileAdminEnable: 'Włącz',
   profileAdminDisable: 'Wyłącz',

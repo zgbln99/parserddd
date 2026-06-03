@@ -14,6 +14,7 @@ import {
 } from '../../lib/api';
 import type { Driver } from '../../types';
 import { Spinner } from '../Spinner';
+import { AvatarCropper } from '../AvatarCropper';
 
 export function DriverProfilesTab() {
   const { t } = useI18n();
@@ -38,6 +39,9 @@ export function DriverProfilesTab() {
   // bumped after an avatar upload/delete to bust the <img> cache
   const [avatarBust, setAvatarBust] = useState(0);
   const [avatarBusy, setAvatarBusy] = useState('');
+  // avatar cropper: which driver + the picked file
+  const [cropCard, setCropCard] = useState('');
+  const [cropFile, setCropFile] = useState<File | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -142,13 +146,24 @@ export function DriverProfilesTab() {
     }
   };
 
-  const handleAvatarSelect = async (card: string, file: File | null | undefined) => {
+  // Picking a file opens the cropper; the actual upload happens on confirm.
+  const handleAvatarSelect = (card: string, file: File | null | undefined) => {
     if (!file) return;
-    setAvatarBusy(card);
+    setError('');
+    setCropCard(card);
+    setCropFile(file);
+  };
+
+  const handleCropConfirm = async (blob: Blob) => {
+    if (!cropCard) return;
+    setAvatarBusy(cropCard);
     setError('');
     try {
-      await uploadDriverProfileAvatar(card, file);
+      const cropped = new File([blob], 'avatar.jpg', { type: 'image/jpeg' });
+      await uploadDriverProfileAvatar(cropCard, cropped);
       setAvatarBust(Date.now());
+      setCropFile(null);
+      setCropCard('');
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -386,6 +401,18 @@ export function DriverProfilesTab() {
           </div>
         )}
       </div>
+
+      {cropFile && (
+        <AvatarCropper
+          file={cropFile}
+          busy={avatarBusy === cropCard}
+          onCancel={() => {
+            setCropFile(null);
+            setCropCard('');
+          }}
+          onConfirm={handleCropConfirm}
+        />
+      )}
     </div>
   );
 }
