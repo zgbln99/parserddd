@@ -2287,12 +2287,153 @@ function weekdayShort(date: string): string {
   return ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'][d.getDay()];
 }
 
-const TABLE_BASE = {
-  styles: { fontSize: 8, cellPadding: 2.2, lineWidth: 0.1, lineColor: [226, 232, 240] as [number, number, number] },
-  headStyles: { fillColor: C.primary, textColor: 255, fontStyle: 'bold' as const, fontSize: 7.5, cellPadding: 2.6 },
-  footStyles: { fillColor: C.lightGray, textColor: C.dark, fontStyle: 'bold' as const, fontSize: 8 },
-  alternateRowStyles: { fillColor: [248, 250, 252] as [number, number, number] },
+// ── Minimalist / premium styling, dedicated to the fleet exports only
+//    (intentionally NOT the colored shared header/cards used elsewhere). ──
+
+const F = {
+  ink: [17, 24, 39] as [number, number, number],
+  mut: [107, 114, 128] as [number, number, number],
+  line: [229, 231, 235] as [number, number, number],
+  red: [220, 38, 38] as [number, number, number],
 };
+
+function fleetHeader(c: Ctx, title: string, subtitle?: string): number {
+  const { doc, W, M, logo } = c;
+  const top = 15;
+  let x = M;
+  if (logo) {
+    try {
+      doc.addImage(logo, 'PNG', M, top - 3, 22, 9.5);
+      x = M + 26;
+    } catch {
+      /* skip */
+    }
+  }
+  // tiny red brand mark + company name (the only colour on the page)
+  doc.setFillColor(...F.red);
+  doc.rect(x, top - 2.4, 1.6, 1.6, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6.5);
+  doc.setTextColor(...F.mut);
+  doc.text('LTS LOGISTIK GMBH', x + 3, top - 1);
+  // date, right
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.setTextColor(...F.mut);
+  doc.text(fmtNow(), W - M, top - 1, { align: 'right' });
+  // title
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(18);
+  doc.setTextColor(...F.ink);
+  doc.text(title, M, top + 9);
+  let yy = top + 9;
+  if (subtitle) {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(...F.mut);
+    doc.text(subtitle, M, top + 15);
+    yy = top + 15;
+  }
+  const ry = yy + 4.5;
+  doc.setDrawColor(...F.ink);
+  doc.setLineWidth(0.3);
+  doc.line(M, ry, W - M, ry);
+  return ry + 7;
+}
+
+function fleetFooter(c: Ctx) {
+  const { doc, W, H, M } = c;
+  const pages = doc.getNumberOfPages();
+  for (let i = 1; i <= pages; i++) {
+    doc.setPage(i);
+    doc.setDrawColor(...F.line);
+    doc.setLineWidth(0.2);
+    doc.line(M, H - 9, W - M, H - 9);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6.5);
+    doc.setTextColor(...F.mut);
+    doc.text('LTS Logistik GmbH', M, H - 5.5);
+    doc.text(`${i} / ${pages}`, W - M, H - 5.5, { align: 'right' });
+  }
+}
+
+function fleetMetrics(c: Ctx, y: number, items: { label: string; value: string }[]): number {
+  const { doc, W, M } = c;
+  const n = items.length;
+  const gap = 8;
+  const cw = (W - 2 * M - gap * (n - 1)) / n;
+  items.forEach((it, i) => {
+    const x = M + i * (cw + gap);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(17);
+    doc.setTextColor(...F.ink);
+    doc.text(it.value, x, y + 6);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.setTextColor(...F.mut);
+    doc.text(it.label.toUpperCase(), x, y + 11);
+    if (i < n - 1) {
+      doc.setDrawColor(...F.line);
+      doc.setLineWidth(0.2);
+      doc.line(x + cw + gap / 2, y - 1, x + cw + gap / 2, y + 10.5);
+    }
+  });
+  return y + 17;
+}
+
+function fleetSection(c: Ctx, y: number, label: string): number {
+  const { doc, M } = c;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
+  doc.setTextColor(...F.ink);
+  doc.text(label, M, y);
+  return y + 3;
+}
+
+// Horizontal-rule-only table (no fills, no vertical lines) for a clean look.
+function fleetTable(
+  c: Ctx,
+  startY: number,
+  head: string[][],
+  body: (string | number)[][],
+  foot: (string | number)[][] | undefined,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  columnStyles: any,
+): number {
+  const { doc, M } = c;
+  autoTable(doc, {
+    startY,
+    head,
+    body,
+    foot,
+    theme: 'plain',
+    styles: { font: 'helvetica', fontSize: 8.5, cellPadding: { top: 2.6, bottom: 2.6, left: 2, right: 2 }, textColor: F.ink },
+    headStyles: { fontStyle: 'bold', fontSize: 7.5, textColor: F.mut, cellPadding: { top: 1, bottom: 3, left: 2, right: 2 } },
+    footStyles: { fontStyle: 'bold', fontSize: 8.5, textColor: F.ink, cellPadding: { top: 3, bottom: 1, left: 2, right: 2 } },
+    columnStyles,
+    margin: { left: M, right: M },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    didDrawCell: (d: any) => {
+      const { cell, section } = d;
+      if (section === 'head') {
+        doc.setDrawColor(...F.ink);
+        doc.setLineWidth(0.4);
+        doc.line(cell.x, cell.y + cell.height, cell.x + cell.width, cell.y + cell.height);
+      } else if (section === 'body') {
+        doc.setDrawColor(...F.line);
+        doc.setLineWidth(0.1);
+        doc.line(cell.x, cell.y + cell.height, cell.x + cell.width, cell.y + cell.height);
+      } else if (section === 'foot') {
+        doc.setDrawColor(...F.ink);
+        doc.setLineWidth(0.3);
+        doc.line(cell.x, cell.y, cell.x + cell.width, cell.y);
+      }
+    },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } as any);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (doc as any).lastAutoTable.finalY;
+}
 
 // ── 1) Current odometer readings ──
 
@@ -2305,28 +2446,23 @@ export interface OdoCurrentRow {
 
 export async function generateOdometerCurrentPdf(rows: OdoCurrentRow[]) {
   const c = await ctx('portrait');
-  const { doc, M } = c;
-  const y = drawHeader(c, 'Kilometerstand — Aktuell', `${rows.length} Fahrzeuge`);
+  const { doc } = c;
+  const y = fleetHeader(c, 'Kilometerstand', `Aktuelle Stände · ${rows.length} Fahrzeuge`);
 
-  autoTable(doc, {
-    startY: y,
-    head: [['Fahrzeug', 'Kennzeichen', 'Kilometerstand', 'Aktualisiert']],
-    body: rows.map((r) => [
-      r.vehicle_name,
-      r.license_plate || '–',
-      `${fmtKmPdf(r.odometer_km)} km`,
-      fmtTsPdf(r.updated_at),
-    ]),
-    ...TABLE_BASE,
-    columnStyles: {
+  fleetTable(
+    c,
+    y,
+    [['Fahrzeug', 'Kennzeichen', 'Kilometerstand', 'Aktualisiert']],
+    rows.map((r) => [r.vehicle_name, r.license_plate || '–', `${fmtKmPdf(r.odometer_km)} km`, fmtTsPdf(r.updated_at)]),
+    undefined,
+    {
       0: { fontStyle: 'bold' },
-      2: { halign: 'right', fontStyle: 'bold', textColor: C.blue },
-      3: { halign: 'right', textColor: C.gray, fontSize: 7 },
+      2: { halign: 'right', fontStyle: 'bold' },
+      3: { halign: 'right', textColor: F.mut, fontSize: 7.5 },
     },
-    margin: { left: M, right: M },
-  });
+  );
 
-  drawFooter(c);
+  fleetFooter(c);
   doc.save(`Kilometerstand_${new Date().toISOString().slice(0, 10)}.pdf`);
 }
 
@@ -2351,19 +2487,15 @@ export async function generateOdometerRangePdf(
   dateTo: string,
 ) {
   const c = await ctx('portrait');
-  const { doc, W, H, M } = c;
-  let y = drawHeader(
-    c,
-    'Kilometerleistung',
-    `${ddmmyyyy(dateFrom)} – ${ddmmyyyy(dateTo)}  ·  ${vehicles.length} Fahrzeuge`,
-  );
+  const { doc, H, M } = c;
+  let y = fleetHeader(c, 'Kilometerleistung', `${ddmmyyyy(dateFrom)} – ${ddmmyyyy(dateTo)}`);
 
-  const grand = vehicles.reduce(
-    (s, v) => s + v.days.reduce((a, d) => a + (d.driven_km || 0), 0),
-    0,
-  );
-  drawCard(doc, M, y, W - 2 * M, 16, 'Gesamt-Kilometer', `${fmtKmPdf(grand)} km`, C.accent);
-  y += 22;
+  const grand = vehicles.reduce((s, v) => s + v.days.reduce((a, d) => a + (d.driven_km || 0), 0), 0);
+  y = fleetMetrics(c, y, [
+    { label: 'Fahrzeuge', value: String(vehicles.length) },
+    { label: 'Gesamt-Kilometer', value: `${fmtKmPdf(grand)} km` },
+  ]);
+  y += 3;
 
   for (const v of vehicles) {
     const total = v.days.reduce((a, d) => a + (d.driven_km || 0), 0);
@@ -2371,32 +2503,29 @@ export async function generateOdometerRangePdf(
       doc.addPage();
       y = M + 4;
     }
-    y = drawSection(doc, M, y, `${v.vehicle_name}${v.license_plate ? `  ·  ${v.license_plate}` : ''}`);
-    autoTable(doc, {
-      startY: y,
-      head: [['Datum', 'Start km', 'Ende km', 'Gefahren', 'Messungen']],
-      body: v.days.map((d) => [
+    y = fleetSection(c, y, `${v.vehicle_name}${v.license_plate ? `   ${v.license_plate}` : ''}`);
+    y = fleetTable(
+      c,
+      y,
+      [['Datum', 'Start km', 'Ende km', 'Gefahren', 'Messungen']],
+      v.days.map((d) => [
         `${weekdayShort(d.date)} ${ddmmyyyy(d.date)}`,
         fmtKmPdf(d.odometer_start_km),
         fmtKmPdf(d.odometer_end_km),
         d.driven_km != null ? `${fmtKmPdf(d.driven_km)} km` : '–',
         String(d.readings_count),
       ]),
-      foot: [['Summe', '', '', `${fmtKmPdf(total)} km`, '']],
-      ...TABLE_BASE,
-      columnStyles: {
-        1: { halign: 'right', textColor: C.gray },
-        2: { halign: 'right', textColor: C.gray },
-        3: { halign: 'right', fontStyle: 'bold', textColor: C.success },
-        4: { halign: 'center', textColor: C.gray, fontSize: 7 },
+      [['Summe', '', '', `${fmtKmPdf(total)} km`, '']],
+      {
+        1: { halign: 'right', textColor: F.mut },
+        2: { halign: 'right', textColor: F.mut },
+        3: { halign: 'right', fontStyle: 'bold' },
+        4: { halign: 'center', textColor: F.mut, fontSize: 7.5 },
       },
-      margin: { left: M, right: M },
-    });
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    y = (doc as any).lastAutoTable.finalY + 8;
+    ) + 9;
   }
 
-  drawFooter(c);
+  fleetFooter(c);
   doc.save(`Kilometerleistung_${dateFrom}_${dateTo}.pdf`);
 }
 
@@ -2422,28 +2551,30 @@ export interface VehiclesPdfGroup {
 
 export async function generateVehiclesActivityPdf(groups: VehiclesPdfGroup[], periodStr: string) {
   const c = await ctx('landscape');
-  const { doc, W, H, M } = c;
-  let y = drawHeader(c, 'Fahrzeug-Aktivität', `${periodStr}  ·  ${groups.length} Fahrzeuge`);
+  const { doc, H, M } = c;
+  let y = fleetHeader(c, 'Fahrzeug-Aktivität', periodStr);
 
   const totalKm = groups.reduce((s, g) => s + (g.totalKm || 0), 0);
   const totalMin = groups.reduce((s, g) => s + (g.totalMinutes || 0), 0);
-  const cw = (W - 2 * M - 8) / 3;
-  drawCard(doc, M, y, cw, 16, 'Fahrzeuge', String(groups.length), C.primary);
-  drawCard(doc, M + cw + 4, y, cw, 16, 'Gesamt-Kilometer', `${fmtKmPdf(totalKm)} km`, C.accent);
-  drawCard(doc, M + 2 * (cw + 4), y, cw, 16, 'Gesamt-Fahrzeit', hm(totalMin), C.primaryLight);
-  y += 22;
+  y = fleetMetrics(c, y, [
+    { label: 'Fahrzeuge', value: String(groups.length) },
+    { label: 'Gesamt-Kilometer', value: `${fmtKmPdf(totalKm)} km` },
+    { label: 'Gesamt-Fahrzeit', value: hm(totalMin) },
+  ]);
+  y += 3;
 
   for (const g of groups) {
     if (y > H - 40) {
       doc.addPage();
       y = M + 4;
     }
-    const label = [g.name, g.plate, g.tour, g.period].filter(Boolean).join('  ·  ');
-    y = drawSection(doc, M, y, label);
-    autoTable(doc, {
-      startY: y,
-      head: [['Datum', 'Tag', 'Letzte Position', 'Strecke', 'Beginn Fahrt', 'Letzte Fahrt', 'Dauer']],
-      body: g.days.map((d) => [
+    const label = [g.name, g.plate, g.tour, g.period].filter(Boolean).join('   ');
+    y = fleetSection(c, y, label);
+    y = fleetTable(
+      c,
+      y,
+      [['Datum', 'Tag', 'Letzte Position', 'Strecke', 'Beginn Fahrt', 'Letzte Fahrt', 'Dauer']],
+      g.days.map((d) => [
         ddmmyyyy(d.date),
         weekdayShort(d.date),
         (d.last_location || '–').slice(0, 60),
@@ -2452,22 +2583,18 @@ export async function generateVehiclesActivityPdf(groups: VehiclesPdfGroup[], pe
         d.last_driving || '–',
         d.duration_hm || '–',
       ]),
-      foot: [['Summe', '', '', `${fmtKmPdf(g.totalKm)} km`, '', '', hm(g.totalMinutes)]],
-      ...TABLE_BASE,
-      columnStyles: {
+      [['Summe', '', '', `${fmtKmPdf(g.totalKm)} km`, '', '', hm(g.totalMinutes)]],
+      {
         0: { fontStyle: 'bold', cellWidth: 24 },
         1: { halign: 'center', cellWidth: 14 },
-        3: { halign: 'right', fontStyle: 'bold', textColor: C.success, cellWidth: 26 },
+        3: { halign: 'right', fontStyle: 'bold', cellWidth: 26 },
         4: { halign: 'center', cellWidth: 28 },
         5: { halign: 'center', cellWidth: 28 },
         6: { halign: 'center', fontStyle: 'bold', cellWidth: 22 },
       },
-      margin: { left: M, right: M },
-    });
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    y = (doc as any).lastAutoTable.finalY + 8;
+    ) + 9;
   }
 
-  drawFooter(c);
+  fleetFooter(c);
   doc.save(`Fahrzeug-Aktivitaet_${safeName(periodStr)}.pdf`);
 }
