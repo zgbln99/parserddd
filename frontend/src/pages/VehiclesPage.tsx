@@ -328,6 +328,25 @@ export function VehiclesPage() {
     generateVehiclesActivityPdf(groups, periodStr);
   };
 
+  // PDF export of the currently displayed vehicle activity (no save needed)
+  const handleExportCurrentPdf = () => {
+    if (!activity || !period) return;
+    generateVehiclesActivityPdf(
+      [
+        {
+          name: activity.vehicle_name,
+          plate: selectedVehicle?.license_plate || '',
+          tour: '',
+          period,
+          days: filteredDays,
+          totalKm: hasTimeFilter ? filteredTotalKm : activity.total_km,
+          totalMinutes,
+        },
+      ],
+      period,
+    );
+  };
+
   const isAlreadySaved = activity && period && selectedVehicle
     ? savedReports.some(r => r.id === `${activity.vehicle_name}__${period}`)
     : false;
@@ -632,8 +651,14 @@ export function VehiclesPage() {
 
           {/* Day-by-day table */}
           <Card className="overflow-hidden">
-            <div className="border-b border-border px-5 py-3">
+            <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-3">
               <h2 className="text-sm font-semibold">{activity.vehicle_name} — {monthLabel(period, locale)}</h2>
+              <button
+                onClick={handleExportCurrentPdf}
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-red-700"
+              >
+                <FileDown size={14} /> {t('analysisExportPdf')}
+              </button>
             </div>
             <div className="hidden sm:block overflow-x-auto">
               <table className="w-full min-w-[800px] text-sm">
