@@ -1,8 +1,9 @@
 import { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   Calendar, Truck, RefreshCw, AlertCircle, Printer, MapPin, Search,
-  Save, Download, Trash2, ChevronDown, ChevronRight, CheckSquare, Square,
+  Save, Download, Trash2, ChevronDown, ChevronRight, CheckSquare, Square, FileDown,
 } from 'lucide-react';
+import { generateVehiclesActivityPdf } from '../lib/pdf-generator';
 import { useI18n } from '../i18n';
 import { useDateFilter } from '../hooks/useDateFilter';
 import { fetchSamsaraVehicles, fetchVehicleActivity } from '../lib/api';
@@ -305,6 +306,26 @@ export function VehiclesPage() {
     const periodStr = periods.length === 1 ? periods[0] : `${periods[0]}_${periods[periods.length - 1]}`;
 
     exportVehicleActivityToXlsx(groups, periodStr, 'LTS Logistik GmbH');
+  };
+
+  // PDF export — same selection as Excel
+  const handleExportPdf = () => {
+    const selected = savedReports.filter(r => selectedForExport.has(r.id));
+    if (selected.length === 0) return;
+
+    const groups = selected.map(r => ({
+      name: r.vehicleName,
+      plate: r.plate,
+      tour: tours[r.id] || '',
+      period: r.period,
+      days: r.days,
+      totalKm: r.totalKm,
+      totalMinutes: r.totalMinutes,
+    }));
+
+    const periods = [...new Set(selected.map(r => r.period))].sort();
+    const periodStr = periods.length === 1 ? periods[0] : `${periods[0]}_${periods[periods.length - 1]}`;
+    generateVehiclesActivityPdf(groups, periodStr);
   };
 
   const isAlreadySaved = activity && period && selectedVehicle
@@ -685,6 +706,10 @@ export function VehiclesPage() {
             <button onClick={handleExportExcel} disabled={selectedForExport.size === 0}
               className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-medium bg-emerald-600 text-white hover:bg-emerald-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
               <Download size={14} /> {t('analysisExportXlsx')}
+            </button>
+            <button onClick={handleExportPdf} disabled={selectedForExport.size === 0}
+              className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-medium bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+              <FileDown size={14} /> {t('analysisExportPdf')}
             </button>
           </div>
 

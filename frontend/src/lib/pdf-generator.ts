@@ -2255,3 +2255,219 @@ export async function generateArbeitszeitnachweisePdf(
 
   doc.save(`Arbeitszeitnachweis_${safeName(driverName)}_${new Date().toISOString().slice(0, 10)}.pdf`);
 }
+
+// ═══════════════════════════════════════════════════════════════
+//  FLEET: vehicle mileage (Kilometerstand / Kilometerleistung)
+//  + vehicle activity — branded PDF exports
+// ═══════════════════════════════════════════════════════════════
+
+function fmtKmPdf(n: number | null | undefined): string {
+  if (n == null) return '–';
+  return Math.round(n).toLocaleString('de-DE');
+}
+
+function fmtTsPdf(ts: string | null | undefined): string {
+  if (!ts) return '–';
+  const d = new Date(ts);
+  if (isNaN(d.getTime())) return String(ts);
+  return d.toLocaleString('de-DE', {
+    day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
+  });
+}
+
+function ddmmyyyy(s: string): string {
+  if (!s) return '–';
+  const [y, m, d] = s.split('-');
+  return d && m && y ? `${d}.${m}.${y}` : s;
+}
+
+function weekdayShort(date: string): string {
+  const d = new Date(date + 'T00:00:00');
+  if (isNaN(d.getTime())) return '';
+  return ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'][d.getDay()];
+}
+
+const TABLE_BASE = {
+  styles: { fontSize: 8, cellPadding: 2.2, lineWidth: 0.1, lineColor: [226, 232, 240] as [number, number, number] },
+  headStyles: { fillColor: C.primary, textColor: 255, fontStyle: 'bold' as const, fontSize: 7.5, cellPadding: 2.6 },
+  footStyles: { fillColor: C.lightGray, textColor: C.dark, fontStyle: 'bold' as const, fontSize: 8 },
+  alternateRowStyles: { fillColor: [248, 250, 252] as [number, number, number] },
+};
+
+// ── 1) Current odometer readings ──
+
+export interface OdoCurrentRow {
+  vehicle_name: string;
+  license_plate: string | null;
+  odometer_km: number | null;
+  updated_at: string | null;
+}
+
+export async function generateOdometerCurrentPdf(rows: OdoCurrentRow[]) {
+  const c = await ctx('portrait');
+  const { doc, M } = c;
+  const y = drawHeader(c, 'Kilometerstand — Aktuell', `${rows.length} Fahrzeuge`);
+
+  autoTable(doc, {
+    startY: y,
+    head: [['Fahrzeug', 'Kennzeichen', 'Kilometerstand', 'Aktualisiert']],
+    body: rows.map((r) => [
+      r.vehicle_name,
+      r.license_plate || '–',
+      `${fmtKmPdf(r.odometer_km)} km`,
+      fmtTsPdf(r.updated_at),
+    ]),
+    ...TABLE_BASE,
+    columnStyles: {
+      0: { fontStyle: 'bold' },
+      2: { halign: 'right', fontStyle: 'bold', textColor: C.blue },
+      3: { halign: 'right', textColor: C.gray, fontSize: 7 },
+    },
+    margin: { left: M, right: M },
+  });
+
+  drawFooter(c);
+  doc.save(`Kilometerstand_${new Date().toISOString().slice(0, 10)}.pdf`);
+}
+
+// ── 2) Mileage over a date range (per vehicle) ──
+
+export interface OdoRangeDay {
+  date: string;
+  odometer_start_km: number | null;
+  odometer_end_km: number | null;
+  driven_km: number | null;
+  readings_count: number;
+}
+export interface OdoRangeVehicle {
+  vehicle_name: string;
+  license_plate: string | null;
+  days: OdoRangeDay[];
+}
+
+export async function generateOdometerRangePdf(
+  vehicles: OdoRangeVehicle[],
+  dateFrom: string,
+  dateTo: string,
+) {
+  const c = await ctx('portrait');
+  const { doc, W, H, M } = c;
+  let y = drawHeader(
+    c,
+    'Kilometerleistung',
+    `${ddmmyyyy(dateFrom)} – ${ddmmyyyy(dateTo)}  ·  ${vehicles.length} Fahrzeuge`,
+  );
+
+  const grand = vehicles.reduce(
+    (s, v) => s + v.days.reduce((a, d) => a + (d.driven_km || 0), 0),
+    0,
+  );
+  drawCard(doc, M, y, W - 2 * M, 16, 'Gesamt-Kilometer', `${fmtKmPdf(grand)} km`, C.accent);
+  y += 22;
+
+  for (const v of vehicles) {
+    const total = v.days.reduce((a, d) => a + (d.driven_km || 0), 0);
+    if (y > H - 40) {
+      doc.addPage();
+      y = M + 4;
+    }
+    y = drawSection(doc, M, y, `${v.vehicle_name}${v.license_plate ? `  ·  ${v.license_plate}` : ''}`);
+    autoTable(doc, {
+      startY: y,
+      head: [['Datum', 'Start km', 'Ende km', 'Gefahren', 'Messungen']],
+      body: v.days.map((d) => [
+        `${weekdayShort(d.date)} ${ddmmyyyy(d.date)}`,
+        fmtKmPdf(d.odometer_start_km),
+        fmtKmPdf(d.odometer_end_km),
+        d.driven_km != null ? `${fmtKmPdf(d.driven_km)} km` : '–',
+        String(d.readings_count),
+      ]),
+      foot: [['Summe', '', '', `${fmtKmPdf(total)} km`, '']],
+      ...TABLE_BASE,
+      columnStyles: {
+        1: { halign: 'right', textColor: C.gray },
+        2: { halign: 'right', textColor: C.gray },
+        3: { halign: 'right', fontStyle: 'bold', textColor: C.success },
+        4: { halign: 'center', textColor: C.gray, fontSize: 7 },
+      },
+      margin: { left: M, right: M },
+    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    y = (doc as any).lastAutoTable.finalY + 8;
+  }
+
+  drawFooter(c);
+  doc.save(`Kilometerleistung_${dateFrom}_${dateTo}.pdf`);
+}
+
+// ── 3) Vehicle activity (saved reports) ──
+
+export interface VehiclesPdfDay {
+  date: string;
+  begin_driving: string;
+  last_driving: string;
+  duration_hm: string;
+  distance_km: number;
+  last_location?: string;
+}
+export interface VehiclesPdfGroup {
+  name: string;
+  plate: string;
+  tour?: string;
+  period?: string;
+  days: VehiclesPdfDay[];
+  totalKm: number;
+  totalMinutes: number;
+}
+
+export async function generateVehiclesActivityPdf(groups: VehiclesPdfGroup[], periodStr: string) {
+  const c = await ctx('landscape');
+  const { doc, W, H, M } = c;
+  let y = drawHeader(c, 'Fahrzeug-Aktivität', `${periodStr}  ·  ${groups.length} Fahrzeuge`);
+
+  const totalKm = groups.reduce((s, g) => s + (g.totalKm || 0), 0);
+  const totalMin = groups.reduce((s, g) => s + (g.totalMinutes || 0), 0);
+  const cw = (W - 2 * M - 8) / 3;
+  drawCard(doc, M, y, cw, 16, 'Fahrzeuge', String(groups.length), C.primary);
+  drawCard(doc, M + cw + 4, y, cw, 16, 'Gesamt-Kilometer', `${fmtKmPdf(totalKm)} km`, C.accent);
+  drawCard(doc, M + 2 * (cw + 4), y, cw, 16, 'Gesamt-Fahrzeit', hm(totalMin), C.primaryLight);
+  y += 22;
+
+  for (const g of groups) {
+    if (y > H - 40) {
+      doc.addPage();
+      y = M + 4;
+    }
+    const label = [g.name, g.plate, g.tour, g.period].filter(Boolean).join('  ·  ');
+    y = drawSection(doc, M, y, label);
+    autoTable(doc, {
+      startY: y,
+      head: [['Datum', 'Tag', 'Letzte Position', 'Strecke', 'Beginn Fahrt', 'Letzte Fahrt', 'Dauer']],
+      body: g.days.map((d) => [
+        ddmmyyyy(d.date),
+        weekdayShort(d.date),
+        (d.last_location || '–').slice(0, 60),
+        `${fmtKmPdf(d.distance_km)} km`,
+        d.begin_driving || '–',
+        d.last_driving || '–',
+        d.duration_hm || '–',
+      ]),
+      foot: [['Summe', '', '', `${fmtKmPdf(g.totalKm)} km`, '', '', hm(g.totalMinutes)]],
+      ...TABLE_BASE,
+      columnStyles: {
+        0: { fontStyle: 'bold', cellWidth: 24 },
+        1: { halign: 'center', cellWidth: 14 },
+        3: { halign: 'right', fontStyle: 'bold', textColor: C.success, cellWidth: 26 },
+        4: { halign: 'center', cellWidth: 28 },
+        5: { halign: 'center', cellWidth: 28 },
+        6: { halign: 'center', fontStyle: 'bold', cellWidth: 22 },
+      },
+      margin: { left: M, right: M },
+    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    y = (doc as any).lastAutoTable.finalY + 8;
+  }
+
+  drawFooter(c);
+  doc.save(`Fahrzeug-Aktivitaet_${safeName(periodStr)}.pdf`);
+}

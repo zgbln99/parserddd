@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Gauge, RefreshCw, AlertCircle, Truck, Search, ChevronDown, ChevronRight } from 'lucide-react';
+import { Gauge, RefreshCw, AlertCircle, Truck, Search, ChevronDown, ChevronRight, FileDown } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { Card } from '../components/Card';
 import { Spinner } from '../components/Spinner';
+import { generateOdometerCurrentPdf, generateOdometerRangePdf } from '../lib/pdf-generator';
 import {
   fetchSamsaraVehicles,
   fetchOdometerCurrent,
@@ -158,6 +159,36 @@ export function OdometerPage() {
     () => rangeRows.reduce((s, r) => s + (r.driven_km || 0), 0),
     [rangeRows],
   );
+
+  const exportCurrentPdf = () =>
+    generateOdometerCurrentPdf(
+      sortedCurrent.map((r) => ({
+        vehicle_name: r.vehicle_name,
+        license_plate: r.license_plate,
+        odometer_km: r.odometer_km,
+        updated_at: r.updated_at,
+      })),
+    );
+
+  const exportRangePdf = () =>
+    generateOdometerRangePdf(
+      vehicleOrder.map((vid) => {
+        const vr = vehicleGroups.get(vid)!;
+        return {
+          vehicle_name: vr[0].vehicle_name,
+          license_plate: vr[0].license_plate,
+          days: vr.map((r) => ({
+            date: r.date,
+            odometer_start_km: r.odometer_start_km,
+            odometer_end_km: r.odometer_end_km,
+            driven_km: r.driven_km,
+            readings_count: r.readings_count,
+          })),
+        };
+      }),
+      dateFrom,
+      dateTo,
+    );
 
   const toggleCollapse = (vid: string) => {
     setCollapsed(prev => {
@@ -340,6 +371,15 @@ export function OdometerPage() {
       {/* Current results */}
       {!loading && mode === 'current' && currentRows.length > 0 && (
         <Card>
+          <div className="flex justify-end border-b border-gray-100 dark:border-gray-800 p-2.5">
+            <button
+              onClick={exportCurrentPdf}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-red-700"
+            >
+              <FileDown className="h-3.5 w-3.5" />
+              {t('analysisExportPdf')}
+            </button>
+          </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -376,13 +416,22 @@ export function OdometerPage() {
       {!loading && mode === 'range' && vehicleOrder.length > 0 && (
         <div className="space-y-3">
           {/* Grand total bar */}
-          <div className="flex items-center justify-between px-4 py-2.5 rounded-lg bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-700">
+          <div className="flex items-center justify-between gap-3 px-4 py-2.5 rounded-lg bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-700">
             <span className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">
               {t('odoTotal')} ({fmtDate(dateFrom)} – {fmtDate(dateTo)})
             </span>
-            <span className="text-lg font-bold font-mono text-emerald-700 dark:text-emerald-300">
-              {fmtKm(grandTotal)} km
-            </span>
+            <div className="flex items-center gap-3">
+              <span className="text-lg font-bold font-mono text-emerald-700 dark:text-emerald-300">
+                {fmtKm(grandTotal)} km
+              </span>
+              <button
+                onClick={exportRangePdf}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-red-700"
+              >
+                <FileDown className="h-3.5 w-3.5" />
+                {t('analysisExportPdf')}
+              </button>
+            </div>
           </div>
 
           {/* Per-vehicle sections */}
