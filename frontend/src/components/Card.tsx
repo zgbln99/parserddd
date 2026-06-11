@@ -45,8 +45,14 @@ export function StatCard({
   const c = color !== 'primary' ? color : (variant || 'primary');
 
   return (
-    <div className="card p-5 transition-transform duration-200 hover:-translate-y-0.5">
-      <div className="flex items-center gap-4">
+    <div className="card relative overflow-hidden p-5 transition-transform duration-200 hover:-translate-y-0.5">
+      <div
+        className={clsx(
+          'pointer-events-none absolute -right-7 -top-7 h-24 w-24 rounded-full bg-gradient-to-br opacity-[0.08] blur-2xl',
+          ICON_GRAD[c],
+        )}
+      />
+      <div className="relative flex items-center gap-4">
         {icon && (
           <div
             className={clsx(

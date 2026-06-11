@@ -176,16 +176,26 @@ export function DashboardPage() {
       {(() => {
         const { greeting, Icon, color } = getTimeOfDay(t);
         const roleName = t(`role${role.charAt(0).toUpperCase()}${role.slice(1)}` as any);
+        const todayStr = new Date().toLocaleDateString(locale === 'de' ? 'de-DE' : 'pl-PL', {
+          weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+        });
         return (
-          <div className="mb-6 flex items-center gap-3">
-            <div className={`flex h-10 w-10 items-center justify-center rounded-xl bg-surface ${color} transition-colors`}>
-              <Icon size={22} />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight text-ink">
-                {greeting}, {roleName}
-              </h1>
-              <p className="text-sm text-muted">{t('dashTitle')}</p>
+          <div className="relative mb-6 overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-[rgba(87,80,241,0.10)] via-[rgba(87,80,241,0.04)] to-transparent p-5 sm:p-6">
+            <div className="pointer-events-none absolute -right-10 -top-12 h-40 w-40 rounded-full bg-primary-500/10 blur-3xl" />
+            <div className="relative flex items-center gap-4">
+              <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white shadow-sm dark:bg-white/10 ${color}`}>
+                <Icon size={24} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h1 className="text-2xl font-bold tracking-tight text-ink">
+                  {greeting}, {roleName}
+                </h1>
+                <p className="text-sm text-muted">{t('dashTitle')}</p>
+              </div>
+              <div className="hidden text-right sm:block">
+                <p className="text-sm font-semibold capitalize text-ink">{todayStr}</p>
+                <p className="text-xs text-muted">{t('dashDrivers')}: {data.driver_count} · {t('dashFiles')}: {data.total_files}</p>
+              </div>
             </div>
           </div>
         );
