@@ -17,7 +17,10 @@ import { fetchVehicleLocations, fetchLiveStatus, fetchVehicleTrail, type Vehicle
 
 const REFRESH_MS = 60_000;
 
-const BASE_LAYERS = {
+// Optional HERE tiles — enabled when VITE_HERE_API_KEY is set at build time.
+const HERE_KEY = (import.meta.env.VITE_HERE_API_KEY as string | undefined) || '';
+
+const BASE_LAYERS: Record<string, { url: string; attribution: string; maxZoom: number }> = {
   // Clean, colourful Google-like base — much nicer than raw OSM.
   voyager: {
     url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
@@ -34,7 +37,25 @@ const BASE_LAYERS = {
     attribution: '&copy; OpenStreetMap &copy; CARTO',
     maxZoom: 20,
   },
-} as const;
+};
+if (HERE_KEY) {
+  BASE_LAYERS.here = {
+    url: `https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/png8?apiKey=${HERE_KEY}&style=explore.day&ppi=200`,
+    attribution: '&copy; HERE',
+    maxZoom: 20,
+  };
+  BASE_LAYERS.heresat = {
+    url: `https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/png8?apiKey=${HERE_KEY}&style=satellite.day&ppi=200`,
+    attribution: '&copy; HERE',
+    maxZoom: 20,
+  };
+  // Truck map: restriction signs (weight/height limits, no-truck zones).
+  BASE_LAYERS.heretruck = {
+    url: `https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/png8?apiKey=${HERE_KEY}&style=logistics.day&features=vehicle_restrictions:active_and_inactive&ppi=200`,
+    attribution: '&copy; HERE',
+    maxZoom: 20,
+  };
+}
 type BaseLayerKey = keyof typeof BASE_LAYERS;
 
 type MoveFilter = 'all' | 'moving' | 'stopped';
@@ -383,6 +404,11 @@ export function FleetMapPage() {
     { key: 'voyager', label: de ? 'Karte' : 'Mapa' },
     { key: 'sat', label: de ? 'Satellit' : 'Satelita' },
     { key: 'dark', label: de ? 'Dunkel' : 'Ciemna' },
+    ...(HERE_KEY ? [
+      { key: 'here', label: 'HERE' },
+      { key: 'heresat', label: 'HERE Sat' },
+      { key: 'heretruck', label: de ? 'LKW' : 'Ciężarowa' },
+    ] : []),
   ];
 
   return (
