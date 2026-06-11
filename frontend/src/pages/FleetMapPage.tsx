@@ -368,23 +368,25 @@ export function FleetMapPage() {
     try {
       const mod = await import('../lib/route-export');
       const driverName = selectedVehicle.driver_name || drivers.get(selectedVehicle.vehicle_name);
+      // Exports are always German — reports go to German recipients.
+      const label = isRange ? `${trailDate} – ${trailDateTo}` : trailDate || `Letzte ${trailHours} Std`;
       if (kind === 'gpx') {
-        mod.downloadRouteGpx(selectedVehicle.vehicle_name, periodLabel, trailPts);
+        mod.downloadRouteGpx(selectedVehicle.vehicle_name, label, trailPts);
       } else if (dayTrails.length > 1) {
         await mod.generateMultiDayRoutePdf({
           vehicleName: selectedVehicle.vehicle_name,
           driverName,
           days: dayTrails,
-          de,
+          de: true,
         });
       } else {
         await mod.generateRoutePdf({
           vehicleName: selectedVehicle.vehicle_name,
           driverName,
-          periodLabel,
+          periodLabel: label,
           points: trailPts,
           totalKm: trailKm ?? 0,
-          de,
+          de: true,
         });
       }
     } catch (e) {
@@ -392,7 +394,7 @@ export function FleetMapPage() {
     } finally {
       setExporting(false);
     }
-  }, [trailPts, dayTrails, selectedVehicle, periodLabel, trailKm, drivers, de]);
+  }, [trailPts, dayTrails, selectedVehicle, isRange, trailDate, trailDateTo, trailHours, trailKm, drivers]);
 
   const filterPills: { key: MoveFilter; label: string }[] = [
     { key: 'all', label: de ? 'Alle' : 'Wszystkie' },
