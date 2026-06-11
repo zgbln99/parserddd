@@ -144,6 +144,43 @@ export interface VehicleLocation {
 export const fetchVehicleLocations = () =>
   request<{ vehicles: VehicleLocation[] }>('/api/vehicles/locations');
 
+// Fuel cards
+export interface FuelCard {
+  id: number;
+  card_number: string;
+  provider: string;
+  vehicle_name: string;
+  driver_name: string;
+  monthly_limit_eur: number;
+  expiry_date: string;
+  status: 'active' | 'ordered' | 'blocked';
+  notes: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export type FuelCardPayload = Omit<FuelCard, 'id' | 'created_at' | 'updated_at'>;
+
+export const fetchFuelCards = () =>
+  request<{ cards: FuelCard[] }>('/api/fuel-cards');
+
+export const createFuelCard = (payload: FuelCardPayload) =>
+  request<FuelCard>('/api/fuel-cards', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+export const updateFuelCard = (id: number, payload: FuelCardPayload) =>
+  request<FuelCard>(`/api/fuel-cards/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+export const deleteFuelCard = (id: number) =>
+  request<{ ok: boolean }>(`/api/fuel-cards/${id}`, { method: 'DELETE' });
+
 // Drivers
 export const fetchDrivers = (refresh = false) =>
   request<{ drivers: import('../types').Driver[]; cached?: boolean }>(

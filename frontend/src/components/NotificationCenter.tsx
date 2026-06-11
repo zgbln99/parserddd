@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, Clock, CreditCard, AlertTriangle, MapPin } from 'lucide-react';
+import { Bell, Clock, CreditCard, AlertTriangle, MapPin, Fuel } from 'lucide-react';
 import { useI18n } from '../i18n';
-import { fetchDashboard, fetchVehicleLocations } from '../lib/api';
+import { fetchDashboard, fetchVehicleLocations, fetchFuelCards } from '../lib/api';
 
 // A truck standing this long during working hours is worth a look.
 const STOP_ALERT_MIN = 180;
@@ -32,10 +32,35 @@ export function NotificationCenter() {
   const ref = useRef<HTMLDivElement>(null);
 
   const [stopAlert, setStopAlert] = useState<Alert | null>(null);
+  const [fuelAlert, setFuelAlert] = useState<Alert | null>(null);
 
   useEffect(() => {
     let timer: ReturnType<typeof setInterval>;
     const load = () => {
+      // Fuel cards expiring soon (active cards only).
+      fetchFuelCards()
+        .then((r) => {
+          const soon = (r.cards || []).filter((c) => {
+            if (c.status !== 'active' || !c.expiry_date) return false;
+            const d = Math.floor((new Date(c.expiry_date + 'T23:59:59').getTime() - Date.now()) / 86_400_000);
+            return d <= 45;
+          });
+          setFuelAlert(
+            soon.length
+              ? {
+                  id: 'fuel',
+                  icon: Fuel,
+                  tone: 'amber',
+                  text:
+                    locale === 'de'
+                      ? `${soon.length} Tankkarten laufen bald ab`
+                      : `${soon.length} kart paliwowych wkrótce wygasa`,
+                  to: '/fuel-cards',
+                }
+              : null,
+          );
+        })
+        .catch(() => setFuelAlert(null));
       // Stop alert: trucks standing > STOP_ALERT_MIN during working hours.
       if (isWorkingHours()) {
         fetchVehicleLocations()
@@ -125,7 +150,11 @@ export function NotificationCenter() {
     return () => document.removeEventListener('mousedown', onClick);
   }, [open]);
 
-  const allAlerts = stopAlert ? [stopAlert, ...alerts] : alerts;
+  const allAlerts = [
+    ...(stopAlert ? [stopAlert] : []),
+    ...(fuelAlert ? [fuelAlert] : []),
+    ...alerts,
+  ];
   const count = allAlerts.length;
 
   return (

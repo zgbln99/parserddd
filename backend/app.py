@@ -333,6 +333,23 @@ def _init_db():
         );
     ''')
 
+    # Fuel cards (DKV/UTA/...) — number, limit, assigned vehicle, expiry.
+    conn.executescript('''
+        CREATE TABLE IF NOT EXISTS fuel_cards (
+            id                INTEGER PRIMARY KEY AUTOINCREMENT,
+            card_number       TEXT NOT NULL UNIQUE,
+            provider          TEXT NOT NULL DEFAULT '',
+            vehicle_name      TEXT NOT NULL DEFAULT '',
+            driver_name       TEXT NOT NULL DEFAULT '',
+            monthly_limit_eur REAL NOT NULL DEFAULT 0,
+            expiry_date       TEXT NOT NULL DEFAULT '',
+            status            TEXT NOT NULL DEFAULT 'active',
+            notes             TEXT NOT NULL DEFAULT '',
+            created_at        TEXT NOT NULL,
+            updated_at        TEXT NOT NULL
+        );
+    ''')
+
     conn.commit()
     conn.close()
     logger.info('Database initialized: %s', DATABASE_FILE)

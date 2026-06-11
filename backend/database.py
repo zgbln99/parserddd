@@ -322,6 +322,26 @@ def init_db():
             );
         ''')
 
+        # fuel_cards — fleet fuel cards (number, limit, vehicle, expiry).
+        db.executescript('''
+            CREATE TABLE IF NOT EXISTS fuel_cards (
+                id                {} PRIMARY KEY {},
+                card_number       TEXT NOT NULL UNIQUE,
+                provider          TEXT NOT NULL DEFAULT '',
+                vehicle_name      TEXT NOT NULL DEFAULT '',
+                driver_name      TEXT NOT NULL DEFAULT '',
+                monthly_limit_eur REAL NOT NULL DEFAULT 0,
+                expiry_date       TEXT NOT NULL DEFAULT '',
+                status            TEXT NOT NULL DEFAULT 'active',
+                notes             TEXT NOT NULL DEFAULT '',
+                created_at        TEXT NOT NULL,
+                updated_at        TEXT NOT NULL
+            );
+        '''.format(
+            'SERIAL' if engine == 'postgresql' else 'INTEGER',
+            '' if engine == 'postgresql' else 'AUTOINCREMENT',
+        ))
+
         # violation_statuses — per-violation status persistence for the
         # activity-based compliance engine. ``violation_id`` is the
         # content-addressable id produced by the engine, so the same

@@ -35,6 +35,7 @@ _BLUEPRINTS = [
     ("sign", "sign"),
     ("compliance", "compliance"),
     ("profile", "profile"),
+    ("fuelcards", "fuelcards"),
     ("legacy", "legacy"),
 ]
 
