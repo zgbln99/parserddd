@@ -36,6 +36,7 @@ const BulkGridPage = lazy(() => import('./pages/BulkGridPage').then(m => ({ defa
 const ArbeitszeitberichtPage = lazy(() => import('./pages/ArbeitszeitberichtPage').then(m => ({ default: m.ArbeitszeitberichtPage })));
 const ComplianceMonthlyPage = lazy(() => import('./pages/ComplianceMonthlyPage').then(m => ({ default: m.ComplianceMonthlyPage })));
 const CompliancePage = lazy(() => import('./pages/CompliancePage'));
+const VerstossePage = lazy(() => import('./pages/VerstossePage').then(m => ({ default: m.VerstossePage })));
 
 
 function PageFallback() {
@@ -151,6 +152,7 @@ export function App() {
           <Route path="/analysis" element={<ProtectedRoute><AnalysisPage /></ProtectedRoute>} />
           <Route path="/arbeitszeitbericht" element={<PermissionRoute permission="settlement"><ArbeitszeitberichtPage /></PermissionRoute>} />
           <Route path="/compliance" element={<PermissionRoute permission="settlement"><CompliancePage /></PermissionRoute>} />
+          <Route path="/verstosse" element={<PermissionRoute permission="settlement"><VerstossePage /></PermissionRoute>} />
           <Route path="/compliance-monthly" element={<PermissionRoute permission="settlement"><ComplianceMonthlyPage /></PermissionRoute>} />
 
           <Route path="*" element={<Navigate to="/" replace />} />

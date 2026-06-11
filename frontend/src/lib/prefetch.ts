@@ -27,6 +27,7 @@ const importers: Record<string, () => Promise<unknown>> = {
   '/bulk-grid': () => import('../pages/BulkGridPage'),
   '/arbeitszeitbericht': () => import('../pages/ArbeitszeitberichtPage'),
   '/compliance': () => import('../pages/CompliancePage'),
+  '/verstosse': () => import('../pages/VerstossePage'),
 };
 
 const warmed = new Set<string>();

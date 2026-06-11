@@ -54,6 +54,7 @@ export function Layout({ children }: { children: ReactNode }) {
     { to: '/bulk-grid', icon: Users, labelKey: 'navBulkGrid' as const, permission: 'settlement' },
     { to: '/arbeitszeitbericht', icon: Clock, labelKey: 'navArbeitszeitbericht' as const, permission: 'settlement' },
     { to: '/compliance', icon: ShieldCheck, labelKey: 'navCompliance' as const, permission: 'settlement' },
+    { to: '/verstosse', icon: ShieldAlert, labelKey: 'navVerstosse' as const, permission: 'settlement' },
     { to: '/vehicles', icon: Truck, labelKey: 'navVehicles' as const, permission: 'vehicles' },
     { to: '/map', icon: MapPin, labelKey: 'navFleetMap' as const, permission: 'vehicles' },
     { to: '/safety', icon: ShieldAlert, labelKey: 'navSafety' as const, permission: 'vehicles' },
@@ -78,7 +79,7 @@ export function Layout({ children }: { children: ReactNode }) {
   const mainItems = navItems.filter(i => mainKeys.has(i.to));
   if (mainItems.length > 0) navSections.push({ label: 'Menu', items: mainItems });
 
-  const payrollKeys = new Set(['/payroll', '/stundenzettel', '/bulk-grid', '/arbeitszeitbericht', '/compliance']);
+  const payrollKeys = new Set(['/payroll', '/stundenzettel', '/bulk-grid', '/arbeitszeitbericht', '/compliance', '/verstosse']);
   const payrollItems = navItems.filter(i => payrollKeys.has(i.to));
   if (payrollItems.length > 0) navSections.push({ label: locale === 'de' ? 'Abrechnung' : 'Rozliczenia', items: payrollItems });
 
