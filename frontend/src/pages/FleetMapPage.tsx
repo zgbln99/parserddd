@@ -74,8 +74,10 @@ export function FleetMapPage() {
   const [panelOpen, setPanelOpen] = useState(true);
   const [trailHours, setTrailHours] = useState(0); // 0 = off (and no date)
   const [trailDate, setTrailDate] = useState(''); // YYYY-MM-DD = full historic day
+  const [trailDateTo, setTrailDateTo] = useState(''); // optional range end → multi-day
   const [trailKm, setTrailKm] = useState<number | null>(null);
   const [trailPts, setTrailPts] = useState<TrailPoint[]>([]);
+  const [dayTrails, setDayTrails] = useState<{ date: string; points: TrailPoint[]; km: number }[]>([]);
   const [trailLoading, setTrailLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
 
@@ -182,48 +184,83 @@ export function FleetMapPage() {
     trailLayerRef.current?.clearLayers();
     setTrailKm(null);
     setTrailPts([]);
+    setDayTrails([]);
   }, []);
 
-  const loadTrail = useCallback(async (vehicleId: string, hours: number, date: string) => {
+  // Day colours for multi-day ranges (cycled).
+  const DAY_COLORS = ['#5750f1', '#0d9488', '#ea580c', '#db2777', '#2563eb', '#7c3aed', '#16a34a'];
+
+  const drawDay = useCallback((layer: L.LayerGroup, pts: TrailPoint[], color: string, label: string) => {
+    const latlngs = pts.map((p) => [p.lat, p.lng] as L.LatLngTuple);
+    L.polyline(latlngs, { color: '#ffffff', weight: 7, opacity: 0.8 }).addTo(layer);
+    L.polyline(latlngs, { color, weight: 4, opacity: 0.95 }).bindTooltip(label, { sticky: true }).addTo(layer);
+    const first = pts[0];
+    const last = pts[pts.length - 1];
+    L.circleMarker([first.lat, first.lng], { radius: 5, color: '#16a34a', fillColor: '#22ad5c', fillOpacity: 1, weight: 2 })
+      .bindTooltip(de ? `Start ${label}` : `Początek ${label}`).addTo(layer);
+    L.circleMarker([last.lat, last.lng], { radius: 5, color: '#b91c1c', fillColor: '#ef4444', fillOpacity: 1, weight: 2 })
+      .bindTooltip(de ? `Ende ${label}` : `Koniec ${label}`).addTo(layer);
+    return latlngs;
+  }, [de]);
+
+  const loadTrail = useCallback(async (vehicleId: string, hours: number, date: string, dateTo: string) => {
     const layer = trailLayerRef.current;
     const map = mapRef.current;
     if (!layer || !map || !vehicleId) return;
     setTrailLoading(true);
     layer.clearLayers();
     setTrailKm(null);
+    setDayTrails([]);
     try {
-      const res = await fetchVehicleTrail(vehicleId, hours, date || undefined);
-      setTrailKm(res.total_km ?? null);
-      const pts = (res.points || []).filter((p) => p.lat != null && p.lng != null);
-      setTrailPts(pts);
-      if (pts.length < 2) return;
-      const latlngs = pts.map((p) => [p.lat, p.lng] as L.LatLngTuple);
-      const kmLabel = res.total_km != null ? `${res.total_km} km` : '';
-      // casing + colored line
-      L.polyline(latlngs, { color: '#ffffff', weight: 7, opacity: 0.8 }).addTo(layer);
-      L.polyline(latlngs, { color: '#5750f1', weight: 4, opacity: 0.95 })
-        .bindTooltip(kmLabel, { sticky: true })
-        .addTo(layer);
-      // start + end dots
-      const first = pts[0];
-      const last = pts[pts.length - 1];
-      L.circleMarker([first.lat, first.lng], { radius: 5, color: '#16a34a', fillColor: '#22ad5c', fillOpacity: 1, weight: 2 })
-        .bindTooltip(de ? 'Start' : 'Początek').addTo(layer);
-      L.circleMarker([last.lat, last.lng], { radius: 5, color: '#b91c1c', fillColor: '#ef4444', fillOpacity: 1, weight: 2 })
-        .bindTooltip(de ? 'Letzte Position' : 'Ostatnia pozycja').addTo(layer);
-      map.fitBounds(L.latLngBounds(latlngs), { padding: [60, 60] });
+      if (date && dateTo && dateTo > date) {
+        // Multi-day range: one request per day (max 31), 4 at a time.
+        const dates: string[] = [];
+        for (let d = new Date(date + 'T12:00:00'); dates.length < 31; d.setDate(d.getDate() + 1)) {
+          const s = d.toISOString().slice(0, 10);
+          if (s > dateTo) break;
+          dates.push(s);
+        }
+        const days: { date: string; points: TrailPoint[]; km: number }[] = [];
+        for (let i = 0; i < dates.length; i += 4) {
+          const chunk = await Promise.all(dates.slice(i, i + 4).map(async (dStr) => {
+            try {
+              const r = await fetchVehicleTrail(vehicleId, 24, dStr);
+              return { date: dStr, points: (r.points || []).filter((p) => p.lat != null && p.lng != null), km: r.total_km ?? 0 };
+            } catch { return { date: dStr, points: [] as TrailPoint[], km: 0 }; }
+          }));
+          days.push(...chunk);
+        }
+        const withData = days.filter((d) => d.points.length >= 2);
+        setDayTrails(withData);
+        setTrailPts(withData.flatMap((d) => d.points));
+        setTrailKm(Math.round(withData.reduce((s, d) => s + d.km, 0) * 10) / 10);
+        const all: L.LatLngTuple[] = [];
+        withData.forEach((d, i) => {
+          all.push(...drawDay(layer, d.points, DAY_COLORS[i % DAY_COLORS.length], `${d.date} · ${d.km} km`));
+        });
+        if (all.length) map.fitBounds(L.latLngBounds(all), { padding: [60, 60] });
+      } else {
+        const res = await fetchVehicleTrail(vehicleId, hours, date || undefined);
+        setTrailKm(res.total_km ?? null);
+        const pts = (res.points || []).filter((p) => p.lat != null && p.lng != null);
+        setTrailPts(pts);
+        if (date) setDayTrails(pts.length >= 2 ? [{ date, points: pts, km: res.total_km ?? 0 }] : []);
+        if (pts.length < 2) return;
+        const latlngs = drawDay(layer, pts, '#5750f1', res.total_km != null ? `${res.total_km} km` : '');
+        map.fitBounds(L.latLngBounds(latlngs), { padding: [60, 60] });
+      }
     } catch {
       /* surface nothing; trail is best-effort */
     } finally {
       setTrailLoading(false);
     }
-  }, [de]);
+  }, [drawDay]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // (re)load or clear the trail when the toggle / date / selection changes
+  // (re)load or clear the trail when the toggle / dates / selection change
   useEffect(() => {
-    if (selectedId && (trailHours > 0 || trailDate)) loadTrail(selectedId, trailHours || 24, trailDate);
+    if (selectedId && (trailHours > 0 || trailDate)) loadTrail(selectedId, trailHours || 24, trailDate, trailDateTo);
     else clearTrail();
-  }, [trailHours, trailDate, selectedId, loadTrail, clearTrail]);
+  }, [trailHours, trailDate, trailDateTo, selectedId, loadTrail, clearTrail]);
 
   // --- markers -------------------------------------------------------------
   useEffect(() => {
@@ -299,19 +336,30 @@ export function FleetMapPage() {
   const selectedVehicle = vehicles.find((v) => v.vehicle_id === selectedId) || null;
   const today = new Date().toISOString().slice(0, 10);
   const routeOn = trailHours > 0 || !!trailDate;
-  const periodLabel = trailDate || (de ? `Letzte ${trailHours} Std` : `Ostatnie ${trailHours} h`);
+  const isRange = !!trailDate && !!trailDateTo && trailDateTo > trailDate;
+  const periodLabel = isRange
+    ? `${trailDate} – ${trailDateTo}`
+    : trailDate || (de ? `Letzte ${trailHours} Std` : `Ostatnie ${trailHours} h`);
 
   const exportRoute = useCallback(async (kind: 'pdf' | 'gpx') => {
     if (trailPts.length < 2 || !selectedVehicle) return;
     setExporting(true);
     try {
       const mod = await import('../lib/route-export');
+      const driverName = selectedVehicle.driver_name || drivers.get(selectedVehicle.vehicle_name);
       if (kind === 'gpx') {
         mod.downloadRouteGpx(selectedVehicle.vehicle_name, periodLabel, trailPts);
+      } else if (dayTrails.length > 1) {
+        await mod.generateMultiDayRoutePdf({
+          vehicleName: selectedVehicle.vehicle_name,
+          driverName,
+          days: dayTrails,
+          de,
+        });
       } else {
         await mod.generateRoutePdf({
           vehicleName: selectedVehicle.vehicle_name,
-          driverName: selectedVehicle.driver_name || drivers.get(selectedVehicle.vehicle_name),
+          driverName,
           periodLabel,
           points: trailPts,
           totalKm: trailKm ?? 0,
@@ -323,7 +371,7 @@ export function FleetMapPage() {
     } finally {
       setExporting(false);
     }
-  }, [trailPts, selectedVehicle, periodLabel, trailKm, drivers, de]);
+  }, [trailPts, dayTrails, selectedVehicle, periodLabel, trailKm, drivers, de]);
 
   const filterPills: { key: MoveFilter; label: string }[] = [
     { key: 'all', label: de ? 'Alle' : 'Wszystkie' },
@@ -494,7 +542,7 @@ export function FleetMapPage() {
             {selectedVehicle && <span className="truncate font-mono text-xs text-muted">{selectedVehicle.vehicle_name}</span>}
             {routeOn && (
               <button
-                onClick={() => { setTrailHours(0); setTrailDate(''); }}
+                onClick={() => { setTrailHours(0); setTrailDate(''); setTrailDateTo(''); }}
                 className="ml-auto rounded-lg border border-border px-2 py-0.5 text-[11px] font-semibold text-muted transition hover:bg-surface"
               >
                 {de ? 'Aus' : 'Wył.'}
@@ -509,7 +557,7 @@ export function FleetMapPage() {
             ].map(({ h, label }) => (
               <button
                 key={h}
-                onClick={() => { setTrailDate(''); setTrailHours(h); }}
+                onClick={() => { setTrailDate(''); setTrailDateTo(''); setTrailHours(h); }}
                 className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
                   !trailDate && trailHours === h ? 'bg-primary-600 text-white' : 'border border-border text-muted hover:bg-surface'
                 }`}
@@ -523,13 +571,28 @@ export function FleetMapPage() {
               max={today}
               onChange={(e) => { setTrailHours(0); setTrailDate(e.target.value); }}
               className={`input rounded-lg px-2 py-1 text-xs dark:[color-scheme:dark] ${trailDate ? 'border-primary-500 text-primary-600' : ''}`}
-              title={de ? 'Historischer Tag' : 'Dzień historyczny'}
+              title={de ? 'Tag / Beginn' : 'Dzień / początek zakresu'}
             />
+            {trailDate && (
+              <>
+                <span className="text-xs text-muted">–</span>
+                <input
+                  type="date"
+                  value={trailDateTo}
+                  min={trailDate}
+                  max={today}
+                  onChange={(e) => setTrailDateTo(e.target.value)}
+                  className={`input rounded-lg px-2 py-1 text-xs dark:[color-scheme:dark] ${trailDateTo ? 'border-primary-500 text-primary-600' : ''}`}
+                  title={de ? 'Ende (optional, mehrtägig)' : 'Koniec (opcjonalnie, wiele dni)'}
+                />
+              </>
+            )}
           </div>
           {routeOn && (
             <div className="mt-2 flex items-center justify-between gap-2 text-xs">
               <span className="text-muted">
-                {trailDate ? trailDate : (de ? `Letzte ${trailHours} Std` : `Ostatnie ${trailHours} h`)}
+                {periodLabel}
+                {isRange && dayTrails.length > 0 && ` · ${dayTrails.length} ${de ? 'Tage' : 'dni'}`}
               </span>
               <span className="font-bold text-ink">
                 {trailLoading ? '…' : trailKm != null ? `${trailKm} km` : (de ? 'Keine Daten' : 'Brak danych')}

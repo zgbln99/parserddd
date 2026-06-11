@@ -142,22 +142,20 @@ const hhmm = (min: number) => `${Math.floor(min / 60)}:${String(min % 60).padSta
 
 // --- PDF ----------------------------------------------------------------------
 
-export async function generateRoutePdf(opts: {
+interface RoutePageOpts {
   vehicleName: string;
   driverName?: string;
   periodLabel: string; // e.g. "2026-06-10" or "Ostatnie 8 h"
   points: TrailPoint[];
   totalKm: number;
   de: boolean;
-}) {
+}
+
+/** One full report page: header, metric cards, map snapshot, start/end line. */
+async function addRoutePage(c: Awaited<ReturnType<typeof ctx>>, opts: RoutePageOpts) {
   const { vehicleName, driverName, periodLabel, points, totalKm, de } = opts;
   const { pts, durMin, maxSpeed, avgSpeed, driveMin } = routeStats(points, totalKm);
-  if (pts.length < 2) throw new Error(de ? 'Keine Routendaten' : 'Brak danych trasy');
-
-  const [snapshot, c] = await Promise.all([
-    renderRouteSnapshot(points),
-    ctx('landscape'),
-  ]);
+  const snapshot = await renderRouteSnapshot(points);
   const { doc, W, H, M } = c;
 
   let y = drawHeader(
@@ -192,6 +190,16 @@ export async function generateRoutePdf(opts: {
   const startLine = `${de ? 'Start' : 'Początek'}: ${fmtT(pts[0].time, de)}`;
   const endLine = `${de ? 'Ende' : 'Koniec'}: ${fmtT(pts[pts.length - 1].time, de)}`;
   doc.text(`🟢 ${startLine}    🔴 ${endLine}    ·    ${de ? 'Gesamtdauer' : 'Czas całkowity'}: ${hhmm(durMin)}    ·    GPS: ${pts.length} ${de ? 'Punkte' : 'punktów'}`, M, y + 3);
+}
+
+export async function generateRoutePdf(opts: RoutePageOpts) {
+  const { vehicleName, periodLabel, points, de } = opts;
+  const { pts } = routeStats(points, opts.totalKm);
+  if (pts.length < 2) throw new Error(de ? 'Keine Routendaten' : 'Brak danych trasy');
+
+  const c = await ctx('landscape');
+  const { doc, M } = c;
+  await addRoutePage(c, opts);
 
   // Page 2: hourly breakdown table (km per hour bucket).
   doc.addPage('a4', 'landscape');
@@ -225,6 +233,83 @@ export async function generateRoutePdf(opts: {
 
   drawFooter(c);
   doc.save(`${de ? 'Route' : 'Trasa'}_${safeName(vehicleName)}_${periodLabel.replace(/[^0-9A-Za-z-]+/g, '_')}.pdf`);
+}
+
+export interface DayTrail {
+  date: string; // YYYY-MM-DD
+  points: TrailPoint[];
+  km: number;
+}
+
+/** Multi-day report: summary page with per-day table, then one page per day. */
+export async function generateMultiDayRoutePdf(opts: {
+  vehicleName: string;
+  driverName?: string;
+  days: DayTrail[];
+  de: boolean;
+}) {
+  const { vehicleName, driverName, de } = opts;
+  const days = opts.days.filter((d) => d.points.length >= 2);
+  if (days.length === 0) throw new Error(de ? 'Keine Routendaten' : 'Brak danych trasy');
+
+  const c = await ctx('landscape');
+  const { doc, W, M } = c;
+  const rangeLabel = `${days[0].date} – ${days[days.length - 1].date}`;
+  const totalKm = Math.round(days.reduce((s, d) => s + d.km, 0) * 10) / 10;
+
+  // --- summary page ---
+  let y = drawHeader(
+    c,
+    de ? 'Routenbericht — Zeitraum' : 'Raport tras — zakres',
+    `${vehicleName}${driverName ? ` · ${driverName}` : ''} · ${rangeLabel}`,
+  );
+  const perDay = days.map((d) => ({ ...d, s: routeStats(d.points, d.km) }));
+  const driveTotal = perDay.reduce((s, d) => s + d.s.driveMin, 0);
+  const maxSpeed = Math.max(...perDay.map((d) => d.s.maxSpeed));
+
+  const cardW = (W - 2 * M - 3 * 4) / 4;
+  drawCard(doc, M, y, cardW, 16, de ? 'Distanz gesamt' : 'Dystans łącznie', `${totalKm} km`, [87, 80, 241]);
+  drawCard(doc, M + cardW + 4, y, cardW, 16, de ? 'Tage' : 'Dni', String(days.length), [13, 148, 136]);
+  drawCard(doc, M + 2 * (cardW + 4), y, cardW, 16, de ? 'Fahrzeit (ca.)' : 'Czas jazdy (ok.)', hhmm(driveTotal), [16, 185, 129]);
+  drawCard(doc, M + 3 * (cardW + 4), y, cardW, 16, de ? 'Max. Geschw.' : 'Maks. prędkość', `${maxSpeed} km/h`, [220, 38, 38]);
+  y += 20;
+
+  autoTable(doc, {
+    startY: y,
+    margin: { left: M, right: M },
+    head: [[
+      de ? 'Datum' : 'Data', 'km',
+      de ? 'Start' : 'Początek', de ? 'Ende' : 'Koniec',
+      de ? 'Fahrzeit' : 'Czas jazdy', de ? 'Max km/h' : 'Maks. km/h',
+    ]],
+    body: perDay.map((d) => [
+      d.date,
+      d.km.toFixed(1),
+      fmtT(d.s.pts[0].time, de),
+      fmtT(d.s.pts[d.s.pts.length - 1].time, de),
+      hhmm(d.s.driveMin),
+      String(d.s.maxSpeed),
+    ]),
+    styles: { fontSize: 8, cellPadding: 1.6 },
+    headStyles: { fillColor: [87, 80, 241], textColor: 255, fontStyle: 'bold' },
+    alternateRowStyles: { fillColor: [248, 250, 252] },
+  });
+
+  // --- one page per day (map + metrics) ---
+  for (const d of days) {
+    doc.addPage('a4', 'landscape');
+    await addRoutePage(c, {
+      vehicleName,
+      driverName,
+      periodLabel: d.date,
+      points: d.points,
+      totalKm: d.km,
+      de,
+    });
+  }
+
+  drawFooter(c);
+  doc.save(`${de ? 'Route' : 'Trasa'}_${safeName(vehicleName)}_${days[0].date}_${days[days.length - 1].date}.pdf`);
 }
 
 // --- GPX ----------------------------------------------------------------------
