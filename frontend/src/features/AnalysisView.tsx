@@ -9,7 +9,7 @@ import { computeVma, shiftCost, computeCharterCosts } from '../lib/charter';
 import { Badge } from '../components/Badge';
 import { Spinner } from '../components/Spinner';
 import { BarChart } from '../components/BarChart';
-import { ClipboardCopy, Check, Printer, BarChart3, UtensilsCrossed, FileText, FileSpreadsheet, Settings, CalendarDays, HardDrive, Pencil, RotateCcw, Scissors, Trash2, Plus } from 'lucide-react';
+import { ClipboardCopy, Check, Printer, BarChart3, UtensilsCrossed, FileText, FileSpreadsheet, Settings, CalendarDays, HardDrive, Pencil, RotateCcw, Scissors, Trash2, Plus, AlertTriangle } from 'lucide-react';
 import type { AnalysisResult, ShiftDetail } from '../types';
 import { DriverConfigEditor } from './DriverConfigEditor';
 import { ArbeitszeitReport } from './ArbeitszeitReport';
@@ -1719,12 +1719,35 @@ function MonthlyGridCopy({
     const merged = { ...saved };
     for (const day of vacationDaySet) {
       const key = String(day);
-      if (!merged[key]) {
+      // Never auto-mark vacation on a day the card shows work — that's how
+      // drivers ended up "on vacation" while driving. Such days surface in
+      // the conflict panel below and the admin decides.
+      if (!merged[key] && !(dayWorkMap[day] > 0)) {
         merged[key] = 'Ur' as const;
       }
     }
     return merged;
-  }, [monthlyDays?.absence_days, vacationDaySet]);
+  }, [monthlyDays?.absence_days, vacationDaySet, dayWorkMap]);
+
+  // Conflicts: days where vacation collides with card work hours — either a
+  // PDF vacation day we refused to auto-fill, or a previously saved mark on
+  // a day that (after re-analysis) turns out to have work.
+  const vacationConflicts = useMemo(() => {
+    const saved = monthlyDays?.absence_days || {};
+    const list: { day: number; work: number; source: 'pdf' | 'saved'; mark?: 'Ur' | 'Kr' }[] = [];
+    for (const day of vacationDaySet) {
+      if ((dayWorkMap[day] || 0) > 0 && !saved[String(day)]) {
+        list.push({ day, work: dayWorkMap[day], source: 'pdf' });
+      }
+    }
+    for (const [key, mark] of Object.entries(saved)) {
+      const d = Number(key);
+      if ((dayWorkMap[d] || 0) > 0) {
+        list.push({ day: d, work: dayWorkMap[d], source: 'saved', mark: mark as 'Ur' | 'Kr' });
+      }
+    }
+    return list.sort((a, b) => a.day - b.day);
+  }, [monthlyDays?.absence_days, vacationDaySet, dayWorkMap]);
 
   // Generate weekday names for each day
   const wdNames = locale === 'de' ? weekdayDeShort : weekdayPlShort;
@@ -1762,7 +1785,8 @@ function MonthlyGridCopy({
     return `${h}:${String(m).padStart(2, '0')}`;
   };
 
-  // Cycle: empty → Ur → Kr → empty
+  // Cycle: empty → Ur → Kr → empty. On a conflicted day (mark + card work)
+  // a click simply clears the bogus mark.
   const handleCellClick = useCallback((day: number) => {
     const work = dayWorkMap[day] || 0;
     const current = absenceDays[String(day)];
@@ -1770,7 +1794,9 @@ function MonthlyGridCopy({
     if (!onAbsenceChange) return;
     const next = { ...absenceDays };
     const key = String(day);
-    if (!current) {
+    if (current && work > 0) {
+      delete next[key];
+    } else if (!current) {
       next[key] = 'Ur';
     } else if (current === 'Ur') {
       next[key] = 'Kr';
@@ -1784,8 +1810,11 @@ function MonthlyGridCopy({
     // Copy only content (no headers): work hours per day + summary values
     const row3Values = dayNumbers.map((d) => {
       const absence = absenceDays[String(d)];
-      if (absence) return absence;
-      return fmtWork(dayWorkMap[d] || 0);
+      const work = dayWorkMap[d] || 0;
+      // Conflict (absence mark + card work): export the real hours, never
+      // silently turn a worked day into vacation in the payroll sheet.
+      if (absence && work === 0) return absence;
+      return fmtWork(work);
     });
     const tsv = [...row3Values, ...summaryValues].join('\t');
 
@@ -1829,6 +1858,53 @@ function MonthlyGridCopy({
           </span>
         )}
       </div>
+      {vacationConflicts.length > 0 && (
+        <div className="rounded-xl border border-red-300 bg-red-50 p-3 dark:border-red-500/30 dark:bg-red-900/15">
+          <p className="mb-2 flex items-center gap-1.5 text-xs font-bold text-red-700 dark:text-red-300">
+            <AlertTriangle size={13} />
+            {locale === 'de'
+              ? 'Urlaub-Konflikt: Karte zeigt Arbeit an diesen Tagen'
+              : 'Konflikt urlopu: karta pokazuje pracę w te dni'}
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {vacationConflicts.map((cfl) => (
+              <div
+                key={`${cfl.source}-${cfl.day}`}
+                className="flex items-center gap-1.5 rounded-lg bg-white px-2 py-1 text-[11px] ring-1 ring-red-200 dark:bg-red-900/30 dark:ring-red-500/30"
+              >
+                <span className="font-bold">{String(cfl.day).padStart(2, '0')}.{String(month).padStart(2, '0')}</span>
+                <span className="text-muted">{fmtWork(cfl.work)}</span>
+                {cfl.source === 'saved' ? (
+                  <>
+                    <span className="rounded bg-red-100 px-1 font-bold text-red-700 dark:bg-red-900/50 dark:text-red-300">{cfl.mark}</span>
+                    {onAbsenceChange && (
+                      <button
+                        onClick={() => {
+                          const next = { ...absenceDays };
+                          delete next[String(cfl.day)];
+                          onAbsenceChange(next);
+                        }}
+                        className="font-semibold text-red-600 underline-offset-2 hover:underline dark:text-red-300"
+                      >
+                        {locale === 'de' ? 'hat gearbeitet — entfernen' : 'pracował — usuń'}
+                      </button>
+                    )}
+                  </>
+                ) : (
+                  onAbsenceChange && (
+                    <button
+                      onClick={() => onAbsenceChange({ ...absenceDays, [String(cfl.day)]: 'Ur' })}
+                      className="font-semibold text-blue-600 underline-offset-2 hover:underline dark:text-blue-300"
+                    >
+                      {locale === 'de' ? 'doch Urlaub — eintragen' : 'jednak urlop — wpisz'}
+                    </button>
+                  )
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       <div className="overflow-x-auto">
         <table className="w-full border-collapse" style={{ tableLayout: 'fixed' }}>
           <thead>
@@ -1881,7 +1957,16 @@ function MonthlyGridCopy({
                 let cellClass = tdCls;
                 let cellTitle = '';
 
-                if (absence === 'Ur') {
+                if (absence && work > 0) {
+                  // Conflict: card shows work on a day marked as absence.
+                  // Work hours win visually; the red ring + panel below ask
+                  // the admin to resolve it instead of silently hiding work.
+                  cellContent = fmtWork(work);
+                  cellClass = `${tdCls} !bg-red-100 !text-red-700 font-bold cursor-pointer ring-2 ring-inset ring-red-500 dark:!bg-red-900/40 dark:!text-red-300`;
+                  cellTitle = locale === 'de'
+                    ? `Konflikt: ${absence} eingetragen, aber Karte zeigt ${fmtWork(work)} Arbeit`
+                    : `Konflikt: wpisano ${absence}, ale karta pokazuje ${fmtWork(work)} pracy`;
+                } else if (absence === 'Ur') {
                   cellContent = 'Ur';
                   cellClass = `${tdCls} !bg-blue-100 !text-blue-700 font-bold cursor-pointer dark:!bg-blue-900/40 dark:!text-blue-300`;
                 } else if (absence === 'Kr') {
