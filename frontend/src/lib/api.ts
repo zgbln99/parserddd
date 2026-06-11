@@ -158,9 +158,9 @@ export interface TrailPoint {
   location: string;
 }
 
-export const fetchVehicleTrail = (vehicleId: string, hours = 8) =>
-  request<{ vehicle_id: string; hours: number; points: TrailPoint[] }>(
-    `/api/vehicles/${encodeURIComponent(vehicleId)}/trail?hours=${hours}`,
+export const fetchVehicleTrail = (vehicleId: string, hours = 8, date?: string) =>
+  request<{ vehicle_id: string; hours: number; points: TrailPoint[]; total_km: number }>(
+    `/api/vehicles/${encodeURIComponent(vehicleId)}/trail?hours=${hours}${date ? `&date=${date}` : ''}`,
   );
 
 export interface SafetyEvent {

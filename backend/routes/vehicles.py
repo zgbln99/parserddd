@@ -336,10 +336,11 @@ def api_vehicles_locations():
 @bp.route('/api/vehicles/<vehicle_id>/trail', methods=['GET'])
 @permission_required('vehicles')
 def api_vehicle_trail(vehicle_id):
-    """GPS breadcrumb trail of one vehicle over the last N hours (default 8).
+    """GPS breadcrumb trail of one vehicle.
 
-    Returns ordered points (lat/lng/time/speed) for drawing the route on the
-    map, plus detected stops (consecutive near-zero-speed points).
+    Either the last N hours (?hours=8, default) or a full historic day
+    (?date=YYYY-MM-DD, interpreted in Europe/Berlin). Returns ordered
+    points (lat/lng/time/speed) for drawing the route on the map.
     """
     if not SAMSARA_API_TOKEN:
         return jsonify({'error': 'Samsara API not configured'}), 400
@@ -350,8 +351,23 @@ def api_vehicle_trail(vehicle_id):
         hours = 8
 
     now = datetime.now(timezone.utc)
-    start_time = (now.replace(microsecond=0) - timedelta(hours=hours)).isoformat().replace('+00:00', 'Z')
-    end_time = now.replace(microsecond=0).isoformat().replace('+00:00', 'Z')
+    date_str = (request.args.get('date') or '').strip()
+    if date_str:
+        try:
+            day = datetime.strptime(date_str, '%Y-%m-%d')
+        except ValueError:
+            return jsonify({'error': 'date must be YYYY-MM-DD'}), 400
+        day_start = day.replace(tzinfo=CET)
+        day_end = day_start + timedelta(days=1)
+        start_dt = day_start.astimezone(timezone.utc)
+        end_dt = min(day_end.astimezone(timezone.utc), now)
+        if end_dt <= start_dt:
+            return jsonify({'vehicle_id': vehicle_id, 'hours': 24, 'points': []})
+        start_time = start_dt.replace(microsecond=0).isoformat().replace('+00:00', 'Z')
+        end_time = end_dt.replace(microsecond=0).isoformat().replace('+00:00', 'Z')
+    else:
+        start_time = (now.replace(microsecond=0) - timedelta(hours=hours)).isoformat().replace('+00:00', 'Z')
+        end_time = now.replace(microsecond=0).isoformat().replace('+00:00', 'Z')
     headers = {'Authorization': f'Bearer {SAMSARA_API_TOKEN}'}
 
     points = []
@@ -397,8 +413,25 @@ def api_vehicle_trail(vehicle_id):
             break
 
     points.sort(key=lambda p: p['time'])
-    _log_activity('vehicle_trail', f'{vehicle_id}: {len(points)} pts / {hours}h')
-    return jsonify({'vehicle_id': vehicle_id, 'hours': hours, 'points': points})
+
+    # Distance actually driven along the breadcrumbs (haversine sum).
+    total_km = 0.0
+    for i in range(1, len(points)):
+        try:
+            total_km += _haversine_km(
+                points[i - 1]['lat'], points[i - 1]['lng'],
+                points[i]['lat'], points[i]['lng'],
+            )
+        except Exception:
+            continue
+
+    _log_activity('vehicle_trail', f'{vehicle_id}: {len(points)} pts / {round(total_km, 1)} km')
+    return jsonify({
+        'vehicle_id': vehicle_id,
+        'hours': hours,
+        'points': points,
+        'total_km': round(total_km, 1),
+    })
 
 
 @bp.route('/api/vehicles/safety-events', methods=['GET'])

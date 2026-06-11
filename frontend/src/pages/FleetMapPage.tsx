@@ -72,7 +72,9 @@ export function FleetMapPage() {
   });
   const [selectedId, setSelectedId] = useState(searchParams.get('vehicle') || '');
   const [panelOpen, setPanelOpen] = useState(true);
-  const [trailHours, setTrailHours] = useState(0); // 0 = off
+  const [trailHours, setTrailHours] = useState(0); // 0 = off (and no date)
+  const [trailDate, setTrailDate] = useState(''); // YYYY-MM-DD = full historic day
+  const [trailKm, setTrailKm] = useState<number | null>(null);
   const [trailLoading, setTrailLoading] = useState(false);
 
   // --- map init ----------------------------------------------------------
@@ -163,22 +165,28 @@ export function FleetMapPage() {
 
   const clearTrail = useCallback(() => {
     trailLayerRef.current?.clearLayers();
+    setTrailKm(null);
   }, []);
 
-  const loadTrail = useCallback(async (vehicleId: string, hours: number) => {
+  const loadTrail = useCallback(async (vehicleId: string, hours: number, date: string) => {
     const layer = trailLayerRef.current;
     const map = mapRef.current;
     if (!layer || !map || !vehicleId) return;
     setTrailLoading(true);
     layer.clearLayers();
+    setTrailKm(null);
     try {
-      const res = await fetchVehicleTrail(vehicleId, hours);
+      const res = await fetchVehicleTrail(vehicleId, hours, date || undefined);
+      setTrailKm(res.total_km ?? null);
       const pts = (res.points || []).filter((p) => p.lat != null && p.lng != null);
       if (pts.length < 2) return;
       const latlngs = pts.map((p) => [p.lat, p.lng] as L.LatLngTuple);
+      const kmLabel = res.total_km != null ? `${res.total_km} km` : '';
       // casing + colored line
       L.polyline(latlngs, { color: '#ffffff', weight: 7, opacity: 0.8 }).addTo(layer);
-      L.polyline(latlngs, { color: '#5750f1', weight: 4, opacity: 0.95 }).addTo(layer);
+      L.polyline(latlngs, { color: '#5750f1', weight: 4, opacity: 0.95 })
+        .bindTooltip(kmLabel, { sticky: true })
+        .addTo(layer);
       // start + end dots
       const first = pts[0];
       const last = pts[pts.length - 1];
@@ -194,11 +202,11 @@ export function FleetMapPage() {
     }
   }, [de]);
 
-  // (re)load or clear the trail when the toggle / selection changes
+  // (re)load or clear the trail when the toggle / date / selection changes
   useEffect(() => {
-    if (trailHours > 0 && selectedId) loadTrail(selectedId, trailHours);
+    if (selectedId && (trailHours > 0 || trailDate)) loadTrail(selectedId, trailHours || 24, trailDate);
     else clearTrail();
-  }, [trailHours, selectedId, loadTrail, clearTrail]);
+  }, [trailHours, trailDate, selectedId, loadTrail, clearTrail]);
 
   // --- markers -------------------------------------------------------------
   useEffect(() => {
@@ -271,6 +279,9 @@ export function FleetMapPage() {
   }, [filtered, drivers, de, selectedId]);
 
   const movingCount = vehicles.filter((v) => v.speed_kmh > 5).length;
+  const selectedVehicle = vehicles.find((v) => v.vehicle_id === selectedId) || null;
+  const today = new Date().toISOString().slice(0, 10);
+  const routeOn = trailHours > 0 || !!trailDate;
 
   const filterPills: { key: MoveFilter; label: string }[] = [
     { key: 'all', label: de ? 'Alle' : 'Wszystkie' },
@@ -285,27 +296,40 @@ export function FleetMapPage() {
   ];
 
   return (
-    <div className="animate-slide-up">
-      {/* Header */}
-      <div className="mb-4 flex flex-wrap items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#34d399] to-[#16a34a] text-white">
-          <MapIcon size={20} />
+    // Full-bleed: cancel the <main> padding so the map fills the whole page.
+    <div className="relative -mx-4 -mt-6 -mb-24 h-[calc(100vh-3.5rem)] overflow-hidden sm:-mx-6 lg:-mx-8 lg:-mb-6">
+      {/* Map fills everything; panels float on top */}
+      <div ref={mapDiv} className="absolute inset-0 z-0" />
+
+      {error && (
+        <div className="absolute left-1/2 top-3 z-[600] -translate-x-1/2 rounded-xl bg-red-500/90 px-4 py-2 text-sm text-white shadow-lg backdrop-blur">
+          {error}
         </div>
-        <div className="min-w-0 flex-1">
-          <h1 className="text-2xl font-bold tracking-tight text-ink">{de ? 'Flottenkarte' : 'Mapa floty'}</h1>
-          <p className="text-xs text-muted">
-            {vehicles.length} {de ? 'Fahrzeuge' : 'pojazdów'} · <span className="font-semibold text-[#22ad5c]">{movingCount} {de ? 'fährt' : 'w trasie'}</span>
-            {updatedAt && ` · ${updatedAt.toLocaleTimeString(de ? 'de-DE' : 'pl-PL')}`}
+      )}
+
+      {/* Floating title / stats chip (top-left) */}
+      <div className="pointer-events-none absolute left-3 top-3 z-[500] flex items-center gap-2.5 rounded-2xl border border-border bg-card/90 px-3 py-2 shadow-lg backdrop-blur-md">
+        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-[#34d399] to-[#16a34a] text-white">
+          <MapIcon size={16} />
+        </div>
+        <div className="min-w-0 leading-tight">
+          <h1 className="text-sm font-bold tracking-tight text-ink">{de ? 'Flottenkarte' : 'Mapa floty'}</h1>
+          <p className="text-[11px] text-muted">
+            {vehicles.length} {de ? 'Fzg.' : 'poj.'} · <span className="font-semibold text-[#22ad5c]">{movingCount} {de ? 'fährt' : 'w trasie'}</span>
+            {updatedAt && ` · ${updatedAt.toLocaleTimeString(de ? 'de-DE' : 'pl-PL', { hour: '2-digit', minute: '2-digit' })}`}
           </p>
         </div>
-        {/* Layer switcher */}
-        <div className="flex items-center gap-1 rounded-xl border border-border bg-card p-1">
+      </div>
+
+      {/* Floating layers + refresh (top-right) */}
+      <div className="absolute right-3 top-3 z-[500] flex items-center gap-2">
+        <div className="flex items-center gap-1 rounded-2xl border border-border bg-card/90 p-1 shadow-lg backdrop-blur-md">
           <Layers size={14} className="ml-1.5 text-muted" />
           {layerPills.map(({ key, label }) => (
             <button
               key={key}
               onClick={() => switchLayer(key)}
-              className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
+              className={`rounded-xl px-2.5 py-1 text-xs font-semibold transition ${
                 baseLayer === key ? 'bg-primary-600 text-white' : 'text-muted hover:bg-surface'
               }`}
             >
@@ -315,22 +339,19 @@ export function FleetMapPage() {
         </div>
         <button
           onClick={() => { setLoading(true); load(); }}
-          className="flex items-center gap-1.5 rounded-xl border border-border px-3 py-2 text-sm font-medium text-ink transition hover:bg-surface"
+          className="flex h-9 w-9 items-center justify-center rounded-2xl border border-border bg-card/90 text-ink shadow-lg backdrop-blur-md transition hover:bg-surface"
           title={de ? 'Aktualisieren' : 'Odśwież'}
         >
-          <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+          <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
         </button>
       </div>
 
-      {error && <div className="mb-3 rounded-xl bg-red-500/10 px-4 py-2.5 text-sm text-red-600 dark:text-red-300">{error}</div>}
-
-      {/* Panel + map */}
-      <div className="card flex h-[calc(100vh-210px)] min-h-[460px] overflow-hidden">
-        {/* Vehicle panel */}
-        {panelOpen && (
-          <div className="flex w-full max-w-[280px] shrink-0 flex-col border-r border-border sm:max-w-[320px]">
-            <div className="border-b border-border p-3">
-              <div className="relative">
+      {/* Floating vehicle list (left) */}
+      {panelOpen ? (
+        <div className="absolute bottom-3 left-3 top-[68px] z-[500] flex w-[calc(100%-1.5rem)] max-w-[320px] flex-col overflow-hidden rounded-2xl border border-border bg-card/90 shadow-2xl backdrop-blur-md sm:w-[320px]">
+          <div className="border-b border-border p-3">
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
                 <input
                   type="text"
@@ -345,103 +366,136 @@ export function FleetMapPage() {
                   </button>
                 )}
               </div>
-              <div className="mt-2 flex gap-1">
-                {filterPills.map(({ key, label }) => (
-                  <button
-                    key={key}
-                    onClick={() => setMoveFilter(key)}
-                    className={`flex-1 rounded-lg px-2 py-1 text-[11px] font-semibold transition ${
-                      moveFilter === key ? 'bg-primary-600 text-white' : 'border border-border text-muted hover:bg-surface'
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
+              <button
+                onClick={() => setPanelOpen(false)}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-border text-muted transition hover:bg-surface hover:text-ink"
+                title={de ? 'Liste ausblenden' : 'Ukryj listę'}
+              >
+                <X size={15} />
+              </button>
             </div>
-            <div className="flex-1 divide-y divide-border overflow-y-auto">
-              {filtered.length === 0 ? (
-                <p className="px-4 py-8 text-center text-xs text-muted">{de ? 'Keine Treffer' : 'Brak wyników'}</p>
-              ) : (
-                filtered.map((v) => {
-                  const moving = v.speed_kmh > 5;
-                  const driver = v.driver_name || drivers.get(v.vehicle_name);
-                  const selected = v.vehicle_id === selectedId;
-                  return (
-                    <button
-                      key={v.vehicle_id}
-                      onClick={() => focusVehicle(v)}
-                      className={`block w-full px-3 py-2.5 text-left transition ${
-                        selected ? 'bg-primary-50 dark:bg-primary-900/20' : 'hover:bg-surface'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <span className={`h-2 w-2 shrink-0 rounded-full ${moving ? 'bg-[#22ad5c] animate-pulse' : 'bg-gray-300 dark:bg-gray-600'}`} />
-                        <span className="truncate font-mono text-sm font-bold text-ink">{v.vehicle_name}</span>
-                        <span className={`ml-auto shrink-0 font-mono text-[11px] ${moving ? 'font-bold text-[#22ad5c]' : 'text-muted'}`}>
-                          {moving
-                            ? `${v.speed_kmh} km/h`
-                            : fmtStop(v.stopped_minutes, de)
-                              ? `${v.stopped_is_min ? '> ' : ''}${fmtStop(v.stopped_minutes, de)}`
-                              : (de ? 'Steht' : 'Postój')}
-                        </span>
-                      </div>
-                      {driver && <p className="ml-4 truncate text-[11px] text-muted">👤 {driver}</p>}
-                      <div className="ml-4 flex items-center gap-2 text-[11px] text-muted">
-                        {v.fuel_percent != null && (
-                          <span className={`inline-flex items-center gap-0.5 font-medium ${v.fuel_percent <= 15 ? 'text-danger' : v.fuel_percent <= 30 ? 'text-warning' : ''}`}>
-                            <Fuel size={10} /> {v.fuel_percent}%
-                          </span>
-                        )}
-                        {v.location && <span className="truncate">{v.location}</span>}
-                      </div>
-                    </button>
-                  );
-                })
-              )}
-            </div>
-            <div className="border-t border-border px-3 py-2 text-center text-[11px] text-muted">
-              {filtered.length} / {vehicles.length}
-            </div>
-          </div>
-        )}
-
-        {/* Map */}
-        <div className="relative flex-1">
-          <div ref={mapDiv} className="absolute inset-0 z-0" />
-          <button
-            onClick={() => setPanelOpen(!panelOpen)}
-            className="absolute left-3 top-3 z-[500] flex items-center gap-1.5 rounded-xl border border-border bg-card px-3 py-2 text-xs font-semibold text-ink shadow-md transition hover:bg-surface"
-          >
-            <Truck size={14} />
-            {panelOpen ? (de ? 'Liste ausblenden' : 'Ukryj listę') : (de ? 'Liste' : 'Lista')}
-          </button>
-
-          {/* Route trail control (when a vehicle is selected) */}
-          {selectedId && (
-            <div className="absolute right-3 top-3 z-[500] flex items-center gap-1 rounded-xl border border-border bg-card p-1 shadow-md">
-              <Route size={14} className={`ml-1.5 ${trailLoading ? 'animate-pulse text-primary-600' : 'text-muted'}`} />
-              <span className="px-1 text-xs font-semibold text-muted">{de ? 'Route' : 'Trasa'}</span>
-              {[
-                { h: 0, label: de ? 'Aus' : 'Wył.' },
-                { h: 4, label: '4 h' },
-                { h: 8, label: '8 h' },
-                { h: 24, label: '24 h' },
-              ].map(({ h, label }) => (
+            <div className="mt-2 flex gap-1">
+              {filterPills.map(({ key, label }) => (
                 <button
-                  key={h}
-                  onClick={() => setTrailHours(h)}
-                  className={`rounded-lg px-2 py-1 text-xs font-semibold transition ${
-                    trailHours === h ? 'bg-primary-600 text-white' : 'text-muted hover:bg-surface'
+                  key={key}
+                  onClick={() => setMoveFilter(key)}
+                  className={`flex-1 rounded-lg px-2 py-1 text-[11px] font-semibold transition ${
+                    moveFilter === key ? 'bg-primary-600 text-white' : 'border border-border text-muted hover:bg-surface'
                   }`}
                 >
                   {label}
                 </button>
               ))}
             </div>
+          </div>
+          <div className="flex-1 divide-y divide-border overflow-y-auto">
+            {filtered.length === 0 ? (
+              <p className="px-4 py-8 text-center text-xs text-muted">{de ? 'Keine Treffer' : 'Brak wyników'}</p>
+            ) : (
+              filtered.map((v) => {
+                const moving = v.speed_kmh > 5;
+                const driver = v.driver_name || drivers.get(v.vehicle_name);
+                const selected = v.vehicle_id === selectedId;
+                return (
+                  <button
+                    key={v.vehicle_id}
+                    onClick={() => focusVehicle(v)}
+                    className={`block w-full px-3 py-2.5 text-left transition ${
+                      selected ? 'bg-primary-50 dark:bg-primary-900/20' : 'hover:bg-surface'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className={`h-2 w-2 shrink-0 rounded-full ${moving ? 'bg-[#22ad5c] animate-pulse' : 'bg-gray-300 dark:bg-gray-600'}`} />
+                      <span className="truncate font-mono text-sm font-bold text-ink">{v.vehicle_name}</span>
+                      <span className={`ml-auto shrink-0 font-mono text-[11px] ${moving ? 'font-bold text-[#22ad5c]' : 'text-muted'}`}>
+                        {moving
+                          ? `${v.speed_kmh} km/h`
+                          : fmtStop(v.stopped_minutes, de)
+                            ? `${v.stopped_is_min ? '> ' : ''}${fmtStop(v.stopped_minutes, de)}`
+                            : (de ? 'Steht' : 'Postój')}
+                      </span>
+                    </div>
+                    {driver && <p className="ml-4 truncate text-[11px] text-muted">👤 {driver}</p>}
+                    <div className="ml-4 flex items-center gap-2 text-[11px] text-muted">
+                      {v.fuel_percent != null && (
+                        <span className={`inline-flex items-center gap-0.5 font-medium ${v.fuel_percent <= 15 ? 'text-danger' : v.fuel_percent <= 30 ? 'text-warning' : ''}`}>
+                          <Fuel size={10} /> {v.fuel_percent}%
+                        </span>
+                      )}
+                      {v.location && <span className="truncate">{v.location}</span>}
+                    </div>
+                  </button>
+                );
+              })
+            )}
+          </div>
+          <div className="border-t border-border px-3 py-2 text-center text-[11px] text-muted">
+            {filtered.length} / {vehicles.length}
+          </div>
+        </div>
+      ) : (
+        <button
+          onClick={() => setPanelOpen(true)}
+          className="absolute left-3 top-[68px] z-[500] flex items-center gap-1.5 rounded-2xl border border-border bg-card/90 px-3 py-2 text-xs font-semibold text-ink shadow-lg backdrop-blur-md transition hover:bg-surface"
+        >
+          <Truck size={14} />
+          {de ? 'Liste' : 'Lista'}
+        </button>
+      )}
+
+      {/* Floating route-history panel (when a vehicle is selected) */}
+      {selectedId && (
+        <div className="absolute bottom-3 right-3 z-[500] w-[calc(100%-1.5rem)] max-w-[320px] rounded-2xl border border-border bg-card/90 p-3 shadow-2xl backdrop-blur-md sm:w-auto">
+          <div className="mb-2 flex items-center gap-2">
+            <Route size={15} className={trailLoading ? 'animate-pulse text-primary-600' : 'text-primary-600'} />
+            <span className="text-sm font-bold text-ink">{de ? 'Route' : 'Trasa'}</span>
+            {selectedVehicle && <span className="truncate font-mono text-xs text-muted">{selectedVehicle.vehicle_name}</span>}
+            {routeOn && (
+              <button
+                onClick={() => { setTrailHours(0); setTrailDate(''); }}
+                className="ml-auto rounded-lg border border-border px-2 py-0.5 text-[11px] font-semibold text-muted transition hover:bg-surface"
+              >
+                {de ? 'Aus' : 'Wył.'}
+              </button>
+            )}
+          </div>
+          <div className="flex flex-wrap items-center gap-1">
+            {[
+              { h: 4, label: '4 h' },
+              { h: 8, label: '8 h' },
+              { h: 24, label: '24 h' },
+            ].map(({ h, label }) => (
+              <button
+                key={h}
+                onClick={() => { setTrailDate(''); setTrailHours(h); }}
+                className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
+                  !trailDate && trailHours === h ? 'bg-primary-600 text-white' : 'border border-border text-muted hover:bg-surface'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+            <input
+              type="date"
+              value={trailDate}
+              max={today}
+              onChange={(e) => { setTrailHours(0); setTrailDate(e.target.value); }}
+              className={`input rounded-lg px-2 py-1 text-xs dark:[color-scheme:dark] ${trailDate ? 'border-primary-500 text-primary-600' : ''}`}
+              title={de ? 'Historischer Tag' : 'Dzień historyczny'}
+            />
+          </div>
+          {routeOn && (
+            <div className="mt-2 flex items-center justify-between gap-2 text-xs">
+              <span className="text-muted">
+                {trailDate ? trailDate : (de ? `Letzte ${trailHours} Std` : `Ostatnie ${trailHours} h`)}
+              </span>
+              <span className="font-bold text-ink">
+                {trailLoading ? '…' : trailKm != null ? `${trailKm} km` : (de ? 'Keine Daten' : 'Brak danych')}
+              </span>
+            </div>
           )}
         </div>
-      </div>
+      )}
     </div>
   );
 }
