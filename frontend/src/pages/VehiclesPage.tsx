@@ -709,6 +709,36 @@ export function VehiclesPage() {
                 </tfoot>
               </table>
             </div>
+
+            {/* Mobile: day cards */}
+            <div className="divide-y divide-border sm:hidden">
+              {filteredDays.map((day) => {
+                const wd = weekday(day.date);
+                const isSunday = new Date(day.date + 'T00:00:00').getDay() === 0;
+                const isShortDay = day.duration_minutes > 0 && day.duration_minutes < 60;
+                return (
+                  <div key={day.date} className={`px-4 py-3 ${isShortDay ? 'bg-orange-50/60 dark:bg-orange-900/15' : isSunday ? 'bg-rose-50/50 dark:bg-rose-900/10' : ''}`}>
+                    <div className="mb-1.5 flex items-center justify-between">
+                      <span className="text-sm font-bold">
+                        {fmtDate(day.date)} <span className={`ml-1 text-xs font-medium ${isSunday ? 'text-danger' : 'text-muted'}`}>{wd}</span>
+                      </span>
+                      <Badge variant={isShortDay ? 'orange' : day.duration_h >= 10 ? 'blue' : 'gray'}>{day.duration_hm}</Badge>
+                    </div>
+                    {day.last_location && (
+                      <p className="mb-1.5 truncate text-xs text-muted">{day.last_location}</p>
+                    )}
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-0.5 text-xs">
+                      <span className="font-mono font-semibold">{day.distance_km > 0 ? `${fmtKm(day.distance_km)} km` : '—'}</span>
+                      <span className="text-muted">{fmtDateTime(day.begin_driving)} → {fmtDateTime(day.last_driving)}</span>
+                    </div>
+                  </div>
+                );
+              })}
+              <div className="flex items-center justify-between bg-black/[0.02] px-4 py-3 text-sm font-semibold dark:bg-white/5">
+                <span>{t('vehiclesTotal')}: {fmtKm(hasTimeFilter ? filteredTotalKm : activity.total_km)} km</span>
+                <Badge variant="blue">{fmtDuration(totalMinutes)}</Badge>
+              </div>
+            </div>
           </Card>
         </>
       )}
