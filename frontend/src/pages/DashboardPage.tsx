@@ -229,6 +229,40 @@ export function DashboardPage() {
         />
       </div>
 
+      {/* Distribution chart */}
+      {staleDrivers.length > 0 && (() => {
+        const buckets = [
+          { label: locale === 'de' ? '≤ 7 Tage' : '≤ 7 dni', color: '#22ad5c', count: staleDrivers.filter(d => d.days_since != null && d.days_since <= 7).length },
+          { label: '8–14', color: '#f59e0b', count: staleDrivers.filter(d => d.days_since != null && d.days_since > 7 && d.days_since <= 14).length },
+          { label: '15–28', color: '#fb923c', count: staleDrivers.filter(d => d.days_since != null && d.days_since > 14 && d.days_since <= 28).length },
+          { label: locale === 'de' ? '> 28 / keine' : '> 28 / brak', color: '#f23030', count: staleDrivers.filter(d => d.days_since == null || d.days_since > 28).length },
+        ];
+        const max = Math.max(1, ...buckets.map(b => b.count));
+        return (
+          <div className="mb-6">
+            <Card className="p-4 sm:p-6">
+              <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-muted">
+                {locale === 'de' ? 'Fahrer nach Tagen seit Download' : 'Kierowcy wg dni od pobrania'}
+              </h3>
+              <div className="space-y-2.5">
+                {buckets.map((b) => (
+                  <div key={b.label} className="flex items-center gap-3">
+                    <span className="w-24 shrink-0 text-xs font-medium text-muted sm:w-28">{b.label}</span>
+                    <div className="h-6 flex-1 overflow-hidden rounded-full bg-surface">
+                      <div
+                        className="h-full rounded-full transition-all duration-500"
+                        style={{ width: `${(b.count / max) * 100}%`, background: b.color, minWidth: b.count > 0 ? '1.5rem' : 0 }}
+                      />
+                    </div>
+                    <span className="w-7 shrink-0 text-right text-sm font-bold tabular-nums text-ink">{b.count}</span>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          </div>
+        );
+      })()}
+
       {/* Main content: 2 columns */}
       <div className="grid gap-6 lg:grid-cols-2">
 

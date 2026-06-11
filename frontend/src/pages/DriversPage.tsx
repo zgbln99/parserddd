@@ -1,8 +1,9 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, RefreshCw, ChevronUp, ChevronDown, FileText, AlertCircle, AlertTriangle, UserPlus, QrCode } from 'lucide-react';
+import { Search, RefreshCw, ChevronUp, ChevronDown, FileText, AlertCircle, AlertTriangle, UserPlus, QrCode, FileDown } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { fetchDrivers, addDriver } from '../lib/api';
+import { generateDriversPdf } from '../lib/pdf-generator';
 import { formatDate, formatDateTime, daysLabel, daysColor, formatBytes } from '../lib/format';
 import { Card } from '../components/Card';
 import { Badge, StatusDot } from '../components/Badge';
@@ -169,6 +170,20 @@ export function DriversPage() {
         >
           <UserPlus size={14} />
           {t('driversAddDriver')}
+        </button>
+        <button
+          onClick={() => generateDriversPdf(filtered.map((d) => ({
+            name: d.name,
+            card_number: d.card_number,
+            latest_download: d.latest_download,
+            days_since: d.days_since,
+            file_count: d.file_count,
+          })))}
+          disabled={filtered.length === 0}
+          className="flex items-center justify-center gap-2 rounded-xl border border-border px-4 py-2 min-h-[44px] text-sm font-medium text-ink transition hover:bg-surface disabled:opacity-40"
+        >
+          <FileDown size={14} />
+          PDF
         </button>
         <button
           onClick={() => load(true)}

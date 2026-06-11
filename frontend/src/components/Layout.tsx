@@ -4,8 +4,9 @@ import {
   LayoutDashboard, Users, FileText, RefreshCw, Sun, Moon, Globe, LogOut,
   Calendar, X, Shield, UserCog, Truck, Gauge, Coins, ClipboardCheck,
   Menu, ChevronLeft, ChevronRight, Route, PanelLeftClose, PanelLeftOpen,
-  Palette, Clock, ShieldCheck,
+  Palette, Clock, ShieldCheck, Search,
 } from 'lucide-react';
+import { NotificationCenter } from './NotificationCenter';
 import { useI18n, type Locale } from '../i18n';
 import { useTheme } from '../hooks/useTheme';
 import { useAuth } from '../hooks/useAuth';
@@ -354,6 +355,20 @@ export function Layout({ children }: { children: ReactNode }) {
                   {t('clear')}
                 </button>
               )}
+            </div>
+
+            {/* Right cluster: search + notifications */}
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => window.dispatchEvent(new CustomEvent('app:open-search'))}
+                className="flex items-center gap-2 rounded-lg border border-border px-2.5 py-2 text-xs font-medium text-muted transition hover:border-primary-300 hover:text-ink"
+                title={t('search')}
+              >
+                <Search size={16} />
+                <span className="hidden md:inline">{t('search')}</span>
+                <kbd className="hidden rounded border border-border px-1 py-0.5 text-[10px] lg:inline">⌘K</kbd>
+              </button>
+              <NotificationCenter />
             </div>
 
             {/* Mobile controls */}

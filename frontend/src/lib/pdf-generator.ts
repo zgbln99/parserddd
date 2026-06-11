@@ -2598,3 +2598,49 @@ export async function generateVehiclesActivityPdf(groups: VehiclesPdfGroup[], pe
   fleetFooter(c);
   doc.save(`Fahrzeug-Aktivitaet_${safeName(periodStr)}.pdf`);
 }
+
+// ── 4) Driver list ──
+
+export interface DriverPdfRow {
+  name: string;
+  card_number: string;
+  latest_download: string;
+  days_since: number | null;
+  file_count: number;
+}
+
+export async function generateDriversPdf(rows: DriverPdfRow[]) {
+  const c = await ctx('portrait');
+  const { doc } = c;
+  const y = fleetHeader(c, 'Fahrerliste', `${rows.length} Fahrer`);
+
+  const dOnly = (s: string) => {
+    if (!s) return '–';
+    const d = new Date(s);
+    return isNaN(d.getTime()) ? '–' : d.toLocaleDateString('de-DE');
+  };
+
+  fleetTable(
+    c,
+    y,
+    [['Fahrer', 'Kartennummer', 'Letzter Download', 'Tage', 'Dateien']],
+    rows.map((r) => [
+      r.name,
+      r.card_number || '–',
+      dOnly(r.latest_download),
+      r.days_since == null ? '–' : String(r.days_since),
+      String(r.file_count),
+    ]),
+    undefined,
+    {
+      0: { fontStyle: 'bold' },
+      1: { textColor: F.mut },
+      2: { halign: 'right', textColor: F.mut },
+      3: { halign: 'right', fontStyle: 'bold' },
+      4: { halign: 'center', textColor: F.mut },
+    },
+  );
+
+  fleetFooter(c);
+  doc.save(`Fahrerliste_${new Date().toISOString().slice(0, 10)}.pdf`);
+}

@@ -1,11 +1,14 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, LayoutDashboard, Users, FileText, RefreshCw, Shield, UserCog, GitCompareArrows, Receipt, Truck, MoonStar, Clock } from 'lucide-react';
+import { Search, LayoutDashboard, Users, FileText, RefreshCw, Shield, UserCog, Truck, Clock } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { useAuth } from '../hooks/useAuth';
+import { fetchDrivers } from '../lib/api';
+import type { Driver } from '../types';
 
 interface SearchItem {
   label: string;
+  sub?: string;
   to: string;
   icon: typeof LayoutDashboard;
   keywords: string[];
@@ -19,8 +22,10 @@ export function GlobalSearch() {
   const [query, setQuery] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [drivers, setDrivers] = useState<Driver[]>([]);
+  const loadedRef = useRef(false);
 
-  const items: SearchItem[] = [
+  const pages: SearchItem[] = [
     { label: t('navDashboard'), to: '/', icon: LayoutDashboard, keywords: ['dashboard', 'pulpit', 'übersicht', 'home'] },
     { label: t('navDrivers'), to: '/drivers', icon: Users, keywords: ['drivers', 'kierowcy', 'fahrer'] },
     { label: t('navReader'), to: '/reader', icon: FileText, keywords: ['reader', 'czytnik', 'kartenleser', 'upload', 'ddd'] },
@@ -33,16 +38,37 @@ export function GlobalSearch() {
     ] : []),
   ];
 
-  const filtered = query.trim()
-    ? items.filter((item) => {
-        const q = query.toLowerCase();
-        return item.label.toLowerCase().includes(q) || item.keywords.some((k) => k.includes(q));
-      })
-    : items;
+  const q = query.toLowerCase().trim();
+  const pageResults = q
+    ? pages.filter((item) => item.label.toLowerCase().includes(q) || item.keywords.some((k) => k.includes(q)))
+    : pages;
+
+  const driverResults: SearchItem[] = q
+    ? drivers
+        .filter((d) => d.name.toLowerCase().includes(q) || (d.card_number || '').toLowerCase().includes(q))
+        .slice(0, 8)
+        .map((d) => {
+          const f = d.files?.[0];
+          const to = f
+            ? `/analysis?${new URLSearchParams({ path: f.path, name: f.name, driver: d.name })}`
+            : '/drivers';
+          return { label: d.name, sub: d.card_number || undefined, to, icon: Users, keywords: [] };
+        })
+    : [];
+
+  const results = [...pageResults, ...driverResults];
 
   useEffect(() => {
     setSelectedIndex(0);
   }, [query]);
+
+  // Lazily load drivers the first time the palette opens (cached endpoint).
+  useEffect(() => {
+    if (open && !loadedRef.current) {
+      loadedRef.current = true;
+      fetchDrivers().then((r) => setDrivers(r.drivers || [])).catch(() => {});
+    }
+  }, [open]);
 
   const handleSelect = useCallback((to: string) => {
     navigate(to);
@@ -61,8 +87,15 @@ export function GlobalSearch() {
         setQuery('');
       }
     }
+    function handleOpenEvent() {
+      setOpen(true);
+    }
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener('app:open-search', handleOpenEvent);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('app:open-search', handleOpenEvent);
+    };
   }, []);
 
   useEffect(() => {
@@ -74,12 +107,12 @@ export function GlobalSearch() {
   const handleKeyNav = (e: React.KeyboardEvent) => {
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      setSelectedIndex((prev) => Math.min(prev + 1, filtered.length - 1));
+      setSelectedIndex((prev) => Math.min(prev + 1, results.length - 1));
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
       setSelectedIndex((prev) => Math.max(prev - 1, 0));
-    } else if (e.key === 'Enter' && filtered[selectedIndex]) {
-      handleSelect(filtered[selectedIndex].to);
+    } else if (e.key === 'Enter' && results[selectedIndex]) {
+      handleSelect(results[selectedIndex].to);
     }
   };
 
@@ -106,15 +139,16 @@ export function GlobalSearch() {
 
         {/* Results */}
         <div className="max-h-[50vh] overflow-y-auto p-2">
-          {filtered.length === 0 ? (
+          {results.length === 0 ? (
             <p className="py-8 text-center text-sm text-muted">{t('noData')}</p>
           ) : (
-            filtered.map((item, i) => {
+            results.map((item, i) => {
               const Icon = item.icon;
               return (
                 <button
-                  key={item.to}
+                  key={`${item.to}-${i}`}
                   onClick={() => handleSelect(item.to)}
+                  onMouseEnter={() => setSelectedIndex(i)}
                   className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition ${
                     i === selectedIndex
                       ? 'bg-primary-50 text-primary-700'
@@ -122,7 +156,8 @@ export function GlobalSearch() {
                   }`}
                 >
                   <Icon size={18} className="shrink-0" />
-                  <span className="font-medium">{item.label}</span>
+                  <span className="min-w-0 flex-1 truncate font-medium">{item.label}</span>
+                  {item.sub && <span className="shrink-0 font-mono text-xs text-muted">{item.sub}</span>}
                 </button>
               );
             })
