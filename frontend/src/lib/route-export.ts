@@ -3,10 +3,11 @@
  *
  * The map snapshot is rendered locally on a canvas from CARTO raster tiles
  * (CORS-enabled), with the route polyline and start/end markers drawn on
- * top — no extra dependencies, no API keys.
+ * top — no extra dependencies, no API keys. The canvas is rendered at the
+ * exact aspect ratio of the PDF map box so nothing gets stretched.
  */
 import autoTable from 'jspdf-autotable';
-import { ctx, drawFooter, safeName, loadInterFonts, registerInterFont, type Ctx } from './pdf-generator';
+import { ctx, safeName, loadInterFonts, registerInterFont, type Ctx } from './pdf-generator';
 import type { TrailPoint } from './api';
 
 // --- static map on canvas ---------------------------------------------------
@@ -53,7 +54,7 @@ export async function renderRouteSnapshot(
   for (; zoom > 3; zoom--) {
     const w = (lon2tile(maxLng, zoom) - lon2tile(minLng, zoom)) * TILE;
     const h = (lat2tile(minLat, zoom) - lat2tile(maxLat, zoom)) * TILE;
-    if (w <= width - 200 && h <= height - 200) break;
+    if (w <= width - 220 && h <= height - 180) break;
   }
 
   const cLat = (minLat + maxLat) / 2;
@@ -87,7 +88,7 @@ export async function renderRouteSnapshot(
   await Promise.all(jobs);
 
   // Soften the basemap so the route pops.
-  g.fillStyle = 'rgba(255,255,255,0.28)';
+  g.fillStyle = 'rgba(255,255,255,0.3)';
   g.fillRect(0, 0, width, height);
 
   // Route with soft shadow: dark casing + brand line + light core.
@@ -131,7 +132,7 @@ export async function renderRouteSnapshot(
     g.fillStyle = '#ffffff';
     g.fillText(label, lx + 12, ly + 23);
   };
-  pin(pts[0].lng, pts[0].lat, '#16a34a', de ? 'START' : 'START');
+  pin(pts[0].lng, pts[0].lat, '#16a34a', 'START');
   pin(pts[pts.length - 1].lng, pts[pts.length - 1].lat, '#dc2626', de ? 'ZIEL' : 'META');
 
   // Attribution (tile licence requirement).
@@ -198,11 +199,17 @@ function detectStops(points: TrailPoint[], minMin = 10): Stop[] {
   return stops;
 }
 
-// --- PDF ----------------------------------------------------------------------
+// --- PDF design system --------------------------------------------------------
 
-const INK: [number, number, number] = [15, 23, 42];
+const NAVY: [number, number, number] = [15, 23, 42];
+const INK: [number, number, number] = [30, 41, 59];
 const MUTED: [number, number, number] = [100, 116, 139];
+const FAINT: [number, number, number] = [148, 163, 184];
 const PRIMARY: [number, number, number] = [87, 80, 241];
+const LINE: [number, number, number] = [226, 232, 240];
+const BG: [number, number, number] = [248, 250, 252];
+const GREEN: [number, number, number] = [22, 163, 74];
+const RED: [number, number, number] = [220, 38, 38];
 
 interface Fonts { name: string }
 
@@ -215,150 +222,216 @@ async function setupFonts(c: Ctx): Promise<Fonts> {
   return { name: 'helvetica' };
 }
 
-/** Pretty header band: brand bar, title, subtitle, date chip. */
-function header(c: Ctx, f: Fonts, title: string, subtitle: string, de: boolean): number {
+/** Dark hero header: kicker, big title, meta line, logo chip, accent rule. */
+function header(c: Ctx, f: Fonts, kicker: string, title: string, meta: string): number {
   const { doc, W, M } = c;
+  const H_BAND = 26;
+  doc.setFillColor(...NAVY);
+  doc.rect(0, 0, W, H_BAND, 'F');
   doc.setFillColor(...PRIMARY);
-  doc.rect(0, 0, W, 3, 'F');
-  doc.setFillColor(248, 250, 252);
-  doc.rect(0, 3, W, 22, 'F');
-  if (c.logo) { try { doc.addImage(c.logo, 'PNG', W - M - 28, 7, 28, 12); } catch { /* skip */ } }
+  doc.rect(0, H_BAND, W, 1.1, 'F');
+
   doc.setFont(f.name, 'bold');
-  doc.setFontSize(16);
-  doc.setTextColor(...INK);
-  doc.text(title, M, 13.5);
-  doc.setFont(f.name, 'normal');
-  doc.setFontSize(9.5);
-  doc.setTextColor(...MUTED);
-  doc.text(subtitle, M, 20);
   doc.setFontSize(7);
-  doc.text(
-    `${de ? 'Erstellt' : 'Wygenerowano'}: ${new Date().toLocaleString(de ? 'de-DE' : 'pl-PL')} · LTS Logistik GmbH`,
-    W - M - 32, 22.5, { align: 'right' },
-  );
-  doc.setDrawColor(226, 232, 240);
-  doc.setLineWidth(0.3);
-  doc.line(0, 25, W, 25);
-  return 30;
+  doc.setTextColor(165, 180, 252);
+  doc.text(kicker.toUpperCase(), M, 8.5, { charSpace: 0.6 });
+
+  doc.setFontSize(16.5);
+  doc.setTextColor(255, 255, 255);
+  doc.text(title, M, 16.5);
+
+  doc.setFont(f.name, 'normal');
+  doc.setFontSize(8.5);
+  doc.setTextColor(203, 213, 225);
+  doc.text(meta, M, 22.5);
+
+  // Logo on a white chip.
+  if (c.logo) {
+    try {
+      doc.setFillColor(255, 255, 255);
+      doc.roundedRect(W - M - 36, 5.5, 36, 15, 2, 2, 'F');
+      doc.addImage(c.logo, 'PNG', W - M - 33, 8, 30, 10);
+    } catch { /* skip */ }
+  }
+  return H_BAND + 7;
 }
 
-/** Metric card with accent bar, Inter font, big value. */
+/** Custom footer for route reports (Inter, page numbers, brand rule). */
+function footer(c: Ctx, f: Fonts, de: boolean) {
+  const { doc, W, H, M } = c;
+  const pages = doc.getNumberOfPages();
+  for (let i = 1; i <= pages; i++) {
+    doc.setPage(i);
+    doc.setDrawColor(...LINE);
+    doc.setLineWidth(0.25);
+    doc.line(M, H - 9, W - M, H - 9);
+    doc.setFillColor(...PRIMARY);
+    doc.rect(0, H - 2, W, 2, 'F');
+    doc.setFont(f.name, 'normal');
+    doc.setFontSize(6.5);
+    doc.setTextColor(...FAINT);
+    doc.text(`LTS Logistik GmbH · ${de ? 'Routenbericht' : 'Raport trasy'} · ${de ? 'Vertraulich' : 'Poufne'}`, M, H - 5);
+    doc.text(
+      `${de ? 'Seite' : 'Strona'} ${i} / ${pages}  ·  ${new Date().toLocaleString(de ? 'de-DE' : 'pl-PL')}`,
+      W - M, H - 5, { align: 'right' },
+    );
+  }
+}
+
+/** Metric card: tinted icon dot, uppercase label, big value. */
 function card(c: Ctx, f: Fonts, x: number, y: number, w: number, label: string, value: string, color: [number, number, number]) {
   const { doc } = c;
+  const h = 18;
   doc.setFillColor(255, 255, 255);
-  doc.setDrawColor(226, 232, 240);
+  doc.setDrawColor(...LINE);
   doc.setLineWidth(0.3);
-  doc.roundedRect(x, y, w, 17, 2, 2, 'FD');
-  doc.setFillColor(...color);
-  doc.roundedRect(x, y, 1.6, 17, 0.8, 0.8, 'F');
-  doc.setFont(f.name, 'normal');
-  doc.setFontSize(6.8);
-  doc.setTextColor(...MUTED);
-  doc.text(label.toUpperCase(), x + 5, y + 6);
+  doc.roundedRect(x, y, w, h, 2.5, 2.5, 'FD');
+  // tinted accent dot
+  doc.setFillColor(color[0], color[1], color[2]);
+  doc.circle(x + 6, y + 6.2, 1.7, 'F');
   doc.setFont(f.name, 'bold');
-  doc.setFontSize(13);
+  doc.setFontSize(6.3);
+  doc.setTextColor(...MUTED);
+  doc.text(label.toUpperCase(), x + 10, y + 7.3, { charSpace: 0.3 });
+  doc.setFontSize(13.5);
   doc.setTextColor(...INK);
-  doc.text(value, x + 5, y + 13.5);
+  doc.text(value, x + 6, y + 14.8);
 }
+
+/** Section title with accent square. */
+function section(c: Ctx, f: Fonts, x: number, y: number, label: string, color: [number, number, number] = PRIMARY) {
+  const { doc } = c;
+  doc.setFillColor(color[0], color[1], color[2]);
+  doc.roundedRect(x, y - 3.2, 2.4, 4.2, 0.6, 0.6, 'F');
+  doc.setFont(f.name, 'bold');
+  doc.setFontSize(10.5);
+  doc.setTextColor(...INK);
+  doc.text(label, x + 5, y);
+}
+
+const tableTheme = (f: Fonts) => ({
+  styles: { font: f.name, fontSize: 7.6, cellPadding: { top: 2, bottom: 2, left: 2.5, right: 2.5 }, textColor: INK as [number, number, number], lineColor: LINE as [number, number, number], lineWidth: 0.15 },
+  headStyles: { fillColor: NAVY as [number, number, number], textColor: [226, 232, 240] as [number, number, number], fontStyle: 'bold' as const, fontSize: 7.2 },
+  alternateRowStyles: { fillColor: BG as [number, number, number] },
+});
 
 interface RoutePageOpts {
   vehicleName: string;
   driverName?: string;
-  periodLabel: string; // e.g. "2026-06-10" or "Ostatnie 8 h"
+  periodLabel: string; // e.g. "2026-06-10" or "Letzte 8 Std"
   points: TrailPoint[];
   totalKm: number;
   de: boolean;
 }
 
-/** One full report page: header, metric cards, map snapshot, address strip. */
+/** One full report page: hero header, metric cards, map, address timeline. */
 async function addRoutePage(c: Ctx, f: Fonts, opts: RoutePageOpts) {
   const { vehicleName, driverName, periodLabel, points, totalKm, de } = opts;
   const { pts, durMin, maxSpeed, avgSpeed, driveMin } = routeStats(points, totalKm);
-  const snapshot = await renderRouteSnapshot(points, de);
   const { doc, W, H, M } = c;
 
   let y = header(
     c, f,
     de ? 'Routenbericht' : 'Raport trasy',
-    `${vehicleName}${driverName ? `  ·  ${driverName}` : ''}  ·  ${periodLabel}`,
-    de,
+    vehicleName,
+    `${driverName ? `${driverName}   ·   ` : ''}${periodLabel}   ·   ${pts.length} GPS`,
   );
 
-  const cardW = (W - 2 * M - 4 * 4) / 5;
+  // Metric cards.
+  const gap = 4;
+  const cardW = (W - 2 * M - 4 * gap) / 5;
   card(c, f, M, y, cardW, de ? 'Distanz' : 'Dystans', `${totalKm} km`, PRIMARY);
-  card(c, f, M + (cardW + 4), y, cardW, de ? 'Fahrzeit' : 'Czas jazdy', hhmm(driveMin), [16, 185, 129]);
-  card(c, f, M + 2 * (cardW + 4), y, cardW, de ? 'Gesamtdauer' : 'Czas całkowity', hhmm(durMin), [13, 148, 136]);
-  card(c, f, M + 3 * (cardW + 4), y, cardW, de ? 'Ø Geschw.' : 'Śr. prędkość', `${avgSpeed} km/h`, [234, 88, 12]);
-  card(c, f, M + 4 * (cardW + 4), y, cardW, de ? 'Max. Geschw.' : 'Maks. prędkość', `${maxSpeed} km/h`, [220, 38, 38]);
-  y += 21;
+  card(c, f, M + (cardW + gap), y, cardW, de ? 'Fahrzeit' : 'Czas jazdy', hhmm(driveMin), [16, 185, 129]);
+  card(c, f, M + 2 * (cardW + gap), y, cardW, de ? 'Gesamtdauer' : 'Czas całkowity', hhmm(durMin), [13, 148, 136]);
+  card(c, f, M + 3 * (cardW + gap), y, cardW, de ? 'Ø Geschw.' : 'Śr. prędkość', `${avgSpeed} km/h`, [234, 88, 12]);
+  card(c, f, M + 4 * (cardW + gap), y, cardW, de ? 'Max. Geschw.' : 'Maks. prędkość', `${maxSpeed} km/h`, RED);
+  y += 23;
 
-  // Map snapshot with rounded frame.
-  const addrH = 13;
-  const mapH = H - y - addrH - 13;
+  // Layout: map fills width; address timeline card at the bottom.
+  const addrH = 17;
   const mapW = W - 2 * M;
+  const mapH = H - y - addrH - 17;
+
+  // Snapshot rendered at the exact aspect ratio of the PDF box (no stretching).
+  const pxPerMm = 6.5;
+  const snapshot = await renderRouteSnapshot(points, de, Math.round(mapW * pxPerMm), Math.round(mapH * pxPerMm));
   if (snapshot) {
-    doc.setDrawColor(203, 213, 225);
-    doc.setLineWidth(0.5);
-    doc.roundedRect(M, y, mapW, mapH, 2.5, 2.5, 'S');
-    doc.addImage(snapshot, 'PNG', M + 0.6, y + 0.6, mapW - 1.2, mapH - 1.2);
+    doc.setDrawColor(...LINE);
+    doc.setLineWidth(0.4);
+    doc.roundedRect(M, y, mapW, mapH, 3, 3, 'S');
+    doc.addImage(snapshot, 'PNG', M + 0.7, y + 0.7, mapW - 1.4, mapH - 1.4);
   }
   y += mapH + 4;
 
-  // Address strip: start → end with times.
+  // Address timeline: green dot — connector — red dot.
   const startLoc = pts[0].location || `${pts[0].lat.toFixed(4)}, ${pts[0].lng.toFixed(4)}`;
   const endLoc = pts[pts.length - 1].location || `${pts[pts.length - 1].lat.toFixed(4)}, ${pts[pts.length - 1].lng.toFixed(4)}`;
-  doc.setFillColor(248, 250, 252);
-  doc.roundedRect(M, y, mapW, addrH, 2, 2, 'F');
-  doc.setFillColor(22, 163, 74);
-  doc.circle(M + 5, y + 4.4, 1.4, 'F');
-  doc.setFillColor(220, 38, 38);
-  doc.circle(M + 5, y + 9.6, 1.4, 'F');
+  doc.setFillColor(...BG);
+  doc.setDrawColor(...LINE);
+  doc.setLineWidth(0.3);
+  doc.roundedRect(M, y, mapW, addrH, 2.5, 2.5, 'FD');
+
+  const dotX = M + 7;
+  const r1 = y + 5.6; const r2 = y + 12.4;
+  doc.setDrawColor(...FAINT);
+  doc.setLineWidth(0.5);
+  doc.line(dotX, r1 + 2, dotX, r2 - 2);
+  doc.setFillColor(...GREEN);
+  doc.circle(dotX, r1, 1.6, 'F');
+  doc.setFillColor(...RED);
+  doc.circle(dotX, r2, 1.6, 'F');
+
   doc.setFont(f.name, 'bold');
   doc.setFontSize(8);
   doc.setTextColor(...INK);
-  doc.text(fmtT(pts[0].time, de), M + 9, y + 5.4);
-  doc.text(fmtT(pts[pts.length - 1].time, de), M + 9, y + 10.6);
+  doc.text(fmtT(pts[0].time, de), dotX + 5, r1 + 1.2);
+  doc.text(fmtT(pts[pts.length - 1].time, de), dotX + 5, r2 + 1.2);
+
   doc.setFont(f.name, 'normal');
   doc.setTextColor(...MUTED);
-  const addrX = M + 42;
-  doc.text(doc.splitTextToSize(startLoc, mapW - addrX + M - 4)[0] || '', addrX, y + 5.4);
-  doc.text(doc.splitTextToSize(endLoc, mapW - addrX + M - 4)[0] || '', addrX, y + 10.6);
+  const addrX = dotX + 38;
+  doc.text(doc.splitTextToSize(startLoc, mapW - (addrX - M) - 6)[0] || '', addrX, r1 + 1.2);
+  doc.text(doc.splitTextToSize(endLoc, mapW - (addrX - M) - 6)[0] || '', addrX, r2 + 1.2);
 }
 
 /** Details page: stops with addresses + hourly km table. */
 function addDetailsPage(c: Ctx, f: Fonts, opts: RoutePageOpts) {
-  const { vehicleName, periodLabel, points, de } = opts;
+  const { vehicleName, driverName, periodLabel, points, de } = opts;
   const { doc, W, M } = c;
   const pts = points.filter((p) => p.lat != null && p.lng != null);
   doc.addPage('a4', 'landscape');
-  let y = header(c, f, de ? 'Routendetails' : 'Szczegóły trasy', `${vehicleName}  ·  ${periodLabel}`, de);
+  const y = header(
+    c, f,
+    de ? 'Routendetails' : 'Szczegóły trasy',
+    vehicleName,
+    `${driverName ? `${driverName}   ·   ` : ''}${periodLabel}`,
+  );
 
-  const half = (W - 2 * M - 6) / 2;
+  const half = (W - 2 * M - 8) / 2;
+  const theme = tableTheme(f);
 
   // Stops with addresses (left half).
   const stops = detectStops(pts);
-  doc.setFont(f.name, 'bold');
-  doc.setFontSize(10);
-  doc.setTextColor(...INK);
-  doc.text(de ? `Stopps ≥ 10 min (${stops.length})` : `Postoje ≥ 10 min (${stops.length})`, M, y);
+  section(c, f, M, y, de ? `Stopps ab 10 Min (${stops.length})` : `Postoje od 10 min (${stops.length})`);
   autoTable(doc, {
-    startY: y + 2,
-    margin: { left: M, right: M + half + 6 },
+    startY: y + 3,
+    margin: { left: M, right: M + half + 8 },
     tableWidth: half,
-    head: [[de ? 'Von' : 'Od', de ? 'Bis' : 'Do', de ? 'Dauer' : 'Czas', de ? 'Adresse' : 'Adres']],
+    head: [['#', de ? 'Von' : 'Od', de ? 'Bis' : 'Do', de ? 'Dauer' : 'Czas', de ? 'Adresse' : 'Adres']],
     body: stops.length
-      ? stops.map((s) => [fmtClock(s.from, de), fmtClock(s.to, de), hhmm(s.durMin), s.location || '—'])
-      : [[de ? 'Keine Stopps' : 'Brak postojów', '', '', '']],
-    styles: { font: f.name, fontSize: 7.5, cellPadding: 1.5, textColor: INK },
-    headStyles: { fillColor: PRIMARY, textColor: 255, fontStyle: 'bold' },
-    alternateRowStyles: { fillColor: [248, 250, 252] },
-    columnStyles: { 0: { cellWidth: 14 }, 1: { cellWidth: 14 }, 2: { cellWidth: 14 } },
+      ? stops.map((s, i) => [String(i + 1), fmtClock(s.from, de), fmtClock(s.to, de), hhmm(s.durMin), s.location || '—'])
+      : [['—', de ? 'Keine Stopps' : 'Brak postojów', '', '', '']],
+    ...theme,
+    columnStyles: {
+      0: { cellWidth: 7, textColor: FAINT },
+      1: { cellWidth: 13, fontStyle: 'bold' },
+      2: { cellWidth: 13 },
+      3: { cellWidth: 14 },
+    },
   });
 
   // Hourly breakdown (right half).
-  doc.setFont(f.name, 'bold');
-  doc.setFontSize(10);
-  doc.text(de ? 'Kilometer pro Stunde' : 'Kilometry na godzinę', M + half + 6, y);
+  section(c, f, M + half + 8, y, de ? 'Kilometer pro Stunde' : 'Kilometry na godzinę', [13, 148, 136]);
   const buckets = new Map<string, { km: number; max: number }>();
   for (let i = 1; i < pts.length; i++) {
     const d = new Date(pts[i].time);
@@ -374,17 +447,19 @@ function addDetailsPage(c: Ctx, f: Fonts, opts: RoutePageOpts) {
     b.max = Math.max(b.max, pts[i].speed_kmh || 0);
     buckets.set(key, b);
   }
+  const totalH = [...buckets.values()].reduce((s, b) => s + b.km, 0);
   autoTable(doc, {
-    startY: y + 2,
-    margin: { left: M + half + 6, right: M },
+    startY: y + 3,
+    margin: { left: M + half + 8, right: M },
     tableWidth: half,
     head: [[de ? 'Stunde' : 'Godzina', 'km', de ? 'Max km/h' : 'Maks. km/h']],
     body: [...buckets.entries()]
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([h, b]) => [h, b.km.toFixed(1), String(Math.round(b.max))]),
-    styles: { font: f.name, fontSize: 7.5, cellPadding: 1.5, textColor: INK },
-    headStyles: { fillColor: [13, 148, 136], textColor: 255, fontStyle: 'bold' },
-    alternateRowStyles: { fillColor: [248, 250, 252] },
+    foot: [[de ? 'Gesamt' : 'Razem', totalH.toFixed(1), '']],
+    ...theme,
+    footStyles: { fillColor: BG, textColor: INK, fontStyle: 'bold', fontSize: 7.6 },
+    columnStyles: { 0: { fontStyle: 'bold' } },
   });
 }
 
@@ -398,7 +473,7 @@ export async function generateRoutePdf(opts: RoutePageOpts) {
   await addRoutePage(c, f, opts);
   addDetailsPage(c, f, opts);
 
-  drawFooter(c);
+  footer(c, f, de);
   c.doc.save(`${de ? 'Route' : 'Trasa'}_${safeName(vehicleName)}_${periodLabel.replace(/[^0-9A-Za-z-]+/g, '_')}.pdf`);
 }
 
@@ -429,23 +504,25 @@ export async function generateMultiDayRoutePdf(opts: {
   let y = header(
     c, f,
     de ? 'Routenbericht — Zeitraum' : 'Raport tras — zakres',
-    `${vehicleName}${driverName ? `  ·  ${driverName}` : ''}  ·  ${rangeLabel}`,
-    de,
+    vehicleName,
+    `${driverName ? `${driverName}   ·   ` : ''}${rangeLabel}`,
   );
   const perDay = days.map((d) => ({ ...d, s: routeStats(d.points, d.km) }));
   const driveTotal = perDay.reduce((s, d) => s + d.s.driveMin, 0);
   const maxSpeed = Math.max(...perDay.map((d) => d.s.maxSpeed));
 
-  const cardW = (W - 2 * M - 3 * 4) / 4;
+  const gap = 4;
+  const cardW = (W - 2 * M - 3 * gap) / 4;
   card(c, f, M, y, cardW, de ? 'Distanz gesamt' : 'Dystans łącznie', `${totalKm} km`, PRIMARY);
-  card(c, f, M + cardW + 4, y, cardW, de ? 'Tage' : 'Dni', String(days.length), [13, 148, 136]);
-  card(c, f, M + 2 * (cardW + 4), y, cardW, de ? 'Fahrzeit' : 'Czas jazdy', hhmm(driveTotal), [16, 185, 129]);
-  card(c, f, M + 3 * (cardW + 4), y, cardW, de ? 'Max. Geschw.' : 'Maks. prędkość', `${maxSpeed} km/h`, [220, 38, 38]);
-  y += 21;
+  card(c, f, M + cardW + gap, y, cardW, de ? 'Tage' : 'Dni', String(days.length), [13, 148, 136]);
+  card(c, f, M + 2 * (cardW + gap), y, cardW, de ? 'Fahrzeit' : 'Czas jazdy', hhmm(driveTotal), [16, 185, 129]);
+  card(c, f, M + 3 * (cardW + gap), y, cardW, de ? 'Max. Geschw.' : 'Maks. prędkość', `${maxSpeed} km/h`, RED);
+  y += 23;
 
-  const trim = (s: string, n = 38) => (s.length > n ? s.slice(0, n - 1) + '…' : s);
+  section(c, f, M, y, de ? 'Tagesübersicht' : 'Zestawienie dzienne');
+  const trim = (s: string, n = 44) => (s.length > n ? s.slice(0, n - 1) + '…' : s);
   autoTable(doc, {
-    startY: y,
+    startY: y + 3,
     margin: { left: M, right: M },
     head: [[
       de ? 'Datum' : 'Data', 'km',
@@ -460,10 +537,10 @@ export async function generateMultiDayRoutePdf(opts: {
       `${fmtClock(d.s.pts[0].time, de)}  ${trim(d.s.pts[0].location || '')}`,
       `${fmtClock(d.s.pts[d.s.pts.length - 1].time, de)}  ${trim(d.s.pts[d.s.pts.length - 1].location || '')}`,
     ]),
-    styles: { font: f.name, fontSize: 7.5, cellPadding: 1.6, textColor: INK },
-    headStyles: { fillColor: PRIMARY, textColor: 255, fontStyle: 'bold' },
-    alternateRowStyles: { fillColor: [248, 250, 252] },
-    columnStyles: { 0: { cellWidth: 20, fontStyle: 'bold' }, 1: { cellWidth: 14 }, 2: { cellWidth: 18 }, 3: { cellWidth: 18 } },
+    foot: [[de ? 'Gesamt' : 'Razem', totalKm.toFixed(1), hhmm(driveTotal), String(maxSpeed), '', '']],
+    ...tableTheme(f),
+    footStyles: { fillColor: BG, textColor: INK, fontStyle: 'bold', fontSize: 7.6 },
+    columnStyles: { 0: { cellWidth: 21, fontStyle: 'bold' }, 1: { cellWidth: 14 }, 2: { cellWidth: 18 }, 3: { cellWidth: 18 } },
   });
 
   // --- one page per day (map + metrics) ---
@@ -479,7 +556,7 @@ export async function generateMultiDayRoutePdf(opts: {
     });
   }
 
-  drawFooter(c);
+  footer(c, f, de);
   doc.save(`${de ? 'Route' : 'Trasa'}_${safeName(vehicleName)}_${days[0].date}_${days[days.length - 1].date}.pdf`);
 }
 
