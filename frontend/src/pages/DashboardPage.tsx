@@ -4,11 +4,12 @@ import {
   Users, FileText, RefreshCw, AlertCircle, ArrowRight, Upload,
   Cloud, Truck, Clock, CreditCard, AlertTriangle,
   Sun, Moon, Sunrise, Sunset, ClipboardCheck, CheckCircle, Coins, Gauge,
+  MapPin, ExternalLink,
 } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { useAuth } from '../hooks/useAuth';
-import { fetchDashboard, fetchConnectionStatus, scanCardExpiry, fetchPayrollStatus, fetchDrivers, fetchLiveStatus } from '../lib/api';
-import type { StaleDriver, ExpiringCard, PayrollStatusValue, LiveDriverStatus } from '../lib/api';
+import { fetchDashboard, fetchConnectionStatus, scanCardExpiry, fetchPayrollStatus, fetchDrivers, fetchLiveStatus, fetchVehicleLocations } from '../lib/api';
+import type { StaleDriver, ExpiringCard, PayrollStatusValue, LiveDriverStatus, VehicleLocation } from '../lib/api';
 import type { Driver } from '../types';
 import { formatDateTime, formatDate } from '../lib/format';
 import { StatCard, Card } from '../components/Card';
@@ -107,6 +108,8 @@ export function DashboardPage() {
   const [payrollStatuses, setPayrollStatuses] = useState<Record<string, PayrollStatusValue>>({});
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [liveDrivers, setLiveDrivers] = useState<LiveDriverStatus[]>([]);
+  const [fleet, setFleet] = useState<VehicleLocation[]>([]);
+  const [fleetShowAll, setFleetShowAll] = useState(false);
 
   const refreshRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -131,11 +134,16 @@ export function DashboardPage() {
     fetchLiveStatus()
       .then(r => setLiveDrivers(r.drivers || []))
       .catch(() => {});
+    // Live fleet positions — hidden silently for users without permission
+    fetchVehicleLocations()
+      .then(r => setFleet(r.vehicles || []))
+      .catch(() => {});
 
     // Auto-refresh every 60s
     refreshRef.current = setInterval(() => {
       fetchDashboard().then((d) => { setData(d); writeDashCache(d); }).catch(() => {});
       fetchConnectionStatus().then(setConnections).catch(() => {});
+      fetchVehicleLocations().then(r => setFleet(r.vehicles || [])).catch(() => {});
     }, REFRESH_INTERVAL);
 
     return () => {
@@ -494,6 +502,90 @@ export function DashboardPage() {
           </Card>
         </div>
       )}
+
+      {/* Live fleet map-less tracker */}
+      {fleet.length > 0 && (() => {
+        const driverByVehicle = new Map<string, string>();
+        for (const d of liveDrivers) {
+          if (d.vehicle) driverByVehicle.set(d.vehicle, d.name);
+        }
+        const timeAgo = (ts: string) => {
+          if (!ts) return '—';
+          const mins = Math.max(0, Math.round((Date.now() - new Date(ts).getTime()) / 60000));
+          if (mins < 1) return locale === 'de' ? 'jetzt' : 'teraz';
+          if (mins < 60) return `${mins} min`;
+          return `${Math.floor(mins / 60)} h ${mins % 60} min`;
+        };
+        const sorted = [...fleet].sort((a, b) => (b.speed_kmh - a.speed_kmh) || a.vehicle_name.localeCompare(b.vehicle_name));
+        const movingCount = fleet.filter(v => v.speed_kmh > 5).length;
+        const visible = fleetShowAll ? sorted : sorted.slice(0, 8);
+        return (
+          <div className="mt-6">
+            <Card className="p-0 overflow-hidden">
+              <div className="flex items-center gap-3 border-b border-border px-5 py-4">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-[#34d399] to-[#16a34a] text-white">
+                  <MapPin size={16} />
+                </div>
+                <h3 className="text-sm font-semibold uppercase tracking-wider text-muted">
+                  {locale === 'de' ? 'Live-Flotte' : 'Flota na żywo'}
+                </h3>
+                <Badge variant="green">{movingCount} {locale === 'de' ? 'fährt' : 'w trasie'}</Badge>
+                <span className="ml-auto flex items-center gap-1.5 text-xs text-[#22ad5c]">
+                  <span className="h-2 w-2 rounded-full bg-[#22ad5c] animate-pulse" />
+                  Live
+                </span>
+              </div>
+              <div className="divide-y divide-border">
+                {visible.map((v) => {
+                  const moving = v.speed_kmh > 5;
+                  const driver = driverByVehicle.get(v.vehicle_name);
+                  const mapsUrl = v.latitude != null && v.longitude != null
+                    ? `https://maps.google.com/?q=${v.latitude},${v.longitude}`
+                    : '';
+                  return (
+                    <div key={v.vehicle_id} className="flex items-center gap-3 px-5 py-2.5">
+                      <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${moving ? 'bg-[#22ad5c] animate-pulse' : 'bg-gray-300 dark:bg-gray-600'}`} />
+                      <div className="w-28 shrink-0 sm:w-36">
+                        <p className="truncate font-mono text-sm font-semibold text-ink">{v.vehicle_name}</p>
+                        {driver && <p className="truncate text-[11px] text-muted">{driver}</p>}
+                      </div>
+                      <span className={`hidden w-20 shrink-0 text-right font-mono text-sm sm:block ${moving ? 'font-bold text-[#22ad5c]' : 'text-muted'}`}>
+                        {moving ? `${v.speed_kmh} km/h` : (locale === 'de' ? 'Steht' : 'Postój')}
+                      </span>
+                      <p className="min-w-0 flex-1 truncate text-xs text-muted" title={v.location}>
+                        {v.location || '—'}
+                      </p>
+                      <span className="hidden shrink-0 text-[11px] tabular-nums text-muted md:block">{timeAgo(v.updated_at)}</span>
+                      {mapsUrl && (
+                        <a
+                          href={mapsUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="shrink-0 rounded-lg p-1.5 text-muted transition hover:bg-primary-50 hover:text-primary-600"
+                          title="Google Maps"
+                        >
+                          <ExternalLink size={14} />
+                        </a>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              {sorted.length > 8 && (
+                <div className="border-t border-border px-5 py-2.5">
+                  <button
+                    onClick={() => setFleetShowAll(!fleetShowAll)}
+                    className="flex w-full items-center justify-center gap-1 text-xs font-semibold text-primary-600 transition hover:text-primary-700"
+                  >
+                    {fleetShowAll ? t('close') : `${t('dashShowAll')} (${sorted.length})`}
+                    <ArrowRight size={12} />
+                  </button>
+                </div>
+              )}
+            </Card>
+          </div>
+        );
+      })()}
 
       {/* Bottom row: sync */}
       <div className="mt-6 grid gap-6 lg:grid-cols-2">

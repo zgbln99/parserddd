@@ -128,6 +128,21 @@ export const setPayrollStatus = (period: string, cardNumber: string, status: Pay
     body: JSON.stringify({ card_number: cardNumber, status }),
   });
 
+// Live fleet locations (Samsara GPS snapshot)
+export interface VehicleLocation {
+  vehicle_id: string;
+  vehicle_name: string;
+  latitude: number | null;
+  longitude: number | null;
+  speed_kmh: number;
+  heading: number | null;
+  location: string;
+  updated_at: string;
+}
+
+export const fetchVehicleLocations = () =>
+  request<{ vehicles: VehicleLocation[] }>('/api/vehicles/locations');
+
 // Drivers
 export const fetchDrivers = (refresh = false) =>
   request<{ drivers: import('../types').Driver[]; cached?: boolean }>(

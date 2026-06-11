@@ -64,6 +64,65 @@ def api_vehicles_list():
     return jsonify({'vehicles': vehicles})
 
 
+@bp.route('/api/vehicles/locations', methods=['GET'])
+@permission_required('vehicles')
+def api_vehicles_locations():
+    """Live fleet snapshot: current GPS position + speed of every vehicle.
+
+    Uses the Samsara stats snapshot (`types=gps`) which carries reverse-geo
+    formatted addresses, so the dispatcher sees street/city text instead of
+    raw coordinates.
+    """
+    if not SAMSARA_API_TOKEN:
+        return jsonify({'error': 'Samsara API not configured'}), 400
+
+    headers = {'Authorization': f'Bearer {SAMSARA_API_TOKEN}'}
+    rows = []
+    after = None
+
+    for _ in range(20):  # max pages
+        params = {'types': 'gps', 'limit': 100}
+        if after:
+            params['after'] = after
+        try:
+            resp = http_requests.get(
+                f'{SAMSARA_API_BASE}/fleet/vehicles/stats',
+                headers=headers, params=params, timeout=15,
+            )
+            if resp.status_code != 200:
+                return jsonify({'error': f'Samsara API error: {resp.status_code}'}), 502
+            data = resp.json()
+        except Exception as e:
+            return jsonify({'error': str(e)}), 502
+
+        for v in data.get('data', []):
+            gps = v.get('gps')
+            # snapshot returns an object; be tolerant if it arrives as a list
+            if isinstance(gps, list):
+                gps = gps[0] if gps else None
+            if not isinstance(gps, dict):
+                continue
+            kmh = float(gps.get('speedMilesPerHour', 0) or 0) * 1.609344
+            rows.append({
+                'vehicle_id': v.get('id', ''),
+                'vehicle_name': v.get('name', ''),
+                'latitude': gps.get('latitude'),
+                'longitude': gps.get('longitude'),
+                'speed_kmh': round(kmh),
+                'heading': gps.get('headingDegrees'),
+                'location': (gps.get('reverseGeo') or {}).get('formattedLocation', ''),
+                'updated_at': gps.get('time', ''),
+            })
+        pag = data.get('pagination', {})
+        if pag.get('hasNextPage') and pag.get('endCursor'):
+            after = pag['endCursor']
+        else:
+            break
+
+    rows.sort(key=lambda r: r['vehicle_name'])
+    return jsonify({'vehicles': rows})
+
+
 @bp.route('/api/vehicles/activity', methods=['POST'])
 @permission_required('vehicles')
 def api_vehicles_activity():
