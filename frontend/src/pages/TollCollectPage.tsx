@@ -9,7 +9,7 @@ import {
   deleteTollCollectFile,
   type TollCollectFile,
 } from '../lib/api';
-import { exportTollToXlsx, type TollVehicleGroup } from '../lib/xlsx-export';
+import type { TollVehicleGroup } from '../lib/xlsx-export';
 import { exportDachserMaut, exportDachserLkw } from '../lib/dachser-export';
 
 interface TollRow {
@@ -438,7 +438,7 @@ export function TollCollectPage() {
     }
   };
 
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
     const selected = byVehicle
       .filter(([plate]) => selectedPlates.has(plate))
       .map(([plate, data]): TollVehicleGroup => {
@@ -498,6 +498,7 @@ export function TollCollectPage() {
       ? (periods.length === 1 ? periods[0] : `${periods[0]}_${periods[periods.length - 1]}`)
       : new Date().toISOString().slice(0, 7);
 
+    const { exportTollToXlsx } = await import('../lib/xlsx-export');
     exportTollToXlsx(selected, periodStr, 'LTS Logistik GmbH', showMonthDiff, addExtras, dailyRate, kmRate, splitDayNight ? { nightStart, nightEnd, plates: splitPlates, tours: splitTours } : undefined, cityName, auftragNr);
   };
 

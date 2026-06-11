@@ -4,7 +4,7 @@ import { useI18n } from '../i18n';
 import { useDateFilter } from '../hooks/useDateFilter';
 import { fetchDrivers, analyzeDropboxFile, exportDatevBatch, fetchDriverConfigs, fetchMindestlohnSettings } from '../lib/api';
 import type { SettlementDriver, MindestlohnSettings } from '../lib/api';
-import { generateSettlementPdf } from '../lib/pdf-generator';
+// pdf-generator is lazy-loaded on demand (heavy: jsPDF + fonts).
 import type { DriverConfig } from '../lib/api';
 import { computeMindestlohn, DEFAULT_MINDESTLOHN_SETTINGS } from '../lib/mindestlohn';
 import { computeVma } from '../lib/charter';
@@ -164,8 +164,9 @@ export function SettlementPage() {
     }
   }, [drivers, period]);
 
-  const handleExportPdf = useCallback(() => {
+  const handleExportPdf = useCallback(async () => {
     if (!drivers.length || !period) return;
+    const { generateSettlementPdf } = await import('../lib/pdf-generator');
     generateSettlementPdf(period, drivers as any);
   }, [drivers, period]);
 

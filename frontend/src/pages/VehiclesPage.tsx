@@ -3,7 +3,7 @@ import {
   Calendar, Truck, RefreshCw, AlertCircle, Printer, MapPin, Search,
   Save, Download, Trash2, ChevronDown, ChevronRight, CheckSquare, Square, FileDown,
 } from 'lucide-react';
-import { generateVehiclesActivityPdf } from '../lib/pdf-generator';
+// pdf-generator is lazy-loaded on demand (heavy: jsPDF + fonts).
 import { useI18n } from '../i18n';
 import { useDateFilter } from '../hooks/useDateFilter';
 import { fetchSamsaraVehicles, fetchVehicleActivity } from '../lib/api';
@@ -13,7 +13,7 @@ import { Spinner } from '../components/Spinner';
 import { Badge } from '../components/Badge';
 import { CardField } from '../components/MobileCards';
 import { monthLabel } from '../lib/utils';
-import { exportVehicleActivityToXlsx, type VehicleActivityGroup } from '../lib/xlsx-export';
+import type { VehicleActivityGroup } from '../lib/xlsx-export';
 
 // ─── localStorage saved reports ───
 
@@ -288,7 +288,7 @@ export function VehiclesPage() {
   };
 
   // Excel export
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
     const selected = savedReports.filter(r => selectedForExport.has(r.id));
     if (selected.length === 0) return;
 
@@ -305,11 +305,12 @@ export function VehiclesPage() {
     const periods = [...new Set(selected.map(r => r.period))].sort();
     const periodStr = periods.length === 1 ? periods[0] : `${periods[0]}_${periods[periods.length - 1]}`;
 
+    const { exportVehicleActivityToXlsx } = await import('../lib/xlsx-export');
     exportVehicleActivityToXlsx(groups, periodStr, 'LTS Logistik GmbH');
   };
 
   // PDF export — same selection as Excel
-  const handleExportPdf = () => {
+  const handleExportPdf = async () => {
     const selected = savedReports.filter(r => selectedForExport.has(r.id));
     if (selected.length === 0) return;
 
@@ -325,12 +326,14 @@ export function VehiclesPage() {
 
     const periods = [...new Set(selected.map(r => r.period))].sort();
     const periodStr = periods.length === 1 ? periods[0] : `${periods[0]}_${periods[periods.length - 1]}`;
+    const { generateVehiclesActivityPdf } = await import('../lib/pdf-generator');
     generateVehiclesActivityPdf(groups, periodStr);
   };
 
   // PDF export of the currently displayed vehicle activity (no save needed)
-  const handleExportCurrentPdf = () => {
+  const handleExportCurrentPdf = async () => {
     if (!activity || !period) return;
+    const { generateVehiclesActivityPdf } = await import('../lib/pdf-generator');
     generateVehiclesActivityPdf(
       [
         {

@@ -3,7 +3,7 @@ import { Upload, AlertCircle, Truck, ChevronDown, ChevronRight, X, FileText, Dow
 import * as XLSX from 'xlsx-js-style';
 import { useI18n } from '../i18n';
 import { Card } from '../components/Card';
-import { exportSamsaraKmToXlsx } from '../lib/xlsx-export';
+// xlsx-export is lazy-loaded on demand (heavy: xlsx library).
 
 // ─── Types ───
 
@@ -387,8 +387,9 @@ export function SamsaraKmPage() {
     });
   };
 
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
     if (summaries.length === 0) return;
+    const { exportSamsaraKmToXlsx } = await import('../lib/xlsx-export');
     exportSamsaraKmToXlsx(summaries, dayStart, dayEnd, 'LTS Logistik GmbH');
   };
 

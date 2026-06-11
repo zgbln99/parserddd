@@ -15,9 +15,9 @@ import { DriverConfigEditor } from './DriverConfigEditor';
 import { ArbeitszeitReport } from './ArbeitszeitReport';
 import { useAuth } from '../hooks/useAuth';
 import { minutesToHm } from '../lib/utils';
-import { exportToXlsx, generateGoogleSheetsUrl } from '../lib/xlsx-export';
+// xlsx-export (~900 kB) is lazy-loaded on demand inside the export handlers.
 import { useToast } from '../components/Toast';
-import { generateAnalysisPdf, generateArbeitszeitnachweisePdf } from '../lib/pdf-generator';
+// pdf-generator (~430 kB) is lazy-loaded on demand inside the export handlers.
 import { MetricCards } from './analysis/MetricCards';
 import { VehicleUsageTable } from './analysis/VehicleUsageTable';
 import { ExportDropdown } from './analysis/ExportDropdown';
@@ -360,11 +360,13 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
     exportCsv(di.driver_name || 'driver', shifts);
   };
 
-  const handlePdfExport = () => {
+  const handlePdfExport = async () => {
+    const { generateAnalysisPdf } = await import('../lib/pdf-generator');
     generateAnalysisPdf(di.driver_name || 'Fahrer', di.card_number || '', s as any, shifts as any);
   };
 
-  const handleArbeitszeitPdf = () => {
+  const handleArbeitszeitPdf = async () => {
+    const { generateArbeitszeitnachweisePdf } = await import('../lib/pdf-generator');
     generateArbeitszeitnachweisePdf(di.driver_name || 'Fahrer', di.card_number || '', s as any, shifts as any);
   };
 
@@ -381,11 +383,13 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
 
   const { toast } = useToast();
 
-  const handleXlsxExport = () => {
+  const handleXlsxExport = async () => {
+    const { exportToXlsx } = await import('../lib/xlsx-export');
     exportToXlsx(di.driver_name || 'driver', di.card_number || '', s as any, shifts as any);
   };
 
-  const handleGoogleSheetsExport = () => {
+  const handleGoogleSheetsExport = async () => {
+    const { generateGoogleSheetsUrl } = await import('../lib/xlsx-export');
     generateGoogleSheetsUrl(di.driver_name || 'driver', s as any, shifts as any);
     toast(locale === 'de' ? 'In Zwischenablage kopiert — in Google Sheets einfügen' : 'Skopiowano do schowka — wklej w Google Sheets', 'success');
   };

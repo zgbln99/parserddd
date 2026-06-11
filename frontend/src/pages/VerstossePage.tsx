@@ -3,7 +3,8 @@ import { ShieldAlert, Play, Search, Users, AlertTriangle, CheckCircle } from 'lu
 import { useI18n } from '../i18n';
 import { useDateFilter } from '../hooks/useDateFilter';
 import { fetchDrivers, analyzeDropboxFile } from '../lib/api';
-import { analyzeVerstoesse, generateVerstossePdf, type VerstosseLang, type VerstosseOptions } from '../lib/pdf-generator';
+import type { VerstosseLang, VerstosseOptions } from '../lib/pdf-generator';
+// analyzeVerstoesse / generateVerstossePdf are lazy-loaded (heavy: jsPDF).
 import type { Driver, ShiftDetail } from '../types';
 import { Card } from '../components/Card';
 import { Badge } from '../components/Badge';
@@ -126,6 +127,7 @@ export function VerstossePage() {
 
         const driverName = driver.name;
         const cardNum = driver.card_number || analysis.driver_info?.card_number || '';
+        const { analyzeVerstoesse } = await import('../lib/pdf-generator');
         const result = analyzeVerstoesse(driverName, cardNum, shifts as any, pdfLang, verstosseOptions);
         const tFahrer = result.entries.reduce((s: number, v: any) => s + v.bussgeldFahrer, 0);
         const tUnternehmen = result.entries.reduce((s: number, v: any) => s + v.bussgeldUnternehmen, 0);
@@ -161,6 +163,7 @@ export function VerstossePage() {
   }, [selected, drivers, dateFrom, dateTo, pdfLang, verstosseOptions]);
 
   const handleGeneratePdf = async (result: DriverViolationResult) => {
+    const { generateVerstossePdf } = await import('../lib/pdf-generator');
     const res = await generateVerstossePdf(
       result.driver_name,
       result.card_number,
@@ -175,6 +178,7 @@ export function VerstossePage() {
   };
 
   const handleGenerateAllPdfs = async () => {
+    const { generateVerstossePdf } = await import('../lib/pdf-generator');
     for (const result of results) {
       if (result.totalEntries > 0) {
         await generateVerstossePdf(

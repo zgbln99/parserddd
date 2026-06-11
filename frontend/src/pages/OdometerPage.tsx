@@ -3,7 +3,7 @@ import { Gauge, RefreshCw, AlertCircle, Truck, Search, ChevronDown, ChevronRight
 import { useI18n } from '../i18n';
 import { Card } from '../components/Card';
 import { Spinner } from '../components/Spinner';
-import { generateOdometerCurrentPdf, generateOdometerRangePdf } from '../lib/pdf-generator';
+// pdf-generator is lazy-loaded on demand (heavy: jsPDF + fonts).
 import {
   fetchSamsaraVehicles,
   fetchOdometerCurrent,
@@ -160,8 +160,8 @@ export function OdometerPage() {
     [rangeRows],
   );
 
-  const exportCurrentPdf = () =>
-    generateOdometerCurrentPdf(
+  const exportCurrentPdf = async () =>
+    (await import('../lib/pdf-generator')).generateOdometerCurrentPdf(
       sortedCurrent.map((r) => ({
         vehicle_name: r.vehicle_name,
         license_plate: r.license_plate,
@@ -170,8 +170,8 @@ export function OdometerPage() {
       })),
     );
 
-  const exportRangePdf = () =>
-    generateOdometerRangePdf(
+  const exportRangePdf = async () =>
+    (await import('../lib/pdf-generator')).generateOdometerRangePdf(
       vehicleOrder.map((vid) => {
         const vr = vehicleGroups.get(vid)!;
         return {

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Search, RefreshCw, ChevronUp, ChevronDown, FileText, AlertCircle, AlertTriangle, UserPlus, QrCode, FileDown } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { fetchDrivers, addDriver } from '../lib/api';
-import { generateDriversPdf } from '../lib/pdf-generator';
+// pdf-generator is lazy-loaded on demand (heavy: jsPDF + fonts).
 import { formatDate, formatDateTime, daysLabel, daysColor, formatBytes } from '../lib/format';
 import { Card } from '../components/Card';
 import { Badge, StatusDot } from '../components/Badge';
@@ -172,13 +172,13 @@ export function DriversPage() {
           {t('driversAddDriver')}
         </button>
         <button
-          onClick={() => generateDriversPdf(filtered.map((d) => ({
+          onClick={() => import('../lib/pdf-generator').then(m => m.generateDriversPdf(filtered.map((d) => ({
             name: d.name,
             card_number: d.card_number,
             latest_download: d.latest_download,
             days_since: d.days_since,
             file_count: d.file_count,
-          })))}
+          }))))}
           disabled={filtered.length === 0}
           className="flex items-center justify-center gap-2 rounded-xl border border-border px-4 py-2 min-h-[44px] text-sm font-medium text-ink transition hover:bg-surface disabled:opacity-40"
         >
