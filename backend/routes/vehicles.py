@@ -161,8 +161,38 @@ def api_vehicles_locations():
         else:
             break
 
-    # Who is driving: the tachograph card is always inserted, so HOS clocks
-    # reliably map current vehicle → driver. Matched by vehicle ID.
+    # Who is driving: the tachograph card is always inserted, so we resolve
+    # the driver from two Samsara sources and merge them:
+    #   1) static driver↔vehicle assignment (/fleet/vehicles → staticAssignedDriver)
+    #   2) live HOS clocks (currentVehicle), which wins when present.
+    # Matched by vehicle ID.
+    static_by_vid = {}
+    try:
+        v_after = None
+        for _ in range(20):
+            v_params = {'limit': 100}
+            if v_after:
+                v_params['after'] = v_after
+            vresp = http_requests.get(
+                f'{SAMSARA_API_BASE}/fleet/vehicles',
+                headers=headers, params=v_params, timeout=15,
+            )
+            if vresp.status_code != 200:
+                break
+            vbody = vresp.json()
+            for v in vbody.get('data', []):
+                sad = v.get('staticAssignedDriver') or {}
+                name = sad.get('name', '')
+                if v.get('id') and name:
+                    static_by_vid[v['id']] = name
+            vpag = vbody.get('pagination', {})
+            if vpag.get('hasNextPage') and vpag.get('endCursor'):
+                v_after = vpag['endCursor']
+            else:
+                break
+    except Exception:
+        pass
+
     driver_by_vid = {}
     try:
         h_after = None
@@ -188,7 +218,7 @@ def api_vehicles_locations():
     except Exception:
         pass
     for r in rows:
-        r['driver_name'] = driver_by_vid.get(r['vehicle_id'], '')
+        r['driver_name'] = driver_by_vid.get(r['vehicle_id']) or static_by_vid.get(r['vehicle_id'], '')
 
     # Track how long each vehicle has been standing. We record the last
     # moment we saw it moving; while it stands, the gap to that moment is
