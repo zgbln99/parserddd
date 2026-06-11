@@ -329,9 +329,15 @@ def _init_db():
             vehicle_id     TEXT PRIMARY KEY,
             vehicle_name   TEXT NOT NULL DEFAULT '',
             last_moving_at TEXT NOT NULL DEFAULT '',
+            idle_since     TEXT NOT NULL DEFAULT '',
             updated_at     TEXT NOT NULL DEFAULT ''
         );
     ''')
+    try:
+        conn.execute("SELECT idle_since FROM vehicle_movement LIMIT 1")
+    except Exception:
+        conn.execute("ALTER TABLE vehicle_movement ADD COLUMN idle_since TEXT NOT NULL DEFAULT ''")
+        conn.commit()
 
     # Fuel cards (DKV/UTA/...) — number, limit, assigned vehicle, expiry.
     conn.executescript('''

@@ -81,7 +81,7 @@ def api_vehicles_locations():
     after = None
 
     for _ in range(20):  # max pages
-        params = {'types': 'gps,fuelPercents', 'limit': 100}
+        params = {'types': 'gps,fuelPercents,engineStates,faultCodes', 'limit': 100}
         if after:
             params['after'] = after
         try:
@@ -112,6 +112,36 @@ def api_vehicles_locations():
                     fuel_pct = int(fuel['value'])
                 except (TypeError, ValueError):
                     fuel_pct = None
+
+            eng = v.get('engineStates')
+            if isinstance(eng, list):
+                eng = eng[0] if eng else None
+            engine_state = eng.get('value') if isinstance(eng, dict) else None  # On/Off/Idle
+
+            # faultCodes snapshot: tolerant DTC extraction (obdii / j1939)
+            faults = []
+            fc = v.get('faultCodes')
+            if isinstance(fc, list):
+                fc = fc[0] if fc else None
+            if isinstance(fc, dict):
+                for proto in ('obdii', 'j1939', 'value'):
+                    block = fc.get(proto)
+                    if not isinstance(block, dict):
+                        continue
+                    dtcs = block.get('diagnosticTroubleCodes') or block.get('checkEngineLight') or []
+                    if isinstance(dtcs, dict):
+                        # check-engine lamp object
+                        if any(dtcs.get(k) for k in ('emissionsIsOn', 'protectIsOn', 'stopIsOn', 'warningIsOn')):
+                            faults.append({'code': 'MIL', 'description': 'Check engine'})
+                        continue
+                    for d in dtcs or []:
+                        if not isinstance(d, dict):
+                            continue
+                        faults.append({
+                            'code': str(d.get('spnId') or d.get('dtcId') or d.get('fmiId') or d.get('id') or '')[:24] or '?',
+                            'description': (d.get('spnDescription') or d.get('fmiDescription') or d.get('description') or '')[:120],
+                        })
+
             rows.append({
                 'vehicle_id': v.get('id', ''),
                 'vehicle_name': v.get('name', ''),
@@ -121,6 +151,8 @@ def api_vehicles_locations():
                 'heading': gps.get('headingDegrees'),
                 'location': (gps.get('reverseGeo') or {}).get('formattedLocation', ''),
                 'fuel_percent': fuel_pct,
+                'engine_state': engine_state,
+                'faults': faults,
                 'updated_at': gps.get('time', ''),
             })
         pag = data.get('pagination', {})
@@ -138,41 +170,53 @@ def api_vehicles_locations():
     try:
         conn = _get_db()
         for r in rows:
-            if r['speed_kmh'] > 5:
-                conn.execute(
-                    '''INSERT INTO vehicle_movement (vehicle_id, vehicle_name, last_moving_at, updated_at)
-                       VALUES (?, ?, ?, ?)
-                       ON CONFLICT(vehicle_id) DO UPDATE SET
-                           vehicle_name = excluded.vehicle_name,
-                           last_moving_at = excluded.last_moving_at,
-                           updated_at = excluded.updated_at''',
-                    (r['vehicle_id'], r['vehicle_name'], now_iso, now_iso),
-                )
+            moving = r['speed_kmh'] > 5
+            # Idling = engine running but not moving (Idle state, or On + standing)
+            idling = (not moving) and (r.get('engine_state') == 'Idle' or r.get('engine_state') == 'On')
+            existing = conn.execute(
+                'SELECT last_moving_at, idle_since FROM vehicle_movement WHERE vehicle_id = ?',
+                (r['vehicle_id'],),
+            ).fetchone()
+
+            if moving:
+                last_moving = now_iso
+                idle_since = ''
                 r['stopped_minutes'] = 0
             else:
-                row = conn.execute(
-                    'SELECT last_moving_at FROM vehicle_movement WHERE vehicle_id = ?',
-                    (r['vehicle_id'],),
-                ).fetchone()
-                if row and row['last_moving_at']:
-                    try:
-                        last = datetime.fromisoformat(row['last_moving_at'])
-                        r['stopped_minutes'] = max(0, int((now - last).total_seconds() // 60))
-                    except ValueError:
-                        r['stopped_minutes'] = None
-                else:
-                    conn.execute(
-                        '''INSERT INTO vehicle_movement (vehicle_id, vehicle_name, last_moving_at, updated_at)
-                           VALUES (?, ?, ?, ?)
-                           ON CONFLICT(vehicle_id) DO NOTHING''',
-                        (r['vehicle_id'], r['vehicle_name'], now_iso, now_iso),
-                    )
+                last_moving = (existing['last_moving_at'] if existing and existing['last_moving_at'] else now_iso)
+                try:
+                    r['stopped_minutes'] = max(0, int((now - datetime.fromisoformat(last_moving)).total_seconds() // 60)) if existing else None
+                except ValueError:
                     r['stopped_minutes'] = None
+                if idling:
+                    idle_since = (existing['idle_since'] if existing and existing['idle_since'] else now_iso)
+                else:
+                    idle_since = ''
+
+            conn.execute(
+                '''INSERT INTO vehicle_movement (vehicle_id, vehicle_name, last_moving_at, idle_since, updated_at)
+                   VALUES (?, ?, ?, ?, ?)
+                   ON CONFLICT(vehicle_id) DO UPDATE SET
+                       vehicle_name = excluded.vehicle_name,
+                       last_moving_at = excluded.last_moving_at,
+                       idle_since = excluded.idle_since,
+                       updated_at = excluded.updated_at''',
+                (r['vehicle_id'], r['vehicle_name'], last_moving, idle_since, now_iso),
+            )
+
+            if idling and idle_since:
+                try:
+                    r['idle_minutes'] = max(0, int((now - datetime.fromisoformat(idle_since)).total_seconds() // 60))
+                except ValueError:
+                    r['idle_minutes'] = 0
+            else:
+                r['idle_minutes'] = 0
         conn.commit()
         conn.close()
     except Exception:
         for r in rows:
             r.setdefault('stopped_minutes', None)
+            r.setdefault('idle_minutes', 0)
 
     rows.sort(key=lambda r: r['vehicle_name'])
     return jsonify({'vehicles': rows})

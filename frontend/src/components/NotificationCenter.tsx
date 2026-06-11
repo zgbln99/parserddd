@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, Clock, CreditCard, AlertTriangle, MapPin, Fuel } from 'lucide-react';
+import { Bell, Clock, CreditCard, AlertTriangle, MapPin, Fuel, Wrench } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { fetchDashboard, fetchVehicleLocations, fetchFuelCards } from '../lib/api';
 
@@ -33,6 +33,7 @@ export function NotificationCenter() {
 
   const [stopAlert, setStopAlert] = useState<Alert | null>(null);
   const [lowFuelAlert, setLowFuelAlert] = useState<Alert | null>(null);
+  const [faultAlert, setFaultAlert] = useState<Alert | null>(null);
   const [fuelAlert, setFuelAlert] = useState<Alert | null>(null);
 
   useEffect(() => {
@@ -103,8 +104,24 @@ export function NotificationCenter() {
           } else {
             setLowFuelAlert(null);
           }
+
+          const faulty = list.filter((v) => v.faults && v.faults.length > 0);
+          if (faulty.length) {
+            const names = faulty.map((v) => v.vehicle_name).slice(0, 3).join(', ');
+            setFaultAlert({
+              id: 'faults',
+              icon: Wrench,
+              tone: 'red',
+              text: locale === 'de'
+                ? `Fehlercode: ${names}${faulty.length > 3 ? ` +${faulty.length - 3}` : ''}`
+                : `Kod usterki: ${names}${faulty.length > 3 ? ` +${faulty.length - 3}` : ''}`,
+              to: '/diagnostics',
+            });
+          } else {
+            setFaultAlert(null);
+          }
         })
-        .catch(() => { setStopAlert(null); setLowFuelAlert(null); });
+        .catch(() => { setStopAlert(null); setLowFuelAlert(null); setFaultAlert(null); });
       fetchDashboard()
         .then((d) => {
           const out: Alert[] = [];
@@ -167,6 +184,7 @@ export function NotificationCenter() {
   }, [open]);
 
   const allAlerts = [
+    ...(faultAlert ? [faultAlert] : []),
     ...(stopAlert ? [stopAlert] : []),
     ...(lowFuelAlert ? [lowFuelAlert] : []),
     ...(fuelAlert ? [fuelAlert] : []),

@@ -22,12 +22,12 @@ const importers: Record<string, () => Promise<unknown>> = {
   '/map': () => import('../pages/FleetMapPage'),
   '/fuel-cards': () => import('../pages/FuelCardsPage'),
   '/safety': () => import('../pages/SafetyEventsPage'),
+  '/diagnostics': () => import('../pages/DiagnosticsPage'),
   '/payroll': () => import('../pages/PayrollPage'),
   '/stundenzettel': () => import('../pages/StundenzettelPage'),
   '/bulk-grid': () => import('../pages/BulkGridPage'),
   '/arbeitszeitbericht': () => import('../pages/ArbeitszeitberichtPage'),
   '/compliance': () => import('../pages/CompliancePage'),
-  '/verstosse': () => import('../pages/VerstossePage'),
 };
 
 const warmed = new Set<string>();

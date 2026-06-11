@@ -18,20 +18,21 @@ import { fetchVehicleLocations, fetchLiveStatus, fetchVehicleTrail, type Vehicle
 const REFRESH_MS = 60_000;
 
 const BASE_LAYERS = {
-  osm: {
-    url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-    attribution: '&copy; OpenStreetMap',
-    maxZoom: 18,
+  // Clean, colourful Google-like base — much nicer than raw OSM.
+  voyager: {
+    url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+    attribution: '&copy; OpenStreetMap &copy; CARTO',
+    maxZoom: 20,
   },
   sat: {
     url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
     attribution: '&copy; Esri',
-    maxZoom: 18,
+    maxZoom: 19,
   },
   dark: {
     url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
     attribution: '&copy; OpenStreetMap &copy; CARTO',
-    maxZoom: 18,
+    maxZoom: 20,
   },
 } as const;
 type BaseLayerKey = keyof typeof BASE_LAYERS;
@@ -65,9 +66,10 @@ export function FleetMapPage() {
 
   const [query, setQuery] = useState('');
   const [moveFilter, setMoveFilter] = useState<MoveFilter>('all');
-  const [baseLayer, setBaseLayer] = useState<BaseLayerKey>(
-    () => (localStorage.getItem('fleet-map-layer') as BaseLayerKey) || 'osm',
-  );
+  const [baseLayer, setBaseLayer] = useState<BaseLayerKey>(() => {
+    const saved = localStorage.getItem('fleet-map-layer') as BaseLayerKey;
+    return saved && saved in BASE_LAYERS ? saved : 'voyager';
+  });
   const [selectedId, setSelectedId] = useState(searchParams.get('vehicle') || '');
   const [panelOpen, setPanelOpen] = useState(true);
   const [trailHours, setTrailHours] = useState(0); // 0 = off
@@ -78,7 +80,7 @@ export function FleetMapPage() {
     if (!mapDiv.current || mapRef.current) return;
     const map = L.map(mapDiv.current, { zoomControl: false }).setView([51.5, 10.0], 6);
     L.control.zoom({ position: 'bottomright' }).addTo(map);
-    const cfg = BASE_LAYERS[baseLayer] || BASE_LAYERS.osm;
+    const cfg = BASE_LAYERS[baseLayer] || BASE_LAYERS.voyager;
     tileRef.current = L.tileLayer(cfg.url, { maxZoom: cfg.maxZoom, attribution: cfg.attribution }).addTo(map);
     trailLayerRef.current = L.layerGroup().addTo(map);
     layerRef.current = L.layerGroup().addTo(map);
@@ -277,7 +279,7 @@ export function FleetMapPage() {
   ];
 
   const layerPills: { key: BaseLayerKey; label: string }[] = [
-    { key: 'osm', label: de ? 'Karte' : 'Mapa' },
+    { key: 'voyager', label: de ? 'Karte' : 'Mapa' },
     { key: 'sat', label: de ? 'Satellit' : 'Satelita' },
     { key: 'dark', label: de ? 'Dunkel' : 'Ciemna' },
   ];

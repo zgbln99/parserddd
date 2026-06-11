@@ -29,6 +29,7 @@ const OdometerPage = lazy(() => import('./pages/OdometerPage').then(m => ({ defa
 const FleetMapPage = lazy(() => import('./pages/FleetMapPage').then(m => ({ default: m.FleetMapPage })));
 const FuelCardsPage = lazy(() => import('./pages/FuelCardsPage').then(m => ({ default: m.FuelCardsPage })));
 const SafetyEventsPage = lazy(() => import('./pages/SafetyEventsPage').then(m => ({ default: m.SafetyEventsPage })));
+const DiagnosticsPage = lazy(() => import('./pages/DiagnosticsPage').then(m => ({ default: m.DiagnosticsPage })));
 const PayrollPage = lazy(() => import('./pages/PayrollPage').then(m => ({ default: m.PayrollPage })));
 const PayrollAnalysisPage = lazy(() => import('./pages/PayrollAnalysisPage').then(m => ({ default: m.PayrollAnalysisPage })));
 const StundenzettelPage = lazy(() => import('./pages/StundenzettelPage').then(m => ({ default: m.StundenzettelPage })));
@@ -36,7 +37,6 @@ const BulkGridPage = lazy(() => import('./pages/BulkGridPage').then(m => ({ defa
 const ArbeitszeitberichtPage = lazy(() => import('./pages/ArbeitszeitberichtPage').then(m => ({ default: m.ArbeitszeitberichtPage })));
 const ComplianceMonthlyPage = lazy(() => import('./pages/ComplianceMonthlyPage').then(m => ({ default: m.ComplianceMonthlyPage })));
 const CompliancePage = lazy(() => import('./pages/CompliancePage'));
-const VerstossePage = lazy(() => import('./pages/VerstossePage').then(m => ({ default: m.VerstossePage })));
 
 
 function PageFallback() {
@@ -149,10 +149,10 @@ export function App() {
           <Route path="/map" element={<PermissionRoute permission="vehicles"><FleetMapPage /></PermissionRoute>} />
           <Route path="/fuel-cards" element={<PermissionRoute permission="vehicles"><FuelCardsPage /></PermissionRoute>} />
           <Route path="/safety" element={<PermissionRoute permission="vehicles"><SafetyEventsPage /></PermissionRoute>} />
+          <Route path="/diagnostics" element={<PermissionRoute permission="vehicles"><DiagnosticsPage /></PermissionRoute>} />
           <Route path="/analysis" element={<ProtectedRoute><AnalysisPage /></ProtectedRoute>} />
           <Route path="/arbeitszeitbericht" element={<PermissionRoute permission="settlement"><ArbeitszeitberichtPage /></PermissionRoute>} />
           <Route path="/compliance" element={<PermissionRoute permission="settlement"><CompliancePage /></PermissionRoute>} />
-          <Route path="/verstosse" element={<PermissionRoute permission="settlement"><VerstossePage /></PermissionRoute>} />
           <Route path="/compliance-monthly" element={<PermissionRoute permission="settlement"><ComplianceMonthlyPage /></PermissionRoute>} />
 
           <Route path="*" element={<Navigate to="/" replace />} />

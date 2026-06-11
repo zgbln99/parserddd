@@ -318,6 +318,7 @@ def init_db():
                 vehicle_id     TEXT PRIMARY KEY,
                 vehicle_name   TEXT NOT NULL DEFAULT '',
                 last_moving_at TEXT NOT NULL DEFAULT '',
+                idle_since     TEXT NOT NULL DEFAULT '',
                 updated_at     TEXT NOT NULL DEFAULT ''
             );
         ''')

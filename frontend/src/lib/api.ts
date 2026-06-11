@@ -138,6 +138,9 @@ export interface VehicleLocation {
   heading: number | null;
   location: string;
   fuel_percent: number | null;
+  engine_state: string | null;
+  faults: { code: string; description: string }[];
+  idle_minutes: number;
   updated_at: string;
   stopped_minutes: number | null;
 }
