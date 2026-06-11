@@ -538,7 +538,14 @@ export function DashboardPage() {
               <div className="divide-y divide-border">
                 {visible.map((v) => {
                   const moving = v.speed_kmh > 5;
-                  const driver = driverByVehicle.get(v.vehicle_name);
+                  const driver = v.driver_name || driverByVehicle.get(v.vehicle_name);
+                  const stopLabel = (() => {
+                    if (moving) return `${v.speed_kmh} km/h`;
+                    const m = v.stopped_minutes;
+                    if (m == null || m <= 0) return locale === 'de' ? 'Steht' : 'Postój';
+                    const txt = m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${m % 60} min`;
+                    return `${v.stopped_is_min ? '> ' : ''}${txt}`;
+                  })();
                   const mapsUrl = v.latitude != null && v.longitude != null
                     ? `https://maps.google.com/?q=${v.latitude},${v.longitude}`
                     : '';
@@ -549,8 +556,11 @@ export function DashboardPage() {
                         <p className="truncate font-mono text-sm font-semibold text-ink">{v.vehicle_name}</p>
                         {driver && <p className="truncate text-[11px] text-muted">{driver}</p>}
                       </div>
-                      <span className={`hidden w-20 shrink-0 text-right font-mono text-sm sm:block ${moving ? 'font-bold text-[#22ad5c]' : 'text-muted'}`}>
-                        {moving ? `${v.speed_kmh} km/h` : (locale === 'de' ? 'Steht' : 'Postój')}
+                      <span
+                        className={`hidden w-24 shrink-0 text-right font-mono text-xs sm:block ${moving ? 'font-bold text-[#22ad5c]' : 'text-muted'}`}
+                        title={moving ? undefined : (locale === 'de' ? 'Steht seit' : 'Czas postoju')}
+                      >
+                        {stopLabel}
                       </span>
                       <p className="min-w-0 flex-1 truncate text-xs text-muted" title={v.location}>
                         {v.location || '—'}

@@ -144,7 +144,7 @@ export function FleetMapPage() {
       if (moveFilter === 'moving' && !moving) return false;
       if (moveFilter === 'stopped' && moving) return false;
       if (!q) return true;
-      const driver = drivers.get(v.vehicle_name) || '';
+      const driver = v.driver_name || drivers.get(v.vehicle_name) || '';
       return (
         v.vehicle_name.toLowerCase().includes(q) ||
         driver.toLowerCase().includes(q) ||
@@ -217,9 +217,9 @@ export function FleetMapPage() {
       const pos: L.LatLngTuple = [v.latitude, v.longitude];
       bounds.push(pos);
 
-      const driver = drivers.get(v.vehicle_name);
+      const driver = v.driver_name || drivers.get(v.vehicle_name);
       const stop = !moving && v.stopped_minutes
-        ? `<div style="color:#b45309">${de ? 'Steht seit' : 'Postój od'}: <b>${fmtStop(v.stopped_minutes, de)}</b></div>`
+        ? `<div style="color:#b45309">${de ? 'Steht seit' : 'Postój od'}: <b>${v.stopped_is_min ? '> ' : ''}${fmtStop(v.stopped_minutes, de)}</b></div>`
         : '';
       const popupHtml = `
         <div style="font: 12px/1.5 system-ui; min-width: 180px">
@@ -365,7 +365,7 @@ export function FleetMapPage() {
               ) : (
                 filtered.map((v) => {
                   const moving = v.speed_kmh > 5;
-                  const driver = drivers.get(v.vehicle_name);
+                  const driver = v.driver_name || drivers.get(v.vehicle_name);
                   const selected = v.vehicle_id === selectedId;
                   return (
                     <button
@@ -379,7 +379,11 @@ export function FleetMapPage() {
                         <span className={`h-2 w-2 shrink-0 rounded-full ${moving ? 'bg-[#22ad5c] animate-pulse' : 'bg-gray-300 dark:bg-gray-600'}`} />
                         <span className="truncate font-mono text-sm font-bold text-ink">{v.vehicle_name}</span>
                         <span className={`ml-auto shrink-0 font-mono text-[11px] ${moving ? 'font-bold text-[#22ad5c]' : 'text-muted'}`}>
-                          {moving ? `${v.speed_kmh} km/h` : fmtStop(v.stopped_minutes, de) || (de ? 'Steht' : 'Postój')}
+                          {moving
+                            ? `${v.speed_kmh} km/h`
+                            : fmtStop(v.stopped_minutes, de)
+                              ? `${v.stopped_is_min ? '> ' : ''}${fmtStop(v.stopped_minutes, de)}`
+                              : (de ? 'Steht' : 'Postój')}
                         </span>
                       </div>
                       {driver && <p className="ml-4 truncate text-[11px] text-muted">👤 {driver}</p>}

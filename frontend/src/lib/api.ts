@@ -141,8 +141,10 @@ export interface VehicleLocation {
   engine_state: string | null;
   faults: { code: string; description: string }[];
   idle_minutes: number;
+  driver_name: string;
   updated_at: string;
   stopped_minutes: number | null;
+  stopped_is_min: boolean;
 }
 
 export const fetchVehicleLocations = () =>

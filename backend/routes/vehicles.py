@@ -161,6 +161,35 @@ def api_vehicles_locations():
         else:
             break
 
+    # Who is driving: the tachograph card is always inserted, so HOS clocks
+    # reliably map current vehicle → driver. Matched by vehicle ID.
+    driver_by_vid = {}
+    try:
+        h_after = None
+        for _ in range(10):
+            h_params = {} if not h_after else {'after': h_after}
+            dresp = http_requests.get(
+                f'{SAMSARA_API_BASE}/fleet/hos/clocks',
+                headers=headers, params=h_params, timeout=15,
+            )
+            if dresp.status_code != 200:
+                break
+            dbody = dresp.json()
+            for entry in dbody.get('data', []):
+                vid = (entry.get('currentVehicle') or {}).get('id', '')
+                name = (entry.get('driver') or {}).get('name', '')
+                if vid and name:
+                    driver_by_vid[vid] = name
+            dpag = dbody.get('pagination', {})
+            if dpag.get('hasNextPage') and dpag.get('endCursor'):
+                h_after = dpag['endCursor']
+            else:
+                break
+    except Exception:
+        pass
+    for r in rows:
+        r['driver_name'] = driver_by_vid.get(r['vehicle_id'], '')
+
     # Track how long each vehicle has been standing. We record the last
     # moment we saw it moving; while it stands, the gap to that moment is
     # the stop duration. First sighting of a stopped vehicle starts the
@@ -169,23 +198,74 @@ def api_vehicles_locations():
     now_iso = now.isoformat()
     try:
         conn = _get_db()
+        existing_rows = {
+            er['vehicle_id']: er
+            for er in conn.execute('SELECT vehicle_id, last_moving_at, idle_since FROM vehicle_movement').fetchall()
+        }
+
+        # Cold-start backfill: for stopped vehicles we've never tracked, look
+        # back a few hours of GPS history to find when they actually last
+        # moved — so the stop duration is real on the very first screen.
+        missing = [r['vehicle_id'] for r in rows if r['speed_kmh'] <= 5 and r['vehicle_id'] not in existing_rows]
+        backfill = {}
+        if missing:
+            try:
+                h_start = (now - timedelta(hours=8)).replace(microsecond=0).isoformat().replace('+00:00', 'Z')
+                h_end = now.replace(microsecond=0).isoformat().replace('+00:00', 'Z')
+                h_after = None
+                for _ in range(6):
+                    h_params = {
+                        'vehicleIds': ','.join(missing[:50]),
+                        'types': 'gps',
+                        'startTime': h_start,
+                        'endTime': h_end,
+                    }
+                    if h_after:
+                        h_params['after'] = h_after
+                    hresp = http_requests.get(
+                        f'{SAMSARA_API_BASE}/fleet/vehicles/stats/history',
+                        headers=headers, params=h_params, timeout=30,
+                    )
+                    if hresp.status_code != 200:
+                        break
+                    hdata = hresp.json()
+                    for entry in hdata.get('data', []):
+                        vid = entry.get('id', '')
+                        for gp in entry.get('gps', []):
+                            kmh_h = float(gp.get('speedMilesPerHour', 0) or 0) * 1.609344
+                            ts = gp.get('time', '')
+                            if kmh_h > 5 and ts and (vid not in backfill or ts > backfill[vid]):
+                                backfill[vid] = ts
+                    hpag = hdata.get('pagination', {})
+                    if hpag.get('hasNextPage') and hpag.get('endCursor'):
+                        h_after = hpag['endCursor']
+                    else:
+                        break
+            except Exception:
+                pass
+
         for r in rows:
             moving = r['speed_kmh'] > 5
             # Idling = engine running but not moving (Idle state, or On + standing)
             idling = (not moving) and (r.get('engine_state') == 'Idle' or r.get('engine_state') == 'On')
-            existing = conn.execute(
-                'SELECT last_moving_at, idle_since FROM vehicle_movement WHERE vehicle_id = ?',
-                (r['vehicle_id'],),
-            ).fetchone()
+            existing = existing_rows.get(r['vehicle_id'])
 
+            r['stopped_is_min'] = False
             if moving:
                 last_moving = now_iso
                 idle_since = ''
                 r['stopped_minutes'] = 0
             else:
-                last_moving = (existing['last_moving_at'] if existing and existing['last_moving_at'] else now_iso)
+                if existing and existing['last_moving_at']:
+                    last_moving = existing['last_moving_at']
+                elif r['vehicle_id'] in backfill:
+                    last_moving = backfill[r['vehicle_id']].replace('Z', '+00:00')
+                else:
+                    # No movement in the lookback window — at least that long.
+                    last_moving = (now - timedelta(hours=8)).isoformat()
+                    r['stopped_is_min'] = True
                 try:
-                    r['stopped_minutes'] = max(0, int((now - datetime.fromisoformat(last_moving)).total_seconds() // 60)) if existing else None
+                    r['stopped_minutes'] = max(0, int((now - datetime.fromisoformat(last_moving)).total_seconds() // 60))
                 except ValueError:
                     r['stopped_minutes'] = None
                 if idling:
@@ -217,6 +297,7 @@ def api_vehicles_locations():
         for r in rows:
             r.setdefault('stopped_minutes', None)
             r.setdefault('idle_minutes', 0)
+            r.setdefault('stopped_is_min', False)
 
     rows.sort(key=lambda r: r['vehicle_name'])
     return jsonify({'vehicles': rows})
