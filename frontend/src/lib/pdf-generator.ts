@@ -44,7 +44,7 @@ async function loadFontFile(url: string): Promise<string | null> {
   } catch { return null; }
 }
 
-async function loadInterFonts(): Promise<{ regular: string; bold: string } | null> {
+export async function loadInterFonts(): Promise<{ regular: string; bold: string } | null> {
   if (cachedFontRegular && cachedFontBold) return { regular: cachedFontRegular, bold: cachedFontBold };
   const [regular, bold] = await Promise.all([
     loadFontFile('/fonts/Inter-Regular.ttf'),
@@ -56,7 +56,7 @@ async function loadInterFonts(): Promise<{ regular: string; bold: string } | nul
   return { regular: cachedFontRegular, bold: cachedFontBold };
 }
 
-function registerInterFont(doc: jsPDF, fonts: { regular: string; bold: string }) {
+export function registerInterFont(doc: jsPDF, fonts: { regular: string; bold: string }) {
   doc.addFileToVFS('Inter-Regular.ttf', fonts.regular);
   doc.addFont('Inter-Regular.ttf', 'Inter', 'normal');
   doc.addFileToVFS('Inter-Bold.ttf', fonts.bold);
