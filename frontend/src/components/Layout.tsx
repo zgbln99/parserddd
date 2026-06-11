@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Users, FileText, RefreshCw, Sun, Moon, Globe, LogOut,
   Calendar, X, Shield, UserCog, Truck, Gauge, Coins, ClipboardCheck,
   Menu, ChevronLeft, ChevronRight, Route, PanelLeftClose, PanelLeftOpen,
-  Palette, Clock, ShieldCheck, Search, MapPin, Fuel,
+  Palette, Clock, ShieldCheck, Search, MapPin, Fuel, ShieldAlert,
 } from 'lucide-react';
 import { NotificationCenter } from './NotificationCenter';
 import { prefetchRoute } from '../lib/prefetch';
@@ -56,6 +56,7 @@ export function Layout({ children }: { children: ReactNode }) {
     { to: '/compliance', icon: ShieldCheck, labelKey: 'navCompliance' as const, permission: 'settlement' },
     { to: '/vehicles', icon: Truck, labelKey: 'navVehicles' as const, permission: 'vehicles' },
     { to: '/map', icon: MapPin, labelKey: 'navFleetMap' as const, permission: 'vehicles' },
+    { to: '/safety', icon: ShieldAlert, labelKey: 'navSafety' as const, permission: 'vehicles' },
     { to: '/odometer', icon: Gauge, labelKey: 'navOdometer' as const, permission: 'vehicles' },
     { to: '/driver-km', icon: Gauge, labelKey: 'navDriverKm' as const, permission: 'driver_km' },
     { to: '/fuel-cards', icon: Fuel, labelKey: 'navFuelCards' as const, permission: 'vehicles' },
@@ -81,7 +82,7 @@ export function Layout({ children }: { children: ReactNode }) {
   const payrollItems = navItems.filter(i => payrollKeys.has(i.to));
   if (payrollItems.length > 0) navSections.push({ label: locale === 'de' ? 'Abrechnung' : 'Rozliczenia', items: payrollItems });
 
-  const vehicleKeys = new Set(['/vehicles', '/map', '/odometer', '/driver-km', '/fuel-cards', '/toll', '/samsara-km']);
+  const vehicleKeys = new Set(['/vehicles', '/map', '/safety', '/odometer', '/driver-km', '/fuel-cards', '/toll', '/samsara-km']);
   const vehicleItems = navItems.filter(i => vehicleKeys.has(i.to));
   if (vehicleItems.length > 0) navSections.push({ label: locale === 'de' ? 'Fahrzeuge & Maut' : 'Pojazdy i maut', items: vehicleItems });
 

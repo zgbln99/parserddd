@@ -32,6 +32,7 @@ export function NotificationCenter() {
   const ref = useRef<HTMLDivElement>(null);
 
   const [stopAlert, setStopAlert] = useState<Alert | null>(null);
+  const [lowFuelAlert, setLowFuelAlert] = useState<Alert | null>(null);
   const [fuelAlert, setFuelAlert] = useState<Alert | null>(null);
 
   useEffect(() => {
@@ -61,34 +62,49 @@ export function NotificationCenter() {
           );
         })
         .catch(() => setFuelAlert(null));
-      // Stop alert: trucks standing > STOP_ALERT_MIN during working hours.
-      if (isWorkingHours()) {
-        fetchVehicleLocations()
-          .then((r) => {
-            const stuck = (r.vehicles || []).filter(
+      // Fleet snapshot → stop alert (working hours) + low-fuel alert.
+      fetchVehicleLocations()
+        .then((r) => {
+          const list = r.vehicles || [];
+          if (isWorkingHours()) {
+            const stuck = list.filter(
               (v) => v.speed_kmh <= 5 && v.stopped_minutes != null && v.stopped_minutes >= STOP_ALERT_MIN,
             );
-            if (stuck.length === 0) {
-              setStopAlert(null);
-              return;
-            }
-            const names = stuck.map((v) => v.vehicle_name).slice(0, 3).join(', ');
-            const more = stuck.length > 3 ? ` +${stuck.length - 3}` : '';
-            setStopAlert({
-              id: 'stopped',
-              icon: MapPin,
-              tone: 'amber',
-              text:
-                locale === 'de'
+            if (stuck.length) {
+              const names = stuck.map((v) => v.vehicle_name).slice(0, 3).join(', ');
+              const more = stuck.length > 3 ? ` +${stuck.length - 3}` : '';
+              setStopAlert({
+                id: 'stopped',
+                icon: MapPin,
+                tone: 'amber',
+                text: locale === 'de'
                   ? `${stuck.length} Fzg. steht > 3 Std: ${names}${more}`
                   : `${stuck.length} poj. stoi > 3 h: ${names}${more}`,
+                to: '/map',
+              });
+            } else {
+              setStopAlert(null);
+            }
+          } else {
+            setStopAlert(null);
+          }
+          const low = list.filter((v) => v.fuel_percent != null && v.fuel_percent <= 12);
+          if (low.length) {
+            const names = low.map((v) => v.vehicle_name).slice(0, 3).join(', ');
+            setLowFuelAlert({
+              id: 'lowfuel',
+              icon: Fuel,
+              tone: 'amber',
+              text: locale === 'de'
+                ? `Niedriger Tank: ${names}${low.length > 3 ? ` +${low.length - 3}` : ''}`
+                : `Niski poziom paliwa: ${names}${low.length > 3 ? ` +${low.length - 3}` : ''}`,
               to: '/map',
             });
-          })
-          .catch(() => setStopAlert(null));
-      } else {
-        setStopAlert(null);
-      }
+          } else {
+            setLowFuelAlert(null);
+          }
+        })
+        .catch(() => { setStopAlert(null); setLowFuelAlert(null); });
       fetchDashboard()
         .then((d) => {
           const out: Alert[] = [];
@@ -152,6 +168,7 @@ export function NotificationCenter() {
 
   const allAlerts = [
     ...(stopAlert ? [stopAlert] : []),
+    ...(lowFuelAlert ? [lowFuelAlert] : []),
     ...(fuelAlert ? [fuelAlert] : []),
     ...alerts,
   ];

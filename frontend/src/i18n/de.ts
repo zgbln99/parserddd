@@ -735,6 +735,7 @@ export const de: Record<TranslationKey, string> = {
   navOdometer: 'Kilometerstand',
   navFleetMap: 'Flottenkarte',
   navFuelCards: 'Tankkarten',
+  navSafety: 'Fahrverhalten',
   odoTitle: 'Kilometerstand Fahrzeuge (Samsara)',
   odoSubtitle: 'Aktueller Kilometerstand oder Tageskilometer (Zeitraum) aus dem OBD-Tachographen',
   odoModeCurrent: 'Aktuell',

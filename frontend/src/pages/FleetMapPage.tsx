@@ -2,9 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { Map as MapIcon, RefreshCw, Search, Layers, Truck, X } from 'lucide-react';
+import { Map as MapIcon, RefreshCw, Search, Layers, Truck, X, Route, Fuel } from 'lucide-react';
 import { useI18n } from '../i18n';
-import { fetchVehicleLocations, fetchLiveStatus, type VehicleLocation } from '../lib/api';
+import { fetchVehicleLocations, fetchLiveStatus, fetchVehicleTrail, type VehicleLocation } from '../lib/api';
 
 /**
  * Fleet map — OpenStreetMap/satellite/dark tiles via Leaflet (no API keys).
@@ -53,6 +53,7 @@ export function FleetMapPage() {
   const mapRef = useRef<L.Map | null>(null);
   const tileRef = useRef<L.TileLayer | null>(null);
   const layerRef = useRef<L.LayerGroup | null>(null);
+  const trailLayerRef = useRef<L.LayerGroup | null>(null);
   const markersRef = useRef<Map<string, L.Marker>>(new Map());
   const fittedRef = useRef(false);
 
@@ -69,6 +70,8 @@ export function FleetMapPage() {
   );
   const [selectedId, setSelectedId] = useState(searchParams.get('vehicle') || '');
   const [panelOpen, setPanelOpen] = useState(true);
+  const [trailHours, setTrailHours] = useState(0); // 0 = off
+  const [trailLoading, setTrailLoading] = useState(false);
 
   // --- map init ----------------------------------------------------------
   useEffect(() => {
@@ -77,6 +80,7 @@ export function FleetMapPage() {
     L.control.zoom({ position: 'bottomright' }).addTo(map);
     const cfg = BASE_LAYERS[baseLayer] || BASE_LAYERS.osm;
     tileRef.current = L.tileLayer(cfg.url, { maxZoom: cfg.maxZoom, attribution: cfg.attribution }).addTo(map);
+    trailLayerRef.current = L.layerGroup().addTo(map);
     layerRef.current = L.layerGroup().addTo(map);
     mapRef.current = map;
     return () => {
@@ -84,6 +88,7 @@ export function FleetMapPage() {
       mapRef.current = null;
       tileRef.current = null;
       layerRef.current = null;
+      trailLayerRef.current = null;
       markersRef.current.clear();
       fittedRef.current = false;
     };
@@ -154,6 +159,45 @@ export function FleetMapPage() {
     setTimeout(() => markersRef.current.get(v.vehicle_id)?.openPopup(), 650);
   }, []);
 
+  const clearTrail = useCallback(() => {
+    trailLayerRef.current?.clearLayers();
+  }, []);
+
+  const loadTrail = useCallback(async (vehicleId: string, hours: number) => {
+    const layer = trailLayerRef.current;
+    const map = mapRef.current;
+    if (!layer || !map || !vehicleId) return;
+    setTrailLoading(true);
+    layer.clearLayers();
+    try {
+      const res = await fetchVehicleTrail(vehicleId, hours);
+      const pts = (res.points || []).filter((p) => p.lat != null && p.lng != null);
+      if (pts.length < 2) return;
+      const latlngs = pts.map((p) => [p.lat, p.lng] as L.LatLngTuple);
+      // casing + colored line
+      L.polyline(latlngs, { color: '#ffffff', weight: 7, opacity: 0.8 }).addTo(layer);
+      L.polyline(latlngs, { color: '#5750f1', weight: 4, opacity: 0.95 }).addTo(layer);
+      // start + end dots
+      const first = pts[0];
+      const last = pts[pts.length - 1];
+      L.circleMarker([first.lat, first.lng], { radius: 5, color: '#16a34a', fillColor: '#22ad5c', fillOpacity: 1, weight: 2 })
+        .bindTooltip(de ? 'Start' : 'Początek').addTo(layer);
+      L.circleMarker([last.lat, last.lng], { radius: 5, color: '#b91c1c', fillColor: '#ef4444', fillOpacity: 1, weight: 2 })
+        .bindTooltip(de ? 'Letzte Position' : 'Ostatnia pozycja').addTo(layer);
+      map.fitBounds(L.latLngBounds(latlngs), { padding: [60, 60] });
+    } catch {
+      /* surface nothing; trail is best-effort */
+    } finally {
+      setTrailLoading(false);
+    }
+  }, [de]);
+
+  // (re)load or clear the trail when the toggle / selection changes
+  useEffect(() => {
+    if (trailHours > 0 && selectedId) loadTrail(selectedId, trailHours);
+    else clearTrail();
+  }, [trailHours, selectedId, loadTrail, clearTrail]);
+
   // --- markers -------------------------------------------------------------
   useEffect(() => {
     const map = mapRef.current;
@@ -179,7 +223,7 @@ export function FleetMapPage() {
         <div style="font: 12px/1.5 system-ui; min-width: 180px">
           <div style="font-weight:700; font-size:13px">${v.vehicle_name}</div>
           ${driver ? `<div>👤 ${driver}</div>` : ''}
-          <div>${moving ? `🟢 <b>${v.speed_kmh} km/h</b>` : `⚪ ${de ? 'Steht' : 'Postój'}`}</div>
+          <div>${moving ? `🟢 <b>${v.speed_kmh} km/h</b>` : `⚪ ${de ? 'Steht' : 'Postój'}`}${v.fuel_percent != null ? ` · ⛽ ${v.fuel_percent}%` : ''}</div>
           ${stop}
           <div style="color:#6b7280; margin-top:2px">${v.location || ''}</div>
           <a href="https://maps.google.com/?q=${v.latitude},${v.longitude}" target="_blank" rel="noopener" style="color:#5750f1">Google Maps →</a>
@@ -337,7 +381,14 @@ export function FleetMapPage() {
                         </span>
                       </div>
                       {driver && <p className="ml-4 truncate text-[11px] text-muted">👤 {driver}</p>}
-                      {v.location && <p className="ml-4 truncate text-[11px] text-muted">{v.location}</p>}
+                      <div className="ml-4 flex items-center gap-2 text-[11px] text-muted">
+                        {v.fuel_percent != null && (
+                          <span className={`inline-flex items-center gap-0.5 font-medium ${v.fuel_percent <= 15 ? 'text-danger' : v.fuel_percent <= 30 ? 'text-warning' : ''}`}>
+                            <Fuel size={10} /> {v.fuel_percent}%
+                          </span>
+                        )}
+                        {v.location && <span className="truncate">{v.location}</span>}
+                      </div>
                     </button>
                   );
                 })
@@ -359,6 +410,30 @@ export function FleetMapPage() {
             <Truck size={14} />
             {panelOpen ? (de ? 'Liste ausblenden' : 'Ukryj listę') : (de ? 'Liste' : 'Lista')}
           </button>
+
+          {/* Route trail control (when a vehicle is selected) */}
+          {selectedId && (
+            <div className="absolute right-3 top-3 z-[500] flex items-center gap-1 rounded-xl border border-border bg-card p-1 shadow-md">
+              <Route size={14} className={`ml-1.5 ${trailLoading ? 'animate-pulse text-primary-600' : 'text-muted'}`} />
+              <span className="px-1 text-xs font-semibold text-muted">{de ? 'Route' : 'Trasa'}</span>
+              {[
+                { h: 0, label: de ? 'Aus' : 'Wył.' },
+                { h: 4, label: '4 h' },
+                { h: 8, label: '8 h' },
+                { h: 24, label: '24 h' },
+              ].map(({ h, label }) => (
+                <button
+                  key={h}
+                  onClick={() => setTrailHours(h)}
+                  className={`rounded-lg px-2 py-1 text-xs font-semibold transition ${
+                    trailHours === h ? 'bg-primary-600 text-white' : 'text-muted hover:bg-surface'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

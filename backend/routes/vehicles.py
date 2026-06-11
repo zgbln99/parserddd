@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from calendar import monthrange
 from zoneinfo import ZoneInfo
 
@@ -81,7 +81,7 @@ def api_vehicles_locations():
     after = None
 
     for _ in range(20):  # max pages
-        params = {'types': 'gps', 'limit': 100}
+        params = {'types': 'gps,fuelPercents', 'limit': 100}
         if after:
             params['after'] = after
         try:
@@ -103,6 +103,15 @@ def api_vehicles_locations():
             if not isinstance(gps, dict):
                 continue
             kmh = float(gps.get('speedMilesPerHour', 0) or 0) * 1.609344
+            fuel = v.get('fuelPercents')
+            if isinstance(fuel, list):
+                fuel = fuel[0] if fuel else None
+            fuel_pct = None
+            if isinstance(fuel, dict) and fuel.get('value') is not None:
+                try:
+                    fuel_pct = int(fuel['value'])
+                except (TypeError, ValueError):
+                    fuel_pct = None
             rows.append({
                 'vehicle_id': v.get('id', ''),
                 'vehicle_name': v.get('name', ''),
@@ -111,6 +120,7 @@ def api_vehicles_locations():
                 'speed_kmh': round(kmh),
                 'heading': gps.get('headingDegrees'),
                 'location': (gps.get('reverseGeo') or {}).get('formattedLocation', ''),
+                'fuel_percent': fuel_pct,
                 'updated_at': gps.get('time', ''),
             })
         pag = data.get('pagination', {})
@@ -166,6 +176,145 @@ def api_vehicles_locations():
 
     rows.sort(key=lambda r: r['vehicle_name'])
     return jsonify({'vehicles': rows})
+
+
+@bp.route('/api/vehicles/<vehicle_id>/trail', methods=['GET'])
+@permission_required('vehicles')
+def api_vehicle_trail(vehicle_id):
+    """GPS breadcrumb trail of one vehicle over the last N hours (default 8).
+
+    Returns ordered points (lat/lng/time/speed) for drawing the route on the
+    map, plus detected stops (consecutive near-zero-speed points).
+    """
+    if not SAMSARA_API_TOKEN:
+        return jsonify({'error': 'Samsara API not configured'}), 400
+
+    try:
+        hours = max(1, min(72, int(request.args.get('hours', 8))))
+    except (TypeError, ValueError):
+        hours = 8
+
+    now = datetime.now(timezone.utc)
+    start_time = (now.replace(microsecond=0) - timedelta(hours=hours)).isoformat().replace('+00:00', 'Z')
+    end_time = now.replace(microsecond=0).isoformat().replace('+00:00', 'Z')
+    headers = {'Authorization': f'Bearer {SAMSARA_API_TOKEN}'}
+
+    points = []
+    after = None
+    for _ in range(50):
+        params = {
+            'vehicleIds': vehicle_id,
+            'types': 'gps',
+            'startTime': start_time,
+            'endTime': end_time,
+        }
+        if after:
+            params['after'] = after
+        try:
+            resp = http_requests.get(
+                f'{SAMSARA_API_BASE}/fleet/vehicles/stats/history',
+                headers=headers, params=params, timeout=30,
+            )
+            if resp.status_code != 200:
+                return jsonify({'error': f'Samsara API error: {resp.status_code}'}), 502
+            data = resp.json()
+        except Exception as e:
+            return jsonify({'error': str(e)}), 502
+
+        for entry in data.get('data', []):
+            for gp in entry.get('gps', []):
+                lat = gp.get('latitude')
+                lng = gp.get('longitude')
+                if lat is None or lng is None:
+                    continue
+                kmh = float(gp.get('speedMilesPerHour', 0) or 0) * 1.609344
+                points.append({
+                    'lat': lat,
+                    'lng': lng,
+                    'time': gp.get('time', ''),
+                    'speed_kmh': round(kmh),
+                    'location': (gp.get('reverseGeo') or {}).get('formattedLocation', ''),
+                })
+        pag = data.get('pagination', {})
+        if pag.get('hasNextPage') and pag.get('endCursor'):
+            after = pag['endCursor']
+        else:
+            break
+
+    points.sort(key=lambda p: p['time'])
+    _log_activity('vehicle_trail', f'{vehicle_id}: {len(points)} pts / {hours}h')
+    return jsonify({'vehicle_id': vehicle_id, 'hours': hours, 'points': points})
+
+
+@bp.route('/api/vehicles/safety-events', methods=['GET'])
+@permission_required('vehicles')
+def api_safety_events():
+    """Harsh-driving / speeding safety events from Samsara (last N days).
+
+    Defensive: if the account/plan doesn't expose the Safety API, we return
+    a clear message instead of a 500 so the UI can explain it.
+    """
+    if not SAMSARA_API_TOKEN:
+        return jsonify({'error': 'Samsara API not configured'}), 400
+
+    try:
+        days = max(1, min(31, int(request.args.get('days', 7))))
+    except (TypeError, ValueError):
+        days = 7
+
+    now = datetime.now(timezone.utc)
+    start_time = (now - timedelta(days=days)).replace(microsecond=0).isoformat().replace('+00:00', 'Z')
+    end_time = now.replace(microsecond=0).isoformat().replace('+00:00', 'Z')
+    headers = {'Authorization': f'Bearer {SAMSARA_API_TOKEN}'}
+
+    events = []
+    after = None
+    for _ in range(50):
+        params = {'startTime': start_time, 'endTime': end_time}
+        if after:
+            params['after'] = after
+        try:
+            resp = http_requests.get(
+                f'{SAMSARA_API_BASE}/fleet/safety-events',
+                headers=headers, params=params, timeout=30,
+            )
+        except Exception as e:
+            return jsonify({'error': str(e)}), 502
+        if resp.status_code == 404:
+            return jsonify({'events': [], 'unavailable': True,
+                            'message': 'Safety API not available for this account/plan'}), 200
+        if resp.status_code != 200:
+            return jsonify({'error': f'Samsara API error: {resp.status_code}', 'detail': resp.text[:200]}), 502
+        data = resp.json()
+        for ev in data.get('data', []):
+            veh = ev.get('vehicle', {}) or {}
+            drv = ev.get('driver', {}) or {}
+            # behaviorLabels carries the harsh-event types; be tolerant of shape
+            labels = []
+            for b in (ev.get('behaviorLabels') or []):
+                lab = b.get('label') or b.get('type') or b.get('name')
+                if lab:
+                    labels.append(str(lab))
+            loc = ev.get('address') or {}
+            events.append({
+                'time': ev.get('time', '') or ev.get('startTime', ''),
+                'vehicle_name': veh.get('name', ''),
+                'driver_name': drv.get('name', ''),
+                'labels': labels,
+                'max_speed_kmh': round(float(ev.get('maxSpeedKilometersPerHour', 0) or 0)) or None,
+                'posted_speed_kmh': round(float(ev.get('postedSpeedLimitKilometersPerHour', 0) or 0)) or None,
+                'location': loc.get('formattedLocation', '') if isinstance(loc, dict) else '',
+                'download_url': ev.get('downloadForwardVideoUrl', '') or '',
+            })
+        pag = data.get('pagination', {})
+        if pag.get('hasNextPage') and pag.get('endCursor'):
+            after = pag['endCursor']
+        else:
+            break
+
+    events.sort(key=lambda e: e['time'], reverse=True)
+    _log_activity('safety_events', f'{len(events)} events / {days}d')
+    return jsonify({'events': events, 'days': days})
 
 
 @bp.route('/api/vehicles/activity', methods=['POST'])

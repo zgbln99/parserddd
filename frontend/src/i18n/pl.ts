@@ -733,6 +733,7 @@ export const pl = {
   navOdometer: 'Przebieg',
   navFleetMap: 'Mapa floty',
   navFuelCards: 'Karty paliwowe',
+  navSafety: 'Wykroczenia jazdy',
   odoTitle: 'Przebieg pojazdów (Samsara)',
   odoSubtitle: 'Aktualny przebieg lub przebieg dzienny w zakresie dat z tachografu OBD',
   odoModeCurrent: 'Aktualny',

@@ -137,12 +137,42 @@ export interface VehicleLocation {
   speed_kmh: number;
   heading: number | null;
   location: string;
+  fuel_percent: number | null;
   updated_at: string;
   stopped_minutes: number | null;
 }
 
 export const fetchVehicleLocations = () =>
   request<{ vehicles: VehicleLocation[] }>('/api/vehicles/locations');
+
+export interface TrailPoint {
+  lat: number;
+  lng: number;
+  time: string;
+  speed_kmh: number;
+  location: string;
+}
+
+export const fetchVehicleTrail = (vehicleId: string, hours = 8) =>
+  request<{ vehicle_id: string; hours: number; points: TrailPoint[] }>(
+    `/api/vehicles/${encodeURIComponent(vehicleId)}/trail?hours=${hours}`,
+  );
+
+export interface SafetyEvent {
+  time: string;
+  vehicle_name: string;
+  driver_name: string;
+  labels: string[];
+  max_speed_kmh: number | null;
+  posted_speed_kmh: number | null;
+  location: string;
+  download_url: string;
+}
+
+export const fetchSafetyEvents = (days = 7) =>
+  request<{ events: SafetyEvent[]; days?: number; unavailable?: boolean; message?: string }>(
+    `/api/vehicles/safety-events?days=${days}`,
+  );
 
 // Fuel cards
 export interface FuelCard {
