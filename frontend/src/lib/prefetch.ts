@@ -23,6 +23,7 @@ const importers: Record<string, () => Promise<unknown>> = {
   '/fuel-cards': () => import('../pages/FuelCardsPage'),
   '/safety': () => import('../pages/SafetyEventsPage'),
   '/diagnostics': () => import('../pages/DiagnosticsPage'),
+  '/deadlines': () => import('../pages/DeadlinesPage'),
   '/payroll': () => import('../pages/PayrollPage'),
   '/stundenzettel': () => import('../pages/StundenzettelPage'),
   '/bulk-grid': () => import('../pages/BulkGridPage'),

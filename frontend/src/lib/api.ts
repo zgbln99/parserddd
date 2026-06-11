@@ -216,6 +216,35 @@ export const updateFuelCard = (id: number, payload: FuelCardPayload) =>
 export const deleteFuelCard = (id: number) =>
   request<{ ok: boolean }>(`/api/fuel-cards/${id}`, { method: 'DELETE' });
 
+// Vehicle deadlines (TÜV/HU, insurance, ADR, tacho calibration…)
+export interface VehicleDeadline {
+  id: number;
+  vehicle_name: string;
+  kind: string;
+  due_date: string;
+  notes: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export type VehicleDeadlinePayload = Pick<VehicleDeadline, 'vehicle_name' | 'kind' | 'due_date' | 'notes'>;
+
+export const fetchVehicleDeadlines = () =>
+  request<{ deadlines: VehicleDeadline[] }>('/api/vehicle-deadlines');
+
+export const createVehicleDeadline = (p: VehicleDeadlinePayload) =>
+  request<VehicleDeadline>('/api/vehicle-deadlines', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p),
+  });
+
+export const updateVehicleDeadline = (id: number, p: VehicleDeadlinePayload) =>
+  request<VehicleDeadline>(`/api/vehicle-deadlines/${id}`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p),
+  });
+
+export const deleteVehicleDeadline = (id: number) =>
+  request<{ ok: boolean }>(`/api/vehicle-deadlines/${id}`, { method: 'DELETE' });
+
 // Drivers
 export const fetchDrivers = (refresh = false) =>
   request<{ drivers: import('../types').Driver[]; cached?: boolean }>(

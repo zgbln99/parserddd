@@ -356,6 +356,19 @@ def _init_db():
         );
     ''')
 
+    # Vehicle deadlines — TÜV/HU, insurance, ADR, tacho calibration, etc.
+    conn.executescript('''
+        CREATE TABLE IF NOT EXISTS vehicle_deadlines (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            vehicle_name  TEXT NOT NULL DEFAULT '',
+            kind          TEXT NOT NULL DEFAULT '',
+            due_date      TEXT NOT NULL DEFAULT '',
+            notes         TEXT NOT NULL DEFAULT '',
+            created_at    TEXT NOT NULL,
+            updated_at    TEXT NOT NULL
+        );
+    ''')
+
     conn.commit()
     conn.close()
     logger.info('Database initialized: %s', DATABASE_FILE)

@@ -30,6 +30,7 @@ const FleetMapPage = lazy(() => import('./pages/FleetMapPage').then(m => ({ defa
 const FuelCardsPage = lazy(() => import('./pages/FuelCardsPage').then(m => ({ default: m.FuelCardsPage })));
 const SafetyEventsPage = lazy(() => import('./pages/SafetyEventsPage').then(m => ({ default: m.SafetyEventsPage })));
 const DiagnosticsPage = lazy(() => import('./pages/DiagnosticsPage').then(m => ({ default: m.DiagnosticsPage })));
+const DeadlinesPage = lazy(() => import('./pages/DeadlinesPage').then(m => ({ default: m.DeadlinesPage })));
 const PayrollPage = lazy(() => import('./pages/PayrollPage').then(m => ({ default: m.PayrollPage })));
 const PayrollAnalysisPage = lazy(() => import('./pages/PayrollAnalysisPage').then(m => ({ default: m.PayrollAnalysisPage })));
 const StundenzettelPage = lazy(() => import('./pages/StundenzettelPage').then(m => ({ default: m.StundenzettelPage })));
@@ -150,6 +151,7 @@ export function App() {
           <Route path="/fuel-cards" element={<PermissionRoute permission="vehicles"><FuelCardsPage /></PermissionRoute>} />
           <Route path="/safety" element={<PermissionRoute permission="vehicles"><SafetyEventsPage /></PermissionRoute>} />
           <Route path="/diagnostics" element={<PermissionRoute permission="vehicles"><DiagnosticsPage /></PermissionRoute>} />
+          <Route path="/deadlines" element={<PermissionRoute permission="vehicles"><DeadlinesPage /></PermissionRoute>} />
           <Route path="/analysis" element={<ProtectedRoute><AnalysisPage /></ProtectedRoute>} />
           <Route path="/arbeitszeitbericht" element={<PermissionRoute permission="settlement"><ArbeitszeitberichtPage /></PermissionRoute>} />
           <Route path="/compliance" element={<PermissionRoute permission="settlement"><CompliancePage /></PermissionRoute>} />

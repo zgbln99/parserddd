@@ -343,6 +343,22 @@ def init_db():
             '' if engine == 'postgresql' else 'AUTOINCREMENT',
         ))
 
+        # vehicle_deadlines — TÜV/HU, insurance, ADR, tacho calibration.
+        db.executescript('''
+            CREATE TABLE IF NOT EXISTS vehicle_deadlines (
+                id            {} PRIMARY KEY {},
+                vehicle_name  TEXT NOT NULL DEFAULT '',
+                kind          TEXT NOT NULL DEFAULT '',
+                due_date      TEXT NOT NULL DEFAULT '',
+                notes         TEXT NOT NULL DEFAULT '',
+                created_at    TEXT NOT NULL,
+                updated_at    TEXT NOT NULL
+            );
+        '''.format(
+            'SERIAL' if engine == 'postgresql' else 'INTEGER',
+            '' if engine == 'postgresql' else 'AUTOINCREMENT',
+        ))
+
         # violation_statuses — per-violation status persistence for the
         # activity-based compliance engine. ``violation_id`` is the
         # content-addressable id produced by the engine, so the same
