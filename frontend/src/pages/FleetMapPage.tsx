@@ -76,6 +76,9 @@ export function FleetMapPage() {
   const tileRef = useRef<L.TileLayer | null>(null);
   const layerRef = useRef<L.LayerGroup | null>(null);
   const trailLayerRef = useRef<L.LayerGroup | null>(null);
+  const poiLayerRef = useRef<L.LayerGroup | null>(null);
+  const poiSeenRef = useRef<Set<string>>(new Set());
+  const poiAbortRef = useRef<AbortController | null>(null);
   const markersRef = useRef<Map<string, L.Marker>>(new Map());
   const fittedRef = useRef(false);
 
@@ -93,6 +96,7 @@ export function FleetMapPage() {
   });
   const [selectedId, setSelectedId] = useState(searchParams.get('vehicle') || '');
   const [panelOpen, setPanelOpen] = useState(true);
+  const [poiOn, setPoiOn] = useState(() => localStorage.getItem('fleet-map-poi') === '1');
   const [trailHours, setTrailHours] = useState(0); // 0 = off (and no date)
   const [trailDate, setTrailDate] = useState(''); // YYYY-MM-DD = full historic day
   const [trailDateTo, setTrailDateTo] = useState(''); // optional range end → multi-day
@@ -110,6 +114,7 @@ export function FleetMapPage() {
     const cfg = BASE_LAYERS[baseLayer] || BASE_LAYERS.voyager;
     tileRef.current = L.tileLayer(cfg.url, { maxZoom: cfg.maxZoom, attribution: cfg.attribution }).addTo(map);
     trailLayerRef.current = L.layerGroup().addTo(map);
+    poiLayerRef.current = L.layerGroup().addTo(map);
     layerRef.current = L.layerGroup().addTo(map);
     mapRef.current = map;
 
@@ -136,6 +141,63 @@ export function FleetMapPage() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // --- POI overlay (fuel stations, rest areas) via free Overpass/OSM -------
+  const loadPois = useCallback(async () => {
+    const map = mapRef.current;
+    const layer = poiLayerRef.current;
+    if (!map || !layer) return;
+    // Below city zoom there would be thousands of POIs — show nothing.
+    if (map.getZoom() < 11) return;
+    const b = map.getBounds();
+    const bbox = `${b.getSouth()},${b.getWest()},${b.getNorth()},${b.getEast()}`;
+    poiAbortRef.current?.abort();
+    const ac = new AbortController();
+    poiAbortRef.current = ac;
+    try {
+      const q = `[out:json][timeout:15];(node["amenity"="fuel"](${bbox});node["highway"="rest_area"](${bbox});node["highway"="services"](${bbox}););out 300;`;
+      const res = await fetch('https://overpass-api.de/api/interpreter', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'data=' + encodeURIComponent(q),
+        signal: ac.signal,
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      for (const el of data.elements || []) {
+        if (el.lat == null || el.lon == null) continue;
+        const id = String(el.id);
+        if (poiSeenRef.current.has(id)) continue;
+        poiSeenRef.current.add(id);
+        const isFuel = el.tags?.amenity === 'fuel';
+        const name = el.tags?.brand || el.tags?.name || (isFuel ? (de ? 'Tankstelle' : 'Stacja paliw') : (de ? 'Rastplatz' : 'Parking / MOP'));
+        const icon = L.divIcon({
+          className: '',
+          html: `<div class="poi-pin">${isFuel ? '⛽' : '🅿️'}</div>`,
+          iconSize: [22, 22],
+          iconAnchor: [11, 11],
+        });
+        L.marker([el.lat, el.lon], { icon }).bindTooltip(name).addTo(layer);
+      }
+    } catch { /* best-effort overlay */ }
+  }, [de]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    localStorage.setItem('fleet-map-poi', poiOn ? '1' : '0');
+    if (!poiOn) {
+      poiAbortRef.current?.abort();
+      poiLayerRef.current?.clearLayers();
+      poiSeenRef.current.clear();
+      return;
+    }
+    loadPois();
+    let t = 0;
+    const onMove = () => { window.clearTimeout(t); t = window.setTimeout(loadPois, 600); };
+    map.on('moveend', onMove);
+    return () => { map.off('moveend', onMove); window.clearTimeout(t); };
+  }, [poiOn, loadPois]);
 
   // --- base layer switch ---------------------------------------------------
   const switchLayer = (key: BaseLayerKey) => {
@@ -454,6 +516,15 @@ export function FleetMapPage() {
               {label}
             </button>
           ))}
+          <button
+            onClick={() => setPoiOn(!poiOn)}
+            title={de ? 'Tankstellen & Rastplätze (ab Zoom 11)' : 'Stacje paliw i parkingi (od zoomu 11)'}
+            className={`rounded-xl px-2.5 py-1 text-xs font-semibold transition ${
+              poiOn ? 'bg-primary-600 text-white' : 'text-muted hover:bg-surface'
+            }`}
+          >
+            ⛽ POI
+          </button>
         </div>
         <button
           onClick={() => { setLoading(true); load(); }}
@@ -563,7 +634,7 @@ export function FleetMapPage() {
 
       {/* Floating route-history panel (when a vehicle is selected) */}
       {selectedId && (
-        <div className="absolute bottom-3 right-3 z-[500] w-[calc(100%-1.5rem)] max-w-[320px] rounded-2xl border border-border bg-card/90 p-3 shadow-2xl backdrop-blur-md sm:w-auto">
+        <div className="absolute bottom-3 right-3 z-[500] w-[calc(100%-1.5rem)] max-w-[420px] rounded-2xl border border-border bg-card/90 p-3 shadow-2xl backdrop-blur-md sm:w-auto">
           <div className="mb-2 flex items-center gap-2">
             <Route size={15} className={trailLoading ? 'animate-pulse text-primary-600' : 'text-primary-600'} />
             <span className="text-sm font-bold text-ink">{de ? 'Route' : 'Trasa'}</span>
@@ -577,16 +648,16 @@ export function FleetMapPage() {
               </button>
             )}
           </div>
-          <div className="flex flex-wrap items-center gap-1">
+          <div className="flex flex-nowrap items-center gap-1">
             {[
-              { h: 4, label: '4 h' },
-              { h: 8, label: '8 h' },
-              { h: 24, label: '24 h' },
+              { h: 4, label: '4h' },
+              { h: 8, label: '8h' },
+              { h: 24, label: '24h' },
             ].map(({ h, label }) => (
               <button
                 key={h}
                 onClick={() => { setTrailDate(''); setTrailDateTo(''); setTrailHours(h); }}
-                className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
+                className={`shrink-0 rounded-lg px-2 py-1 text-xs font-semibold transition ${
                   !trailDate && trailHours === h ? 'bg-primary-600 text-white' : 'border border-border text-muted hover:bg-surface'
                 }`}
               >
@@ -598,19 +669,19 @@ export function FleetMapPage() {
               value={trailDate}
               max={today}
               onChange={(e) => { setTrailHours(0); setTrailDate(e.target.value); }}
-              className={`input rounded-lg px-2 py-1 text-xs dark:[color-scheme:dark] ${trailDate ? 'border-primary-500 text-primary-600' : ''}`}
+              className={`input min-w-0 flex-1 rounded-lg px-1.5 py-1 text-[11px] dark:[color-scheme:dark] ${trailDate ? 'border-primary-500 text-primary-600' : ''}`}
               title={de ? 'Tag / Beginn' : 'Dzień / początek zakresu'}
             />
             {trailDate && (
               <>
-                <span className="text-xs text-muted">–</span>
+                <span className="shrink-0 text-xs text-muted">–</span>
                 <input
                   type="date"
                   value={trailDateTo}
                   min={trailDate}
                   max={today}
                   onChange={(e) => setTrailDateTo(e.target.value)}
-                  className={`input rounded-lg px-2 py-1 text-xs dark:[color-scheme:dark] ${trailDateTo ? 'border-primary-500 text-primary-600' : ''}`}
+                  className={`input min-w-0 flex-1 rounded-lg px-1.5 py-1 text-[11px] dark:[color-scheme:dark] ${trailDateTo ? 'border-primary-500 text-primary-600' : ''}`}
                   title={de ? 'Ende (optional, mehrtägig)' : 'Koniec (opcjonalnie, wiele dni)'}
                 />
               </>
