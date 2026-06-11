@@ -138,6 +138,7 @@ export interface VehicleLocation {
   heading: number | null;
   location: string;
   updated_at: string;
+  stopped_minutes: number | null;
 }
 
 export const fetchVehicleLocations = () =>

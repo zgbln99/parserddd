@@ -296,6 +296,37 @@ thead th { user-select: none; }
 .dark ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.08); }
 .dark ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.15); }
 
+/* === FLEET MAP PINS (Leaflet divIcon) === */
+.fleet-pin {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px 3px 6px;
+  border-radius: 999px;
+  background: #ffffff;
+  border: 1px solid #d1d5db;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
+  font: 600 11px/1 var(--font-sans);
+  color: #111928;
+  white-space: nowrap;
+}
+.fleet-pin__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #9ca3af;
+  flex-shrink: 0;
+}
+.fleet-pin--moving { border-color: #22ad5c; }
+.fleet-pin--moving .fleet-pin__dot {
+  background: #22ad5c;
+  animation: fleet-pulse 1.6s ease-in-out infinite;
+}
+@keyframes fleet-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(34, 173, 92, 0.5); }
+  50% { box-shadow: 0 0 0 5px rgba(34, 173, 92, 0); }
+}
+
 /* === SKELETON === */
 .skeleton-shimmer {
   background: linear-gradient(90deg, rgba(0,0,0,0.04) 25%, rgba(0,0,0,0.08) 50%, rgba(0,0,0,0.04) 75%);

@@ -312,6 +312,16 @@ def init_db():
             '' if engine == 'postgresql' else 'AUTOINCREMENT',
         ))
 
+        # vehicle_movement — last-seen-moving timestamps for stop alerts.
+        db.executescript('''
+            CREATE TABLE IF NOT EXISTS vehicle_movement (
+                vehicle_id     TEXT PRIMARY KEY,
+                vehicle_name   TEXT NOT NULL DEFAULT '',
+                last_moving_at TEXT NOT NULL DEFAULT '',
+                updated_at     TEXT NOT NULL DEFAULT ''
+            );
+        ''')
+
         # violation_statuses — per-violation status persistence for the
         # activity-based compliance engine. ``violation_id`` is the
         # content-addressable id produced by the engine, so the same

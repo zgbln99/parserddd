@@ -19,6 +19,7 @@ const importers: Record<string, () => Promise<unknown>> = {
   '/toll': () => import('../pages/TollCollectPage'),
   '/samsara-km': () => import('../pages/SamsaraKmPage'),
   '/odometer': () => import('../pages/OdometerPage'),
+  '/map': () => import('../pages/FleetMapPage'),
   '/payroll': () => import('../pages/PayrollPage'),
   '/stundenzettel': () => import('../pages/StundenzettelPage'),
   '/bulk-grid': () => import('../pages/BulkGridPage'),

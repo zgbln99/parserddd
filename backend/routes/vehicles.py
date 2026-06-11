@@ -119,6 +119,51 @@ def api_vehicles_locations():
         else:
             break
 
+    # Track how long each vehicle has been standing. We record the last
+    # moment we saw it moving; while it stands, the gap to that moment is
+    # the stop duration. First sighting of a stopped vehicle starts the
+    # clock at "now" (we can't know how long it stood before).
+    now = datetime.now(timezone.utc)
+    now_iso = now.isoformat()
+    try:
+        conn = _get_db()
+        for r in rows:
+            if r['speed_kmh'] > 5:
+                conn.execute(
+                    '''INSERT INTO vehicle_movement (vehicle_id, vehicle_name, last_moving_at, updated_at)
+                       VALUES (?, ?, ?, ?)
+                       ON CONFLICT(vehicle_id) DO UPDATE SET
+                           vehicle_name = excluded.vehicle_name,
+                           last_moving_at = excluded.last_moving_at,
+                           updated_at = excluded.updated_at''',
+                    (r['vehicle_id'], r['vehicle_name'], now_iso, now_iso),
+                )
+                r['stopped_minutes'] = 0
+            else:
+                row = conn.execute(
+                    'SELECT last_moving_at FROM vehicle_movement WHERE vehicle_id = ?',
+                    (r['vehicle_id'],),
+                ).fetchone()
+                if row and row['last_moving_at']:
+                    try:
+                        last = datetime.fromisoformat(row['last_moving_at'])
+                        r['stopped_minutes'] = max(0, int((now - last).total_seconds() // 60))
+                    except ValueError:
+                        r['stopped_minutes'] = None
+                else:
+                    conn.execute(
+                        '''INSERT INTO vehicle_movement (vehicle_id, vehicle_name, last_moving_at, updated_at)
+                           VALUES (?, ?, ?, ?)
+                           ON CONFLICT(vehicle_id) DO NOTHING''',
+                        (r['vehicle_id'], r['vehicle_name'], now_iso, now_iso),
+                    )
+                    r['stopped_minutes'] = None
+        conn.commit()
+        conn.close()
+    except Exception:
+        for r in rows:
+            r.setdefault('stopped_minutes', None)
+
     rows.sort(key=lambda r: r['vehicle_name'])
     return jsonify({'vehicles': rows})
 

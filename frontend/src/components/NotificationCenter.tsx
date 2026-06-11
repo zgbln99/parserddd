@@ -1,8 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, Clock, CreditCard, AlertTriangle } from 'lucide-react';
+import { Bell, Clock, CreditCard, AlertTriangle, MapPin } from 'lucide-react';
 import { useI18n } from '../i18n';
-import { fetchDashboard } from '../lib/api';
+import { fetchDashboard, fetchVehicleLocations } from '../lib/api';
+
+// A truck standing this long during working hours is worth a look.
+const STOP_ALERT_MIN = 180;
+
+function isWorkingHours(): boolean {
+  const now = new Date();
+  const dow = now.getDay(); // 1–5 = Mon–Fri
+  const h = now.getHours();
+  return dow >= 1 && dow <= 5 && h >= 6 && h < 20;
+}
 
 interface Alert {
   id: string;
@@ -21,9 +31,39 @@ export function NotificationCenter() {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const ref = useRef<HTMLDivElement>(null);
 
+  const [stopAlert, setStopAlert] = useState<Alert | null>(null);
+
   useEffect(() => {
     let timer: ReturnType<typeof setInterval>;
     const load = () => {
+      // Stop alert: trucks standing > STOP_ALERT_MIN during working hours.
+      if (isWorkingHours()) {
+        fetchVehicleLocations()
+          .then((r) => {
+            const stuck = (r.vehicles || []).filter(
+              (v) => v.speed_kmh <= 5 && v.stopped_minutes != null && v.stopped_minutes >= STOP_ALERT_MIN,
+            );
+            if (stuck.length === 0) {
+              setStopAlert(null);
+              return;
+            }
+            const names = stuck.map((v) => v.vehicle_name).slice(0, 3).join(', ');
+            const more = stuck.length > 3 ? ` +${stuck.length - 3}` : '';
+            setStopAlert({
+              id: 'stopped',
+              icon: MapPin,
+              tone: 'amber',
+              text:
+                locale === 'de'
+                  ? `${stuck.length} Fzg. steht > 3 Std: ${names}${more}`
+                  : `${stuck.length} poj. stoi > 3 h: ${names}${more}`,
+              to: '/map',
+            });
+          })
+          .catch(() => setStopAlert(null));
+      } else {
+        setStopAlert(null);
+      }
       fetchDashboard()
         .then((d) => {
           const out: Alert[] = [];
@@ -85,7 +125,8 @@ export function NotificationCenter() {
     return () => document.removeEventListener('mousedown', onClick);
   }, [open]);
 
-  const count = alerts.length;
+  const allAlerts = stopAlert ? [stopAlert, ...alerts] : alerts;
+  const count = allAlerts.length;
 
   return (
     <div className="relative" ref={ref}>
@@ -113,7 +154,7 @@ export function NotificationCenter() {
             </div>
           ) : (
             <div className="divide-y divide-border">
-              {alerts.map((a) => {
+              {allAlerts.map((a) => {
                 const Icon = a.icon;
                 return (
                   <button

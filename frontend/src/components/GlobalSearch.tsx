@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { Search, LayoutDashboard, Users, FileText, RefreshCw, Shield, UserCog, Truck, Clock } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { useAuth } from '../hooks/useAuth';
-import { fetchDrivers, fetchSamsaraVehicles } from '../lib/api';
-import type { SamsaraVehicle } from '../lib/api';
+import { fetchDrivers, fetchSamsaraVehicles, fetchVehicleLocations } from '../lib/api';
+import type { SamsaraVehicle, VehicleLocation } from '../lib/api';
 import type { Driver } from '../types';
 
 interface SearchItem {
@@ -25,6 +25,7 @@ export function GlobalSearch() {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [vehicles, setVehicles] = useState<SamsaraVehicle[]>([]);
+  const [locations, setLocations] = useState<Map<string, VehicleLocation>>(new Map());
   const loadedRef = useRef(false);
 
   const recent: { name: string; url: string }[] = (() => {
@@ -70,7 +71,16 @@ export function GlobalSearch() {
     ? vehicles
         .filter((v) => v.name.toLowerCase().includes(q) || (v.license_plate || '').toLowerCase().includes(q))
         .slice(0, 6)
-        .map((v) => ({ label: v.name, sub: v.license_plate || undefined, to: '/vehicles', icon: Truck, keywords: [] }))
+        .map((v) => {
+          const loc = locations.get(v.id);
+          // With a live position the result deep-links into the fleet map,
+          // showing where the truck is right now.
+          const sub = loc
+            ? (loc.speed_kmh > 5 ? `${loc.speed_kmh} km/h · ${loc.location}` : loc.location) || v.license_plate || undefined
+            : v.license_plate || undefined;
+          const to = loc && loc.latitude != null ? `/map?vehicle=${encodeURIComponent(v.id)}` : '/vehicles';
+          return { label: v.name, sub, to, icon: Truck, keywords: [] };
+        })
     : [];
 
   const recentResults: SearchItem[] = recent
@@ -92,6 +102,9 @@ export function GlobalSearch() {
       loadedRef.current = true;
       fetchDrivers().then((r) => setDrivers(r.drivers || [])).catch(() => {});
       fetchSamsaraVehicles().then((r) => setVehicles(r.vehicles || [])).catch(() => {});
+      fetchVehicleLocations()
+        .then((r) => setLocations(new Map((r.vehicles || []).map((v) => [v.vehicle_id, v]))))
+        .catch(() => {});
     }
   }, [open]);
 

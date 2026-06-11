@@ -322,6 +322,17 @@ def _init_db():
         conn.execute("ALTER TABLE driver_profiles ADD COLUMN avatar_key TEXT NOT NULL DEFAULT ''")
         conn.commit()
 
+    # Last-seen-moving per vehicle — lets the live-fleet view compute how
+    # long a truck has been standing (stop alerts).
+    conn.executescript('''
+        CREATE TABLE IF NOT EXISTS vehicle_movement (
+            vehicle_id     TEXT PRIMARY KEY,
+            vehicle_name   TEXT NOT NULL DEFAULT '',
+            last_moving_at TEXT NOT NULL DEFAULT '',
+            updated_at     TEXT NOT NULL DEFAULT ''
+        );
+    ''')
+
     conn.commit()
     conn.close()
     logger.info('Database initialized: %s', DATABASE_FILE)
