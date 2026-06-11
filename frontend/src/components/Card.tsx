@@ -21,12 +21,12 @@ export function CardBody({ children, className }: { children: React.ReactNode; c
   return <div className={clsx('p-4 sm:p-6', className)}>{children}</div>;
 }
 
-const ICON_BG: Record<string, string> = {
-  primary: 'bg-[rgba(87,80,241,0.08)] text-[#5750f1]',
-  green: 'bg-[rgba(34,173,92,0.08)] text-[#22ad5c]',
-  orange: 'bg-[rgba(245,158,11,0.08)] text-[#f59e0b]',
-  red: 'bg-[rgba(242,48,48,0.08)] text-[#f23030]',
-  blue: 'bg-[rgba(60,80,224,0.08)] text-[#3c50e0]',
+const ICON_GRAD: Record<string, string> = {
+  primary: 'from-[#6e68f3] to-[#4a44d4]',
+  green: 'from-[#34d399] to-[#16a34a]',
+  orange: 'from-[#fbbf24] to-[#f59e0b]',
+  red: 'from-[#fb7185] to-[#ef4444]',
+  blue: 'from-[#60a5fa] to-[#3b82f6]',
 };
 
 export function StatCard({
@@ -45,16 +45,21 @@ export function StatCard({
   const c = color !== 'primary' ? color : (variant || 'primary');
 
   return (
-    <div className="card p-5">
+    <div className="card p-5 transition-transform duration-200 hover:-translate-y-0.5">
       <div className="flex items-center gap-4">
         {icon && (
-          <div className={clsx('flex h-12 w-12 items-center justify-center rounded-full', ICON_BG[c])}>
+          <div
+            className={clsx(
+              'flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br text-white shadow-sm',
+              ICON_GRAD[c],
+            )}
+          >
             {icon}
           </div>
         )}
         <div className="min-w-0">
           <p className="truncate text-sm font-medium text-[#6b7280] dark:text-[#9ca3af]">{label}</p>
-          <p className="mt-0.5 text-2xl font-bold text-[#111928] dark:text-white">
+          <p className="mt-1 text-[28px] font-extrabold leading-none tracking-tight text-[#111928] tabular-nums dark:text-white">
             {typeof value === 'number' ? <AnimatedNumber value={value} /> : value}
           </p>
         </div>

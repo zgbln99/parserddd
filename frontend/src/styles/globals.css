@@ -112,17 +112,27 @@ body {
 ::selection { background: rgba(87, 80, 241, 0.15); }
 .dark ::selection { background: rgba(87, 80, 241, 0.3); }
 
-/* === CARD — NextAdmin: rounded-[10px] bg-white shadow-1 dark:bg-gray-dark === */
+/* === CARD — crisp hairline + soft layered shadow + gentle hover === */
 .card {
   background: #ffffff;
-  border: none;
-  border-radius: 10px;
-  box-shadow: 0px 1px 2px 0px rgba(84, 87, 118, 0.12);
+  border: 1px solid #eceff3;
+  border-radius: 14px;
+  box-shadow: 0px 1px 2px 0px rgba(84, 87, 118, 0.06), 0px 1px 3px 0px rgba(84, 87, 118, 0.07);
+  transition: box-shadow 0.22s ease, border-color 0.22s ease;
+}
+
+.card:hover {
+  box-shadow: 0px 2px 4px 0px rgba(84, 87, 118, 0.05), 0px 12px 24px -8px rgba(113, 116, 152, 0.16);
 }
 
 .dark .card {
   background: #122031;
-  box-shadow: 0px 1px 2px 0px rgba(0, 0, 0, 0.12);
+  border-color: #233143;
+  box-shadow: 0px 1px 2px 0px rgba(0, 0, 0, 0.2);
+}
+
+.dark .card:hover {
+  box-shadow: 0px 14px 30px -10px rgba(0, 0, 0, 0.45);
 }
 
 /* === INPUT — NextAdmin: rounded-lg border-[1.5px] border-stroke bg-transparent === */
@@ -283,5 +293,5 @@ body {
 }
 
 @media (hover: none) {
-  .card:hover { box-shadow: 0px 1px 2px 0px rgba(84, 87, 118, 0.12); }
+  .card:hover { box-shadow: 0px 1px 2px 0px rgba(84, 87, 118, 0.06), 0px 1px 3px 0px rgba(84, 87, 118, 0.07); }
 }

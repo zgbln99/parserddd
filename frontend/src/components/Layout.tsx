@@ -175,7 +175,7 @@ export function Layout({ children }: { children: ReactNode }) {
                             ? 'justify-center px-2 py-2.5'
                             : 'gap-3 px-3.5 py-2',
                           isActive
-                            ? 'bg-[rgba(87,80,241,0.07)] !text-[#5750f1] dark:bg-[#FFFFFF1A] dark:!text-white'
+                            ? 'bg-[rgba(87,80,241,0.07)] font-semibold !text-[#5750f1] dark:bg-[#FFFFFF1A] dark:!text-white before:absolute before:left-0 before:top-1/2 before:h-5 before:w-[3px] before:-translate-y-1/2 before:rounded-r-full before:bg-[#5750f1]'
                             : 'hover:bg-[#f3f4f6] hover:text-[#111928] dark:hover:bg-[#FFFFFF1A] dark:hover:text-white',
                         )
                       }
@@ -385,9 +385,9 @@ export function Layout({ children }: { children: ReactNode }) {
                 end={to === '/'}
                 className={({ isActive }) =>
                   clsx(
-                    'flex flex-1 flex-col items-center gap-1 py-3 text-[11px] font-medium transition-colors min-h-[56px] justify-center',
+                    'relative flex flex-1 flex-col items-center gap-1 py-3 text-[11px] font-medium transition-colors min-h-[56px] justify-center',
                     isActive
-                      ? 'text-primary-600'
+                      ? 'font-semibold text-primary-600 before:absolute before:top-0 before:left-1/2 before:h-[3px] before:w-8 before:-translate-x-1/2 before:rounded-full before:bg-primary-600'
                       : 'text-muted',
                   )
                 }
