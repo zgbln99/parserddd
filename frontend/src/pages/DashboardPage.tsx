@@ -69,10 +69,29 @@ interface DashboardData {
   expiring_cards: ExpiringCard[];
 }
 
+// Cache the last payload so re-visits render instantly and refresh silently
+// in the background (no skeleton flicker on every navigation).
+const DASH_CACHE = 'dash-cache-v1';
+function readDashCache(): DashboardData | null {
+  try {
+    const raw = sessionStorage.getItem(DASH_CACHE);
+    return raw ? (JSON.parse(raw) as DashboardData) : null;
+  } catch {
+    return null;
+  }
+}
+function writeDashCache(d: DashboardData) {
+  try {
+    sessionStorage.setItem(DASH_CACHE, JSON.stringify(d));
+  } catch {
+    /* quota / private mode — non-critical */
+  }
+}
+
 export function DashboardPage() {
   const { t, locale } = useI18n();
   const { role } = useAuth();
-  const [data, setData] = useState<DashboardData | null>(null);
+  const [data, setData] = useState<DashboardData | null>(readDashCache);
   const [error, setError] = useState('');
   const [connections, setConnections] = useState<{ dropbox: boolean; samsara: boolean } | null>(null);
   const [showAllStale, setShowAllStale] = useState(false);
@@ -93,7 +112,7 @@ export function DashboardPage() {
 
   const loadDashboard = () => {
     fetchDashboard()
-      .then(setData)
+      .then((d) => { setData(d); writeDashCache(d); })
       .catch((e) => setError(e.message));
   };
 
@@ -115,7 +134,7 @@ export function DashboardPage() {
 
     // Auto-refresh every 60s
     refreshRef.current = setInterval(() => {
-      fetchDashboard().then(setData).catch(() => {});
+      fetchDashboard().then((d) => { setData(d); writeDashCache(d); }).catch(() => {});
       fetchConnectionStatus().then(setConnections).catch(() => {});
     }, REFRESH_INTERVAL);
 
@@ -136,7 +155,7 @@ export function DashboardPage() {
     }
   };
 
-  if (error) {
+  if (error && !data) {
     return (
       <div className="flex flex-col items-center gap-3 py-20 text-danger animate-fade-in">
         <AlertCircle size={32} />

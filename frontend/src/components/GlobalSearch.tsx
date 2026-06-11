@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { Search, LayoutDashboard, Users, FileText, RefreshCw, Shield, UserCog, Truck, Clock } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { useAuth } from '../hooks/useAuth';
-import { fetchDrivers } from '../lib/api';
+import { fetchDrivers, fetchSamsaraVehicles } from '../lib/api';
+import type { SamsaraVehicle } from '../lib/api';
 import type { Driver } from '../types';
 
 interface SearchItem {
@@ -23,7 +24,16 @@ export function GlobalSearch() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [drivers, setDrivers] = useState<Driver[]>([]);
+  const [vehicles, setVehicles] = useState<SamsaraVehicle[]>([]);
   const loadedRef = useRef(false);
+
+  const recent: { name: string; url: string }[] = (() => {
+    try {
+      return JSON.parse(localStorage.getItem('recent-analyses') || '[]');
+    } catch {
+      return [];
+    }
+  })();
 
   const pages: SearchItem[] = [
     { label: t('navDashboard'), to: '/', icon: LayoutDashboard, keywords: ['dashboard', 'pulpit', 'übersicht', 'home'] },
@@ -46,7 +56,7 @@ export function GlobalSearch() {
   const driverResults: SearchItem[] = q
     ? drivers
         .filter((d) => d.name.toLowerCase().includes(q) || (d.card_number || '').toLowerCase().includes(q))
-        .slice(0, 8)
+        .slice(0, 6)
         .map((d) => {
           const f = d.files?.[0];
           const to = f
@@ -56,7 +66,21 @@ export function GlobalSearch() {
         })
     : [];
 
-  const results = [...pageResults, ...driverResults];
+  const vehicleResults: SearchItem[] = q
+    ? vehicles
+        .filter((v) => v.name.toLowerCase().includes(q) || (v.license_plate || '').toLowerCase().includes(q))
+        .slice(0, 6)
+        .map((v) => ({ label: v.name, sub: v.license_plate || undefined, to: '/vehicles', icon: Truck, keywords: [] }))
+    : [];
+
+  const recentResults: SearchItem[] = recent
+    .filter((r) => (q ? r.name.toLowerCase().includes(q) : true))
+    .slice(0, 5)
+    .map((r) => ({ label: r.name, sub: t('recentAnalyses'), to: r.url, icon: Clock, keywords: [] }));
+
+  const results = q
+    ? [...pageResults, ...driverResults, ...vehicleResults, ...recentResults]
+    : [...pageResults, ...recentResults];
 
   useEffect(() => {
     setSelectedIndex(0);
@@ -67,6 +91,7 @@ export function GlobalSearch() {
     if (open && !loadedRef.current) {
       loadedRef.current = true;
       fetchDrivers().then((r) => setDrivers(r.drivers || [])).catch(() => {});
+      fetchSamsaraVehicles().then((r) => setVehicles(r.vehicles || [])).catch(() => {});
     }
   }, [open]);
 

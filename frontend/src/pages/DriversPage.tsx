@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, RefreshCw, ChevronUp, ChevronDown, FileText, AlertCircle, AlertTriangle, UserPlus, QrCode, FileDown } from 'lucide-react';
+import { Search, RefreshCw, ChevronUp, ChevronDown, FileText, AlertCircle, AlertTriangle, UserPlus, QrCode, FileDown, Users } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { fetchDrivers, addDriver } from '../lib/api';
 // pdf-generator is lazy-loaded on demand (heavy: jsPDF + fonts).
@@ -8,6 +8,7 @@ import { formatDate, formatDateTime, daysLabel, daysColor, formatBytes } from '.
 import { Card } from '../components/Card';
 import { Badge, StatusDot } from '../components/Badge';
 import { Spinner } from '../components/Spinner';
+import { EmptyState } from '../components/EmptyState';
 import { Modal } from '../components/Modal';
 import { MobileCard, CardField } from '../components/MobileCards';
 import type { Driver, DriverFile } from '../types';
@@ -231,7 +232,20 @@ export function DriversPage() {
       )}
 
       {!loading && !error && !drivers.length && (
-        <p className="py-20 text-center text-muted">{t('driversNoData')}</p>
+        <Card>
+          <EmptyState
+            icon={<Users size={26} />}
+            title={t('driversNoData')}
+            action={
+              <button
+                onClick={() => { setShowAddDriver(true); setNewDriverName(''); setAddDriverError(''); }}
+                className="btn-primary btn-press inline-flex items-center gap-2 px-4 py-2 text-sm"
+              >
+                <UserPlus size={15} /> {t('driversAddDriver')}
+              </button>
+            }
+          />
+        </Card>
       )}
 
       {/* Table (desktop) + Cards (mobile) */}
