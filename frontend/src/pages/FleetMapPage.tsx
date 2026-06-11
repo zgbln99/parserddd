@@ -87,7 +87,20 @@ export function FleetMapPage() {
     trailLayerRef.current = L.layerGroup().addTo(map);
     layerRef.current = L.layerGroup().addTo(map);
     mapRef.current = map;
+
+    // The container grows after mount (page transition / full-bleed layout),
+    // so tell Leaflet to repaint tiles whenever its size settles — otherwise
+    // it keeps a stale size and leaves blank areas.
+    const fixSize = () => map.invalidateSize();
+    const t1 = window.setTimeout(fixSize, 60);
+    const t2 = window.setTimeout(fixSize, 350);
+    const ro = new ResizeObserver(fixSize);
+    ro.observe(mapDiv.current);
+
     return () => {
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+      ro.disconnect();
       map.remove();
       mapRef.current = null;
       tileRef.current = null;
