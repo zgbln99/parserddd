@@ -265,7 +265,7 @@ export function DriversPage() {
           <div className="hidden sm:block overflow-x-auto">
             <table className="w-full min-w-[800px] text-sm">
               <thead>
-                <tr className="border-b border-border">
+                <tr className="border-b border-border bg-black/[0.02] dark:bg-white/5">
                   {cols.map(({ field, label }) => (
                     <th
                       key={field}
@@ -289,7 +289,7 @@ export function DriversPage() {
                   >
                     <td className="whitespace-nowrap px-4 py-3 font-semibold text-ink">
                       <div className="flex items-center gap-3">
-                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#5750f1] text-xs font-bold text-white">
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#6e68f3] to-[#4a44d4] text-xs font-bold text-white shadow-sm">
                           {d.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
                         </div>
                         {d.name}

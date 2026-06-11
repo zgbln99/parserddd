@@ -7,6 +7,7 @@ import {
   Palette, Clock, ShieldCheck, Search,
 } from 'lucide-react';
 import { NotificationCenter } from './NotificationCenter';
+import { prefetchRoute } from '../lib/prefetch';
 import { useI18n, type Locale } from '../i18n';
 import { useTheme } from '../hooks/useTheme';
 import { useAuth } from '../hooks/useAuth';
@@ -168,6 +169,8 @@ export function Layout({ children }: { children: ReactNode }) {
                       to={to}
                       end={to === '/'}
                       onClick={() => setSidebarOpen(false)}
+                      onMouseEnter={() => prefetchRoute(to)}
+                      onFocus={() => prefetchRoute(to)}
                       title={collapsed && !sidebarOpen ? t(labelKey) : undefined}
                       className={({ isActive }) =>
                         clsx(
@@ -398,6 +401,7 @@ export function Layout({ children }: { children: ReactNode }) {
                 key={to}
                 to={to}
                 end={to === '/'}
+                onTouchStart={() => prefetchRoute(to)}
                 className={({ isActive }) =>
                   clsx(
                     'relative flex flex-1 flex-col items-center gap-1 py-3 text-[11px] font-medium transition-colors min-h-[56px] justify-center',
