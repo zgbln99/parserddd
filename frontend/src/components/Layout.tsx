@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Users, FileText, RefreshCw, Sun, Moon, Globe, LogOut,
   Calendar, X, Shield, UserCog, Truck, Gauge, Coins, ClipboardCheck,
@@ -31,6 +31,7 @@ export function Layout({ children }: { children: ReactNode }) {
   const { logout, role, hasPermission, companyName } = useAuth();
   const { dateFrom, dateTo, setDateFrom, setDateTo, clear } = useDateFilter();
   const navigate = useNavigate();
+  const fullBleed = useLocation().pathname === '/map';
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('ddd-sidebar') === 'collapsed');
   const [accentOpen, setAccentOpen] = useState(false);
@@ -392,11 +393,15 @@ export function Layout({ children }: { children: ReactNode }) {
         </header>
 
         {/* Content */}
-        <main className="flex-1 px-4 py-6 pb-24 sm:px-6 lg:px-8 lg:pb-6">
-          <div className="mx-auto max-w-[1800px]">
-            <PageTransition>{children}</PageTransition>
-          </div>
-        </main>
+        {fullBleed ? (
+          <main className="flex-1 overflow-hidden">{children}</main>
+        ) : (
+          <main className="flex-1 px-4 py-6 pb-24 sm:px-6 lg:px-8 lg:pb-6">
+            <div className="mx-auto max-w-[1800px]">
+              <PageTransition>{children}</PageTransition>
+            </div>
+          </main>
+        )}
 
         {/* Mobile bottom nav */}
         <nav className="fixed inset-x-0 bottom-0 z-30 topbar border-t border-border lg:hidden safe-bottom">

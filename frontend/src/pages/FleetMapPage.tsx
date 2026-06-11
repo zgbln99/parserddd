@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -51,8 +51,6 @@ export function FleetMapPage() {
   const [searchParams] = useSearchParams();
 
   const mapDiv = useRef<HTMLDivElement>(null);
-  const sentinelRef = useRef<HTMLDivElement>(null);
-  const [box, setBox] = useState<{ left: number; top: number }>({ left: 0, top: 0 });
   const mapRef = useRef<L.Map | null>(null);
   const tileRef = useRef<L.TileLayer | null>(null);
   const layerRef = useRef<L.LayerGroup | null>(null);
@@ -78,28 +76,6 @@ export function FleetMapPage() {
   const [trailDate, setTrailDate] = useState(''); // YYYY-MM-DD = full historic day
   const [trailKm, setTrailKm] = useState<number | null>(null);
   const [trailLoading, setTrailLoading] = useState(false);
-
-  // Break out of the centered max-width container: measure where the content
-  // area actually starts and pin the map there with position:fixed so it (and
-  // its floating panels) fill all the way to the viewport edges.
-  useLayoutEffect(() => {
-    const measure = () => {
-      const el = sentinelRef.current;
-      if (!el) return;
-      const r = el.getBoundingClientRect();
-      setBox({ left: Math.round(r.left), top: Math.round(r.top) });
-    };
-    measure();
-    const t = window.setTimeout(measure, 350);
-    window.addEventListener('resize', measure);
-    const ro = new ResizeObserver(measure);
-    if (sentinelRef.current) ro.observe(sentinelRef.current);
-    return () => {
-      window.clearTimeout(t);
-      window.removeEventListener('resize', measure);
-      ro.disconnect();
-    };
-  }, []);
 
   // --- map init ----------------------------------------------------------
   useEffect(() => {
@@ -333,14 +309,8 @@ export function FleetMapPage() {
   ];
 
   return (
-    <>
-    {/* Sentinel stays in normal flow so we can measure the content area's origin */}
-    <div ref={sentinelRef} className="h-0 w-full" />
-    {/* Pinned full-bleed map: from the content origin to the viewport edges */}
-    <div
-      className="fixed bottom-0 right-0 z-[400] overflow-hidden"
-      style={{ left: box.left, top: box.top }}
-    >
+    // Fills the full-bleed <main> (Layout drops padding/max-width for /map).
+    <div className="relative h-full w-full overflow-hidden">
       {/* Map fills everything; panels float on top */}
       <div ref={mapDiv} className="absolute inset-0 z-0" />
 
@@ -540,7 +510,6 @@ export function FleetMapPage() {
         </div>
       )}
     </div>
-    </>
   );
 }
 
