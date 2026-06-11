@@ -85,7 +85,7 @@ function fmtNow(): string {
   });
 }
 
-function safeName(name: string): string {
+export function safeName(name: string): string {
   return name.replace(/[^a-zA-Z0-9äöüÄÖÜß _-]/g, '').trim() || 'Export';
 }
 
@@ -101,7 +101,7 @@ function dec(minutes: number): string {
 
 // ── PDF Context ──
 
-interface Ctx {
+export interface Ctx {
   doc: jsPDF;
   W: number;   // page width
   H: number;   // page height
@@ -109,7 +109,7 @@ interface Ctx {
   logo: string | null;
 }
 
-async function ctx(orientation: 'portrait' | 'landscape' = 'portrait'): Promise<Ctx> {
+export async function ctx(orientation: 'portrait' | 'landscape' = 'portrait'): Promise<Ctx> {
   const doc = new jsPDF({ orientation, unit: 'mm', format: 'a4' });
   const logo = await loadLogo();
   return { doc, W: doc.internal.pageSize.getWidth(), H: doc.internal.pageSize.getHeight(), M: 14, logo };
@@ -119,7 +119,7 @@ async function ctx(orientation: 'portrait' | 'landscape' = 'portrait'): Promise<
 //  BRANDED HEADER
 // ═══════════════════════════════════════════════════════════
 
-function drawHeader(c: Ctx, title: string, subtitle?: string): number {
+export function drawHeader(c: Ctx, title: string, subtitle?: string): number {
   const { doc, W, M, logo } = c;
 
   // ── Gradient-style top bar ──
@@ -180,7 +180,7 @@ function drawHeader(c: Ctx, title: string, subtitle?: string): number {
 //  BRANDED FOOTER (all pages)
 // ═══════════════════════════════════════════════════════════
 
-function drawFooter(c: Ctx) {
+export function drawFooter(c: Ctx) {
   const { doc, W, H, M } = c;
   const pages = doc.getNumberOfPages();
   for (let i = 1; i <= pages; i++) {
@@ -207,7 +207,7 @@ function drawFooter(c: Ctx) {
 //  METRIC CARD (with accent bar)
 // ═══════════════════════════════════════════════════════════
 
-function drawCard(doc: jsPDF, x: number, y: number, w: number, h: number, label: string, value: string, color: [number, number, number]) {
+export function drawCard(doc: jsPDF, x: number, y: number, w: number, h: number, label: string, value: string, color: [number, number, number]) {
   // Outer card
   doc.setFillColor(248, 250, 252);
   doc.roundedRect(x, y, w, h, 1.5, 1.5, 'F');

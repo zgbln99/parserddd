@@ -2,9 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { Map as MapIcon, RefreshCw, Search, Layers, Truck, X, Route, Fuel } from 'lucide-react';
+import { Map as MapIcon, RefreshCw, Search, Layers, Truck, X, Route, Fuel, FileDown, Download } from 'lucide-react';
 import { useI18n } from '../i18n';
-import { fetchVehicleLocations, fetchLiveStatus, fetchVehicleTrail, type VehicleLocation } from '../lib/api';
+import { fetchVehicleLocations, fetchLiveStatus, fetchVehicleTrail, type VehicleLocation, type TrailPoint } from '../lib/api';
 
 /**
  * Fleet map — OpenStreetMap/satellite/dark tiles via Leaflet (no API keys).
@@ -75,7 +75,9 @@ export function FleetMapPage() {
   const [trailHours, setTrailHours] = useState(0); // 0 = off (and no date)
   const [trailDate, setTrailDate] = useState(''); // YYYY-MM-DD = full historic day
   const [trailKm, setTrailKm] = useState<number | null>(null);
+  const [trailPts, setTrailPts] = useState<TrailPoint[]>([]);
   const [trailLoading, setTrailLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   // --- map init ----------------------------------------------------------
   useEffect(() => {
@@ -179,6 +181,7 @@ export function FleetMapPage() {
   const clearTrail = useCallback(() => {
     trailLayerRef.current?.clearLayers();
     setTrailKm(null);
+    setTrailPts([]);
   }, []);
 
   const loadTrail = useCallback(async (vehicleId: string, hours: number, date: string) => {
@@ -192,6 +195,7 @@ export function FleetMapPage() {
       const res = await fetchVehicleTrail(vehicleId, hours, date || undefined);
       setTrailKm(res.total_km ?? null);
       const pts = (res.points || []).filter((p) => p.lat != null && p.lng != null);
+      setTrailPts(pts);
       if (pts.length < 2) return;
       const latlngs = pts.map((p) => [p.lat, p.lng] as L.LatLngTuple);
       const kmLabel = res.total_km != null ? `${res.total_km} km` : '';
@@ -295,6 +299,31 @@ export function FleetMapPage() {
   const selectedVehicle = vehicles.find((v) => v.vehicle_id === selectedId) || null;
   const today = new Date().toISOString().slice(0, 10);
   const routeOn = trailHours > 0 || !!trailDate;
+  const periodLabel = trailDate || (de ? `Letzte ${trailHours} Std` : `Ostatnie ${trailHours} h`);
+
+  const exportRoute = useCallback(async (kind: 'pdf' | 'gpx') => {
+    if (trailPts.length < 2 || !selectedVehicle) return;
+    setExporting(true);
+    try {
+      const mod = await import('../lib/route-export');
+      if (kind === 'gpx') {
+        mod.downloadRouteGpx(selectedVehicle.vehicle_name, periodLabel, trailPts);
+      } else {
+        await mod.generateRoutePdf({
+          vehicleName: selectedVehicle.vehicle_name,
+          driverName: selectedVehicle.driver_name || drivers.get(selectedVehicle.vehicle_name),
+          periodLabel,
+          points: trailPts,
+          totalKm: trailKm ?? 0,
+          de,
+        });
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setExporting(false);
+    }
+  }, [trailPts, selectedVehicle, periodLabel, trailKm, drivers, de]);
 
   const filterPills: { key: MoveFilter; label: string }[] = [
     { key: 'all', label: de ? 'Alle' : 'Wszystkie' },
@@ -505,6 +534,26 @@ export function FleetMapPage() {
               <span className="font-bold text-ink">
                 {trailLoading ? '…' : trailKm != null ? `${trailKm} km` : (de ? 'Keine Daten' : 'Brak danych')}
               </span>
+            </div>
+          )}
+          {routeOn && trailPts.length >= 2 && !trailLoading && (
+            <div className="mt-2 flex gap-1.5 border-t border-border pt-2">
+              <button
+                onClick={() => exportRoute('pdf')}
+                disabled={exporting}
+                className="btn-primary btn-press flex flex-1 items-center justify-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold disabled:opacity-50"
+              >
+                <FileDown size={13} className={exporting ? 'animate-pulse' : ''} />
+                {exporting ? (de ? 'Erstelle…' : 'Tworzę…') : (de ? 'PDF-Bericht' : 'Raport PDF')}
+              </button>
+              <button
+                onClick={() => exportRoute('gpx')}
+                disabled={exporting}
+                className="flex items-center justify-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-semibold text-muted transition hover:bg-surface hover:text-ink disabled:opacity-50"
+                title="GPX"
+              >
+                <Download size={13} /> GPX
+              </button>
             </div>
           )}
         </div>
