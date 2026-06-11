@@ -318,6 +318,10 @@ thead th { user-select: none; }
   flex-shrink: 0;
 }
 .fleet-pin--moving { border-color: #22ad5c; }
+.fleet-pin--selected {
+  border-color: #5750f1;
+  box-shadow: 0 0 0 3px rgba(87, 80, 241, 0.35), 0 2px 6px rgba(0, 0, 0, 0.18);
+}
 .fleet-pin--moving .fleet-pin__dot {
   background: #22ad5c;
   animation: fleet-pulse 1.6s ease-in-out infinite;
