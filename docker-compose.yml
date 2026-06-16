@@ -1,0 +1,56 @@
+# =============================================================================
+#  DDD Reader / FleetView — Docker Compose
+#
+#  Quick start on a fresh server:
+#     cp .env.example .env      # then edit secrets
+#     docker compose up -d --build
+#
+#  The app is then on http://SERVER_IP:8000 (change APP_PORT in .env).
+#  Put a reverse proxy (Caddy / nginx / Cloudflare Tunnel) in front for HTTPS —
+#  see DEPLOY.md.
+# =============================================================================
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        # Baked into the static frontend at build time (optional HERE maps).
+        VITE_HERE_API_KEY: ${VITE_HERE_API_KEY:-}
+    image: ddd-reader:latest
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "${APP_PORT:-8000}:8000"
+    volumes:
+      # Persistent data: SQLite DB, users.json, activity log, caches.
+      - ddd-data:/opt/ddd-reader
+    # Uncomment if you switch to Postgres below.
+    # depends_on:
+    #   db:
+    #     condition: service_healthy
+
+  # ---------------------------------------------------------------------------
+  # Optional PostgreSQL. To use it: uncomment this service, set
+  # DATABASE_URL=postgresql://ddd:CHANGE_ME@db:5432/ddd in .env, then
+  # `docker compose up -d`. Without it the app uses the embedded SQLite file.
+  # ---------------------------------------------------------------------------
+  # db:
+  #   image: postgres:16-alpine
+  #   restart: unless-stopped
+  #   environment:
+  #     POSTGRES_USER: ddd
+  #     POSTGRES_PASSWORD: CHANGE_ME
+  #     POSTGRES_DB: ddd
+  #   volumes:
+  #     - ddd-pg:/var/lib/postgresql/data
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U ddd"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+
+volumes:
+  ddd-data:
+  # ddd-pg:

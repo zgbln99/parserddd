@@ -1,0 +1,33 @@
+# =============================================================================
+#  Optional HTTPS override — adds a Caddy reverse proxy with automatic
+#  Let's Encrypt certificates. Use a real domain pointed at this server.
+#
+#  Usage (from the repo root):
+#     export DOMAIN=fleet.example.com
+#     export ACME_EMAIL=you@example.com
+#     docker compose -f docker-compose.yml -f deploy/docker-compose.caddy.yml up -d --build
+#
+#  Caddy terminates TLS on 80/443 and proxies to the app container. With this
+#  override you do NOT need to publish APP_PORT — remove/ignore the host port.
+# =============================================================================
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN to your hostname}
+      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL for Let's Encrypt}
+    volumes:
+      - ./deploy/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  caddy-data:
+  caddy-config:

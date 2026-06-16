@@ -1,0 +1,14 @@
+# Automatic HTTPS via Let's Encrypt. DOMAIN and ACME_EMAIL come from the
+# environment (see deploy/docker-compose.caddy.yml).
+{
+	email {$ACME_EMAIL}
+}
+
+{$DOMAIN} {
+	encode zstd gzip
+	# Match the app's 16 MB upload limit.
+	request_body {
+		max_size 16MB
+	}
+	reverse_proxy app:8000
+}
