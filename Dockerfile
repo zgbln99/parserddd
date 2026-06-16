@@ -39,7 +39,6 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     DDDPARSER_PATH=/usr/local/bin/dddparser \
     FRONTEND_DIR=/app/frontend/dist \
-    FLASK_ENV=production \
     GUNICORN_WORKERS=2
 
 RUN apt-get update \

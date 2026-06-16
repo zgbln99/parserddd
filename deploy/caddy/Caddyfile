@@ -10,5 +10,9 @@
 	request_body {
 		max_size 16MB
 	}
-	reverse_proxy app:8000
+	# Behind HTTPS you can set FLASK_ENV=production in .env to mark the session
+	# cookie Secure; the app sees the real scheme via this header.
+	reverse_proxy app:8000 {
+		header_up X-Forwarded-Proto {scheme}
+	}
 }
