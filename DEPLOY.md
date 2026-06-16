@@ -90,6 +90,34 @@ docker run --rm -v ddd-reader_ddd-data:/data -v "$PWD":/backup alpine \
 
 ---
 
+## 4b. Migrating from an old server (systemd/nginx → Docker)
+
+If you already run DDD Reader the old way on another server (app in
+`/opt/ddd-reader`, started by systemd), move everything — data **and** secrets —
+in one go. Run this **on the new server**, from the repo root, once Docker is
+installed:
+
+```bash
+# bash deploy/migrate.sh <old_user@host> [ssh_port] [old_app_dir]
+APP_PORT=4009 bash deploy/migrate.sh root@srv15.mikr.us 12345
+```
+
+It will, over SSH:
+1. pull the data files from the old `/opt/ddd-reader` (SQLite DB, `users.json`,
+   logs, `config.json`, caches),
+2. read the old systemd unit + `.flask_secret` and write the tokens/passwords
+   (`SAMSARA_API_TOKEN`, `PORTAL_PASSWORD`, `FLASK_SECRET_KEY`, MEGA S4, …) into
+   `.env`,
+3. build the image, load the data into the Docker volume, and start the stack.
+
+Notes:
+- `VITE_HERE_API_KEY` doesn't exist on the old server — add it to `.env` and
+  rebuild (`docker compose up -d --build`) if you want HERE maps.
+- Reusing the old `FLASK_SECRET_KEY` keeps existing login sessions valid.
+- Keep the old server running until you've confirmed the new one works, then
+  repoint your domain / Cloudflare Tunnel to the new server.
+- Re-running the script is safe; set `APP_PORT=4009` (or your port) as shown.
+
 ## 5. Updating
 
 ```bash
