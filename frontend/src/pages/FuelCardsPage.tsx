@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   CreditCard, Search, Plus, Pencil, Trash2, AlertTriangle, Fuel, Truck, PackageOpen,
+  ListPlus, CheckCircle2,
 } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { Card, StatCard } from '../components/Card';
@@ -9,9 +10,9 @@ import { Spinner } from '../components/Spinner';
 import { Modal } from '../components/Modal';
 import { EmptyState } from '../components/EmptyState';
 import {
-  fetchFuelCards, createFuelCard, updateFuelCard, deleteFuelCard,
+  fetchFuelCards, createFuelCard, updateFuelCard, deleteFuelCard, bulkCreateFuelCards,
   fetchSamsaraVehicles,
-  type FuelCard, type FuelCardPayload, type SamsaraVehicle,
+  type FuelCard, type FuelCardPayload, type FuelCardBulkResult, type SamsaraVehicle,
 } from '../lib/api';
 
 /**
@@ -30,6 +31,45 @@ const EMPTY: FuelCardPayload = {
   status: 'active',
   notes: '',
 };
+
+const PROVIDERS = ['Hoyer', 'Aral', 'Star', 'DKV', 'UTA', 'Shell', 'E100', 'Orlen'];
+
+interface BulkForm {
+  provider: string;
+  cardsText: string;
+  noDriver: boolean;
+  driver_name: string;
+  monthly_limit_eur: number;
+  expiry_date: string;
+  status: FuelCard['status'];
+  notes: string;
+}
+
+const BULK_EMPTY: BulkForm = {
+  provider: '',
+  cardsText: '',
+  noDriver: true,
+  driver_name: '',
+  monthly_limit_eur: 0,
+  expiry_date: '',
+  status: 'active',
+  notes: '',
+};
+
+/** Parse the bulk textarea into a de-duped, trimmed list of card names. */
+function parseBulkCards(text: string): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const line of text.split('\n')) {
+    const n = line.trim();
+    if (!n) continue;
+    const key = n.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(n);
+  }
+  return out;
+}
 
 function daysToExpiry(expiry: string): number | null {
   if (!expiry) return null;
@@ -53,8 +93,17 @@ export function FuelCardsPage() {
   const [editing, setEditing] = useState<FuelCard | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<FuelCardPayload>(EMPTY);
+  const [noDriver, setNoDriver] = useState(false);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
+
+  // bulk-add modal
+  const [showBulk, setShowBulk] = useState(false);
+  const [bulkForm, setBulkForm] = useState<BulkForm>(BULK_EMPTY);
+  const [bulkSaving, setBulkSaving] = useState(false);
+  const [bulkError, setBulkError] = useState('');
+  const [bulkResult, setBulkResult] = useState<FuelCardBulkResult | null>(null);
+  const bulkCards = useMemo(() => parseBulkCards(bulkForm.cardsText), [bulkForm.cardsText]);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -98,6 +147,7 @@ export function FuelCardsPage() {
   const openCreate = () => {
     setEditing(null);
     setForm(EMPTY);
+    setNoDriver(false);
     setFormError('');
     setShowForm(true);
   };
@@ -114,8 +164,47 @@ export function FuelCardsPage() {
       status: c.status,
       notes: c.notes,
     });
+    setNoDriver(!c.driver_name);
     setFormError('');
     setShowForm(true);
+  };
+
+  const openBulk = () => {
+    setBulkForm(BULK_EMPTY);
+    setBulkError('');
+    setBulkResult(null);
+    setShowBulk(true);
+  };
+
+  const toggleNoDriver = (checked: boolean) => {
+    setNoDriver(checked);
+    if (checked) setForm((f) => ({ ...f, driver_name: '' }));
+  };
+
+  const handleBulkSave = async () => {
+    if (bulkCards.length === 0) return;
+    setBulkSaving(true);
+    setBulkError('');
+    try {
+      const res = await bulkCreateFuelCards({
+        provider: bulkForm.provider.trim(),
+        cards: bulkCards,
+        driver_name: bulkForm.noDriver ? '' : bulkForm.driver_name.trim(),
+        monthly_limit_eur: bulkForm.monthly_limit_eur || 0,
+        expiry_date: bulkForm.expiry_date,
+        status: bulkForm.status,
+        notes: bulkForm.notes.trim(),
+      });
+      setBulkResult(res);
+      load();
+      // Nothing skipped → batch is clean, close right away.
+      if (res.skipped.length === 0) setShowBulk(false);
+      else setBulkForm((f) => ({ ...f, cardsText: res.skipped.map((s) => s.card_number).join('\n') }));
+    } catch (e) {
+      setBulkError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBulkSaving(false);
+    }
   };
 
   const handleSave = async () => {
@@ -218,6 +307,13 @@ export function FuelCardsPage() {
           ))}
         </div>
         <div className="flex-1" />
+        <button
+          onClick={openBulk}
+          className="btn-press inline-flex items-center justify-center gap-2 rounded-xl border border-border px-4 py-2 text-sm font-semibold text-ink transition hover:bg-surface"
+        >
+          <ListPlus size={15} />
+          {de ? 'Massenimport' : 'Dodaj masowo'}
+        </button>
         <button
           onClick={openCreate}
           className="btn-primary btn-press inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold"
@@ -351,7 +447,7 @@ export function FuelCardsPage() {
                 placeholder="Hoyer / Aral / Star…"
               />
               <datalist id="fuel-providers">
-                {['Hoyer', 'Aral', 'Star', 'DKV', 'UTA', 'Shell', 'E100', 'Orlen'].map((p) => <option key={p} value={p} />)}
+                {PROVIDERS.map((p) => <option key={p} value={p} />)}
               </datalist>
             </label>
             <label className="text-sm">
@@ -368,12 +464,25 @@ export function FuelCardsPage() {
               </datalist>
             </label>
             <label className="text-sm">
-              <span className="mb-1 block text-xs font-medium text-muted">{de ? 'Fahrer' : 'Kierowca'}</span>
+              <span className="mb-1 flex items-center justify-between gap-2">
+                <span className="block text-xs font-medium text-muted">{de ? 'Fahrer' : 'Kierowca'}</span>
+                <label className="inline-flex cursor-pointer items-center gap-1.5 text-[11px] font-medium text-muted">
+                  <input
+                    type="checkbox"
+                    checked={noDriver}
+                    onChange={(e) => toggleNoDriver(e.target.checked)}
+                    className="h-3.5 w-3.5 rounded border-border accent-primary-600"
+                  />
+                  {de ? 'Keine Zuordnung' : 'Bez przypisania'}
+                </label>
+              </span>
               <input
                 type="text"
                 value={form.driver_name}
                 onChange={(e) => setForm({ ...form, driver_name: e.target.value })}
-                className="input w-full rounded-xl px-3 py-2 text-sm"
+                disabled={noDriver}
+                placeholder={noDriver ? (de ? 'Keinem Fahrer zugeordnet' : 'Bez przypisania do kierowcy') : ''}
+                className="input w-full rounded-xl px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
               />
             </label>
             <label className="text-sm">
@@ -433,6 +542,144 @@ export function FuelCardsPage() {
               className="btn-primary btn-press px-4 py-2 text-sm font-semibold disabled:opacity-50"
             >
               {saving ? <Spinner size="sm" /> : (de ? 'Speichern' : 'Zapisz')}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Bulk-add modal — one provider, many card names, no plate needed */}
+      <Modal
+        open={showBulk}
+        onClose={() => setShowBulk(false)}
+        title={de ? 'Karten im Stapel hinzufügen' : 'Masowe dodawanie kart'}
+      >
+        <div className="space-y-3">
+          <label className="block text-sm">
+            <span className="mb-1 block text-xs font-medium text-muted">{de ? 'Anbieter' : 'Dostawca'}</span>
+            <input
+              type="text"
+              list="fuel-providers-bulk"
+              value={bulkForm.provider}
+              onChange={(e) => setBulkForm({ ...bulkForm, provider: e.target.value })}
+              className="input w-full rounded-xl px-3 py-2 text-sm"
+              placeholder="Hoyer / Aral / DKV…"
+              autoFocus
+            />
+            <datalist id="fuel-providers-bulk">
+              {PROVIDERS.map((p) => <option key={p} value={p} />)}
+            </datalist>
+          </label>
+
+          <label className="block text-sm">
+            <span className="mb-1 flex items-center justify-between gap-2">
+              <span className="block text-xs font-medium text-muted">
+                {de ? 'Kartennummern / -namen' : 'Numery / nazwy kart'}
+              </span>
+              <span className="text-[11px] font-medium text-muted">
+                {bulkCards.length} {de ? 'Karten' : 'kart'}
+              </span>
+            </span>
+            <textarea
+              value={bulkForm.cardsText}
+              onChange={(e) => setBulkForm({ ...bulkForm, cardsText: e.target.value })}
+              rows={6}
+              className="input w-full rounded-xl px-3 py-2 text-sm font-mono"
+              placeholder={de ? 'Eine pro Zeile…\n7088 0012 3456 7890\nKarte Lager' : 'Jedna na linię…\n7088 0012 3456 7890\nKarta magazyn'}
+            />
+            <span className="mt-1 block text-[11px] text-muted">
+              {de
+                ? 'Eine Karte pro Zeile — Kartenname/-nummer, kein Kennzeichen. Duplikate werden übersprungen.'
+                : 'Jedna karta na linię — nazwa/numer karty, bez tablicy rejestracyjnej. Duplikaty są pomijane.'}
+            </span>
+          </label>
+
+          <div className="rounded-xl border border-border p-3">
+            <label className="flex cursor-pointer items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={bulkForm.noDriver}
+                onChange={(e) => setBulkForm({ ...bulkForm, noDriver: e.target.checked })}
+                className="h-4 w-4 rounded border-border accent-primary-600"
+              />
+              <span className="font-medium text-ink">{de ? 'Keine Fahrerzuordnung' : 'Bez przypisania do kierowcy'}</span>
+            </label>
+            {!bulkForm.noDriver && (
+              <input
+                type="text"
+                value={bulkForm.driver_name}
+                onChange={(e) => setBulkForm({ ...bulkForm, driver_name: e.target.value })}
+                className="input mt-2 w-full rounded-xl px-3 py-2 text-sm"
+                placeholder={de ? 'Fahrer für alle Karten' : 'Kierowca dla wszystkich kart'}
+              />
+            )}
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="text-sm">
+              <span className="mb-1 block text-xs font-medium text-muted">{de ? 'Monatslimit (€)' : 'Limit miesięczny (€)'}</span>
+              <input
+                type="number"
+                min={0}
+                step={50}
+                value={bulkForm.monthly_limit_eur || ''}
+                onChange={(e) => setBulkForm({ ...bulkForm, monthly_limit_eur: Number(e.target.value) || 0 })}
+                className="input w-full rounded-xl px-3 py-2 text-sm"
+              />
+            </label>
+            <label className="text-sm">
+              <span className="mb-1 block text-xs font-medium text-muted">{de ? 'Gültig bis' : 'Ważna do'}</span>
+              <input
+                type="date"
+                value={bulkForm.expiry_date}
+                onChange={(e) => setBulkForm({ ...bulkForm, expiry_date: e.target.value })}
+                className="input w-full rounded-xl px-3 py-2 text-sm dark:[color-scheme:dark]"
+              />
+            </label>
+          </div>
+
+          <div>
+            <span className="mb-1 block text-xs font-medium text-muted">Status</span>
+            <div className="flex gap-1.5">
+              {(['active', 'ordered', 'blocked'] as const).map((s) => (
+                <button
+                  key={s}
+                  onClick={() => setBulkForm({ ...bulkForm, status: s })}
+                  className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                    bulkForm.status === s ? 'bg-primary-600 text-white' : 'border border-border text-muted hover:bg-surface'
+                  }`}
+                >
+                  {s === 'active' ? (de ? 'Aktiv' : 'Aktywna') : s === 'ordered' ? (de ? 'Bestellt' : 'Zamówiona') : (de ? 'Gesperrt' : 'Zablokowana')}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {bulkResult && (
+            <div className="space-y-1 rounded-xl bg-green-500/10 px-4 py-2.5 text-sm text-green-700 dark:text-green-300">
+              <p className="inline-flex items-center gap-1.5 font-semibold">
+                <CheckCircle2 size={15} />
+                {de ? `${bulkResult.count} Karten angelegt` : `Dodano kart: ${bulkResult.count}`}
+              </p>
+              {bulkResult.skipped.length > 0 && (
+                <p className="text-amber-700 dark:text-amber-300">
+                  {de ? 'Übersprungen (Duplikat/Fehler): ' : 'Pominięto (duplikat/błąd): '}
+                  {bulkResult.skipped.map((s) => s.card_number).join(', ')}
+                </p>
+              )}
+            </div>
+          )}
+          {bulkError && <p className="text-sm text-danger">{bulkError}</p>}
+
+          <div className="flex justify-end gap-2 pt-1">
+            <button onClick={() => setShowBulk(false)} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-ink transition hover:bg-surface">
+              {de ? 'Schließen' : 'Zamknij'}
+            </button>
+            <button
+              onClick={handleBulkSave}
+              disabled={bulkSaving || bulkCards.length === 0}
+              className="btn-primary btn-press px-4 py-2 text-sm font-semibold disabled:opacity-50"
+            >
+              {bulkSaving ? <Spinner size="sm" /> : (de ? `${bulkCards.length} Karten anlegen` : `Dodaj ${bulkCards.length} kart`)}
             </button>
           </div>
         </div>

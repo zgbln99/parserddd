@@ -107,6 +107,97 @@ def api_fuel_cards_create():
     return jsonify(_row_to_dict(row))
 
 
+@bp.route('/api/fuel-cards/bulk', methods=['POST'])
+@permission_required('vehicles')
+def api_fuel_cards_bulk_create():
+    """Bulk-create many cards for a single provider.
+
+    Built for onboarding a whole batch from one provider at once: each
+    entry is just a card name/number — no vehicle/license plate. Driver
+    assignment is optional and the cards are created unassigned by default
+    (``driver_name`` left empty). Limit/expiry/status/notes are shared
+    across the batch.
+
+    Accepts ``cards`` as either a list of strings or a newline-separated
+    blob. Duplicates (within the request or already in the DB) are skipped,
+    not failed, so a partial batch still goes through. Returns the created
+    cards plus a list of skipped entries with a reason.
+    """
+    data = request.get_json(silent=True) or {}
+
+    provider = (data.get('provider') or '').strip()[:64]
+    driver_name = (data.get('driver_name') or '').strip()[:128]
+    notes = (data.get('notes') or '').strip()[:1024]
+
+    status = (data.get('status') or 'active').strip()
+    if status not in _STATUSES:
+        return jsonify({'error': f'status must be one of {_STATUSES}'}), 400
+    try:
+        limit = float(data.get('monthly_limit_eur') or 0)
+    except (TypeError, ValueError):
+        return jsonify({'error': 'monthly_limit_eur must be a number'}), 400
+    expiry = (data.get('expiry_date') or '').strip()
+    if expiry:
+        try:
+            datetime.strptime(expiry, '%Y-%m-%d')
+        except ValueError:
+            return jsonify({'error': 'expiry_date must be YYYY-MM-DD'}), 400
+
+    raw = data.get('cards')
+    if isinstance(raw, str):
+        entries = raw.splitlines()
+    elif isinstance(raw, list):
+        entries = [str(x) for x in raw]
+    else:
+        entries = []
+
+    # Normalize, drop blanks, dedupe within the request (case-insensitive),
+    # preserving the order the user pasted them in.
+    seen: set[str] = set()
+    card_numbers: list[str] = []
+    skipped: list[dict] = []
+    for entry in entries:
+        number = entry.strip()
+        if not number:
+            continue
+        key = number.lower()
+        if key in seen:
+            skipped.append({'card_number': number, 'reason': 'duplicate'})
+            continue
+        seen.add(key)
+        card_numbers.append(number)
+
+    if not card_numbers:
+        return jsonify({'error': 'no card numbers provided'}), 400
+
+    now = datetime.now(timezone.utc).isoformat()
+    conn = _get_db()
+    created: list[dict] = []
+    for number in card_numbers:
+        try:
+            cur = conn.execute(
+                '''INSERT INTO fuel_cards
+                   (card_number, provider, vehicle_name, driver_name,
+                    monthly_limit_eur, expiry_date, status, notes, created_at, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                (number, provider, '', driver_name, limit, expiry, status, notes, now, now),
+            )
+            row = conn.execute('SELECT * FROM fuel_cards WHERE id = ?', (cur.lastrowid,)).fetchone()
+            created.append(_row_to_dict(row))
+        except Exception as exc:
+            if 'UNIQUE' in str(exc).upper():
+                skipped.append({'card_number': number, 'reason': 'duplicate'})
+            else:
+                skipped.append({'card_number': number, 'reason': str(exc)})
+    conn.commit()
+    conn.close()
+    _log_activity(
+        'fuel_card_bulk_create',
+        f"{provider or '—'}: +{len(created)} ({len(skipped)} skipped)",
+    )
+    return jsonify({'created': created, 'skipped': skipped, 'count': len(created)})
+
+
 @bp.route('/api/fuel-cards/<int:card_id>', methods=['PUT'])
 @permission_required('vehicles')
 def api_fuel_cards_update(card_id: int):
