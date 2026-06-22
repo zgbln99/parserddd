@@ -112,16 +112,17 @@ def api_fuel_cards_create():
 def api_fuel_cards_bulk_create():
     """Bulk-create many cards for a single provider.
 
-    Built for onboarding a whole batch from one provider at once: each
-    entry is just a card name/number — no vehicle/license plate. Driver
-    assignment is optional and the cards are created unassigned by default
-    (``driver_name`` left empty). Limit/expiry/status/notes are shared
-    across the batch.
+    Built for onboarding a whole batch from one provider at once. Each
+    entry is a card number/name plus an optional vehicle — the vehicle is
+    free text and is *not* validated against the fleet, because cards often
+    belong to vehicles that aren't in the system yet. The cards are created
+    without a driver; limit/expiry/status/notes are shared across the batch.
 
-    Accepts ``cards`` as either a list of strings or a newline-separated
-    blob. Duplicates (within the request or already in the DB) are skipped,
-    not failed, so a partial batch still goes through. Returns the created
-    cards plus a list of skipped entries with a reason.
+    Accepts ``cards`` as a list of ``{card_number, vehicle_name}`` objects,
+    a list of strings, or a newline-separated blob. Duplicates (within the
+    request or already in the DB) are skipped, not failed, so a partial
+    batch still goes through. Returns the created cards plus a list of
+    skipped entries with a reason.
     """
     data = request.get_json(silent=True) or {}
 
@@ -143,21 +144,31 @@ def api_fuel_cards_bulk_create():
         except ValueError:
             return jsonify({'error': 'expiry_date must be YYYY-MM-DD'}), 400
 
+    # Each entry carries a card number/name and (optionally) a vehicle. The
+    # vehicle is free text on purpose — fleets often hold cards for vehicles
+    # that aren't in the system yet, so we don't validate it against Samsara.
     raw = data.get('cards')
+    entries: list[dict] = []
     if isinstance(raw, str):
-        entries = raw.splitlines()
+        for line in raw.splitlines():
+            entries.append({'card_number': line, 'vehicle_name': ''})
     elif isinstance(raw, list):
-        entries = [str(x) for x in raw]
-    else:
-        entries = []
+        for item in raw:
+            if isinstance(item, dict):
+                entries.append({
+                    'card_number': str(item.get('card_number') or item.get('number') or ''),
+                    'vehicle_name': str(item.get('vehicle_name') or item.get('vehicle') or ''),
+                })
+            else:
+                entries.append({'card_number': str(item), 'vehicle_name': ''})
 
-    # Normalize, drop blanks, dedupe within the request (case-insensitive),
-    # preserving the order the user pasted them in.
+    # Normalize, drop blanks, dedupe within the request (case-insensitive on
+    # the card number), preserving the order the user pasted them in.
     seen: set[str] = set()
-    card_numbers: list[str] = []
+    to_insert: list[tuple[str, str]] = []
     skipped: list[dict] = []
     for entry in entries:
-        number = entry.strip()
+        number = entry['card_number'].strip()
         if not number:
             continue
         key = number.lower()
@@ -165,22 +176,22 @@ def api_fuel_cards_bulk_create():
             skipped.append({'card_number': number, 'reason': 'duplicate'})
             continue
         seen.add(key)
-        card_numbers.append(number)
+        to_insert.append((number, entry['vehicle_name'].strip()[:64]))
 
-    if not card_numbers:
+    if not to_insert:
         return jsonify({'error': 'no card numbers provided'}), 400
 
     now = datetime.now(timezone.utc).isoformat()
     conn = _get_db()
     created: list[dict] = []
-    for number in card_numbers:
+    for number, vehicle_name in to_insert:
         try:
             cur = conn.execute(
                 '''INSERT INTO fuel_cards
                    (card_number, provider, vehicle_name, driver_name,
                     monthly_limit_eur, expiry_date, status, notes, created_at, updated_at)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
-                (number, provider, '', driver_name, limit, expiry, status, notes, now, now),
+                (number, provider, vehicle_name, driver_name, limit, expiry, status, notes, now, now),
             )
             row = conn.execute('SELECT * FROM fuel_cards WHERE id = ?', (cur.lastrowid,)).fetchone()
             created.append(_row_to_dict(row))

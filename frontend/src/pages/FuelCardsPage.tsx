@@ -37,8 +37,6 @@ const PROVIDERS = ['Hoyer', 'Aral', 'Star', 'DKV', 'UTA', 'Shell', 'E100', 'Orle
 interface BulkForm {
   provider: string;
   cardsText: string;
-  noDriver: boolean;
-  driver_name: string;
   monthly_limit_eur: number;
   expiry_date: string;
   status: FuelCard['status'];
@@ -48,25 +46,40 @@ interface BulkForm {
 const BULK_EMPTY: BulkForm = {
   provider: '',
   cardsText: '',
-  noDriver: true,
-  driver_name: '',
   monthly_limit_eur: 0,
   expiry_date: '',
   status: 'active',
   notes: '',
 };
 
-/** Parse the bulk textarea into a de-duped, trimmed list of card names. */
-function parseBulkCards(text: string): string[] {
+export interface BulkRow {
+  card_number: string;
+  vehicle_name: string;
+}
+
+/**
+ * Parse the bulk textarea into de-duped {card number, vehicle} rows. Each
+ * line is "card number<sep>vehicle"; the separator is Tab (Excel paste),
+ * ';' or '|', or 2+ spaces — single spaces stay intact because card numbers
+ * and plates contain them. A line with no separator = card number only.
+ */
+function parseBulkRows(text: string): BulkRow[] {
   const seen = new Set<string>();
-  const out: string[] = [];
+  const out: BulkRow[] = [];
   for (const line of text.split('\n')) {
-    const n = line.trim();
-    if (!n) continue;
-    const key = n.toLowerCase();
+    if (!line.trim()) continue;
+    let parts: string[];
+    if (line.includes('\t')) parts = line.split('\t');
+    else if (line.includes(';')) parts = line.split(';');
+    else if (line.includes('|')) parts = line.split('|');
+    else if (/\s{2,}/.test(line)) parts = line.split(/\s{2,}/);
+    else parts = [line];
+    const card_number = (parts[0] || '').trim();
+    if (!card_number) continue;
+    const key = card_number.toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);
-    out.push(n);
+    out.push({ card_number, vehicle_name: (parts[1] || '').trim() });
   }
   return out;
 }
@@ -103,7 +116,7 @@ export function FuelCardsPage() {
   const [bulkSaving, setBulkSaving] = useState(false);
   const [bulkError, setBulkError] = useState('');
   const [bulkResult, setBulkResult] = useState<FuelCardBulkResult | null>(null);
-  const bulkCards = useMemo(() => parseBulkCards(bulkForm.cardsText), [bulkForm.cardsText]);
+  const bulkRows = useMemo(() => parseBulkRows(bulkForm.cardsText), [bulkForm.cardsText]);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -182,14 +195,14 @@ export function FuelCardsPage() {
   };
 
   const handleBulkSave = async () => {
-    if (bulkCards.length === 0) return;
+    if (bulkRows.length === 0) return;
     setBulkSaving(true);
     setBulkError('');
     try {
       const res = await bulkCreateFuelCards({
         provider: bulkForm.provider.trim(),
-        cards: bulkCards,
-        driver_name: bulkForm.noDriver ? '' : bulkForm.driver_name.trim(),
+        cards: bulkRows,
+        driver_name: '',
         monthly_limit_eur: bulkForm.monthly_limit_eur || 0,
         expiry_date: bulkForm.expiry_date,
         status: bulkForm.status,
@@ -197,9 +210,18 @@ export function FuelCardsPage() {
       });
       setBulkResult(res);
       load();
-      // Nothing skipped → batch is clean, close right away.
-      if (res.skipped.length === 0) setShowBulk(false);
-      else setBulkForm((f) => ({ ...f, cardsText: res.skipped.map((s) => s.card_number).join('\n') }));
+      // Nothing skipped → batch is clean, close right away. Otherwise keep the
+      // modal open and refill it with just the skipped rows (vehicle kept).
+      if (res.skipped.length === 0) {
+        setShowBulk(false);
+      } else {
+        const byNumber = new Map(bulkRows.map((r) => [r.card_number.toLowerCase(), r]));
+        const lines = res.skipped.map((s) => {
+          const row = byNumber.get(s.card_number.toLowerCase());
+          return row?.vehicle_name ? `${s.card_number}\t${row.vehicle_name}` : s.card_number;
+        });
+        setBulkForm((f) => ({ ...f, cardsText: lines.join('\n') }));
+      }
     } catch (e) {
       setBulkError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -547,7 +569,7 @@ export function FuelCardsPage() {
         </div>
       </Modal>
 
-      {/* Bulk-add modal — one provider, many card names, no plate needed */}
+      {/* Bulk-add modal — one provider, "card number + vehicle" pairs */}
       <Modal
         open={showBulk}
         onClose={() => setShowBulk(false)}
@@ -573,10 +595,10 @@ export function FuelCardsPage() {
           <label className="block text-sm">
             <span className="mb-1 flex items-center justify-between gap-2">
               <span className="block text-xs font-medium text-muted">
-                {de ? 'Kartennummern / -namen' : 'Numery / nazwy kart'}
+                {de ? 'Kartennummer + Fahrzeug' : 'Numer karty + pojazd'}
               </span>
               <span className="text-[11px] font-medium text-muted">
-                {bulkCards.length} {de ? 'Karten' : 'kart'}
+                {bulkRows.length} {de ? 'Karten' : 'kart'}
               </span>
             </span>
             <textarea
@@ -584,35 +606,37 @@ export function FuelCardsPage() {
               onChange={(e) => setBulkForm({ ...bulkForm, cardsText: e.target.value })}
               rows={6}
               className="input w-full rounded-xl px-3 py-2 text-sm font-mono"
-              placeholder={de ? 'Eine pro Zeile…\n7088 0012 3456 7890\nKarte Lager' : 'Jedna na linię…\n7088 0012 3456 7890\nKarta magazyn'}
+              placeholder={de
+                ? 'Kartennummer und Fahrzeug pro Zeile — z. B.:\n7088 0012 3456 7890;  WGM 12345\nKarte Lager;  Anhänger 7'
+                : 'Numer karty i pojazd w jednej linii — np.:\n7088 0012 3456 7890;  WGM 12345\nKarta magazyn;  Naczepa 7'}
             />
             <span className="mt-1 block text-[11px] text-muted">
               {de
-                ? 'Eine Karte pro Zeile — Kartenname/-nummer, kein Kennzeichen. Duplikate werden übersprungen.'
-                : 'Jedna karta na linię — nazwa/numer karty, bez tablicy rejestracyjnej. Duplikaty są pomijane.'}
+                ? 'Eine Karte pro Zeile: Kartennummer, dann Fahrzeug — getrennt durch Tab (Einfügen aus Excel), ; oder |. Das Fahrzeug darf auch eines sein, das nicht im System ist. Duplikate werden übersprungen.'
+                : 'Jedna karta na linię: numer karty, potem pojazd — rozdzielone Tabem (wklejanie z Excela), ; lub |. Pojazd może być spoza systemu. Duplikaty są pomijane.'}
             </span>
           </label>
 
-          <div className="rounded-xl border border-border p-3">
-            <label className="flex cursor-pointer items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={bulkForm.noDriver}
-                onChange={(e) => setBulkForm({ ...bulkForm, noDriver: e.target.checked })}
-                className="h-4 w-4 rounded border-border accent-primary-600"
-              />
-              <span className="font-medium text-ink">{de ? 'Keine Fahrerzuordnung' : 'Bez przypisania do kierowcy'}</span>
-            </label>
-            {!bulkForm.noDriver && (
-              <input
-                type="text"
-                value={bulkForm.driver_name}
-                onChange={(e) => setBulkForm({ ...bulkForm, driver_name: e.target.value })}
-                className="input mt-2 w-full rounded-xl px-3 py-2 text-sm"
-                placeholder={de ? 'Fahrer für alle Karten' : 'Kierowca dla wszystkich kart'}
-              />
-            )}
-          </div>
+          {bulkRows.length > 0 && (
+            <div className="max-h-44 overflow-y-auto rounded-xl border border-border">
+              <table className="w-full text-xs">
+                <thead className="sticky top-0 bg-surface">
+                  <tr className="text-left text-muted">
+                    <th className="px-3 py-1.5 font-semibold">{de ? 'Kartennummer' : 'Numer karty'}</th>
+                    <th className="px-3 py-1.5 font-semibold">{de ? 'Fahrzeug' : 'Pojazd'}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {bulkRows.map((r, i) => (
+                    <tr key={i}>
+                      <td className="px-3 py-1.5 font-mono">{r.card_number}</td>
+                      <td className="px-3 py-1.5">{r.vehicle_name || <span className="text-muted">—</span>}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
 
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="text-sm">
@@ -676,10 +700,10 @@ export function FuelCardsPage() {
             </button>
             <button
               onClick={handleBulkSave}
-              disabled={bulkSaving || bulkCards.length === 0}
+              disabled={bulkSaving || bulkRows.length === 0}
               className="btn-primary btn-press px-4 py-2 text-sm font-semibold disabled:opacity-50"
             >
-              {bulkSaving ? <Spinner size="sm" /> : (de ? `${bulkCards.length} Karten anlegen` : `Dodaj ${bulkCards.length} kart`)}
+              {bulkSaving ? <Spinner size="sm" /> : (de ? `${bulkRows.length} Karten anlegen` : `Dodaj ${bulkRows.length} kart`)}
             </button>
           </div>
         </div>

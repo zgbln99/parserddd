@@ -216,11 +216,11 @@ export const updateFuelCard = (id: number, payload: FuelCardPayload) =>
 export const deleteFuelCard = (id: number) =>
   request<{ ok: boolean }>(`/api/fuel-cards/${id}`, { method: 'DELETE' });
 
-// Bulk-create many cards for one provider. `cards` are card names/numbers
-// (no vehicle/plate); `driver_name` empty = unassigned.
+// Bulk-create many cards for one provider. Each entry is a card number/name
+// plus an optional vehicle (free text — may be a vehicle not in the system).
 export interface FuelCardBulkPayload {
   provider: string;
-  cards: string[];
+  cards: { card_number: string; vehicle_name: string }[];
   driver_name: string;
   monthly_limit_eur: number;
   expiry_date: string;
