@@ -347,6 +347,8 @@ def _init_db():
             provider          TEXT NOT NULL DEFAULT '',
             vehicle_name      TEXT NOT NULL DEFAULT '',
             driver_name       TEXT NOT NULL DEFAULT '',
+            manager           TEXT NOT NULL DEFAULT '',
+            location          TEXT NOT NULL DEFAULT '',
             monthly_limit_eur REAL NOT NULL DEFAULT 0,
             expiry_date       TEXT NOT NULL DEFAULT '',
             status            TEXT NOT NULL DEFAULT 'active',
@@ -355,6 +357,14 @@ def _init_db():
             updated_at        TEXT NOT NULL
         );
     ''')
+    # manager + location on fuel_cards — added for bulk-assign by manager
+    # (Kierownik) and location (Lokalizacja).
+    try:
+        conn.execute("SELECT manager FROM fuel_cards LIMIT 1")
+    except Exception:
+        conn.execute("ALTER TABLE fuel_cards ADD COLUMN manager TEXT NOT NULL DEFAULT ''")
+        conn.execute("ALTER TABLE fuel_cards ADD COLUMN location TEXT NOT NULL DEFAULT ''")
+        conn.commit()
 
     # Vehicle deadlines — TÜV/HU, insurance, ADR, tacho calibration, etc.
     conn.executescript('''

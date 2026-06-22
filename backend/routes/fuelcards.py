@@ -26,6 +26,8 @@ def _row_to_dict(r) -> dict:
         'provider': r['provider'],
         'vehicle_name': r['vehicle_name'],
         'driver_name': r['driver_name'],
+        'manager': r['manager'],
+        'location': r['location'],
         'monthly_limit_eur': r['monthly_limit_eur'],
         'expiry_date': r['expiry_date'],
         'status': r['status'],
@@ -58,6 +60,8 @@ def _read_payload(data: dict) -> tuple[dict, str | None]:
         'provider': (data.get('provider') or '').strip()[:64],
         'vehicle_name': (data.get('vehicle_name') or '').strip()[:64],
         'driver_name': (data.get('driver_name') or '').strip()[:128],
+        'manager': (data.get('manager') or '').strip()[:128],
+        'location': (data.get('location') or '').strip()[:128],
         'monthly_limit_eur': limit,
         'expiry_date': expiry,
         'status': status,
@@ -87,11 +91,12 @@ def api_fuel_cards_create():
     try:
         cur = conn.execute(
             '''INSERT INTO fuel_cards
-               (card_number, provider, vehicle_name, driver_name,
+               (card_number, provider, vehicle_name, driver_name, manager, location,
                 monthly_limit_eur, expiry_date, status, notes, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
             (fields['card_number'], fields['provider'], fields['vehicle_name'],
-             fields['driver_name'], fields['monthly_limit_eur'], fields['expiry_date'],
+             fields['driver_name'], fields['manager'], fields['location'],
+             fields['monthly_limit_eur'], fields['expiry_date'],
              fields['status'], fields['notes'], now, now),
         )
         conn.commit()
@@ -209,6 +214,63 @@ def api_fuel_cards_bulk_create():
     return jsonify({'created': created, 'skipped': skipped, 'count': len(created)})
 
 
+@bp.route('/api/fuel-cards/bulk-assign', methods=['POST'])
+@permission_required('vehicles')
+def api_fuel_cards_bulk_assign():
+    """Assign a manager (Kierownik) and/or location (Lokalizacja) to many
+    selected cards at once.
+
+    Body: ``{"ids": [1, 2, 3], "manager": "...", "location": "..."}``. Only
+    the fields actually present in the body are updated, so you can set just
+    the manager, just the location, or both — a missing field is left as-is.
+    """
+    data = request.get_json(silent=True) or {}
+
+    raw_ids = data.get('ids') or []
+    if not isinstance(raw_ids, list):
+        return jsonify({'error': 'ids must be a list'}), 400
+    try:
+        ids = [int(i) for i in raw_ids]
+    except (TypeError, ValueError):
+        return jsonify({'error': 'ids must be integers'}), 400
+    if not ids:
+        return jsonify({'error': 'no cards selected'}), 400
+
+    sets: list[str] = []
+    params: list = []
+    if 'manager' in data:
+        sets.append('manager = ?')
+        params.append((data.get('manager') or '').strip()[:128])
+    if 'location' in data:
+        sets.append('location = ?')
+        params.append((data.get('location') or '').strip()[:128])
+    if not sets:
+        return jsonify({'error': 'nothing to assign (manager or location required)'}), 400
+
+    now = datetime.now(timezone.utc).isoformat()
+    sets.append('updated_at = ?')
+    params.append(now)
+
+    placeholders = ','.join('?' for _ in ids)
+    conn = _get_db()
+    conn.execute(
+        f'UPDATE fuel_cards SET {", ".join(sets)} WHERE id IN ({placeholders})',
+        (*params, *ids),
+    )
+    conn.commit()
+    rows = conn.execute(
+        f'SELECT * FROM fuel_cards WHERE id IN ({placeholders}) ORDER BY vehicle_name, card_number',
+        tuple(ids),
+    ).fetchall()
+    conn.close()
+    _log_activity(
+        'fuel_card_bulk_assign',
+        f"{len(rows)} cards → manager={data.get('manager', '—') or '—'}, "
+        f"location={data.get('location', '—') or '—'}",
+    )
+    return jsonify({'updated': len(rows), 'cards': [_row_to_dict(r) for r in rows]})
+
+
 @bp.route('/api/fuel-cards/<int:card_id>', methods=['PUT'])
 @permission_required('vehicles')
 def api_fuel_cards_update(card_id: int):
@@ -225,10 +287,12 @@ def api_fuel_cards_update(card_id: int):
         conn.execute(
             '''UPDATE fuel_cards SET
                card_number = ?, provider = ?, vehicle_name = ?, driver_name = ?,
+               manager = ?, location = ?,
                monthly_limit_eur = ?, expiry_date = ?, status = ?, notes = ?, updated_at = ?
                WHERE id = ?''',
             (fields['card_number'], fields['provider'], fields['vehicle_name'],
-             fields['driver_name'], fields['monthly_limit_eur'], fields['expiry_date'],
+             fields['driver_name'], fields['manager'], fields['location'],
+             fields['monthly_limit_eur'], fields['expiry_date'],
              fields['status'], fields['notes'], now, card_id),
         )
         conn.commit()

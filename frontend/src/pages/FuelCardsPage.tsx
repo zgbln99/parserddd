@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   CreditCard, Search, Plus, Pencil, Trash2, AlertTriangle, Fuel, Truck, PackageOpen,
-  ListPlus, CheckCircle2,
+  ListPlus, CheckCircle2, UserCog, MapPin, X,
 } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { Card, StatCard } from '../components/Card';
@@ -11,7 +11,7 @@ import { Modal } from '../components/Modal';
 import { EmptyState } from '../components/EmptyState';
 import {
   fetchFuelCards, createFuelCard, updateFuelCard, deleteFuelCard, bulkCreateFuelCards,
-  fetchSamsaraVehicles,
+  bulkAssignFuelCards, fetchSamsaraVehicles,
   type FuelCard, type FuelCardPayload, type FuelCardBulkResult, type SamsaraVehicle,
 } from '../lib/api';
 
@@ -26,6 +26,8 @@ const EMPTY: FuelCardPayload = {
   provider: '',
   vehicle_name: '',
   driver_name: '',
+  manager: '',
+  location: '',
   monthly_limit_eur: 0,
   expiry_date: '',
   status: 'active',
@@ -118,6 +120,15 @@ export function FuelCardsPage() {
   const [bulkResult, setBulkResult] = useState<FuelCardBulkResult | null>(null);
   const bulkRows = useMemo(() => parseBulkRows(bulkForm.cardsText), [bulkForm.cardsText]);
 
+  // row selection + bulk-assign (manager / location)
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [showAssign, setShowAssign] = useState(false);
+  const [assignManager, setAssignManager] = useState('');
+  const [assignLocation, setAssignLocation] = useState('');
+  const [assignSaving, setAssignSaving] = useState(false);
+  const [assignError, setAssignError] = useState('');
+  const selectAllRef = useRef<HTMLInputElement>(null);
+
   const load = useCallback(() => {
     setLoading(true);
     fetchFuelCards()
@@ -142,10 +153,22 @@ export function FuelCardsPage() {
         c.card_number.toLowerCase().includes(q) ||
         c.provider.toLowerCase().includes(q) ||
         c.vehicle_name.toLowerCase().includes(q) ||
-        c.driver_name.toLowerCase().includes(q)
+        c.driver_name.toLowerCase().includes(q) ||
+        c.manager.toLowerCase().includes(q) ||
+        c.location.toLowerCase().includes(q)
       );
     });
   }, [cards, search, statusFilter]);
+
+  // Suggestions for the manager / location inputs, built from existing values.
+  const managers = useMemo(
+    () => [...new Set(cards.map((c) => c.manager).filter(Boolean))].sort(),
+    [cards],
+  );
+  const locations = useMemo(
+    () => [...new Set(cards.map((c) => c.location).filter(Boolean))].sort(),
+    [cards],
+  );
 
   const stats = useMemo(() => ({
     total: cards.length,
@@ -172,6 +195,8 @@ export function FuelCardsPage() {
       provider: c.provider,
       vehicle_name: c.vehicle_name,
       driver_name: c.driver_name,
+      manager: c.manager,
+      location: c.location,
       monthly_limit_eur: c.monthly_limit_eur,
       expiry_date: c.expiry_date,
       status: c.status,
@@ -226,6 +251,69 @@ export function FuelCardsPage() {
       setBulkError(e instanceof Error ? e.message : String(e));
     } finally {
       setBulkSaving(false);
+    }
+  };
+
+  // ----- row selection + bulk-assign -----
+  const allVisibleSelected = filtered.length > 0 && filtered.every((c) => selectedIds.has(c.id));
+  const someVisibleSelected = filtered.some((c) => selectedIds.has(c.id));
+
+  useEffect(() => {
+    if (selectAllRef.current) {
+      selectAllRef.current.indeterminate = someVisibleSelected && !allVisibleSelected;
+    }
+  }, [someVisibleSelected, allVisibleSelected]);
+
+  const toggleSelect = (id: number) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (allVisibleSelected) filtered.forEach((c) => next.delete(c.id));
+      else filtered.forEach((c) => next.add(c.id));
+      return next;
+    });
+  };
+
+  const clearSelection = () => setSelectedIds(new Set());
+
+  const openAssign = () => {
+    setAssignManager('');
+    setAssignLocation('');
+    setAssignError('');
+    setShowAssign(true);
+  };
+
+  const handleAssign = async () => {
+    const ids = [...selectedIds];
+    if (ids.length === 0) return;
+    const manager = assignManager.trim();
+    const location = assignLocation.trim();
+    if (!manager && !location) {
+      setAssignError(de ? 'Manager oder Standort angeben.' : 'Podaj kierownika lub lokalizację.');
+      return;
+    }
+    setAssignSaving(true);
+    setAssignError('');
+    try {
+      await bulkAssignFuelCards({
+        ids,
+        ...(manager ? { manager } : {}),
+        ...(location ? { location } : {}),
+      });
+      setShowAssign(false);
+      clearSelection();
+      load();
+    } catch (e) {
+      setAssignError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setAssignSaving(false);
     }
   };
 
@@ -345,6 +433,30 @@ export function FuelCardsPage() {
         </button>
       </div>
 
+      {/* Bulk-assign action bar — appears when rows are selected */}
+      {selectedIds.size > 0 && (
+        <div className="flex flex-col gap-2 rounded-xl border border-primary-600/30 bg-primary-50/60 px-4 py-2.5 dark:bg-primary-600/10 sm:flex-row sm:items-center">
+          <span className="text-sm font-semibold text-ink">
+            {de ? `${selectedIds.size} ausgewählt` : `Zaznaczono: ${selectedIds.size}`}
+          </span>
+          <div className="flex-1" />
+          <button
+            onClick={openAssign}
+            className="btn-primary btn-press inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold"
+          >
+            <UserCog size={15} />
+            {de ? 'Manager / Standort zuweisen' : 'Przypisz kierownika / lokalizację'}
+          </button>
+          <button
+            onClick={clearSelection}
+            className="btn-press inline-flex items-center justify-center gap-2 rounded-xl border border-border px-3 py-2 text-sm font-medium text-muted transition hover:bg-surface"
+          >
+            <X size={15} />
+            {de ? 'Auswahl aufheben' : 'Wyczyść'}
+          </button>
+        </div>
+      )}
+
       {error && <div className="rounded-xl bg-red-500/10 px-4 py-2.5 text-sm text-red-600 dark:text-red-300">{error}</div>}
 
       {loading ? (
@@ -367,24 +479,36 @@ export function FuelCardsPage() {
           {/* Mobile cards */}
           <div className="divide-y divide-border sm:hidden">
             {filtered.map((c) => (
-              <div key={c.id} className="p-4">
-                <div className="mb-1.5 flex items-center justify-between gap-2">
-                  <span className="font-mono text-sm font-bold">{c.card_number}</span>
-                  {statusBadge(c.status)}
-                </div>
-                <div className="space-y-0.5 text-xs text-muted">
-                  {c.provider && <p>{c.provider}</p>}
-                  {c.vehicle_name && <p>🚛 {c.vehicle_name}{c.driver_name ? ` · ${c.driver_name}` : ''}</p>}
-                  {c.monthly_limit_eur > 0 && <p>{de ? 'Limit' : 'Limit'}: <b className="text-ink">{c.monthly_limit_eur.toFixed(0)} €</b></p>}
-                  <p>{expiryCell(c)}</p>
-                </div>
-                <div className="mt-2 flex gap-1.5">
-                  <button onClick={() => openEdit(c)} className="rounded-lg border border-border px-2.5 py-1 text-xs font-medium hover:bg-surface">
-                    <Pencil size={12} className="inline" /> {de ? 'Bearbeiten' : 'Edytuj'}
-                  </button>
-                  <button onClick={() => handleDelete(c)} className="rounded-lg border border-red-500/30 px-2.5 py-1 text-xs font-medium text-red-600 hover:bg-red-500/10 dark:text-red-300">
-                    <Trash2 size={12} className="inline" />
-                  </button>
+              <div key={c.id} className={`flex gap-3 p-4 ${selectedIds.has(c.id) ? 'bg-primary-50/50 dark:bg-primary-600/10' : ''}`}>
+                <input
+                  type="checkbox"
+                  checked={selectedIds.has(c.id)}
+                  onChange={() => toggleSelect(c.id)}
+                  className="mt-1 h-4 w-4 shrink-0 rounded border-border accent-primary-600"
+                  aria-label={de ? 'Auswählen' : 'Zaznacz'}
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="mb-1.5 flex items-center justify-between gap-2">
+                    <span className="font-mono text-sm font-bold">{c.card_number}</span>
+                    {statusBadge(c.status)}
+                  </div>
+                  <div className="space-y-0.5 text-xs text-muted">
+                    {c.provider && <p>{c.provider}</p>}
+                    {c.vehicle_name && <p>🚛 {c.vehicle_name}{c.driver_name ? ` · ${c.driver_name}` : ''}</p>}
+                    {(c.manager || c.location) && (
+                      <p>👤 {c.manager || '—'}{c.location ? ` · 📍 ${c.location}` : ''}</p>
+                    )}
+                    {c.monthly_limit_eur > 0 && <p>{de ? 'Limit' : 'Limit'}: <b className="text-ink">{c.monthly_limit_eur.toFixed(0)} €</b></p>}
+                    <p>{expiryCell(c)}</p>
+                  </div>
+                  <div className="mt-2 flex gap-1.5">
+                    <button onClick={() => openEdit(c)} className="rounded-lg border border-border px-2.5 py-1 text-xs font-medium hover:bg-surface">
+                      <Pencil size={12} className="inline" /> {de ? 'Bearbeiten' : 'Edytuj'}
+                    </button>
+                    <button onClick={() => handleDelete(c)} className="rounded-lg border border-red-500/30 px-2.5 py-1 text-xs font-medium text-red-600 hover:bg-red-500/10 dark:text-red-300">
+                      <Trash2 size={12} className="inline" />
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
@@ -395,11 +519,23 @@ export function FuelCardsPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border bg-black/[0.02] dark:bg-white/5">
+                  <th className="w-10 px-4 py-3">
+                    <input
+                      ref={selectAllRef}
+                      type="checkbox"
+                      checked={allVisibleSelected}
+                      onChange={toggleSelectAll}
+                      className="h-4 w-4 rounded border-border accent-primary-600"
+                      aria-label={de ? 'Alle auswählen' : 'Zaznacz wszystkie'}
+                    />
+                  </th>
                   {[
                     de ? 'Kartennummer' : 'Numer karty',
                     de ? 'Anbieter' : 'Dostawca',
                     de ? 'Fahrzeug' : 'Pojazd',
                     de ? 'Fahrer' : 'Kierowca',
+                    de ? 'Manager' : 'Kierownik',
+                    de ? 'Standort' : 'Lokalizacja',
                     'Limit €',
                     de ? 'Gültig bis' : 'Ważna do',
                     'Status',
@@ -413,11 +549,22 @@ export function FuelCardsPage() {
               </thead>
               <tbody className="divide-y divide-border">
                 {filtered.map((c) => (
-                  <tr key={c.id} className="transition hover:bg-primary-50/40 dark:hover:bg-white/5">
+                  <tr key={c.id} className={`transition hover:bg-primary-50/40 dark:hover:bg-white/5 ${selectedIds.has(c.id) ? 'bg-primary-50/60 dark:bg-primary-600/10' : ''}`}>
+                    <td className="px-4 py-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(c.id)}
+                        onChange={() => toggleSelect(c.id)}
+                        className="h-4 w-4 rounded border-border accent-primary-600"
+                        aria-label={de ? 'Auswählen' : 'Zaznacz'}
+                      />
+                    </td>
                     <td className="whitespace-nowrap px-4 py-3 font-mono font-semibold text-ink">{c.card_number}</td>
                     <td className="whitespace-nowrap px-4 py-3 text-muted">{c.provider || '—'}</td>
                     <td className="whitespace-nowrap px-4 py-3 font-medium">{c.vehicle_name || '—'}</td>
                     <td className="whitespace-nowrap px-4 py-3 text-muted">{c.driver_name || '—'}</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-muted">{c.manager || '—'}</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-muted">{c.location || '—'}</td>
                     <td className="whitespace-nowrap px-4 py-3 text-right font-mono">
                       {c.monthly_limit_eur > 0 ? c.monthly_limit_eur.toFixed(0) : '—'}
                     </td>
@@ -506,6 +653,32 @@ export function FuelCardsPage() {
                 placeholder={noDriver ? (de ? 'Keinem Fahrer zugeordnet' : 'Bez przypisania do kierowcy') : ''}
                 className="input w-full rounded-xl px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
               />
+            </label>
+            <label className="text-sm">
+              <span className="mb-1 block text-xs font-medium text-muted">{de ? 'Manager' : 'Kierownik'}</span>
+              <input
+                type="text"
+                list="fuel-managers"
+                value={form.manager}
+                onChange={(e) => setForm({ ...form, manager: e.target.value })}
+                className="input w-full rounded-xl px-3 py-2 text-sm"
+              />
+              <datalist id="fuel-managers">
+                {managers.map((m) => <option key={m} value={m} />)}
+              </datalist>
+            </label>
+            <label className="text-sm">
+              <span className="mb-1 block text-xs font-medium text-muted">{de ? 'Standort' : 'Lokalizacja'}</span>
+              <input
+                type="text"
+                list="fuel-locations"
+                value={form.location}
+                onChange={(e) => setForm({ ...form, location: e.target.value })}
+                className="input w-full rounded-xl px-3 py-2 text-sm"
+              />
+              <datalist id="fuel-locations">
+                {locations.map((l) => <option key={l} value={l} />)}
+              </datalist>
             </label>
             <label className="text-sm">
               <span className="mb-1 block text-xs font-medium text-muted">{de ? 'Monatslimit (€)' : 'Limit miesięczny (€)'}</span>
@@ -704,6 +877,70 @@ export function FuelCardsPage() {
               className="btn-primary btn-press px-4 py-2 text-sm font-semibold disabled:opacity-50"
             >
               {bulkSaving ? <Spinner size="sm" /> : (de ? `${bulkRows.length} Karten anlegen` : `Dodaj ${bulkRows.length} kart`)}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Bulk-assign modal — manager (Kierownik) + location (Lokalizacja) */}
+      <Modal
+        open={showAssign}
+        onClose={() => setShowAssign(false)}
+        title={de ? 'Manager / Standort zuweisen' : 'Przypisz kierownika / lokalizację'}
+      >
+        <div className="space-y-3">
+          <p className="text-sm text-muted">
+            {de
+              ? `Wird auf ${selectedIds.size} ausgewählte Karte(n) angewendet.`
+              : `Zostanie zastosowane do ${selectedIds.size} zaznaczonych kart.`}
+          </p>
+          <label className="block text-sm">
+            <span className="mb-1 flex items-center gap-1.5 text-xs font-medium text-muted">
+              <UserCog size={13} /> {de ? 'Manager' : 'Kierownik'}
+            </span>
+            <input
+              type="text"
+              list="fuel-managers-assign"
+              value={assignManager}
+              onChange={(e) => setAssignManager(e.target.value)}
+              className="input w-full rounded-xl px-3 py-2 text-sm"
+              placeholder={de ? 'z. B. Kowalski' : 'np. Kowalski'}
+              autoFocus
+            />
+            <datalist id="fuel-managers-assign">
+              {managers.map((m) => <option key={m} value={m} />)}
+            </datalist>
+          </label>
+          <label className="block text-sm">
+            <span className="mb-1 flex items-center gap-1.5 text-xs font-medium text-muted">
+              <MapPin size={13} /> {de ? 'Standort' : 'Lokalizacja'}
+            </span>
+            <input
+              type="text"
+              list="fuel-locations-assign"
+              value={assignLocation}
+              onChange={(e) => setAssignLocation(e.target.value)}
+              className="input w-full rounded-xl px-3 py-2 text-sm"
+              placeholder={de ? 'z. B. Lager Wrocław' : 'np. Magazyn Wrocław'}
+            />
+            <datalist id="fuel-locations-assign">
+              {locations.map((l) => <option key={l} value={l} />)}
+            </datalist>
+          </label>
+          <p className="text-[11px] text-muted">
+            {de ? 'Leeres Feld = unverändert lassen.' : 'Puste pole = bez zmian.'}
+          </p>
+          {assignError && <p className="text-sm text-danger">{assignError}</p>}
+          <div className="flex justify-end gap-2 pt-1">
+            <button onClick={() => setShowAssign(false)} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-ink transition hover:bg-surface">
+              {de ? 'Abbrechen' : 'Anuluj'}
+            </button>
+            <button
+              onClick={handleAssign}
+              disabled={assignSaving || (!assignManager.trim() && !assignLocation.trim())}
+              className="btn-primary btn-press px-4 py-2 text-sm font-semibold disabled:opacity-50"
+            >
+              {assignSaving ? <Spinner size="sm" /> : (de ? 'Zuweisen' : 'Przypisz')}
             </button>
           </div>
         </div>

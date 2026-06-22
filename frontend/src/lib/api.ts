@@ -186,6 +186,8 @@ export interface FuelCard {
   provider: string;
   vehicle_name: string;
   driver_name: string;
+  manager: string;
+  location: string;
   monthly_limit_eur: number;
   expiry_date: string;
   status: 'active' | 'ordered' | 'blocked';
@@ -236,6 +238,21 @@ export interface FuelCardBulkResult {
 
 export const bulkCreateFuelCards = (payload: FuelCardBulkPayload) =>
   request<FuelCardBulkResult>('/api/fuel-cards/bulk', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+// Assign manager (Kierownik) and/or location (Lokalizacja) to selected cards.
+// Omit a field to leave it unchanged.
+export interface FuelCardAssignPayload {
+  ids: number[];
+  manager?: string;
+  location?: string;
+}
+
+export const bulkAssignFuelCards = (payload: FuelCardAssignPayload) =>
+  request<{ updated: number; cards: FuelCard[] }>('/api/fuel-cards/bulk-assign', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),

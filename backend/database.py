@@ -331,6 +331,8 @@ def init_db():
                 provider          TEXT NOT NULL DEFAULT '',
                 vehicle_name      TEXT NOT NULL DEFAULT '',
                 driver_name      TEXT NOT NULL DEFAULT '',
+                manager           TEXT NOT NULL DEFAULT '',
+                location          TEXT NOT NULL DEFAULT '',
                 monthly_limit_eur REAL NOT NULL DEFAULT 0,
                 expiry_date       TEXT NOT NULL DEFAULT '',
                 status            TEXT NOT NULL DEFAULT 'active',
@@ -438,6 +440,13 @@ def _run_sqlite_migrations():
             db.execute("SELECT charter_enabled FROM driver_config LIMIT 1")
         except Exception:
             db.execute("ALTER TABLE driver_config ADD COLUMN charter_enabled INTEGER NOT NULL DEFAULT 0")
+            db.commit()
+        # manager + location on fuel_cards (bulk-assign by manager/location)
+        try:
+            db.execute("SELECT manager FROM fuel_cards LIMIT 1")
+        except Exception:
+            db.execute("ALTER TABLE fuel_cards ADD COLUMN manager TEXT NOT NULL DEFAULT ''")
+            db.execute("ALTER TABLE fuel_cards ADD COLUMN location TEXT NOT NULL DEFAULT ''")
             db.commit()
 
 
