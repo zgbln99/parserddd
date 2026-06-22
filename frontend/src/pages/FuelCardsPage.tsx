@@ -86,6 +86,40 @@ function parseBulkRows(text: string): BulkRow[] {
   return out;
 }
 
+// --- Bulk import draft autosave -------------------------------------------
+// The bulk textarea can hold 100+ cards; losing it to a logout/crash/closed
+// tab is painful. We persist the whole form to localStorage on every change
+// and restore it when the modal is reopened, so typed cards survive anything.
+const BULK_DRAFT_KEY = 'fuelCardsBulkDraft.v1';
+
+function loadBulkDraft(): BulkForm | null {
+  try {
+    const raw = localStorage.getItem(BULK_DRAFT_KEY);
+    if (!raw) return null;
+    const d = JSON.parse(raw);
+    if (!d || typeof d.cardsText !== 'string') return null;
+    return { ...BULK_EMPTY, ...d };
+  } catch {
+    return null;
+  }
+}
+
+function saveBulkDraft(form: BulkForm) {
+  try {
+    localStorage.setItem(BULK_DRAFT_KEY, JSON.stringify(form));
+  } catch {
+    /* private mode / quota — autosave just becomes a no-op */
+  }
+}
+
+function clearBulkDraft() {
+  try {
+    localStorage.removeItem(BULK_DRAFT_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
 function daysToExpiry(expiry: string): number | null {
   if (!expiry) return null;
   const d = new Date(expiry + 'T23:59:59');
@@ -119,6 +153,13 @@ export function FuelCardsPage() {
   const [bulkError, setBulkError] = useState('');
   const [bulkResult, setBulkResult] = useState<FuelCardBulkResult | null>(null);
   const bulkRows = useMemo(() => parseBulkRows(bulkForm.cardsText), [bulkForm.cardsText]);
+  // Autosaved draft of the bulk import (survives logout / crash / closed tab).
+  const [bulkDraft, setBulkDraft] = useState<BulkForm | null>(() => loadBulkDraft());
+  const [bulkSavedAt, setBulkSavedAt] = useState<number | null>(null);
+  const bulkDraftCount = useMemo(
+    () => (bulkDraft ? parseBulkRows(bulkDraft.cardsText).length : 0),
+    [bulkDraft],
+  );
 
   // row selection + bulk-assign (manager / location)
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
@@ -143,6 +184,23 @@ export function FuelCardsPage() {
       .then((r) => setVehicles((r.vehicles || []).filter(v => !v.name.toLowerCase().startsWith('deactivated'))))
       .catch(() => {});
   }, [load]);
+
+  // Background autosave of the bulk import draft, while the modal is open.
+  useEffect(() => {
+    if (!showBulk) return;
+    const t = setTimeout(() => {
+      if (bulkForm.cardsText.trim()) {
+        saveBulkDraft(bulkForm);
+        setBulkDraft(bulkForm);
+        setBulkSavedAt(Date.now());
+      } else {
+        clearBulkDraft();
+        setBulkDraft(null);
+        setBulkSavedAt(null);
+      }
+    }, 300);
+    return () => clearTimeout(t);
+  }, [bulkForm, showBulk]);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
@@ -208,10 +266,29 @@ export function FuelCardsPage() {
   };
 
   const openBulk = () => {
-    setBulkForm(BULK_EMPTY);
+    const draft = loadBulkDraft();
+    setBulkForm(draft ?? BULK_EMPTY);
+    setBulkSavedAt(draft ? Date.now() : null);
     setBulkError('');
     setBulkResult(null);
     setShowBulk(true);
+  };
+
+  const discardBulkDraft = () => {
+    clearBulkDraft();
+    setBulkDraft(null);
+    setBulkSavedAt(null);
+  };
+
+  // Persist immediately on close so the last keystrokes (within the debounce
+  // window) can never be lost.
+  const closeBulk = () => {
+    if (bulkForm.cardsText.trim()) {
+      saveBulkDraft(bulkForm);
+      setBulkDraft(bulkForm);
+      setBulkSavedAt(Date.now());
+    }
+    setShowBulk(false);
   };
 
   const toggleNoDriver = (checked: boolean) => {
@@ -235,10 +312,13 @@ export function FuelCardsPage() {
       });
       setBulkResult(res);
       load();
-      // Nothing skipped → batch is clean, close right away. Otherwise keep the
-      // modal open and refill it with just the skipped rows (vehicle kept).
+      // Nothing skipped → batch is clean, close right away and drop the draft.
+      // Otherwise keep the modal open and refill it with just the skipped rows
+      // (vehicle kept) — the autosave effect re-persists those.
       if (res.skipped.length === 0) {
         setShowBulk(false);
+        setBulkForm(BULK_EMPTY);
+        discardBulkDraft();
       } else {
         const byNumber = new Map(bulkRows.map((r) => [r.card_number.toLowerCase(), r]));
         const lines = res.skipped.map((s) => {
@@ -432,6 +512,31 @@ export function FuelCardsPage() {
           {de ? 'Karte hinzufügen' : 'Dodaj kartę'}
         </button>
       </div>
+
+      {/* Recovered bulk-import draft — shown when a saved draft exists and the modal is closed */}
+      {!showBulk && bulkDraftCount > 0 && (
+        <div className="flex flex-col gap-2 rounded-xl border border-amber-500/40 bg-amber-50/70 px-4 py-2.5 dark:bg-amber-500/10 sm:flex-row sm:items-center">
+          <span className="inline-flex items-center gap-1.5 text-sm font-medium text-amber-800 dark:text-amber-200">
+            <ListPlus size={15} />
+            {de
+              ? `Nicht gespeicherter Import-Entwurf: ${bulkDraftCount} Karte(n).`
+              : `Niezapisany szkic importu: ${bulkDraftCount} kart.`}
+          </span>
+          <div className="flex-1" />
+          <button
+            onClick={openBulk}
+            className="btn-primary btn-press inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold"
+          >
+            {de ? 'Fortsetzen' : 'Wznów'}
+          </button>
+          <button
+            onClick={discardBulkDraft}
+            className="btn-press inline-flex items-center justify-center gap-2 rounded-xl border border-border px-3 py-2 text-sm font-medium text-muted transition hover:bg-surface"
+          >
+            {de ? 'Verwerfen' : 'Odrzuć'}
+          </button>
+        </div>
+      )}
 
       {/* Bulk-assign action bar — appears when rows are selected */}
       {selectedIds.size > 0 && (
@@ -745,7 +850,7 @@ export function FuelCardsPage() {
       {/* Bulk-add modal — one provider, "card number + vehicle" pairs */}
       <Modal
         open={showBulk}
-        onClose={() => setShowBulk(false)}
+        onClose={closeBulk}
         title={de ? 'Karten im Stapel hinzufügen' : 'Masowe dodawanie kart'}
       >
         <div className="space-y-3">
@@ -770,8 +875,14 @@ export function FuelCardsPage() {
               <span className="block text-xs font-medium text-muted">
                 {de ? 'Kartennummer + Fahrzeug' : 'Numer karty + pojazd'}
               </span>
-              <span className="text-[11px] font-medium text-muted">
-                {bulkRows.length} {de ? 'Karten' : 'kart'}
+              <span className="inline-flex items-center gap-2 text-[11px] font-medium text-muted">
+                {bulkSavedAt && (
+                  <span className="inline-flex items-center gap-1 text-green-600 dark:text-green-400" title={new Date(bulkSavedAt).toLocaleTimeString()}>
+                    <CheckCircle2 size={12} />
+                    {de ? 'Entwurf gespeichert' : 'Szkic zapisany'}
+                  </span>
+                )}
+                <span>{bulkRows.length} {de ? 'Karten' : 'kart'}</span>
               </span>
             </span>
             <textarea
@@ -868,7 +979,7 @@ export function FuelCardsPage() {
           {bulkError && <p className="text-sm text-danger">{bulkError}</p>}
 
           <div className="flex justify-end gap-2 pt-1">
-            <button onClick={() => setShowBulk(false)} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-ink transition hover:bg-surface">
+            <button onClick={closeBulk} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-ink transition hover:bg-surface">
               {de ? 'Schließen' : 'Zamknij'}
             </button>
             <button
