@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   CreditCard, Search, Plus, Pencil, Trash2, AlertTriangle, Fuel, Truck, PackageOpen,
-  ListPlus, CheckCircle2, UserCog, MapPin, X,
+  ListPlus, CheckCircle2, UserCog, MapPin, X, FileSpreadsheet,
 } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { Card, StatCard } from '../components/Card';
@@ -86,6 +86,60 @@ function parseBulkRows(text: string): BulkRow[] {
   return out;
 }
 
+// --- XLSX import ------------------------------------------------------------
+// Column-header keywords (PL / DE / EN, matched as substrings) so an uploaded
+// sheet maps its columns automatically regardless of exact wording.
+const XLSX_CARD_KW = ['kart', 'card'];
+const XLSX_NUM_KW = ['numer', 'nummer', 'nr'];
+const XLSX_VEH_KW = ['pojazd', 'fahrzeug', 'vehicle', 'tablic', 'rejestr', 'plate', 'kennzeich', 'auto', 'samoch'];
+const XLSX_PROV_KW = ['dostawc', 'provider', 'anbieter', 'operator'];
+
+/**
+ * Turn raw sheet rows (array of arrays) into bulk-import text + a detected
+ * provider. Detects a header row by keyword; otherwise assumes column 0 =
+ * card number, column 1 = vehicle. Output lines are "card<TAB>vehicle", so
+ * they feed straight into the existing bulk textarea / preview / dedup.
+ */
+function rowsToBulkImport(rows: unknown[][]): { lines: string; provider: string; count: number } {
+  const cells = rows.filter((r) => Array.isArray(r) && r.some((c) => String(c ?? '').trim() !== ''));
+  if (cells.length === 0) return { lines: '', provider: '', count: 0 };
+
+  const norm = (v: unknown) => String(v ?? '').trim().toLowerCase();
+  const has = (cell: string, kws: string[]) => kws.some((k) => cell.includes(k));
+  const first = cells[0].map(norm);
+  const isHeader = first.some((c) => has(c, [...XLSX_CARD_KW, ...XLSX_VEH_KW, ...XLSX_PROV_KW, ...XLSX_NUM_KW]));
+
+  let cardIdx = 0;
+  let vehIdx = 1;
+  let provIdx = -1;
+  let start = 0;
+  if (isHeader) {
+    start = 1;
+    const findCol = (kws: string[]) => first.findIndex((c) => has(c, kws));
+    cardIdx = findCol(XLSX_CARD_KW);
+    if (cardIdx < 0) cardIdx = findCol(XLSX_NUM_KW);
+    if (cardIdx < 0) cardIdx = 0;
+    vehIdx = findCol(XLSX_VEH_KW);
+    if (vehIdx < 0) vehIdx = cardIdx === 0 ? 1 : 0;
+    provIdx = findCol(XLSX_PROV_KW);
+  }
+
+  const lines: string[] = [];
+  const providers = new Set<string>();
+  for (let r = start; r < cells.length; r++) {
+    const row = cells[r];
+    const card = String(row[cardIdx] ?? '').trim();
+    if (!card) continue;
+    const veh = String(row[vehIdx] ?? '').trim();
+    lines.push(veh ? `${card}\t${veh}` : card);
+    if (provIdx >= 0) {
+      const p = String(row[provIdx] ?? '').trim();
+      if (p) providers.add(p);
+    }
+  }
+  return { lines: lines.join('\n'), provider: providers.size === 1 ? [...providers][0] : '', count: lines.length };
+}
+
 // --- Bulk import draft autosave -------------------------------------------
 // The bulk textarea can hold 100+ cards; losing it to a logout/crash/closed
 // tab is painful. We persist the whole form to localStorage on every change
@@ -156,6 +210,8 @@ export function FuelCardsPage() {
   // Autosaved draft of the bulk import (survives logout / crash / closed tab).
   const [bulkDraft, setBulkDraft] = useState<BulkForm | null>(() => loadBulkDraft());
   const [bulkSavedAt, setBulkSavedAt] = useState<number | null>(null);
+  const [xlsxError, setXlsxError] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const bulkDraftCount = useMemo(
     () => (bulkDraft ? parseBulkRows(bulkDraft.cardsText).length : 0),
     [bulkDraft],
@@ -270,8 +326,34 @@ export function FuelCardsPage() {
     setBulkForm(draft ?? BULK_EMPTY);
     setBulkSavedAt(draft ? Date.now() : null);
     setBulkError('');
+    setXlsxError('');
     setBulkResult(null);
     setShowBulk(true);
+  };
+
+  // Read an uploaded .xlsx/.xls and append its cards to the import textarea.
+  const handleXlsxFile = async (file: File) => {
+    setXlsxError('');
+    try {
+      const buf = await file.arrayBuffer();
+      const mod = await import('xlsx-js-style');
+      const XLSX = mod.default ?? mod;
+      const wb = XLSX.read(new Uint8Array(buf), { type: 'array' });
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, blankrows: false, raw: false }) as unknown[][];
+      const { lines, provider, count } = rowsToBulkImport(rows);
+      if (count === 0) {
+        setXlsxError(de ? 'Keine Karten in der Datei gefunden.' : 'Nie znaleziono kart w pliku.');
+        return;
+      }
+      setBulkForm((f) => ({
+        ...f,
+        cardsText: f.cardsText.trim() ? `${f.cardsText.trim()}\n${lines}` : lines,
+        provider: f.provider.trim() || provider,
+      }));
+    } catch {
+      setXlsxError(de ? 'Datei konnte nicht gelesen werden (XLSX/XLS erwartet).' : 'Nie udało się odczytać pliku (oczekiwano XLSX/XLS).');
+    }
   };
 
   const discardBulkDraft = () => {
@@ -869,6 +951,35 @@ export function FuelCardsPage() {
               {PROVIDERS.map((p) => <option key={p} value={p} />)}
             </datalist>
           </label>
+
+          {/* XLSX upload — fills the textarea below */}
+          <div className="flex flex-wrap items-center gap-2 rounded-xl border border-dashed border-border px-3 py-2.5">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) handleXlsxFile(f);
+                e.target.value = '';
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="btn-press inline-flex items-center gap-2 rounded-lg border border-border bg-surface px-3 py-1.5 text-sm font-semibold text-ink transition hover:bg-primary-50 dark:hover:bg-white/5"
+            >
+              <FileSpreadsheet size={15} />
+              {de ? 'XLSX hochladen' : 'Wgraj plik XLSX'}
+            </button>
+            <span className="text-[11px] text-muted">
+              {de
+                ? 'Spalten: Kartennummer, Fahrzeug (optional Anbieter). Erste Zeile darf eine Überschrift sein.'
+                : 'Kolumny: numer karty, pojazd (opcjonalnie dostawca). Pierwszy wiersz może być nagłówkiem.'}
+            </span>
+          </div>
+          {xlsxError && <p className="text-sm text-danger">{xlsxError}</p>}
 
           <label className="block text-sm">
             <span className="mb-1 flex items-center justify-between gap-2">
