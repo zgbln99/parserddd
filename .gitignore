@@ -3,3 +3,4 @@ __pycache__/
 *.ddd
 .env
 venv/
+*.db

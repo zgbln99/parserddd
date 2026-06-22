@@ -2,6 +2,7 @@ import csv
 import io
 import json
 import os
+import sqlite3
 import subprocess
 import tempfile
 from datetime import datetime, timedelta
@@ -24,6 +25,61 @@ DDDPARSER_PATH = os.environ.get('DDDPARSER_PATH', 'dddparser')
 DROPBOX_APP_KEY = os.environ.get('DROPBOX_APP_KEY', 'j9ntkihedd9495i')
 DROPBOX_APP_SECRET = os.environ.get('DROPBOX_APP_SECRET', 'd3hr43reha9kky8')
 DROPBOX_REDIRECT_URI = os.environ.get('DROPBOX_REDIRECT_URI', 'http://dddd.bieda.it/dropbox/callback')
+
+# Fuel cards (karty paliwowe) storage
+FUEL_CARDS_DB = os.environ.get(
+    'FUEL_CARDS_DB',
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), 'fuel_cards.db'),
+)
+
+# Common fuel-card suppliers, used as autocomplete hints in the UI
+COMMON_FUEL_SUPPLIERS = [
+    'DKV', 'UTA', 'Aral', 'Shell', 'BP', 'Orlen', 'E100', 'Eurowag',
+    'Circle K', 'Lotos', 'Total', 'Esso', 'AS 24', 'Routex', 'Moya', 'IDS',
+]
+
+
+def get_fuel_db():
+    """Open a SQLite connection to the fuel-cards database."""
+    conn = sqlite3.connect(FUEL_CARDS_DB)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def init_fuel_db():
+    """Create the fuel_cards table if it does not exist."""
+    conn = get_fuel_db()
+    conn.execute(
+        '''
+        CREATE TABLE IF NOT EXISTS fuel_cards (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            supplier TEXT NOT NULL,
+            card_name TEXT NOT NULL,
+            card_number TEXT,
+            driver TEXT,
+            notes TEXT,
+            created_at TEXT NOT NULL
+        )
+        '''
+    )
+    conn.commit()
+    conn.close()
+
+
+def fuel_card_to_dict(row):
+    """Serialize a fuel_cards row into a plain dict."""
+    return {
+        'id': row['id'],
+        'supplier': row['supplier'],
+        'card_name': row['card_name'],
+        'card_number': row['card_number'] or '',
+        'driver': row['driver'] or '',
+        'notes': row['notes'] or '',
+        'created_at': row['created_at'],
+    }
+
+
+init_fuel_db()
 
 
 def get_dropbox_auth_flow():
@@ -621,6 +677,140 @@ def dropbox_export():
         return jsonify({'ok': True, 'path': full_path, 'filename': filename})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+# =============================================================================
+# Karty paliwowe (fuel cards)
+# =============================================================================
+
+@app.route('/fuel-cards')
+def fuel_cards_page():
+    """Render the fuel-cards management page."""
+    return render_template('fuel_cards.html', suppliers=COMMON_FUEL_SUPPLIERS)
+
+
+@app.route('/api/fuel-cards', methods=['GET'])
+def api_fuel_cards_list():
+    """Return all fuel cards, sorted by supplier and card name."""
+    conn = get_fuel_db()
+    rows = conn.execute(
+        'SELECT * FROM fuel_cards ORDER BY supplier COLLATE NOCASE, card_name COLLATE NOCASE'
+    ).fetchall()
+    conn.close()
+    return jsonify({'cards': [fuel_card_to_dict(r) for r in rows]})
+
+
+@app.route('/api/fuel-cards', methods=['POST'])
+def api_fuel_cards_add():
+    """Add a single fuel card. Driver may be empty (no assignment)."""
+    data = request.get_json(silent=True) or {}
+    supplier = (data.get('supplier') or '').strip()
+    card_name = (data.get('card_name') or '').strip()
+    if not supplier:
+        return jsonify({'error': 'Dostawca jest wymagany'}), 400
+    if not card_name:
+        return jsonify({'error': 'Nazwa karty jest wymagana'}), 400
+    card_number = (data.get('card_number') or '').strip()
+    driver = (data.get('driver') or '').strip()
+    notes = (data.get('notes') or '').strip()
+    conn = get_fuel_db()
+    cur = conn.execute(
+        'INSERT INTO fuel_cards (supplier, card_name, card_number, driver, notes, created_at)'
+        ' VALUES (?, ?, ?, ?, ?, ?)',
+        (supplier, card_name, card_number, driver, notes,
+         datetime.now().isoformat(timespec='seconds')),
+    )
+    conn.commit()
+    new_id = cur.lastrowid
+    conn.close()
+    return jsonify({'ok': True, 'id': new_id})
+
+
+@app.route('/api/fuel-cards/bulk', methods=['POST'])
+def api_fuel_cards_bulk():
+    """Bulk-add fuel cards for one supplier.
+
+    Accepts a supplier, an optional driver applied to every card (empty means
+    no assignment), and a `text` blob with one card name per line and/or a
+    `cards` list (plain names or per-card objects).
+    """
+    data = request.get_json(silent=True) or {}
+    supplier = (data.get('supplier') or '').strip()
+    if not supplier:
+        return jsonify({'error': 'Dostawca jest wymagany'}), 400
+    default_driver = (data.get('driver') or '').strip()
+
+    entries = []
+    text = data.get('text')
+    if isinstance(text, str):
+        for line in text.splitlines():
+            name = line.strip()
+            if name:
+                entries.append({'card_name': name, 'card_number': '', 'driver': default_driver})
+    for item in (data.get('cards') or []):
+        if isinstance(item, str):
+            name = item.strip()
+            if name:
+                entries.append({'card_name': name, 'card_number': '', 'driver': default_driver})
+        elif isinstance(item, dict):
+            name = (item.get('card_name') or '').strip()
+            if not name:
+                continue
+            drv = item.get('driver')
+            entries.append({
+                'card_name': name,
+                'card_number': (item.get('card_number') or '').strip(),
+                'driver': drv.strip() if isinstance(drv, str) else default_driver,
+            })
+
+    if not entries:
+        return jsonify({'error': 'Brak kart do dodania'}), 400
+
+    now = datetime.now().isoformat(timespec='seconds')
+    conn = get_fuel_db()
+    conn.executemany(
+        'INSERT INTO fuel_cards (supplier, card_name, card_number, driver, notes, created_at)'
+        ' VALUES (?, ?, ?, ?, ?, ?)',
+        [(supplier, e['card_name'], e['card_number'], e['driver'], '', now) for e in entries],
+    )
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True, 'count': len(entries)})
+
+
+@app.route('/api/fuel-cards/<int:card_id>', methods=['PATCH', 'PUT'])
+def api_fuel_cards_update(card_id):
+    """Update a fuel card. An empty driver clears the assignment."""
+    data = request.get_json(silent=True) or {}
+    conn = get_fuel_db()
+    row = conn.execute('SELECT * FROM fuel_cards WHERE id = ?', (card_id,)).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({'error': 'Nie znaleziono karty'}), 404
+
+    supplier = (data.get('supplier', row['supplier']) or '').strip() or row['supplier']
+    card_name = (data.get('card_name', row['card_name']) or '').strip() or row['card_name']
+    card_number = (data.get('card_number', row['card_number']) or '').strip()
+    driver = (data.get('driver', row['driver']) or '').strip()
+    notes = (data.get('notes', row['notes']) or '').strip()
+
+    conn.execute(
+        'UPDATE fuel_cards SET supplier=?, card_name=?, card_number=?, driver=?, notes=? WHERE id=?',
+        (supplier, card_name, card_number, driver, notes, card_id),
+    )
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+
+@app.route('/api/fuel-cards/<int:card_id>', methods=['DELETE'])
+def api_fuel_cards_delete(card_id):
+    """Delete a fuel card."""
+    conn = get_fuel_db()
+    conn.execute('DELETE FROM fuel_cards WHERE id = ?', (card_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
 
 
 if __name__ == '__main__':

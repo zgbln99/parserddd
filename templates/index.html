@@ -73,6 +73,17 @@
             display: none;
         }
         .top-bar .upload-btn:hover { background: var(--primary-dark); }
+        .top-bar .nav-link {
+            text-decoration: none;
+            background: var(--surface-hover);
+            color: var(--text-secondary);
+            border: 1.5px solid var(--border);
+            padding: 7px 14px; border-radius: 8px;
+            font-size: 0.8em; font-weight: 600;
+            transition: all 0.15s;
+            display: inline-flex; align-items: center; gap: 6px;
+        }
+        .top-bar .nav-link:hover { background: var(--border); color: var(--text); }
         #file-input-nav { display: none; }
 
         /* Upload area */
@@ -474,6 +485,7 @@
                 </div>
             </div>
             <div style="display:flex;align-items:center;gap:8px">
+                <a href="/fuel-cards" class="nav-link">&#9981; Karty paliwowe</a>
                 <button class="dbx-btn dbx-btn-sm" id="dbx-connect-btn" onclick="dropboxConnect()">
                     <svg width="16" height="16" viewBox="0 0 43 40" fill="currentColor"><path d="M12.5 0L0 8.1l8.6 6.9 12.5-8.1L12.5 0zm17.9 0L18 8.1l12.5 8.1 8.6-6.9L30.4 0zM0 21.9l12.5 8.1 8.6-6.9-12.5-8.1L0 21.9zm30.4 1.2l-12.5 8.1 8.6 6.9 12.5-8.1-8.6-6.9zM12.5 33.1l8.6 6.9 8.6-6.9-8.6-5.7-8.6 5.7z"/></svg>
                     Dropbox

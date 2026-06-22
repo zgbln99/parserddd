@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Karty paliwowe</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #f0f2f7;
+            --surface: #ffffff;
+            --surface-hover: #f8f9fb;
+            --border: #e5e7eb;
+            --border-light: #f1f3f5;
+            --text: #111827;
+            --text-secondary: #6b7280;
+            --text-muted: #9ca3af;
+            --primary: #2563eb;
+            --primary-dark: #1d4ed8;
+            --blue: #0ea5e9;
+            --orange: #f97316;
+            --red: #ef4444;
+            --amber: #f59e0b;
+            --green: #22c55e;
+            --slate: #64748b;
+            --radius: 16px;
+            --radius-sm: 10px;
+            --shadow: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.06);
+            --shadow-lg: 0 4px 24px rgba(0,0,0,0.06);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            -webkit-font-smoothing: antialiased;
+        }
+        .container { max-width: 1560px; margin: 0 auto; padding: 14px 18px; }
+
+        /* Header */
+        .top-bar {
+            background: var(--surface);
+            border-radius: var(--radius);
+            padding: 14px 22px;
+            margin-bottom: 14px;
+            box-shadow: var(--shadow);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+        .top-bar .brand { display: flex; align-items: center; gap: 12px; }
+        .top-bar .brand-logo { height: 36px; object-fit: contain; }
+        .top-bar h1 { font-size: 1.1em; font-weight: 700; color: var(--text); }
+        .top-bar .subtitle { font-size: 0.75em; color: var(--text-muted); font-weight: 400; }
+        .top-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+        .nav-link {
+            text-decoration: none;
+            background: var(--surface-hover);
+            color: var(--text-secondary);
+            border: 1.5px solid var(--border);
+            padding: 8px 14px; border-radius: 8px;
+            font-size: 0.82em; font-weight: 600;
+            transition: all 0.15s;
+            display: inline-flex; align-items: center; gap: 6px;
+        }
+        .nav-link:hover { background: var(--border); color: var(--text); }
+
+        .btn {
+            border: none; cursor: pointer; font-family: inherit;
+            padding: 8px 16px; border-radius: 8px;
+            font-size: 0.82em; font-weight: 600;
+            transition: all 0.15s;
+            display: inline-flex; align-items: center; gap: 6px;
+        }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-primary:hover { background: var(--primary-dark); }
+        .btn-green { background: var(--green); color: white; }
+        .btn-green:hover { background: #16a34a; }
+        .btn-ghost { background: transparent; color: var(--text-secondary); }
+        .btn-ghost:hover { background: var(--surface-hover); }
+        .btn-outline { background: var(--surface); color: var(--text-secondary); border: 1.5px solid var(--border); }
+        .btn-outline:hover { background: var(--surface-hover); }
+        .btn-danger-outline {
+            background: transparent; color: var(--red); border: 1.5px solid #fecaca;
+        }
+        .btn-danger-outline:hover { background: #fef2f2; }
+        .btn-sm { padding: 5px 10px; font-size: 0.78em; }
+
+        /* Summary strip */
+        .summary-strip {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+        .stat {
+            background: var(--surface);
+            border-radius: var(--radius-sm);
+            padding: 16px 12px;
+            text-align: center;
+            box-shadow: var(--shadow);
+            border-left: 3px solid var(--accent, var(--border));
+        }
+        .stat-label {
+            font-size: 0.65em; font-weight: 700;
+            text-transform: uppercase; letter-spacing: 0.5px;
+            color: var(--text-muted); margin-bottom: 4px;
+        }
+        .stat-value {
+            font-size: 1.6em; font-weight: 800;
+            color: var(--accent, var(--text));
+            line-height: 1.1; font-variant-numeric: tabular-nums;
+        }
+
+        /* Toolbar */
+        .toolbar {
+            background: var(--surface);
+            border-radius: var(--radius-sm);
+            padding: 8px 14px;
+            box-shadow: var(--shadow);
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+            font-size: 0.84em;
+        }
+        .toolbar label { font-weight: 600; color: var(--text-secondary); font-size: 0.88em; }
+        .toolbar select, .toolbar input[type="text"] {
+            padding: 6px 9px;
+            border: 1.5px solid var(--border);
+            border-radius: 6px;
+            font-size: 0.86em;
+            font-family: inherit;
+            outline: none;
+            color: var(--text);
+            background: var(--surface);
+        }
+        .toolbar select:focus, .toolbar input[type="text"]:focus { border-color: var(--primary); }
+        .toolbar input[type="text"] { min-width: 200px; }
+        .toolbar-spacer { flex: 1; }
+
+        /* Table */
+        .table-card {
+            background: var(--surface);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            overflow: hidden;
+        }
+        .table-top {
+            padding: 14px 18px 10px;
+            display: flex; align-items: center; justify-content: space-between;
+        }
+        .table-top h3 { font-size: 0.95em; font-weight: 700; }
+        .table-scroll { overflow-x: auto; }
+
+        table { width: 100%; border-collapse: collapse; font-size: 0.88em; }
+        th {
+            padding: 10px 12px;
+            text-align: left;
+            font-weight: 600;
+            color: var(--text-muted);
+            font-size: 0.82em;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            border-bottom: 1px solid var(--border);
+            white-space: nowrap;
+            background: var(--surface);
+            position: sticky;
+            top: 0;
+        }
+        td {
+            padding: 10px 12px;
+            border-bottom: 1px solid var(--border-light);
+            white-space: nowrap;
+        }
+        tbody tr:hover td { background: var(--surface-hover); }
+        .col-actions { text-align: right; }
+        .empty-row td {
+            text-align: center; color: var(--text-muted);
+            padding: 36px 12px; font-size: 0.92em;
+        }
+
+        .supplier-tag {
+            display: inline-block;
+            padding: 2px 10px;
+            border-radius: 6px;
+            font-size: 0.86em;
+            font-weight: 600;
+            background: #eff4ff;
+            color: var(--primary);
+        }
+        .card-name { font-weight: 700; color: var(--text); }
+        .driver-yes { color: var(--text); font-weight: 500; }
+        .badge-none {
+            display: inline-block;
+            padding: 1px 9px;
+            border-radius: 20px;
+            font-size: 0.78em;
+            font-weight: 600;
+            background: var(--surface-hover);
+            color: var(--text-muted);
+            border: 1px dashed var(--border);
+        }
+        .c-muted { color: var(--text-muted); }
+
+        /* Modal */
+        .modal-overlay {
+            display: none;
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,0.45);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-overlay.open { display: flex; }
+        .modal {
+            background: var(--surface);
+            border-radius: var(--radius);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+            width: 520px;
+            max-width: 94vw;
+            max-height: 88vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .modal-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; justify-content: space-between;
+        }
+        .modal-header h3 { font-size: 1em; font-weight: 700; }
+        .modal-close {
+            background: none; border: none;
+            font-size: 1.3em; cursor: pointer;
+            color: var(--text-muted); padding: 4px;
+        }
+        .modal-close:hover { color: var(--text); }
+        .modal-body { flex: 1; overflow-y: auto; padding: 18px 20px; }
+        .modal-footer {
+            padding: 12px 20px;
+            border-top: 1px solid var(--border);
+            display: flex; justify-content: flex-end; gap: 8px;
+        }
+
+        .field { margin-bottom: 14px; }
+        .field label {
+            display: block;
+            font-size: 0.82em; font-weight: 600;
+            color: var(--text-secondary); margin-bottom: 6px;
+        }
+        .field .hint { font-weight: 400; color: var(--text-muted); }
+        .field input[type="text"], .field textarea, .field select {
+            width: 100%;
+            padding: 9px 12px;
+            border: 1.5px solid var(--border);
+            border-radius: 8px;
+            font-size: 0.9em;
+            font-family: inherit;
+            outline: none;
+            color: var(--text);
+            background: var(--surface);
+        }
+        .field input:focus, .field textarea:focus, .field select:focus { border-color: var(--primary); }
+        .field textarea { resize: vertical; min-height: 130px; line-height: 1.5; }
+        .field-row { display: flex; gap: 12px; }
+        .field-row .field { flex: 1; }
+        .checkbox-row {
+            display: flex; align-items: center; gap: 8px;
+            font-size: 0.86em; color: var(--text-secondary);
+            margin-bottom: 14px; cursor: pointer;
+        }
+        .checkbox-row input { width: 16px; height: 16px; cursor: pointer; }
+        .modal-msg {
+            font-size: 0.84em; font-weight: 600;
+            margin-bottom: 12px; display: none;
+        }
+        .modal-msg.error { color: var(--red); }
+        .modal-msg.ok { color: var(--green); }
+        .bulk-count {
+            font-size: 0.8em; color: var(--text-muted);
+            margin-top: 6px; font-weight: 500;
+        }
+
+        @media (max-width: 720px) {
+            .summary-strip { grid-template-columns: repeat(2, 1fr); }
+            .toolbar input[type="text"] { min-width: 140px; flex: 1; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="top-bar">
+            <div class="brand">
+                <img src="https://ltslog.de/logo.png" alt="LTS" class="brand-logo">
+                <div>
+                    <h1>Karty paliwowe</h1>
+                    <div class="subtitle">Zarzadzanie kartami flotowymi</div>
+                </div>
+            </div>
+            <div class="top-actions">
+                <a href="/" class="nav-link">&#8592; Czytnik kart kierowcow</a>
+                <button class="btn btn-outline" onclick="openCardModal()">&#43; Dodaj karte</button>
+                <button class="btn btn-green" onclick="openBulkModal()">&#9776; Masowe dodawanie</button>
+            </div>
+        </div>
+
+        <div class="summary-strip">
+            <div class="stat" style="--accent:#1e40af">
+                <div class="stat-label">Wszystkie karty</div>
+                <div class="stat-value" id="stat-total">0</div>
+            </div>
+            <div class="stat" style="--accent:#22c55e">
+                <div class="stat-label">Przypisane</div>
+                <div class="stat-value" id="stat-assigned">0</div>
+            </div>
+            <div class="stat" style="--accent:#f59e0b">
+                <div class="stat-label">Bez kierowcy</div>
+                <div class="stat-value" id="stat-unassigned">0</div>
+            </div>
+            <div class="stat" style="--accent:#64748b">
+                <div class="stat-label">Dostawcy</div>
+                <div class="stat-value" id="stat-suppliers">0</div>
+            </div>
+        </div>
+
+        <div class="toolbar">
+            <label>Dostawca:</label>
+            <select id="filter-supplier" onchange="render()">
+                <option value="">Wszyscy</option>
+            </select>
+            <label>Przypisanie:</label>
+            <select id="filter-assigned" onchange="render()">
+                <option value="">Wszystkie</option>
+                <option value="yes">Przypisane</option>
+                <option value="no">Bez kierowcy</option>
+            </select>
+            <input type="text" id="filter-search" placeholder="Szukaj nazwy, numeru, kierowcy..." oninput="render()">
+            <button class="btn btn-ghost btn-sm" onclick="resetFilters()">Reset</button>
+            <div class="toolbar-spacer"></div>
+        </div>
+
+        <div class="table-card">
+            <div class="table-top">
+                <h3 id="table-header">Karty</h3>
+            </div>
+            <div class="table-scroll">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Dostawca</th>
+                            <th>Nazwa karty</th>
+                            <th>Numer karty</th>
+                            <th>Kierowca</th>
+                            <th>Uwagi</th>
+                            <th class="col-actions">Akcje</th>
+                        </tr>
+                    </thead>
+                    <tbody id="cards-tbody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add / Edit card modal -->
+    <div class="modal-overlay" id="card-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 id="card-modal-title">Dodaj karte</h3>
+                <button class="modal-close" onclick="closeModal('card-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="modal-msg error" id="card-modal-msg"></div>
+                <div class="field">
+                    <label>Dostawca <span class="hint">(wymagane)</span></label>
+                    <input type="text" id="card-supplier" list="suppliers-list" placeholder="np. DKV, UTA, Shell...">
+                </div>
+                <div class="field">
+                    <label>Nazwa karty <span class="hint">(wymagane)</span></label>
+                    <input type="text" id="card-name" placeholder="np. Karta serwisowa, Ciezarowka 1...">
+                </div>
+                <div class="field">
+                    <label>Numer karty <span class="hint">(opcjonalnie)</span></label>
+                    <input type="text" id="card-number" placeholder="np. 7008 1234 5678 9012">
+                </div>
+                <label class="checkbox-row">
+                    <input type="checkbox" id="card-noassign" onchange="toggleDriverField('card')">
+                    Bez przypisania do kierowcy
+                </label>
+                <div class="field" id="card-driver-field">
+                    <label>Kierowca <span class="hint">(opcjonalnie)</span></label>
+                    <input type="text" id="card-driver" placeholder="Imie i nazwisko kierowcy">
+                </div>
+                <div class="field">
+                    <label>Uwagi <span class="hint">(opcjonalnie)</span></label>
+                    <input type="text" id="card-notes" placeholder="Dodatkowe informacje">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-ghost" onclick="closeModal('card-modal')">Anuluj</button>
+                <button class="btn btn-primary" id="card-save-btn" onclick="saveCard()">Zapisz</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bulk add modal -->
+    <div class="modal-overlay" id="bulk-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Masowe dodawanie kart</h3>
+                <button class="modal-close" onclick="closeModal('bulk-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="modal-msg error" id="bulk-modal-msg"></div>
+                <div class="field">
+                    <label>Dostawca <span class="hint">(wymagane &ndash; wspolny dla wszystkich kart)</span></label>
+                    <input type="text" id="bulk-supplier" list="suppliers-list" placeholder="np. DKV, UTA, Shell...">
+                </div>
+                <label class="checkbox-row">
+                    <input type="checkbox" id="bulk-noassign" checked onchange="toggleDriverField('bulk')">
+                    Bez przypisania do kierowcy
+                </label>
+                <div class="field" id="bulk-driver-field" style="display:none">
+                    <label>Kierowca dla wszystkich <span class="hint">(opcjonalnie)</span></label>
+                    <input type="text" id="bulk-driver" placeholder="Imie i nazwisko kierowcy">
+                </div>
+                <div class="field">
+                    <label>Nazwy kart <span class="hint">(jedna na linie)</span></label>
+                    <textarea id="bulk-text" placeholder="Karta 1&#10;Karta 2&#10;Ciezarowka ABC123&#10;..." oninput="updateBulkCount()"></textarea>
+                    <div class="bulk-count" id="bulk-count">0 kart do dodania</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-ghost" onclick="closeModal('bulk-modal')">Anuluj</button>
+                <button class="btn btn-green" id="bulk-save-btn" onclick="saveBulk()">Dodaj karty</button>
+            </div>
+        </div>
+    </div>
+
+    <datalist id="suppliers-list">
+        {% for s in suppliers %}<option value="{{ s }}">{% endfor %}
+    </datalist>
+
+    <script>
+        let allCards = [];
+        let editingId = null;
+
+        function esc(s) {
+            return String(s == null ? '' : s)
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        }
+
+        function loadCards() {
+            fetch('/api/fuel-cards')
+                .then(r => r.json())
+                .then(data => {
+                    allCards = data.cards || [];
+                    populateSupplierFilter();
+                    render();
+                })
+                .catch(err => console.error(err));
+        }
+
+        function populateSupplierFilter() {
+            const sel = document.getElementById('filter-supplier');
+            const current = sel.value;
+            const suppliers = [...new Set(allCards.map(c => c.supplier))].sort((a, b) =>
+                a.toLowerCase().localeCompare(b.toLowerCase()));
+            sel.innerHTML = '<option value="">Wszyscy</option>' +
+                suppliers.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join('');
+            sel.value = current;
+        }
+
+        function render() {
+            const fSupplier = document.getElementById('filter-supplier').value;
+            const fAssigned = document.getElementById('filter-assigned').value;
+            const fSearch = document.getElementById('filter-search').value.trim().toLowerCase();
+
+            let cards = allCards.slice();
+            if (fSupplier) cards = cards.filter(c => c.supplier === fSupplier);
+            if (fAssigned === 'yes') cards = cards.filter(c => c.driver);
+            if (fAssigned === 'no') cards = cards.filter(c => !c.driver);
+            if (fSearch) {
+                cards = cards.filter(c =>
+                    (c.card_name || '').toLowerCase().includes(fSearch) ||
+                    (c.card_number || '').toLowerCase().includes(fSearch) ||
+                    (c.driver || '').toLowerCase().includes(fSearch) ||
+                    (c.notes || '').toLowerCase().includes(fSearch));
+            }
+
+            // Summary (over all cards, not filtered)
+            const assigned = allCards.filter(c => c.driver).length;
+            document.getElementById('stat-total').textContent = allCards.length;
+            document.getElementById('stat-assigned').textContent = assigned;
+            document.getElementById('stat-unassigned').textContent = allCards.length - assigned;
+            document.getElementById('stat-suppliers').textContent =
+                new Set(allCards.map(c => c.supplier)).size;
+
+            document.getElementById('table-header').textContent = `Karty (${cards.length})`;
+
+            const tbody = document.getElementById('cards-tbody');
+            if (cards.length === 0) {
+                tbody.innerHTML = '<tr class="empty-row"><td colspan="6">Brak kart do wyswietlenia</td></tr>';
+                return;
+            }
+            tbody.innerHTML = cards.map(c => `
+                <tr>
+                    <td><span class="supplier-tag">${esc(c.supplier)}</span></td>
+                    <td class="card-name">${esc(c.card_name)}</td>
+                    <td class="c-muted">${c.card_number ? esc(c.card_number) : '&ndash;'}</td>
+                    <td>${c.driver
+                        ? `<span class="driver-yes">${esc(c.driver)}</span>`
+                        : '<span class="badge-none">Brak przypisania</span>'}</td>
+                    <td class="c-muted">${c.notes ? esc(c.notes) : '&ndash;'}</td>
+                    <td class="col-actions">
+                        <button class="btn btn-outline btn-sm" onclick="openCardModal(${c.id})">Edytuj</button>
+                        <button class="btn btn-danger-outline btn-sm" onclick="deleteCard(${c.id})">Usun</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function resetFilters() {
+            document.getElementById('filter-supplier').value = '';
+            document.getElementById('filter-assigned').value = '';
+            document.getElementById('filter-search').value = '';
+            render();
+        }
+
+        function openModal(id) { document.getElementById(id).classList.add('open'); }
+        function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+        function toggleDriverField(which) {
+            const noassign = document.getElementById(which + '-noassign').checked;
+            document.getElementById(which + '-driver-field').style.display = noassign ? 'none' : 'block';
+            if (noassign) document.getElementById(which + '-driver').value = '';
+        }
+
+        function openCardModal(id) {
+            editingId = id || null;
+            const msg = document.getElementById('card-modal-msg');
+            msg.style.display = 'none';
+            const title = document.getElementById('card-modal-title');
+            if (editingId) {
+                const c = allCards.find(x => x.id === editingId);
+                if (!c) return;
+                title.textContent = 'Edytuj karte';
+                document.getElementById('card-supplier').value = c.supplier || '';
+                document.getElementById('card-name').value = c.card_name || '';
+                document.getElementById('card-number').value = c.card_number || '';
+                document.getElementById('card-driver').value = c.driver || '';
+                document.getElementById('card-notes').value = c.notes || '';
+                document.getElementById('card-noassign').checked = !c.driver;
+            } else {
+                title.textContent = 'Dodaj karte';
+                document.getElementById('card-supplier').value = '';
+                document.getElementById('card-name').value = '';
+                document.getElementById('card-number').value = '';
+                document.getElementById('card-driver').value = '';
+                document.getElementById('card-notes').value = '';
+                document.getElementById('card-noassign').checked = false;
+            }
+            toggleDriverField('card');
+            openModal('card-modal');
+            setTimeout(() => document.getElementById('card-supplier').focus(), 50);
+        }
+
+        function saveCard() {
+            const msg = document.getElementById('card-modal-msg');
+            const btn = document.getElementById('card-save-btn');
+            const noassign = document.getElementById('card-noassign').checked;
+            const payload = {
+                supplier: document.getElementById('card-supplier').value.trim(),
+                card_name: document.getElementById('card-name').value.trim(),
+                card_number: document.getElementById('card-number').value.trim(),
+                driver: noassign ? '' : document.getElementById('card-driver').value.trim(),
+                notes: document.getElementById('card-notes').value.trim(),
+            };
+            if (!payload.supplier) { showModalMsg(msg, 'Dostawca jest wymagany'); return; }
+            if (!payload.card_name) { showModalMsg(msg, 'Nazwa karty jest wymagana'); return; }
+
+            const url = editingId ? `/api/fuel-cards/${editingId}` : '/api/fuel-cards';
+            const method = editingId ? 'PATCH' : 'POST';
+            btn.disabled = true; btn.textContent = 'Zapisywanie...';
+            fetch(url, {
+                method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            })
+                .then(r => r.json())
+                .then(data => {
+                    btn.disabled = false; btn.textContent = 'Zapisz';
+                    if (data.error) { showModalMsg(msg, data.error); return; }
+                    closeModal('card-modal');
+                    loadCards();
+                })
+                .catch(err => {
+                    btn.disabled = false; btn.textContent = 'Zapisz';
+                    showModalMsg(msg, 'Blad: ' + err.message);
+                });
+        }
+
+        function deleteCard(id) {
+            const c = allCards.find(x => x.id === id);
+            const label = c ? `"${c.card_name}" (${c.supplier})` : 'te karte';
+            if (!confirm(`Usunac karte ${label}?`)) return;
+            fetch(`/api/fuel-cards/${id}`, { method: 'DELETE' })
+                .then(r => r.json())
+                .then(() => loadCards())
+                .catch(err => alert('Blad: ' + err.message));
+        }
+
+        function openBulkModal() {
+            document.getElementById('bulk-modal-msg').style.display = 'none';
+            document.getElementById('bulk-supplier').value = '';
+            document.getElementById('bulk-driver').value = '';
+            document.getElementById('bulk-text').value = '';
+            document.getElementById('bulk-noassign').checked = true;
+            toggleDriverField('bulk');
+            updateBulkCount();
+            openModal('bulk-modal');
+            setTimeout(() => document.getElementById('bulk-supplier').focus(), 50);
+        }
+
+        function countBulkLines() {
+            return document.getElementById('bulk-text').value
+                .split('\n').map(l => l.trim()).filter(Boolean).length;
+        }
+
+        function updateBulkCount() {
+            const n = countBulkLines();
+            document.getElementById('bulk-count').textContent =
+                n === 1 ? '1 karta do dodania' : `${n} kart do dodania`;
+        }
+
+        function saveBulk() {
+            const msg = document.getElementById('bulk-modal-msg');
+            const btn = document.getElementById('bulk-save-btn');
+            const supplier = document.getElementById('bulk-supplier').value.trim();
+            const noassign = document.getElementById('bulk-noassign').checked;
+            const driver = noassign ? '' : document.getElementById('bulk-driver').value.trim();
+            const text = document.getElementById('bulk-text').value;
+            if (!supplier) { showModalMsg(msg, 'Dostawca jest wymagany'); return; }
+            if (countBulkLines() === 0) { showModalMsg(msg, 'Wpisz co najmniej jedna nazwe karty'); return; }
+
+            btn.disabled = true; btn.textContent = 'Dodawanie...';
+            fetch('/api/fuel-cards/bulk', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ supplier, driver, text }),
+            })
+                .then(r => r.json())
+                .then(data => {
+                    btn.disabled = false; btn.textContent = 'Dodaj karty';
+                    if (data.error) { showModalMsg(msg, data.error); return; }
+                    closeModal('bulk-modal');
+                    loadCards();
+                })
+                .catch(err => {
+                    btn.disabled = false; btn.textContent = 'Dodaj karty';
+                    showModalMsg(msg, 'Blad: ' + err.message);
+                });
+        }
+
+        function showModalMsg(el, text) {
+            el.textContent = text;
+            el.className = 'modal-msg error';
+            el.style.display = 'block';
+        }
+
+        // Close modals on overlay click
+        document.querySelectorAll('.modal-overlay').forEach(ov => {
+            ov.addEventListener('click', e => { if (e.target === ov) ov.classList.remove('open'); });
+        });
+
+        loadCards();
+    </script>
+</body>
+</html>
