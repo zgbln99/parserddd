@@ -836,14 +836,24 @@ TRACKING_INGEST_TOKEN = os.environ.get('TRACKING_INGEST_TOKEN', '')
 NOMINATIM_URL = os.environ.get('NOMINATIM_URL', 'https://nominatim.openstreetmap.org/reverse')
 GEOCODE_USER_AGENT = os.environ.get('GEOCODE_USER_AGENT', 'LTS-Fleet-Tracker/1.0')
 
-# GPS telematics provider (pull) integration. Credentials via env. When
-# GPS_PROVIDER == 'none', positions are expected from /api/track/ingest
-# (provider webhook / cron bridge) or the admin UI instead of being pulled.
-GPS_PROVIDER = os.environ.get('GPS_PROVIDER', 'none')
+# GPS telematics provider (pull) integration. Credentials via env. When the
+# provider is 'none', positions are expected from /api/track/ingest (provider
+# webhook / cron bridge) or the admin UI instead of being pulled.
 GPS_API_URL = os.environ.get('GPS_API_URL', '')
 GPS_API_TOKEN = os.environ.get('GPS_API_TOKEN', '')
 GPS_API_USER = os.environ.get('GPS_API_USER', '')
 GPS_API_PASSWORD = os.environ.get('GPS_API_PASSWORD', '')
+
+# Samsara (https://developers.samsara.com). Set SAMSARA_API_TOKEN (or
+# GPS_API_TOKEN) to enable. EU customers must use the EU region base URL:
+# SAMSARA_API_URL=https://api.eu.samsara.com
+SAMSARA_API_TOKEN = os.environ.get('SAMSARA_API_TOKEN', GPS_API_TOKEN)
+SAMSARA_API_URL = os.environ.get('SAMSARA_API_URL', GPS_API_URL or 'https://api.samsara.com')
+
+# Provider auto-selects to 'samsara' when a Samsara token is present, unless
+# GPS_PROVIDER is set explicitly (e.g. 'none' to disable pulling).
+GPS_PROVIDER = (os.environ.get('GPS_PROVIDER', '').strip().lower()
+                or ('samsara' if SAMSARA_API_TOKEN else 'none'))
 # Min seconds between automatic provider polls per share (throttle)
 GPS_POLL_THROTTLE = int(os.environ.get('GPS_POLL_THROTTLE', '20'))
 
@@ -1009,7 +1019,9 @@ def store_positions(vehicle_id, points):
             heading = float(heading) if heading not in (None, '') else None
         except (TypeError, ValueError):
             heading = None
-        rows.append((vehicle_id, lat, lon, recorded_at, speed, heading, None, now))
+        addr = p.get('address')
+        addr = addr.strip() if isinstance(addr, str) and addr.strip() else None
+        rows.append((vehicle_id, lat, lon, recorded_at, speed, heading, addr, now))
     if not rows:
         return 0
     conn = get_tracking_db()
@@ -1026,25 +1038,124 @@ def store_positions(vehicle_id, points):
     return inserted
 
 
+def _to_rfc3339(iso_local):
+    """Convert a naive local ISO timestamp to RFC 3339 (with offset) for Samsara."""
+    try:
+        dt = datetime.fromisoformat(str(iso_local))
+    except (ValueError, TypeError):
+        dt = datetime.now()
+    if dt.tzinfo is None:
+        dt = dt.astimezone()  # attach the server's local timezone
+    return dt.isoformat()
+
+
+def _samsara_get(path, params):
+    """GET a Samsara API endpoint and return the decoded JSON."""
+    url = SAMSARA_API_URL.rstrip('/') + path
+    if params:
+        url += '?' + urllib.parse.urlencode(params)
+    req = urllib.request.Request(url, headers={
+        'Authorization': f'Bearer {SAMSARA_API_TOKEN}',
+        'Accept': 'application/json',
+    })
+    with urllib.request.urlopen(req, timeout=15) as resp:
+        return json.loads(resp.read().decode('utf-8'))
+
+
+_samsara_vehicle_cache = {'ts': None, 'by_key': {}}
+
+
+def _samsara_resolve_vehicle(vehicle_id):
+    """Resolve our vehicle_id (Samsara id, name, license plate or VIN) to a Samsara id."""
+    vid = str(vehicle_id).strip()
+    cache = _samsara_vehicle_cache
+    fresh = cache['ts'] and (datetime.now() - cache['ts']).total_seconds() < 600
+    if not fresh:
+        by_key = {}
+        params = {'limit': 512}
+        cursor = None
+        try:
+            for _ in range(10):
+                if cursor:
+                    params['after'] = cursor
+                data = _samsara_get('/fleet/vehicles', params)
+                for v in data.get('data', []):
+                    sid = str(v.get('id', '')).strip()
+                    if not sid:
+                        continue
+                    by_key[sid.lower()] = sid
+                    for field in ('name', 'licensePlate', 'vin'):
+                        val = (v.get(field) or '').strip().lower()
+                        if val:
+                            by_key[val] = sid
+                page = data.get('pagination', {})
+                if page.get('hasNextPage') and page.get('endCursor'):
+                    cursor = page['endCursor']
+                else:
+                    break
+            cache['by_key'] = by_key
+            cache['ts'] = datetime.now()
+        except Exception as exc:  # keep any previous cache on failure
+            app.logger.warning('Samsara vehicle list failed: %s', exc)
+    return cache['by_key'].get(vid.lower(), vid)
+
+
+def _fetch_positions_samsara(vehicle_id, since_iso):
+    """Pull GPS history for one vehicle from Samsara's stats/history endpoint."""
+    if not SAMSARA_API_TOKEN:
+        return []
+    sid = _samsara_resolve_vehicle(vehicle_id)
+    params = {
+        'types': 'gps',
+        'vehicleIds': sid,
+        'startTime': _to_rfc3339(since_iso),
+        'endTime': _to_rfc3339(_now_iso()),
+    }
+    points = []
+    cursor = None
+    try:
+        for _ in range(20):  # cap pages per poll
+            if cursor:
+                params['after'] = cursor
+            data = _samsara_get('/fleet/vehicles/stats/history', params)
+            for veh in data.get('data', []):
+                for g in (veh.get('gps') or []):
+                    lat, lon = g.get('latitude'), g.get('longitude')
+                    if lat is None or lon is None:
+                        continue
+                    mph = g.get('speedMilesPerHour')
+                    speed = round(mph * 1.60934, 1) if isinstance(mph, (int, float)) else None
+                    address = ((g.get('reverseGeo') or {}).get('formattedLocation') or '').strip()
+                    points.append({
+                        'lat': lat,
+                        'lon': lon,
+                        'recorded_at': g.get('time'),
+                        'speed': speed,
+                        'heading': g.get('headingDegrees'),
+                        'address': address or None,
+                    })
+            page = data.get('pagination', {})
+            if page.get('hasNextPage') and page.get('endCursor'):
+                cursor = page['endCursor']
+            else:
+                break
+    except Exception as exc:
+        app.logger.warning('Samsara GPS history failed for %s: %s', vehicle_id, exc)
+    return points
+
+
 def fetch_positions(vehicle_id, since_iso):
     """Pull recent positions for a vehicle from the configured GPS provider.
 
-    Return a list of dicts {lat, lon, recorded_at, speed, heading}; only fixes
-    newer than since_iso need to be returned. Credentials come from the GPS_*
-    env vars. Implement the branch for your telematics provider below.
+    Returns a list of dicts {lat, lon, recorded_at, speed, heading, address};
+    only fixes newer than since_iso need to be returned.
 
     With GPS_PROVIDER == 'none' this returns nothing and positions are taken
     from /api/track/ingest (provider webhook / cron bridge) or the admin UI.
     """
     provider = (GPS_PROVIDER or 'none').lower()
-    if provider == 'none':
-        return []
-    # --- Implement your provider here (Wialon / Webfleet / GpsGate / ...) ---
-    # if provider == 'wialon':
-    #     # call GPS_API_URL with GPS_API_TOKEN, map the response to the dict above
-    # if provider == 'webfleet':
-    #     # call .connect/LBS with GPS_API_USER / GPS_API_PASSWORD / GPS_API_TOKEN
-    # ------------------------------------------------------------------------
+    if provider == 'samsara':
+        return _fetch_positions_samsara(vehicle_id, since_iso)
     return []
 
 
@@ -1059,7 +1170,16 @@ def maybe_poll_provider(share):
                 return
         except ValueError:
             pass
-    since = (datetime.now() - timedelta(days=share['history_days'])).isoformat(timespec='seconds')
+    # Incremental: pull from the last stored fix; on first poll backfill the
+    # whole history window so the link shows history immediately.
+    window_start = (datetime.now() - timedelta(days=share['history_days'])).isoformat(timespec='seconds')
+    conn = get_tracking_db()
+    row = conn.execute(
+        'SELECT MAX(recorded_at) AS m FROM positions WHERE vehicle_id = ?',
+        (share['vehicle_id'],),
+    ).fetchone()
+    conn.close()
+    since = row['m'] if row and row['m'] and row['m'] > window_start else window_start
     try:
         store_positions(share['vehicle_id'], fetch_positions(share['vehicle_id'], since))
     except Exception:
@@ -1149,6 +1269,18 @@ def tracking_admin_page():
         gps_provider=GPS_PROVIDER,
         ingest_enabled=bool(TRACKING_INGEST_TOKEN),
     )
+
+
+@app.route('/api/track/samsara/check')
+def api_samsara_check():
+    """Quick connectivity probe so the admin can verify the Samsara token/region."""
+    if (GPS_PROVIDER or 'none').lower() != 'samsara':
+        return jsonify({'ok': False, 'error': 'Samsara nie jest skonfigurowane — ustaw SAMSARA_API_TOKEN'})
+    try:
+        data = _samsara_get('/fleet/vehicles', {'limit': 1})
+        return jsonify({'ok': True, 'base_url': SAMSARA_API_URL, 'sample': len(data.get('data', []))})
+    except Exception as exc:
+        return jsonify({'ok': False, 'base_url': SAMSARA_API_URL, 'error': str(exc)})
 
 
 @app.route('/api/track/shares', methods=['GET'])

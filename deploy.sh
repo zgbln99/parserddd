@@ -107,6 +107,11 @@ User=root
 WorkingDirectory=/opt/ddd-reader
 ExecStart=/opt/ddd-reader/venv/bin/gunicorn --bind 127.0.0.1:8000 --workers 2 --timeout 60 app:app
 Environment=DDDPARSER_PATH=/usr/local/bin/dddparser
+# Optional secrets/config (Samsara token, Dropbox keys, etc.) — not committed.
+# Create /opt/ddd-reader/.env with e.g.:
+#   SAMSARA_API_TOKEN=...        (EU accounts: SAMSARA_API_URL=https://api.eu.samsara.com)
+#   TRACKING_INGEST_TOKEN=...
+EnvironmentFile=-/opt/ddd-reader/.env
 Restart=always
 RestartSec=5
 

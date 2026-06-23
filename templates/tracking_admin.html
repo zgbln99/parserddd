@@ -165,6 +165,10 @@
         {% if gps_provider and gps_provider|lower != 'none' %}
         <div class="hint-bar">
             Integracja GPS: <strong>{{ gps_provider }}</strong> &mdash; pozycje pobierane automatycznie z systemu telematyki.
+            {% if gps_provider|lower == 'samsara' %}
+            <button class="btn btn-outline btn-sm" style="margin-left:8px" onclick="checkSamsara()">Sprawdz polaczenie</button>
+            <span id="samsara-status" style="margin-left:6px"></span>
+            {% endif %}
         </div>
         {% else %}
         <div class="hint-bar warn">
@@ -207,8 +211,8 @@
             <div class="modal-body">
                 <div class="modal-msg" id="create-msg"></div>
                 <div class="field">
-                    <label>Pojazd &ndash; nr rej. lub ID z systemu GPS <span class="hint">(wymagane)</span></label>
-                    <input type="text" id="c-vehicle" placeholder="np. WX 12345 albo ID obiektu z telematyki">
+                    <label>Pojazd z Samsara &ndash; nazwa, nr rej., VIN lub ID <span class="hint">(wymagane)</span></label>
+                    <input type="text" id="c-vehicle" placeholder="np. WX 12345, nazwa pojazdu albo ID z Samsara">
                 </div>
                 <div class="field">
                     <label>Kierowca <span class="hint">(opcjonalnie, widoczny na linku)</span></label>
@@ -380,6 +384,25 @@
             fetch('/api/track/shares/' + id, { method: 'DELETE' })
                 .then(() => { toast('Usunieto link'); load(); })
                 .catch(err => alert('Blad: ' + err.message));
+        }
+
+        function checkSamsara() {
+            const el = document.getElementById('samsara-status');
+            if (!el) return;
+            el.textContent = 'Sprawdzanie...';
+            el.style.color = '';
+            fetch('/api/track/samsara/check')
+                .then(r => r.json())
+                .then(d => {
+                    if (d.ok) {
+                        el.textContent = '✓ Polaczono (' + (d.base_url || '') + ')';
+                        el.style.color = '#16a34a';
+                    } else {
+                        el.textContent = '✗ ' + (d.error || 'Blad polaczenia');
+                        el.style.color = '#dc2626';
+                    }
+                })
+                .catch(err => { el.textContent = '✗ ' + err.message; el.style.color = '#dc2626'; });
         }
 
         document.querySelectorAll('.modal-overlay').forEach(ov => {
