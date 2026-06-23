@@ -16,6 +16,34 @@ from dropbox.exceptions import AuthError
 from flask import Flask, render_template, request, jsonify, redirect, session, url_for
 from zoneinfo import ZoneInfo
 
+
+def _load_dotenv():
+    """Load KEY=VALUE pairs from a .env file (if present) into the environment
+    without overriding variables already set (systemd/real env wins). Avoids a
+    hard dependency on python-dotenv so a token placed in .env is always read."""
+    for path in (
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env'),
+        os.path.join(os.getcwd(), '.env'),
+    ):
+        try:
+            with open(path, 'r', encoding='utf-8') as fh:
+                for line in fh:
+                    line = line.strip()
+                    if not line or line.startswith('#') or '=' not in line:
+                        continue
+                    key, _, val = line.partition('=')
+                    key = key.strip()
+                    if key.lower().startswith('export '):
+                        key = key[7:].strip()
+                    val = val.strip().strip('"').strip("'")
+                    if key and key not in os.environ:
+                        os.environ[key] = val
+        except (FileNotFoundError, OSError):
+            continue
+
+
+_load_dotenv()
+
 UTC = ZoneInfo('UTC')
 CET = ZoneInfo('Europe/Berlin')
 
@@ -844,13 +872,32 @@ GPS_API_TOKEN = os.environ.get('GPS_API_TOKEN', '')
 GPS_API_USER = os.environ.get('GPS_API_USER', '')
 GPS_API_PASSWORD = os.environ.get('GPS_API_PASSWORD', '')
 
-# Samsara (https://developers.samsara.com). Set SAMSARA_API_TOKEN (or
-# GPS_API_TOKEN) to enable. EU customers must use the EU region base URL:
-# SAMSARA_API_URL=https://api.eu.samsara.com
-SAMSARA_API_TOKEN = os.environ.get('SAMSARA_API_TOKEN', GPS_API_TOKEN)
-SAMSARA_API_URL = os.environ.get('SAMSARA_API_URL', GPS_API_URL or 'https://api.samsara.com')
+# Samsara (https://developers.samsara.com). The token is read from the first
+# of these env vars that is set, so whatever name is already in your .env works.
+SAMSARA_TOKEN_ENV_NAMES = (
+    'SAMSARA_API_TOKEN', 'SAMSARA_TOKEN', 'SAMSARA_API_KEY', 'SAMSARA_KEY',
+    'VITE_SAMSARA_API_TOKEN', 'VITE_SAMSARA_TOKEN', 'GPS_API_TOKEN',
+)
 
-# Provider auto-selects to 'samsara' when a Samsara token is present, unless
+
+def _resolve_samsara_token():
+    for name in SAMSARA_TOKEN_ENV_NAMES:
+        val = (os.environ.get(name) or '').strip()
+        if val:
+            return val, name
+    return '', None
+
+
+SAMSARA_API_TOKEN, SAMSARA_TOKEN_SOURCE = _resolve_samsara_token()
+
+# Region base URL. If not set explicitly, auto-detect EU vs US on first call
+# (EU tried first — most European Samsara accounts live on api.eu.samsara.com).
+_samsara_url_explicit = (os.environ.get('SAMSARA_API_URL') or GPS_API_URL or '').strip()
+SAMSARA_BASE_CANDIDATES = ([_samsara_url_explicit] if _samsara_url_explicit
+                           else ['https://api.eu.samsara.com', 'https://api.samsara.com'])
+_samsara_base = {'url': _samsara_url_explicit or None}
+
+# Provider auto-selects to 'samsara' when a token is present, unless
 # GPS_PROVIDER is set explicitly (e.g. 'none' to disable pulling).
 GPS_PROVIDER = (os.environ.get('GPS_PROVIDER', '').strip().lower()
                 or ('samsara' if SAMSARA_API_TOKEN else 'none'))
@@ -1049,9 +1096,9 @@ def _to_rfc3339(iso_local):
     return dt.isoformat()
 
 
-def _samsara_get(path, params):
-    """GET a Samsara API endpoint and return the decoded JSON."""
-    url = SAMSARA_API_URL.rstrip('/') + path
+def _samsara_request(base, path, params):
+    """Perform one Samsara GET against a specific base URL."""
+    url = base.rstrip('/') + path
     if params:
         url += '?' + urllib.parse.urlencode(params)
     req = urllib.request.Request(url, headers={
@@ -1060,6 +1107,26 @@ def _samsara_get(path, params):
     })
     with urllib.request.urlopen(req, timeout=15) as resp:
         return json.loads(resp.read().decode('utf-8'))
+
+
+def samsara_base_url():
+    """The Samsara base URL in use (pinned after the first successful call)."""
+    return _samsara_base['url'] or SAMSARA_BASE_CANDIDATES[0]
+
+
+def _samsara_get(path, params):
+    """GET a Samsara endpoint, auto-detecting the EU/US region on first use."""
+    if _samsara_base['url']:
+        return _samsara_request(_samsara_base['url'], path, params)
+    last_exc = None
+    for base in SAMSARA_BASE_CANDIDATES:
+        try:
+            data = _samsara_request(base, path, params)
+            _samsara_base['url'] = base   # pin the working region for later calls
+            return data
+        except Exception as exc:
+            last_exc = exc
+    raise last_exc if last_exc else RuntimeError('Samsara base URL unresolved')
 
 
 _samsara_vehicle_cache = {'ts': None, 'by_key': {}}
@@ -1274,13 +1341,16 @@ def tracking_admin_page():
 @app.route('/api/track/samsara/check')
 def api_samsara_check():
     """Quick connectivity probe so the admin can verify the Samsara token/region."""
-    if (GPS_PROVIDER or 'none').lower() != 'samsara':
-        return jsonify({'ok': False, 'error': 'Samsara nie jest skonfigurowane — ustaw SAMSARA_API_TOKEN'})
+    if not SAMSARA_API_TOKEN:
+        return jsonify({'ok': False, 'token_present': False,
+                        'error': 'Brak tokenu Samsara w srodowisku/.env (np. SAMSARA_API_TOKEN)'})
     try:
         data = _samsara_get('/fleet/vehicles', {'limit': 1})
-        return jsonify({'ok': True, 'base_url': SAMSARA_API_URL, 'sample': len(data.get('data', []))})
+        return jsonify({'ok': True, 'token_present': True, 'token_source': SAMSARA_TOKEN_SOURCE,
+                        'base_url': samsara_base_url(), 'sample': len(data.get('data', []))})
     except Exception as exc:
-        return jsonify({'ok': False, 'base_url': SAMSARA_API_URL, 'error': str(exc)})
+        return jsonify({'ok': False, 'token_present': True, 'token_source': SAMSARA_TOKEN_SOURCE,
+                        'base_url': samsara_base_url(), 'error': str(exc)})
 
 
 @app.route('/api/track/shares', methods=['GET'])
