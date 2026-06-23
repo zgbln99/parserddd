@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sledzenie tras — linki publiczne</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #f0f2f7; --surface: #fff; --surface-hover: #f8f9fb;
+            --border: #e5e7eb; --border-light: #f1f3f5;
+            --text: #111827; --text-secondary: #6b7280; --text-muted: #9ca3af;
+            --primary: #2563eb; --primary-dark: #1d4ed8;
+            --green: #22c55e; --red: #ef4444; --amber: #f59e0b; --slate: #64748b;
+            --radius: 16px; --radius-sm: 10px;
+            --shadow: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.06);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background: var(--bg); color: var(--text); min-height: 100vh;
+            -webkit-font-smoothing: antialiased;
+        }
+        .container { max-width: 1560px; margin: 0 auto; padding: 14px 18px; }
+        .top-bar {
+            background: var(--surface); border-radius: var(--radius);
+            padding: 14px 22px; margin-bottom: 14px; box-shadow: var(--shadow);
+            display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+        }
+        .brand { display: flex; align-items: center; gap: 12px; }
+        .brand-logo { height: 36px; object-fit: contain; }
+        .brand h1 { font-size: 1.1em; font-weight: 700; }
+        .brand .subtitle { font-size: 0.75em; color: var(--text-muted); }
+        .top-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .nav-link {
+            text-decoration: none; background: var(--surface-hover); color: var(--text-secondary);
+            border: 1.5px solid var(--border); padding: 8px 14px; border-radius: 8px;
+            font-size: 0.8em; font-weight: 600; transition: all 0.15s;
+            display: inline-flex; align-items: center; gap: 6px;
+        }
+        .nav-link:hover { background: var(--border); color: var(--text); }
+
+        .btn {
+            border: none; cursor: pointer; font-family: inherit;
+            padding: 8px 16px; border-radius: 8px; font-size: 0.82em; font-weight: 600;
+            transition: all 0.15s; display: inline-flex; align-items: center; gap: 6px;
+        }
+        .btn-primary { background: var(--primary); color: #fff; }
+        .btn-primary:hover { background: var(--primary-dark); }
+        .btn-ghost { background: transparent; color: var(--text-secondary); }
+        .btn-ghost:hover { background: var(--surface-hover); }
+        .btn-outline { background: var(--surface); color: var(--text-secondary); border: 1.5px solid var(--border); }
+        .btn-outline:hover { background: var(--surface-hover); }
+        .btn-danger-outline { background: transparent; color: var(--red); border: 1.5px solid #fecaca; }
+        .btn-danger-outline:hover { background: #fef2f2; }
+        .btn-sm { padding: 5px 10px; font-size: 0.76em; }
+
+        .hint-bar {
+            background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af;
+            border-radius: var(--radius-sm); padding: 10px 16px; margin-bottom: 12px;
+            font-size: 0.82em; line-height: 1.5;
+        }
+        .hint-bar strong { font-weight: 700; }
+        .hint-bar.warn { background: #fffbeb; border-color: #fde68a; color: #92400e; }
+
+        .table-card {
+            background: var(--surface); border-radius: var(--radius);
+            box-shadow: var(--shadow); overflow: hidden;
+        }
+        .table-top {
+            padding: 14px 18px 10px; display: flex; align-items: center; justify-content: space-between;
+        }
+        .table-top h3 { font-size: 0.95em; font-weight: 700; }
+        .table-scroll { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.86em; }
+        th {
+            padding: 10px 12px; text-align: left; font-weight: 600; color: var(--text-muted);
+            font-size: 0.8em; text-transform: uppercase; letter-spacing: 0.3px;
+            border-bottom: 1px solid var(--border); white-space: nowrap;
+        }
+        td { padding: 11px 12px; border-bottom: 1px solid var(--border-light); vertical-align: middle; }
+        tbody tr:hover td { background: var(--surface-hover); }
+        .col-actions { text-align: right; white-space: nowrap; }
+
+        .driver-name { font-weight: 700; }
+        .vehicle-id { font-size: 0.92em; color: var(--text-secondary); }
+        .muted { color: var(--text-muted); }
+        .badge {
+            display: inline-block; padding: 2px 10px; border-radius: 20px;
+            font-size: 0.74em; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px;
+        }
+        .badge.aktywny { background: #dcfce7; color: #16a34a; }
+        .badge.wygasl { background: #fef3c7; color: #b45309; }
+        .badge.wylaczony { background: #f1f5f9; color: #64748b; }
+
+        .link-cell { display: flex; align-items: center; gap: 6px; }
+        .link-input {
+            font-family: ui-monospace, monospace; font-size: 0.76em;
+            border: 1.5px solid var(--border); border-radius: 6px; padding: 4px 8px;
+            background: var(--surface-hover); color: var(--text-secondary);
+            width: 210px; outline: none;
+        }
+        .empty-row td { text-align: center; color: var(--text-muted); padding: 36px 12px; }
+
+        /* Modal */
+        .modal-overlay {
+            display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+            z-index: 1000; justify-content: center; align-items: center;
+        }
+        .modal-overlay.open { display: flex; }
+        .modal {
+            background: var(--surface); border-radius: var(--radius);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.2); width: 480px; max-width: 94vw;
+            max-height: 90vh; display: flex; flex-direction: column;
+        }
+        .modal-header {
+            padding: 16px 20px; border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; justify-content: space-between;
+        }
+        .modal-header h3 { font-size: 1em; font-weight: 700; }
+        .modal-close { background: none; border: none; font-size: 1.3em; cursor: pointer; color: var(--text-muted); }
+        .modal-body { padding: 18px 20px; overflow-y: auto; }
+        .modal-footer {
+            padding: 12px 20px; border-top: 1px solid var(--border);
+            display: flex; justify-content: flex-end; gap: 8px;
+        }
+        .field { margin-bottom: 14px; }
+        .field label { display: block; font-size: 0.82em; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; }
+        .field .hint { font-weight: 400; color: var(--text-muted); }
+        .field input {
+            width: 100%; padding: 9px 12px; border: 1.5px solid var(--border);
+            border-radius: 8px; font-size: 0.9em; font-family: inherit; outline: none;
+        }
+        .field input:focus { border-color: var(--primary); }
+        .field-row { display: flex; gap: 12px; }
+        .field-row .field { flex: 1; }
+        .modal-msg { font-size: 0.84em; font-weight: 600; margin-bottom: 12px; display: none; color: var(--red); }
+        .toast {
+            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+            background: #111827; color: #fff; padding: 10px 18px; border-radius: 8px;
+            font-size: 0.85em; font-weight: 600; opacity: 0; transition: opacity 0.2s; z-index: 2000;
+        }
+        .toast.show { opacity: 1; }
+        @media (max-width: 720px) { .link-input { width: 130px; } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="top-bar">
+            <div class="brand">
+                <img src="https://ltslog.de/logo.png" alt="LTS" class="brand-logo">
+                <div>
+                    <h1>Sledzenie tras</h1>
+                    <div class="subtitle">Publiczne linki do sledzenia kierowcow</div>
+                </div>
+            </div>
+            <div class="top-actions">
+                <a href="/" class="nav-link">&#8592; Czytnik kart</a>
+                <a href="/fuel-cards" class="nav-link">&#9981; Karty paliwowe</a>
+                <button class="btn btn-primary" onclick="openCreate()">&#43; Nowy link</button>
+            </div>
+        </div>
+
+        {% if gps_provider and gps_provider|lower != 'none' %}
+        <div class="hint-bar">
+            Integracja GPS: <strong>{{ gps_provider }}</strong> &mdash; pozycje pobierane automatycznie z systemu telematyki.
+        </div>
+        {% else %}
+        <div class="hint-bar warn">
+            <strong>Brak podlaczonego dostawcy GPS.</strong> Pozycje mozesz na razie dodac przyciskiem
+            &bdquo;Demo trasa&rdquo; (podglad) lub wysylajac je na <code>/api/track/ingest</code>.
+            Podaj dostawce i dostep do API, a podlaczymy automatyczne pobieranie pozycji.
+        </div>
+        {% endif %}
+
+        <div class="table-card">
+            <div class="table-top">
+                <h3 id="table-header">Linki</h3>
+            </div>
+            <div class="table-scroll">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Kierowca / opis</th>
+                            <th>Pojazd</th>
+                            <th>Punkty</th>
+                            <th>Status</th>
+                            <th>Wygasa</th>
+                            <th>Publiczny link</th>
+                            <th class="col-actions">Akcje</th>
+                        </tr>
+                    </thead>
+                    <tbody id="shares-tbody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create modal -->
+    <div class="modal-overlay" id="create-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Nowy link do sledzenia</h3>
+                <button class="modal-close" onclick="closeModal('create-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="modal-msg" id="create-msg"></div>
+                <div class="field">
+                    <label>Pojazd &ndash; nr rej. lub ID z systemu GPS <span class="hint">(wymagane)</span></label>
+                    <input type="text" id="c-vehicle" placeholder="np. WX 12345 albo ID obiektu z telematyki">
+                </div>
+                <div class="field">
+                    <label>Kierowca <span class="hint">(opcjonalnie, widoczny na linku)</span></label>
+                    <input type="text" id="c-driver" placeholder="Imie i nazwisko">
+                </div>
+                <div class="field">
+                    <label>Opis / etykieta <span class="hint">(opcjonalnie, np. nr zlecenia)</span></label>
+                    <input type="text" id="c-label" placeholder="np. Dostawa #4521">
+                </div>
+                <div class="field-row">
+                    <div class="field">
+                        <label>Historia (dni)</label>
+                        <input type="number" id="c-days" value="7" min="1" max="90">
+                    </div>
+                    <div class="field">
+                        <label>Wygasa dnia <span class="hint">(opcjonalnie)</span></label>
+                        <input type="date" id="c-expires">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-ghost" onclick="closeModal('create-modal')">Anuluj</button>
+                <button class="btn btn-primary" id="create-btn" onclick="createShare()">Utworz link</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        let shares = [];
+
+        function esc(s) {
+            return String(s == null ? '' : s)
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+        function publicUrl(token) { return window.location.origin + '/t/' + token; }
+
+        function toast(msg) {
+            const t = document.getElementById('toast');
+            t.textContent = msg; t.classList.add('show');
+            setTimeout(() => t.classList.remove('show'), 1800);
+        }
+
+        function openModal(id) { document.getElementById(id).classList.add('open'); }
+        function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+        function load() {
+            fetch('/api/track/shares')
+                .then(r => r.json())
+                .then(d => { shares = d.shares || []; render(); })
+                .catch(err => console.error(err));
+        }
+
+        function fmtDt(iso) {
+            if (!iso) return '&ndash;';
+            const d = new Date(iso.replace(' ', 'T'));
+            if (isNaN(d)) return esc(iso);
+            return d.toLocaleString('pl-PL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+        }
+
+        function render() {
+            document.getElementById('table-header').textContent = `Linki (${shares.length})`;
+            const tbody = document.getElementById('shares-tbody');
+            if (shares.length === 0) {
+                tbody.innerHTML = '<tr class="empty-row"><td colspan="7">Brak linkow. Kliknij &bdquo;Nowy link&rdquo;, aby utworzyc pierwszy.</td></tr>';
+                return;
+            }
+            tbody.innerHTML = shares.map(s => {
+                const who = s.driver_name || s.label || '(bez nazwy)';
+                const sub = (s.driver_name && s.label) ? `<div class="muted" style="font-size:0.85em">${esc(s.label)}</div>` : '';
+                const last = s.last_point ? `<div class="muted" style="font-size:0.82em">ost. ${fmtDt(s.last_point)}</div>` : '';
+                const toggleLabel = s.active ? 'Wylacz' : 'Wlacz';
+                return `<tr>
+                    <td><div class="driver-name">${esc(who)}</div>${sub}</td>
+                    <td class="vehicle-id">${esc(s.vehicle_id)}</td>
+                    <td>${s.point_count || 0}${last}</td>
+                    <td><span class="badge ${s.status}">${s.status}</span></td>
+                    <td class="muted">${s.expires_at ? esc(s.expires_at) : '&ndash;'}</td>
+                    <td>
+                        <div class="link-cell">
+                            <input class="link-input" readonly value="${esc(publicUrl(s.token))}" onclick="this.select()">
+                            <button class="btn btn-outline btn-sm" onclick="copyLink('${s.token}')">Kopiuj</button>
+                        </div>
+                    </td>
+                    <td class="col-actions">
+                        <a class="btn btn-outline btn-sm" href="/t/${s.token}" target="_blank" rel="noopener">Otworz</a>
+                        <button class="btn btn-outline btn-sm" onclick="simulate(${s.id})" title="Dodaj przykladowa trase do podgladu">Demo trasa</button>
+                        <button class="btn btn-outline btn-sm" onclick="toggleActive(${s.id}, ${s.active ? 0 : 1})">${toggleLabel}</button>
+                        <button class="btn btn-danger-outline btn-sm" onclick="removeShare(${s.id})">Usun</button>
+                    </td>
+                </tr>`;
+            }).join('');
+        }
+
+        function openCreate() {
+            document.getElementById('create-msg').style.display = 'none';
+            document.getElementById('c-vehicle').value = '';
+            document.getElementById('c-driver').value = '';
+            document.getElementById('c-label').value = '';
+            document.getElementById('c-days').value = '7';
+            document.getElementById('c-expires').value = '';
+            openModal('create-modal');
+            setTimeout(() => document.getElementById('c-vehicle').focus(), 50);
+        }
+
+        function createShare() {
+            const msg = document.getElementById('create-msg');
+            const btn = document.getElementById('create-btn');
+            const payload = {
+                vehicle_id: document.getElementById('c-vehicle').value.trim(),
+                driver_name: document.getElementById('c-driver').value.trim(),
+                label: document.getElementById('c-label').value.trim(),
+                history_days: parseInt(document.getElementById('c-days').value) || 7,
+                expires_at: document.getElementById('c-expires').value || '',
+            };
+            if (!payload.vehicle_id) {
+                msg.textContent = 'Identyfikator pojazdu jest wymagany';
+                msg.style.display = 'block';
+                return;
+            }
+            btn.disabled = true; btn.textContent = 'Tworzenie...';
+            fetch('/api/track/shares', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            })
+                .then(r => r.json())
+                .then(d => {
+                    btn.disabled = false; btn.textContent = 'Utworz link';
+                    if (d.error) { msg.textContent = d.error; msg.style.display = 'block'; return; }
+                    closeModal('create-modal');
+                    toast('Link utworzony');
+                    load();
+                })
+                .catch(err => {
+                    btn.disabled = false; btn.textContent = 'Utworz link';
+                    msg.textContent = 'Blad: ' + err.message; msg.style.display = 'block';
+                });
+        }
+
+        function copyLink(token) {
+            const url = publicUrl(token);
+            (navigator.clipboard ? navigator.clipboard.writeText(url) : Promise.reject())
+                .then(() => toast('Skopiowano link'))
+                .catch(() => { window.prompt('Skopiuj link:', url); });
+        }
+
+        function toggleActive(id, active) {
+            fetch('/api/track/shares/' + id, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ active: !!active }),
+            }).then(() => load());
+        }
+
+        function simulate(id) {
+            fetch('/api/track/shares/' + id + '/simulate', { method: 'POST' })
+                .then(r => r.json())
+                .then(d => { toast('Dodano przykladowa trase (' + (d.inserted || 0) + ' pkt)'); load(); })
+                .catch(() => toast('Blad symulacji'));
+        }
+
+        function removeShare(id) {
+            const s = shares.find(x => x.id === id);
+            const who = s ? (s.driver_name || s.label || s.vehicle_id) : 'ten link';
+            if (!confirm(`Usunac link do sledzenia: ${who}? Tej operacji nie mozna cofnac.`)) return;
+            fetch('/api/track/shares/' + id, { method: 'DELETE' })
+                .then(() => { toast('Usunieto link'); load(); })
+                .catch(err => alert('Blad: ' + err.message));
+        }
+
+        document.querySelectorAll('.modal-overlay').forEach(ov => {
+            ov.addEventListener('click', e => { if (e.target === ov) ov.classList.remove('open'); });
+        });
+
+        load();
+    </script>
+</body>
+</html>

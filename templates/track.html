@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ label }} — sledzenie trasy</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #f0f2f7; --surface: #fff; --border: #e5e7eb; --border-light: #f1f3f5;
+            --text: #111827; --text-secondary: #6b7280; --text-muted: #9ca3af;
+            --primary: #2563eb; --green: #22c55e; --red: #ef4444; --amber: #f59e0b;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { height: 100%; }
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background: var(--bg); color: var(--text);
+            display: flex; flex-direction: column; height: 100vh;
+            -webkit-font-smoothing: antialiased;
+        }
+        header {
+            background: linear-gradient(135deg, #1e3a5f, #1e40af);
+            color: #fff; padding: 12px 20px;
+            display: flex; align-items: center; justify-content: space-between;
+            gap: 12px; flex-wrap: wrap; flex-shrink: 0;
+        }
+        header .title h1 { font-size: 1.05em; font-weight: 700; }
+        header .title .sub { font-size: 0.76em; opacity: 0.8; }
+        header .meta { text-align: right; font-size: 0.76em; opacity: 0.9; line-height: 1.6; }
+        .live {
+            display: inline-flex; align-items: center; gap: 6px;
+            background: rgba(255,255,255,0.15); padding: 3px 10px; border-radius: 20px;
+            font-weight: 600; font-size: 0.92em;
+        }
+        .live .dot {
+            width: 8px; height: 8px; border-radius: 50%; background: #4ade80;
+            box-shadow: 0 0 0 0 rgba(74,222,128,0.7); animation: pulse 1.8s infinite;
+        }
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(74,222,128,0.6); }
+            70% { box-shadow: 0 0 0 8px rgba(74,222,128,0); }
+            100% { box-shadow: 0 0 0 0 rgba(74,222,128,0); }
+        }
+        main { flex: 1; display: flex; min-height: 0; }
+        #map { flex: 1; min-height: 0; z-index: 1; }
+        .panel {
+            width: 360px; max-width: 42vw; background: var(--surface);
+            border-left: 1px solid var(--border); display: flex; flex-direction: column;
+        }
+        .panel-head {
+            padding: 12px 16px; border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; justify-content: space-between;
+        }
+        .panel-head h2 { font-size: 0.9em; font-weight: 700; }
+        .panel-head .count { font-size: 0.78em; color: var(--text-muted); }
+        .history { flex: 1; overflow-y: auto; }
+        .hist-item {
+            padding: 11px 16px; border-bottom: 1px solid var(--border-light);
+            display: flex; gap: 10px; cursor: pointer; transition: background 0.1s;
+        }
+        .hist-item:hover { background: #f8f9fb; }
+        .hist-item.current { background: #fef9e7; }
+        .hist-dot {
+            flex-shrink: 0; width: 10px; height: 10px; border-radius: 50%;
+            background: var(--primary); margin-top: 4px;
+        }
+        .hist-item.start .hist-dot { background: var(--green); }
+        .hist-item.current .hist-dot { background: var(--red); }
+        .hist-body { flex: 1; min-width: 0; }
+        .hist-time { font-size: 0.82em; font-weight: 700; }
+        .hist-time .date { color: var(--text-muted); font-weight: 500; margin-left: 5px; }
+        .hist-addr { font-size: 0.82em; color: var(--text-secondary); margin-top: 2px; line-height: 1.4; }
+        .hist-addr.loading { color: var(--text-muted); font-style: italic; }
+        .hist-speed { font-size: 0.72em; color: var(--text-muted); margin-top: 2px; }
+        .empty {
+            padding: 40px 20px; text-align: center; color: var(--text-muted); font-size: 0.9em;
+        }
+        .panel-foot {
+            padding: 9px 16px; border-top: 1px solid var(--border);
+            font-size: 0.68em; color: var(--text-muted); text-align: center;
+        }
+        .leaflet-popup-content { font-family: 'Inter', sans-serif; font-size: 0.85em; }
+        .pin-label { font-weight: 700; }
+        @media (max-width: 760px) {
+            main { flex-direction: column; }
+            #map { height: 52vh; flex: none; }
+            .panel { width: 100%; max-width: 100%; flex: 1; border-left: none; border-top: 1px solid var(--border); }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="title">
+            <h1 id="hdr-label">{{ label }}</h1>
+            <div class="sub" id="hdr-sub">Sledzenie trasy na zywo</div>
+        </div>
+        <div class="meta">
+            <div class="live"><span class="dot"></span> <span id="hdr-live">Na zywo</span></div>
+            <div id="hdr-updated"></div>
+        </div>
+    </header>
+    <main>
+        <div id="map"></div>
+        <div class="panel">
+            <div class="panel-head">
+                <h2>Historia trasy</h2>
+                <span class="count" id="hist-count"></span>
+            </div>
+            <div class="history" id="history">
+                <div class="empty">Ladowanie...</div>
+            </div>
+            <div class="panel-foot">
+                Adresy: &copy; OpenStreetMap. Link prywatny &mdash; nie udostepniaj dalej.
+            </div>
+        </div>
+    </main>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script>
+        const TOKEN = {{ token|tojson }};
+        let map, routeLine, startMarker, endMarker, fitted = false;
+        const addrCache = {};       // coord_key -> address
+        let geocodeQueue = [];
+        let geocoding = false;
+
+        function ckey(lat, lon) { return lat.toFixed(4) + ',' + lon.toFixed(4); }
+
+        function initMap() {
+            map = L.map('map', { zoomControl: true }).setView([52.0, 19.0], 6);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '&copy; OpenStreetMap'
+            }).addTo(map);
+        }
+
+        function fmtTime(iso) {
+            if (!iso) return '';
+            const d = new Date(iso.replace(' ', 'T'));
+            if (isNaN(d)) return iso;
+            return d.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
+        }
+        function fmtDate(iso) {
+            const d = new Date(iso.replace(' ', 'T'));
+            if (isNaN(d)) return '';
+            return d.toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit' });
+        }
+        function esc(s) {
+            return String(s == null ? '' : s)
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
+
+        function load() {
+            fetch('/api/track/' + encodeURIComponent(TOKEN))
+                .then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e)))
+                .then(render)
+                .catch(() => {
+                    document.getElementById('hdr-live').textContent = 'Brak polaczenia';
+                });
+        }
+
+        function render(data) {
+            document.getElementById('hdr-label').textContent = data.label || 'Pojazd';
+            const upd = data.updated_at ? new Date(data.updated_at.replace(' ', 'T')) : null;
+            document.getElementById('hdr-updated').textContent =
+                upd ? 'Aktualizacja: ' + upd.toLocaleTimeString('pl-PL') : '';
+
+            const path = data.path || [];
+            const keyPts = data.key_points || [];
+            document.getElementById('hist-count').textContent =
+                data.count ? data.count + ' punktow' : '';
+
+            if (path.length === 0) {
+                document.getElementById('history').innerHTML =
+                    '<div class="empty">Brak danych lokalizacji.<br>Trasa pojawi sie, gdy splyna pozycje GPS.</div>';
+                document.getElementById('hdr-sub').textContent = 'Oczekiwanie na dane GPS';
+                return;
+            }
+
+            // Route polyline
+            if (routeLine) routeLine.remove();
+            routeLine = L.polyline(path, { color: '#2563eb', weight: 4, opacity: 0.85 }).addTo(map);
+
+            // Start marker
+            if (startMarker) startMarker.remove();
+            startMarker = L.circleMarker(path[0], {
+                radius: 7, color: '#fff', weight: 2, fillColor: '#22c55e', fillOpacity: 1
+            }).addTo(map).bindPopup('<span class="pin-label">Start trasy</span>');
+
+            // Current marker
+            const cur = data.current;
+            if (endMarker) endMarker.remove();
+            if (cur) {
+                endMarker = L.circleMarker([cur.lat, cur.lon], {
+                    radius: 9, color: '#fff', weight: 3, fillColor: '#ef4444', fillOpacity: 1
+                }).addTo(map).bindPopup('<span class="pin-label">Ostatnia pozycja</span><br>' + fmtTime(cur.recorded_at));
+            }
+
+            if (!fitted) { map.fitBounds(routeLine.getBounds(), { padding: [40, 40] }); fitted = true; }
+
+            renderHistory(keyPts, cur);
+            queueGeocodes(keyPts);
+        }
+
+        function renderHistory(keyPts, cur) {
+            const items = keyPts.slice().reverse();   // newest first
+            const curKey = cur ? ckey(cur.lat, cur.lon) : null;
+            let lastDate = '';
+            const html = items.map((p, idx) => {
+                const k = ckey(p.lat, p.lon);
+                const isCurrent = curKey && k === curKey && idx === 0;
+                const isStart = idx === items.length - 1;
+                const cls = isCurrent ? 'current' : (isStart ? 'start' : '');
+                const addr = p.address || addrCache[k] || '';
+                const addrHtml = addr
+                    ? `<div class="hist-addr">${esc(addr)}</div>`
+                    : `<div class="hist-addr loading" data-k="${k}">ustalanie adresu...</div>`;
+                const speed = (p.speed != null && p.speed > 0)
+                    ? `<div class="hist-speed">${Math.round(p.speed)} km/h</div>` : '';
+                return `<div class="hist-item ${cls}" data-lat="${p.lat}" data-lon="${p.lon}">
+                    <div class="hist-dot"></div>
+                    <div class="hist-body">
+                        <div class="hist-time">${fmtTime(p.recorded_at)}
+                            <span class="date">${fmtDate(p.recorded_at)}</span></div>
+                        ${addrHtml}${speed}
+                    </div>
+                </div>`;
+            }).join('');
+            const hist = document.getElementById('history');
+            hist.innerHTML = html;
+            hist.querySelectorAll('.hist-item').forEach(el => {
+                el.onclick = () => {
+                    const lat = parseFloat(el.dataset.lat), lon = parseFloat(el.dataset.lon);
+                    map.setView([lat, lon], 15, { animate: true });
+                };
+            });
+        }
+
+        function queueGeocodes(keyPts) {
+            const missing = keyPts.filter(p => !(p.address || addrCache[ckey(p.lat, p.lon)]));
+            // de-dup by coord key
+            const seen = new Set(geocodeQueue.map(p => ckey(p.lat, p.lon)));
+            for (const p of missing) {
+                const k = ckey(p.lat, p.lon);
+                if (!seen.has(k)) { geocodeQueue.push(p); seen.add(k); }
+            }
+            if (!geocoding) processGeocodeQueue();
+        }
+
+        function processGeocodeQueue() {
+            if (geocodeQueue.length === 0) { geocoding = false; return; }
+            geocoding = true;
+            const p = geocodeQueue.shift();
+            const k = ckey(p.lat, p.lon);
+            if (addrCache[k]) { return processGeocodeQueue(); }
+            fetch('/api/track/' + encodeURIComponent(TOKEN) + '/geocode', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ lat: p.lat, lon: p.lon }),
+            })
+                .then(r => r.json())
+                .then(d => {
+                    if (d.address) {
+                        addrCache[k] = d.address;
+                        document.querySelectorAll('.hist-addr.loading[data-k="' + k + '"]').forEach(el => {
+                            el.textContent = d.address;
+                            el.classList.remove('loading');
+                        });
+                    }
+                })
+                .catch(() => {})
+                .finally(() => setTimeout(processGeocodeQueue, 1100)); // respect Nominatim rate limit
+        }
+
+        initMap();
+        load();
+        setInterval(load, 30000);
+    </script>
+</body>
+</html>

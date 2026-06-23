@@ -1,10 +1,14 @@
 import csv
 import io
 import json
+import math
 import os
+import secrets
 import sqlite3
 import subprocess
 import tempfile
+import urllib.parse
+import urllib.request
 from datetime import datetime, timedelta
 
 import dropbox
@@ -811,6 +815,555 @@ def api_fuel_cards_delete(card_id):
     conn.commit()
     conn.close()
     return jsonify({'ok': True})
+
+
+# =============================================================================
+# Sledzenie tras pojazdow (vehicle route tracking) + publiczne linki
+# =============================================================================
+
+TRACKING_DB = os.environ.get(
+    'TRACKING_DB',
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), 'tracking.db'),
+)
+# Default days of history shown on a public link (each share can override)
+TRACK_HISTORY_DAYS = int(os.environ.get('TRACK_HISTORY_DAYS', '7'))
+# Shared secret for the external push endpoint /api/track/ingest. When empty,
+# that endpoint is disabled and positions come from the GPS provider pull
+# adapter or the admin UI instead.
+TRACKING_INGEST_TOKEN = os.environ.get('TRACKING_INGEST_TOKEN', '')
+
+# Reverse geocoding via OpenStreetMap Nominatim
+NOMINATIM_URL = os.environ.get('NOMINATIM_URL', 'https://nominatim.openstreetmap.org/reverse')
+GEOCODE_USER_AGENT = os.environ.get('GEOCODE_USER_AGENT', 'LTS-Fleet-Tracker/1.0')
+
+# GPS telematics provider (pull) integration. Credentials via env. When
+# GPS_PROVIDER == 'none', positions are expected from /api/track/ingest
+# (provider webhook / cron bridge) or the admin UI instead of being pulled.
+GPS_PROVIDER = os.environ.get('GPS_PROVIDER', 'none')
+GPS_API_URL = os.environ.get('GPS_API_URL', '')
+GPS_API_TOKEN = os.environ.get('GPS_API_TOKEN', '')
+GPS_API_USER = os.environ.get('GPS_API_USER', '')
+GPS_API_PASSWORD = os.environ.get('GPS_API_PASSWORD', '')
+# Min seconds between automatic provider polls per share (throttle)
+GPS_POLL_THROTTLE = int(os.environ.get('GPS_POLL_THROTTLE', '20'))
+
+
+def get_tracking_db():
+    """Open a SQLite connection to the tracking database."""
+    conn = sqlite3.connect(TRACKING_DB)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def init_tracking_db():
+    """Create the tracking tables if they do not exist."""
+    conn = get_tracking_db()
+    conn.executescript(
+        '''
+        CREATE TABLE IF NOT EXISTS track_shares (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            token TEXT NOT NULL UNIQUE,
+            label TEXT,
+            driver_name TEXT,
+            vehicle_id TEXT NOT NULL,
+            history_days INTEGER NOT NULL DEFAULT 7,
+            active INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT NOT NULL,
+            expires_at TEXT,
+            last_polled_at TEXT
+        );
+        CREATE TABLE IF NOT EXISTS positions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            vehicle_id TEXT NOT NULL,
+            lat REAL NOT NULL,
+            lon REAL NOT NULL,
+            recorded_at TEXT NOT NULL,
+            speed REAL,
+            heading REAL,
+            address TEXT,
+            created_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_positions_vehicle_time
+            ON positions (vehicle_id, recorded_at);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_positions_unique
+            ON positions (vehicle_id, recorded_at);
+        CREATE TABLE IF NOT EXISTS geocode_cache (
+            coord_key TEXT PRIMARY KEY,
+            address TEXT,
+            created_at TEXT NOT NULL
+        );
+        '''
+    )
+    conn.commit()
+    conn.close()
+
+
+init_tracking_db()
+
+
+def _now_iso():
+    return datetime.now().isoformat(timespec='seconds')
+
+
+def normalize_ts(value):
+    """Normalize a timestamp (ISO string, epoch, common formats) to ISO 8601."""
+    if value is None or value == '':
+        return _now_iso()
+    if isinstance(value, (int, float)):
+        v = float(value)
+        if v > 1e12:  # milliseconds
+            v /= 1000.0
+        try:
+            return datetime.fromtimestamp(v).isoformat(timespec='seconds')
+        except (OverflowError, OSError, ValueError):
+            return _now_iso()
+    s = str(value).strip()
+    try:
+        dt = datetime.fromisoformat(s.replace('Z', '+00:00'))
+        if dt.tzinfo is not None:
+            dt = dt.astimezone().replace(tzinfo=None)
+        return dt.isoformat(timespec='seconds')
+    except ValueError:
+        pass
+    for fmt in ('%Y-%m-%d %H:%M:%S', '%Y-%m-%dT%H:%M:%S', '%d.%m.%Y %H:%M:%S',
+                '%Y-%m-%d %H:%M', '%d.%m.%Y %H:%M'):
+        try:
+            return datetime.strptime(s, fmt).isoformat(timespec='seconds')
+        except ValueError:
+            continue
+    return _now_iso()
+
+
+def haversine_m(lat1, lon1, lat2, lon2):
+    """Distance in meters between two lat/lon points."""
+    r = 6371000.0
+    dlat = math.radians(lat2 - lat1)
+    dlon = math.radians(lon2 - lon1)
+    a = (math.sin(dlat / 2) ** 2
+         + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2) ** 2)
+    return 2 * r * math.asin(math.sqrt(a))
+
+
+def _coord_key(lat, lon):
+    return f"{round(float(lat), 4)},{round(float(lon), 4)}"
+
+
+def reverse_geocode(lat, lon):
+    """Reverse-geocode a coordinate to an address, cached in SQLite."""
+    try:
+        key = _coord_key(lat, lon)
+    except (TypeError, ValueError):
+        return ''
+    conn = get_tracking_db()
+    row = conn.execute('SELECT address FROM geocode_cache WHERE coord_key = ?', (key,)).fetchone()
+    conn.close()
+    if row:
+        return row['address'] or ''
+
+    address = ''
+    try:
+        params = urllib.parse.urlencode({
+            'lat': lat, 'lon': lon, 'format': 'jsonv2', 'zoom': 18, 'addressdetails': 0,
+        })
+        req = urllib.request.Request(
+            f"{NOMINATIM_URL}?{params}",
+            headers={'User-Agent': GEOCODE_USER_AGENT, 'Accept-Language': 'pl,de,en'},
+        )
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            payload = json.loads(resp.read().decode('utf-8'))
+            address = (payload.get('display_name') or '').strip()
+    except Exception:
+        address = ''
+
+    if address:
+        conn = get_tracking_db()
+        conn.execute(
+            'INSERT OR REPLACE INTO geocode_cache (coord_key, address, created_at) VALUES (?, ?, ?)',
+            (key, address, _now_iso()),
+        )
+        conn.commit()
+        conn.close()
+    return address
+
+
+def store_positions(vehicle_id, points):
+    """Insert position dicts, ignoring duplicate (vehicle_id, recorded_at).
+
+    Returns the number of rows actually inserted.
+    """
+    rows = []
+    now = _now_iso()
+    for p in (points or []):
+        try:
+            lat = float(p['lat'])
+            lon = float(p['lon'])
+        except (KeyError, TypeError, ValueError):
+            continue
+        recorded_at = normalize_ts(p.get('recorded_at'))
+        speed, heading = p.get('speed'), p.get('heading')
+        try:
+            speed = float(speed) if speed not in (None, '') else None
+        except (TypeError, ValueError):
+            speed = None
+        try:
+            heading = float(heading) if heading not in (None, '') else None
+        except (TypeError, ValueError):
+            heading = None
+        rows.append((vehicle_id, lat, lon, recorded_at, speed, heading, None, now))
+    if not rows:
+        return 0
+    conn = get_tracking_db()
+    before = conn.total_changes
+    conn.executemany(
+        'INSERT OR IGNORE INTO positions'
+        ' (vehicle_id, lat, lon, recorded_at, speed, heading, address, created_at)'
+        ' VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        rows,
+    )
+    conn.commit()
+    inserted = conn.total_changes - before
+    conn.close()
+    return inserted
+
+
+def fetch_positions(vehicle_id, since_iso):
+    """Pull recent positions for a vehicle from the configured GPS provider.
+
+    Return a list of dicts {lat, lon, recorded_at, speed, heading}; only fixes
+    newer than since_iso need to be returned. Credentials come from the GPS_*
+    env vars. Implement the branch for your telematics provider below.
+
+    With GPS_PROVIDER == 'none' this returns nothing and positions are taken
+    from /api/track/ingest (provider webhook / cron bridge) or the admin UI.
+    """
+    provider = (GPS_PROVIDER or 'none').lower()
+    if provider == 'none':
+        return []
+    # --- Implement your provider here (Wialon / Webfleet / GpsGate / ...) ---
+    # if provider == 'wialon':
+    #     # call GPS_API_URL with GPS_API_TOKEN, map the response to the dict above
+    # if provider == 'webfleet':
+    #     # call .connect/LBS with GPS_API_USER / GPS_API_PASSWORD / GPS_API_TOKEN
+    # ------------------------------------------------------------------------
+    return []
+
+
+def maybe_poll_provider(share):
+    """If a GPS provider is configured, pull new positions for a share (throttled)."""
+    if (GPS_PROVIDER or 'none').lower() == 'none':
+        return
+    last = share['last_polled_at']
+    if last:
+        try:
+            if (datetime.now() - datetime.fromisoformat(last)).total_seconds() < GPS_POLL_THROTTLE:
+                return
+        except ValueError:
+            pass
+    since = (datetime.now() - timedelta(days=share['history_days'])).isoformat(timespec='seconds')
+    try:
+        store_positions(share['vehicle_id'], fetch_positions(share['vehicle_id'], since))
+    except Exception:
+        pass
+    conn = get_tracking_db()
+    conn.execute('UPDATE track_shares SET last_polled_at = ? WHERE id = ?', (_now_iso(), share['id']))
+    conn.commit()
+    conn.close()
+
+
+def get_share_by_token(token):
+    conn = get_tracking_db()
+    row = conn.execute('SELECT * FROM track_shares WHERE token = ?', (token,)).fetchone()
+    conn.close()
+    return row
+
+
+def share_is_expired(row):
+    exp = row['expires_at']
+    if not exp:
+        return False
+    return datetime.now().date().isoformat() > str(exp)[:10]
+
+
+def share_is_live(row):
+    return bool(row) and row['active'] == 1 and not share_is_expired(row)
+
+
+def share_status(row):
+    if row['active'] != 1:
+        return 'wylaczony'
+    if share_is_expired(row):
+        return 'wygasl'
+    return 'aktywny'
+
+
+def share_to_dict(row, point_count=None, last_point=None):
+    return {
+        'id': row['id'],
+        'token': row['token'],
+        'label': row['label'] or '',
+        'driver_name': row['driver_name'] or '',
+        'vehicle_id': row['vehicle_id'],
+        'history_days': row['history_days'],
+        'active': row['active'] == 1,
+        'status': share_status(row),
+        'created_at': row['created_at'],
+        'expires_at': row['expires_at'] or '',
+        'point_count': point_count,
+        'last_point': last_point,
+    }
+
+
+def compute_key_points(points, min_gap_min=15, min_dist_m=1500, max_points=80):
+    """Reduce a dense track to meaningful key points (start, stops, current)."""
+    if not points:
+        return []
+    if len(points) == 1:
+        return [points[0]]
+    key = [points[0]]
+    for p in points[1:-1]:
+        last = key[-1]
+        try:
+            gap_min = (datetime.fromisoformat(p['recorded_at'])
+                       - datetime.fromisoformat(last['recorded_at'])).total_seconds() / 60.0
+        except (ValueError, TypeError):
+            gap_min = min_gap_min + 1
+        dist = haversine_m(last['lat'], last['lon'], p['lat'], p['lon'])
+        if gap_min >= min_gap_min or dist >= min_dist_m:
+            key.append(p)
+    key.append(points[-1])
+    if len(key) > max_points:
+        step = len(key) / float(max_points)
+        sampled = [key[int(i * step)] for i in range(max_points)]
+        sampled[0], sampled[-1] = key[0], key[-1]
+        key = sampled
+    return key
+
+
+# ----- Admin: zarzadzanie publicznymi linkami -----
+
+@app.route('/tracking')
+def tracking_admin_page():
+    """Render the tracking-share management page."""
+    return render_template(
+        'tracking_admin.html',
+        gps_provider=GPS_PROVIDER,
+        ingest_enabled=bool(TRACKING_INGEST_TOKEN),
+    )
+
+
+@app.route('/api/track/shares', methods=['GET'])
+def api_track_shares_list():
+    conn = get_tracking_db()
+    shares = conn.execute('SELECT * FROM track_shares ORDER BY created_at DESC').fetchall()
+    out = []
+    for s in shares:
+        agg = conn.execute(
+            'SELECT COUNT(*) AS c, MAX(recorded_at) AS m FROM positions WHERE vehicle_id = ?',
+            (s['vehicle_id'],),
+        ).fetchone()
+        out.append(share_to_dict(s, agg['c'], agg['m']))
+    conn.close()
+    return jsonify({'shares': out})
+
+
+@app.route('/api/track/shares', methods=['POST'])
+def api_track_shares_create():
+    data = request.get_json(silent=True) or {}
+    vehicle_id = (data.get('vehicle_id') or '').strip()
+    if not vehicle_id:
+        return jsonify({'error': 'Identyfikator pojazdu (nr rej. / ID) jest wymagany'}), 400
+    label = (data.get('label') or '').strip()
+    driver_name = (data.get('driver_name') or '').strip()
+    try:
+        history_days = int(data.get('history_days') or TRACK_HISTORY_DAYS)
+    except (TypeError, ValueError):
+        history_days = TRACK_HISTORY_DAYS
+    history_days = max(1, min(history_days, 90))
+    expires_at = (data.get('expires_at') or '').strip() or None
+    token = secrets.token_urlsafe(24)
+    conn = get_tracking_db()
+    conn.execute(
+        'INSERT INTO track_shares'
+        ' (token, label, driver_name, vehicle_id, history_days, active, created_at, expires_at)'
+        ' VALUES (?, ?, ?, ?, ?, 1, ?, ?)',
+        (token, label, driver_name, vehicle_id, history_days, _now_iso(), expires_at),
+    )
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True, 'token': token})
+
+
+@app.route('/api/track/shares/<int:share_id>', methods=['PATCH'])
+def api_track_shares_update(share_id):
+    data = request.get_json(silent=True) or {}
+    conn = get_tracking_db()
+    row = conn.execute('SELECT * FROM track_shares WHERE id = ?', (share_id,)).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({'error': 'Nie znaleziono linku'}), 404
+    label = (data.get('label', row['label']) or '').strip()
+    driver_name = (data.get('driver_name', row['driver_name']) or '').strip()
+    vehicle_id = (data.get('vehicle_id', row['vehicle_id']) or '').strip() or row['vehicle_id']
+    active = (1 if data.get('active') else 0) if 'active' in data else row['active']
+    try:
+        history_days = int(data.get('history_days', row['history_days']))
+    except (TypeError, ValueError):
+        history_days = row['history_days']
+    history_days = max(1, min(history_days, 90))
+    if 'expires_at' in data:
+        expires_at = (data.get('expires_at') or '').strip() or None
+    else:
+        expires_at = row['expires_at']
+    conn.execute(
+        'UPDATE track_shares SET label=?, driver_name=?, vehicle_id=?, active=?,'
+        ' history_days=?, expires_at=? WHERE id=?',
+        (label, driver_name, vehicle_id, active, history_days, expires_at, share_id),
+    )
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+
+@app.route('/api/track/shares/<int:share_id>', methods=['DELETE'])
+def api_track_shares_delete(share_id):
+    conn = get_tracking_db()
+    conn.execute('DELETE FROM track_shares WHERE id = ?', (share_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+
+@app.route('/api/track/shares/<int:share_id>/positions', methods=['POST'])
+def api_track_add_positions(share_id):
+    """Manually add positions for a share's vehicle (admin / push bridge)."""
+    conn = get_tracking_db()
+    row = conn.execute('SELECT * FROM track_shares WHERE id = ?', (share_id,)).fetchone()
+    conn.close()
+    if not row:
+        return jsonify({'error': 'Nie znaleziono linku'}), 404
+    data = request.get_json(silent=True) or {}
+    points = data.get('positions')
+    if points is None and data.get('lat') is not None:
+        points = [{k: data.get(k) for k in ('lat', 'lon', 'recorded_at', 'speed', 'heading')}]
+    inserted = store_positions(row['vehicle_id'], points or [])
+    return jsonify({'ok': True, 'inserted': inserted})
+
+
+@app.route('/api/track/shares/<int:share_id>/simulate', methods=['POST'])
+def api_track_simulate(share_id):
+    """Seed a short demo route so the public link can be previewed before GPS is wired."""
+    conn = get_tracking_db()
+    row = conn.execute('SELECT * FROM track_shares WHERE id = ?', (share_id,)).fetchone()
+    conn.close()
+    if not row:
+        return jsonify({'error': 'Nie znaleziono linku'}), 404
+    data = request.get_json(silent=True) or {}
+    try:
+        lat = float(data.get('lat', 52.2297))   # default: Warszawa
+        lon = float(data.get('lon', 21.0122))
+    except (TypeError, ValueError):
+        lat, lon = 52.2297, 21.0122
+    n = 12
+    start = datetime.now() - timedelta(minutes=15 * n)
+    pts = [{
+        'lat': lat + i * 0.004,
+        'lon': lon + i * 0.006,
+        'recorded_at': (start + timedelta(minutes=15 * i)).isoformat(timespec='seconds'),
+        'speed': 0 if i in (0, n - 1) else 50,
+    } for i in range(n)]
+    inserted = store_positions(row['vehicle_id'], pts)
+    return jsonify({'ok': True, 'inserted': inserted})
+
+
+@app.route('/api/track/ingest', methods=['POST'])
+def api_track_ingest():
+    """External push endpoint for GPS positions (provider webhook / cron bridge).
+
+    Disabled unless TRACKING_INGEST_TOKEN is set; callers must then pass it as
+    a Bearer token or ?token=.
+    """
+    if not TRACKING_INGEST_TOKEN:
+        return jsonify({'error': 'Endpoint wylaczony — ustaw TRACKING_INGEST_TOKEN'}), 503
+    auth = request.headers.get('Authorization', '')
+    supplied = auth[7:].strip() if auth.startswith('Bearer ') else request.args.get('token', '')
+    if supplied != TRACKING_INGEST_TOKEN:
+        return jsonify({'error': 'Brak autoryzacji'}), 401
+    data = request.get_json(silent=True) or {}
+    vehicle_id = (data.get('vehicle_id') or '').strip()
+    if not vehicle_id:
+        return jsonify({'error': 'vehicle_id wymagany'}), 400
+    points = data.get('positions')
+    if points is None and data.get('lat') is not None:
+        points = [{k: data.get(k) for k in ('lat', 'lon', 'recorded_at', 'speed', 'heading')}]
+    inserted = store_positions(vehicle_id, points or [])
+    return jsonify({'ok': True, 'inserted': inserted})
+
+
+# ----- Public: read-only, tokenized tracking link -----
+
+@app.route('/t/<token>')
+def public_track_page(token):
+    share = get_share_by_token(token)
+    if not share_is_live(share):
+        return render_template('track_unavailable.html'), 404
+    label = share['label'] or share['driver_name'] or 'Pojazd'
+    return render_template('track.html', token=token, label=label,
+                           driver=share['driver_name'] or '')
+
+
+@app.route('/api/track/<token>')
+def api_public_track(token):
+    share = get_share_by_token(token)
+    if not share_is_live(share):
+        return jsonify({'error': 'Link nieaktywny lub wygasl'}), 404
+    maybe_poll_provider(share)
+    since = (datetime.now() - timedelta(days=share['history_days'])).isoformat(timespec='seconds')
+    conn = get_tracking_db()
+    rows = conn.execute(
+        'SELECT lat, lon, recorded_at, speed, heading, address FROM positions'
+        ' WHERE vehicle_id = ? AND recorded_at >= ? ORDER BY recorded_at ASC',
+        (share['vehicle_id'], since),
+    ).fetchall()
+    conn.close()
+    points = [dict(r) for r in rows]
+    path = [[p['lat'], p['lon']] for p in points]
+    if len(path) > 2000:  # cap polyline size for the browser
+        step = len(path) / 2000.0
+        path = [path[int(i * step)] for i in range(2000)]
+    return jsonify({
+        'label': share['label'] or share['driver_name'] or 'Pojazd',
+        'driver_name': share['driver_name'] or '',
+        'count': len(points),
+        'path': path,
+        'key_points': compute_key_points(points),
+        'current': points[-1] if points else None,
+        'updated_at': _now_iso(),
+    })
+
+
+@app.route('/api/track/<token>/geocode', methods=['POST'])
+def api_public_geocode(token):
+    share = get_share_by_token(token)
+    if not share_is_live(share):
+        return jsonify({'error': 'Link nieaktywny lub wygasl'}), 404
+    data = request.get_json(silent=True) or {}
+    lat, lon = data.get('lat'), data.get('lon')
+    if lat is None or lon is None:
+        return jsonify({'error': 'lat/lon wymagane'}), 400
+    address = reverse_geocode(lat, lon)
+    if address:
+        try:
+            conn = get_tracking_db()
+            conn.execute(
+                'UPDATE positions SET address = ? WHERE vehicle_id = ? AND address IS NULL'
+                ' AND round(lat, 4) = ? AND round(lon, 4) = ?',
+                (address, share['vehicle_id'], round(float(lat), 4), round(float(lon), 4)),
+            )
+            conn.commit()
+            conn.close()
+        except (TypeError, ValueError):
+            pass
+    return jsonify({'address': address})
 
 
 if __name__ == '__main__':
