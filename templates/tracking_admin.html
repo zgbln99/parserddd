@@ -128,11 +128,12 @@
         .field { margin-bottom: 14px; }
         .field label { display: block; font-size: 0.82em; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; }
         .field .hint { font-weight: 400; color: var(--text-muted); }
-        .field input {
+        .field input, .field select {
             width: 100%; padding: 9px 12px; border: 1.5px solid var(--border);
             border-radius: 8px; font-size: 0.9em; font-family: inherit; outline: none;
+            background: var(--surface); color: var(--text);
         }
-        .field input:focus { border-color: var(--primary); }
+        .field input:focus, .field select:focus { border-color: var(--primary); }
         .field-row { display: flex; gap: 12px; }
         .field-row .field { flex: 1; }
         .modal-msg { font-size: 0.84em; font-weight: 600; margin-bottom: 12px; display: none; color: var(--red); }
@@ -211,8 +212,19 @@
             <div class="modal-body">
                 <div class="modal-msg" id="create-msg"></div>
                 <div class="field">
-                    <label>Pojazd z Samsara &ndash; nazwa, nr rej., VIN lub ID <span class="hint">(wymagane)</span></label>
-                    <input type="text" id="c-vehicle" placeholder="np. WX 12345, nazwa pojazdu albo ID z Samsara">
+                    <label>Pojazd <span class="hint">(wymagane)</span>
+                        <a id="c-vehicle-toggle" onclick="toggleVehicleMode()"
+                           style="float:right;font-weight:600;color:var(--primary);cursor:pointer">wpisz recznie</a>
+                    </label>
+                    <div id="c-vehicle-select-wrap">
+                        <select id="c-vehicle-select">
+                            <option value="">Ladowanie pojazdow z Samsary...</option>
+                        </select>
+                    </div>
+                    <div id="c-vehicle-manual-wrap" style="display:none">
+                        <input type="text" id="c-vehicle" placeholder="np. WX 12345, nazwa pojazdu albo ID z Samsara">
+                    </div>
+                    <div class="muted" id="c-vehicle-hint" style="font-size:0.78em;margin-top:6px"></div>
                 </div>
                 <div class="field">
                     <label>Kierowca <span class="hint">(opcjonalnie, widoczny na linku)</span></label>
@@ -289,7 +301,7 @@
                 const toggleLabel = s.active ? 'Wylacz' : 'Wlacz';
                 return `<tr>
                     <td><div class="driver-name">${esc(who)}</div>${sub}</td>
-                    <td class="vehicle-id">${esc(s.vehicle_id)}</td>
+                    <td class="vehicle-id">${esc(s.vehicle_name || s.vehicle_id)}</td>
                     <td>${s.point_count || 0}${last}</td>
                     <td><span class="badge ${s.status}">${s.status}</span></td>
                     <td class="muted">${s.expires_at ? esc(s.expires_at) : '&ndash;'}</td>
@@ -309,6 +321,9 @@
             }).join('');
         }
 
+        let vehiclesCache = [];
+        let vehicleMode = 'select';
+
         function openCreate() {
             document.getElementById('create-msg').style.display = 'none';
             document.getElementById('c-vehicle').value = '';
@@ -317,24 +332,81 @@
             document.getElementById('c-days').value = '7';
             document.getElementById('c-expires').value = '';
             openModal('create-modal');
-            setTimeout(() => document.getElementById('c-vehicle').focus(), 50);
+            loadVehicles();
+        }
+
+        function setVehicleMode(mode) {
+            vehicleMode = mode;
+            document.getElementById('c-vehicle-select-wrap').style.display = mode === 'select' ? '' : 'none';
+            document.getElementById('c-vehicle-manual-wrap').style.display = mode === 'manual' ? '' : 'none';
+            document.getElementById('c-vehicle-toggle').textContent =
+                mode === 'select' ? 'wpisz recznie' : 'wybierz z listy Samsara';
+        }
+
+        function toggleVehicleMode() {
+            setVehicleMode(vehicleMode === 'select' ? 'manual' : 'select');
+            if (vehicleMode === 'manual') setTimeout(() => document.getElementById('c-vehicle').focus(), 30);
+        }
+
+        function loadVehicles() {
+            const sel = document.getElementById('c-vehicle-select');
+            const hint = document.getElementById('c-vehicle-hint');
+            setVehicleMode('select');
+            sel.innerHTML = '<option value="">Ladowanie pojazdow z Samsary...</option>';
+            hint.textContent = '';
+            fetch('/api/track/vehicles')
+                .then(r => r.json())
+                .then(d => {
+                    vehiclesCache = d.vehicles || [];
+                    if (vehiclesCache.length === 0) {
+                        hint.textContent = d.error
+                            ? ('Samsara: ' + d.error + ' — wpisz pojazd recznie.')
+                            : 'Brak listy z Samsary — wpisz pojazd recznie.';
+                        sel.innerHTML = '<option value="">—</option>';
+                        setVehicleMode('manual');
+                        return;
+                    }
+                    sel.innerHTML = '<option value="">— wybierz pojazd —</option>' +
+                        vehiclesCache.map(v => {
+                            const disp = [v.name, v.license_plate].filter(Boolean).join(' — ') || v.id;
+                            return `<option value="${esc(v.id)}" data-name="${esc(disp)}">${esc(disp)}</option>`;
+                        }).join('');
+                    hint.textContent = vehiclesCache.length + ' pojazdow z Samsary';
+                })
+                .catch(() => {
+                    hint.textContent = 'Nie udalo sie pobrac listy z Samsary — wpisz pojazd recznie.';
+                    setVehicleMode('manual');
+                });
         }
 
         function createShare() {
             const msg = document.getElementById('create-msg');
             const btn = document.getElementById('create-btn');
+            let vehicleId = '', vehicleName = '';
+            if (vehicleMode === 'select') {
+                const sel = document.getElementById('c-vehicle-select');
+                vehicleId = sel.value;
+                const opt = sel.options[sel.selectedIndex];
+                vehicleName = opt ? (opt.getAttribute('data-name') || '') : '';
+            } else {
+                vehicleId = document.getElementById('c-vehicle').value.trim();
+                vehicleName = vehicleId;
+            }
+            if (!vehicleId) {
+                msg.textContent = vehicleMode === 'select'
+                    ? 'Wybierz pojazd z listy (albo przelacz na wpisywanie recznie)'
+                    : 'Wpisz identyfikator pojazdu';
+                msg.style.display = 'block';
+                return;
+            }
             const payload = {
-                vehicle_id: document.getElementById('c-vehicle').value.trim(),
+                vehicle_id: vehicleId,
+                vehicle_name: vehicleName,
                 driver_name: document.getElementById('c-driver').value.trim(),
                 label: document.getElementById('c-label').value.trim(),
                 history_days: parseInt(document.getElementById('c-days').value) || 7,
                 expires_at: document.getElementById('c-expires').value || '',
             };
-            if (!payload.vehicle_id) {
-                msg.textContent = 'Identyfikator pojazdu jest wymagany';
-                msg.style.display = 'block';
-                return;
-            }
             btn.disabled = true; btn.textContent = 'Tworzenie...';
             fetch('/api/track/shares', {
                 method: 'POST',

@@ -923,6 +923,7 @@ def init_tracking_db():
             label TEXT,
             driver_name TEXT,
             vehicle_id TEXT NOT NULL,
+            vehicle_name TEXT,
             history_days INTEGER NOT NULL DEFAULT 7,
             active INTEGER NOT NULL DEFAULT 1,
             created_at TEXT NOT NULL,
@@ -951,6 +952,10 @@ def init_tracking_db():
         );
         '''
     )
+    # Migration: add vehicle_name (display) to pre-existing databases
+    cols = [r[1] for r in conn.execute('PRAGMA table_info(track_shares)').fetchall()]
+    if 'vehicle_name' not in cols:
+        conn.execute('ALTER TABLE track_shares ADD COLUMN vehicle_name TEXT')
     conn.commit()
     conn.close()
 
@@ -1284,12 +1289,14 @@ def share_status(row):
 
 
 def share_to_dict(row, point_count=None, last_point=None):
+    keys = row.keys()
     return {
         'id': row['id'],
         'token': row['token'],
         'label': row['label'] or '',
         'driver_name': row['driver_name'] or '',
         'vehicle_id': row['vehicle_id'],
+        'vehicle_name': (row['vehicle_name'] if 'vehicle_name' in keys else '') or '',
         'history_days': row['history_days'],
         'active': row['active'] == 1,
         'status': share_status(row),
@@ -1353,6 +1360,37 @@ def api_samsara_check():
                         'base_url': samsara_base_url(), 'error': str(exc)})
 
 
+@app.route('/api/track/vehicles')
+def api_track_vehicles():
+    """List vehicles from Samsara so the admin can pick one when creating a link."""
+    if (GPS_PROVIDER or 'none').lower() != 'samsara':
+        return jsonify({'vehicles': [], 'provider': GPS_PROVIDER})
+    vehicles = []
+    try:
+        params = {'limit': 512}
+        cursor = None
+        for _ in range(10):
+            if cursor:
+                params['after'] = cursor
+            data = _samsara_get('/fleet/vehicles', params)
+            for v in data.get('data', []):
+                vehicles.append({
+                    'id': str(v.get('id', '')),
+                    'name': v.get('name') or '',
+                    'license_plate': v.get('licensePlate') or '',
+                })
+            page = data.get('pagination', {})
+            if page.get('hasNextPage') and page.get('endCursor'):
+                cursor = page['endCursor']
+            else:
+                break
+    except Exception as exc:
+        app.logger.warning('Samsara vehicles list failed: %s', exc)
+        return jsonify({'vehicles': [], 'error': str(exc)})
+    vehicles.sort(key=lambda x: (x['name'] or x['license_plate'] or x['id']).lower())
+    return jsonify({'vehicles': vehicles, 'count': len(vehicles)})
+
+
 @app.route('/api/track/shares', methods=['GET'])
 def api_track_shares_list():
     conn = get_tracking_db()
@@ -1376,6 +1414,7 @@ def api_track_shares_create():
         return jsonify({'error': 'Identyfikator pojazdu (nr rej. / ID) jest wymagany'}), 400
     label = (data.get('label') or '').strip()
     driver_name = (data.get('driver_name') or '').strip()
+    vehicle_name = (data.get('vehicle_name') or '').strip()
     try:
         history_days = int(data.get('history_days') or TRACK_HISTORY_DAYS)
     except (TypeError, ValueError):
@@ -1386,9 +1425,9 @@ def api_track_shares_create():
     conn = get_tracking_db()
     conn.execute(
         'INSERT INTO track_shares'
-        ' (token, label, driver_name, vehicle_id, history_days, active, created_at, expires_at)'
-        ' VALUES (?, ?, ?, ?, ?, 1, ?, ?)',
-        (token, label, driver_name, vehicle_id, history_days, _now_iso(), expires_at),
+        ' (token, label, driver_name, vehicle_id, vehicle_name, history_days, active, created_at, expires_at)'
+        ' VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)',
+        (token, label, driver_name, vehicle_id, vehicle_name, history_days, _now_iso(), expires_at),
     )
     conn.commit()
     conn.close()
