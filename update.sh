@@ -44,12 +44,27 @@ main() {
         if "$p" -c 'import gunicorn, flask, dropbox' 2>/dev/null; then PYTHON="$p"; break; fi
     done
 
+    # Brak gotowego interpretera -> zrob izolowany virtualenv (zalecane przy
+    # externally-managed-environment; omija konflikt z debianowym blinker).
     if [ -z "$PYTHON" ]; then
-        PYTHON="$(command -v /usr/local/bin/python3.12 || command -v python3.12 || command -v python3 || echo python3)"
-        echo "Zaden interpreter nie ma pakietow — instaluje dla $PYTHON (pokazuje bledy):"
-        "$PYTHON" -m pip install -r requirements.txt gunicorn \
-          || "$PYTHON" -m pip install --break-system-packages -r requirements.txt gunicorn \
-          || true
+        BASEPY="$(command -v python3.12 || command -v python3 || echo python3)"
+        echo "Tworze virtualenv w $APP_DIR/venv (baza: $BASEPY) ..."
+        "$BASEPY" -m venv "$APP_DIR/venv" 2>/dev/null \
+          || "$BASEPY" -m venv --system-site-packages "$APP_DIR/venv" 2>/dev/null || true
+        if [ -x "$APP_DIR/venv/bin/python" ]; then
+            "$APP_DIR/venv/bin/python" -m pip install -q --upgrade pip 2>/dev/null || true
+            "$APP_DIR/venv/bin/python" -m pip install -q -r requirements.txt gunicorn || true
+            "$APP_DIR/venv/bin/python" -c 'import gunicorn, flask, dropbox' 2>/dev/null \
+              && PYTHON="$APP_DIR/venv/bin/python"
+        fi
+    fi
+
+    # Awaryjnie: instalacja systemowa z pominieciem konfliktu (debianowy blinker).
+    if [ -z "$PYTHON" ]; then
+        BASEPY="$(command -v python3.12 || command -v python3 || echo python3)"
+        echo "venv niedostepny — instaluje systemowo (--break-system-packages --ignore-installed):"
+        "$BASEPY" -m pip install --break-system-packages --ignore-installed -r requirements.txt gunicorn || true
+        "$BASEPY" -c 'import gunicorn, flask, dropbox' 2>/dev/null && PYTHON="$BASEPY"
     fi
 
     if ! "$PYTHON" -c 'import gunicorn, flask, dropbox' 2>/dev/null; then
