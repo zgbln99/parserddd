@@ -31,22 +31,35 @@ main() {
     git reset --hard "origin/$BRANCH"     # nie rusza .env ani *.db (nieśledzone)
 
     echo "== [2/5] Python + zaleznosci =="
+    # Najpierw szukamy interpretera, ktory JUZ ma pakiety (np. ten, ktory dzialal
+    # wczesniej: /usr/local/bin/python3.12). Dopiero potem instalujemy.
     PYTHON=""
-    for cand in python3.12 python3 python; do
+    for cand in \
+        "$APP_DIR/venv/bin/python" \
+        /usr/local/bin/python3.12 /usr/local/bin/python3 \
+        python3.12 python3 python \
+        /usr/bin/python3.12 /usr/bin/python3 ; do
         p="$(command -v "$cand" 2>/dev/null || true)"
         [ -n "$p" ] || continue
         if "$p" -c 'import gunicorn, flask, dropbox' 2>/dev/null; then PYTHON="$p"; break; fi
     done
+
     if [ -z "$PYTHON" ]; then
-        PYTHON="$(command -v python3.12 || command -v python3 || echo python3)"
-        echo "Brakuje zaleznosci — instaluje dla $PYTHON ..."
-        "$PYTHON" -m pip install -q -r requirements.txt gunicorn 2>/dev/null \
-          || "$PYTHON" -m pip install -q --break-system-packages -r requirements.txt gunicorn 2>/dev/null \
+        PYTHON="$(command -v /usr/local/bin/python3.12 || command -v python3.12 || command -v python3 || echo python3)"
+        echo "Zaden interpreter nie ma pakietow — instaluje dla $PYTHON (pokazuje bledy):"
+        "$PYTHON" -m pip install -r requirements.txt gunicorn \
+          || "$PYTHON" -m pip install --break-system-packages -r requirements.txt gunicorn \
           || true
     fi
+
     if ! "$PYTHON" -c 'import gunicorn, flask, dropbox' 2>/dev/null; then
-        echo "!! BLAD: $PYTHON nie ma wymaganych pakietow (gunicorn/flask/dropbox)."
-        echo "   Zainstaluj recznie:  $PYTHON -m pip install -r requirements.txt gunicorn"
+        echo "!! BLAD: nie znalazlem Pythona z gunicorn/flask/dropbox. Diagnostyka:"
+        for p in /usr/local/bin/python3.12 /usr/local/bin/python3 /usr/bin/python3.12 /usr/bin/python3; do
+            [ -x "$p" ] || continue
+            printf "   %s : " "$p"; "$p" -c 'import gunicorn,flask,dropbox; print("MA wszystkie")' 2>&1 | head -1
+        done
+        echo "   pip: $("$PYTHON" -m pip --version 2>&1 | head -1)"
+        echo "   Wklej te linie — dobiore wlasciwy interpreter albo poprawie instalacje."
         exit 1
     fi
     echo "Python: $PYTHON"
