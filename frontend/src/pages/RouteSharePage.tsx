@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useParams } from 'react-router-dom';
+import { Navigation, MapPin, Clock, Truck, Gauge, CalendarDays, Lock, ChevronLeft, ChevronRight } from 'lucide-react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { fetchPublicRoute, type PublicRoute, type RouteLeg, type TrailPoint } from '../lib/api';
 
 // Distinct colors per vehicle on the shared map.
-const COLORS = ['#2563eb', '#dc2626', '#16a34a', '#d97706', '#7c3aed', '#0891b2', '#db2777', '#475569'];
+const COLORS = ['#4f46e5', '#dc2626', '#0891b2', '#d97706', '#7c3aed', '#16a34a', '#db2777', '#475569'];
 
 interface Stop {
   from: string;
@@ -43,11 +44,6 @@ function fmtHM(iso: string): string {
   return isNaN(d.getTime()) ? '' : d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
 }
 
-function fmtDateHM(iso: string): string {
-  const d = new Date(iso);
-  return isNaN(d.getTime()) ? '' : d.toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-}
-
 // 846 min -> "14 Std 6 Min"
 function fmtDur(min: number): string {
   const m = Math.round(min);
@@ -71,16 +67,20 @@ function statusOf(points: TrailPoint[]): VehStatus {
   return { moving: false, speed: 0, stoppedMin };
 }
 
-function periodLabel(d: PublicRoute): string {
-  if (d.day) {
-    const range = d.from_time || d.to_time ? ` ${d.from_time || '00:00'}–${d.to_time || '24:00'}` : '';
-    return d.day + range;
-  }
-  const map: Record<number, string> = {
-    6: 'Letzte 6 Std', 24: 'Letzter Tag', 72: 'Letzte 3 Tage',
-    168: 'Letzte 7 Tage', 336: 'Letzte 14 Tage', 720: 'Letzter Monat',
-  };
-  return map[d.hours] || `Letzte ${d.hours} Std`;
+function shiftDay(base: string, delta: number): string {
+  const dt = new Date(base + 'T00:00:00');
+  if (isNaN(dt.getTime())) return base;
+  dt.setDate(dt.getDate() + delta);
+  return dt.toISOString().slice(0, 10);
+}
+
+function dayLabel(d: PublicRoute): string {
+  const dt = new Date(d.selected_day + 'T00:00:00');
+  const formatted = isNaN(dt.getTime())
+    ? d.selected_day
+    : dt.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' });
+  const range = d.from_time || d.to_time ? ` · ${d.from_time || '00:00'}–${d.to_time || '24:00'}` : '';
+  return (d.is_today ? `Heute · ${formatted}` : formatted) + range;
 }
 
 export function RouteSharePage() {
@@ -88,32 +88,35 @@ export function RouteSharePage() {
   const [data, setData] = useState<PublicRoute | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const [selectedDay, setSelectedDay] = useState(''); // '' = today (server default)
 
   const mapElRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
   const layerRef = useRef<L.LayerGroup | null>(null);
   const fittedRef = useRef(false);
 
+  // Fetch the selected day (empty = today). Re-fits the map on day change and
+  // only auto-refreshes when viewing today (live).
   useEffect(() => {
     let alive = true;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const load = () => {
-      fetchPublicRoute(token)
+      fetchPublicRoute(token, selectedDay || undefined)
         .then((d) => {
           if (!alive) return;
           setData(d);
           setError('');
-          // Auto-refresh only for short live windows (live tracking).
-          if (d.live && d.hours <= 72) timer = setTimeout(load, 60_000);
+          setLoading(false);
+          if (d.is_today) timer = setTimeout(load, 60_000);
         })
-        .catch((e) => { if (alive) setError(e.message); })
-        .finally(() => { if (alive) setLoading(false); });
+        .catch((e) => { if (alive) { setError(e.message); setLoading(false); } });
     };
+    fittedRef.current = false;
+    setLoading(true);
     load();
     return () => { alive = false; if (timer) clearTimeout(timer); };
-  }, [token]);
+  }, [token, selectedDay]);
 
-  // Init the Leaflet map once we have data to show.
   useEffect(() => {
     if (mapRef.current || error || !data) return;
     const el = mapElRef.current;
@@ -128,7 +131,6 @@ export function RouteSharePage() {
     setTimeout(() => map.invalidateSize(), 60);
   }, [data, error]);
 
-  // Draw all vehicle routes whenever data updates.
   useEffect(() => {
     const map = mapRef.current;
     const layer = layerRef.current;
@@ -142,12 +144,12 @@ export function RouteSharePage() {
       const latlngs = pts.map((p) => [p.lat, p.lng] as [number, number]);
       allLatLngs.push(...latlngs);
       L.polyline(latlngs, { color, weight: 4, opacity: 0.85 }).addTo(layer);
-      L.circleMarker(latlngs[0], { radius: 6, color: '#fff', weight: 2, fillColor: '#22c55e', fillOpacity: 1 })
+      L.circleMarker(latlngs[0], { radius: 6, color: '#fff', weight: 2, fillColor: '#10b981', fillOpacity: 1 })
         .bindPopup(`<b>Start</b> · ${leg.vehicle_name}`)
         .addTo(layer);
       const last = pts[pts.length - 1];
       const moving = last.speed_kmh > 3;
-      const statusColor = moving ? '#22c55e' : '#f59e0b';
+      const statusColor = moving ? '#10b981' : '#f59e0b';
       const statusTxt = moving ? `Fährt · ${Math.round(last.speed_kmh)} km/h` : 'Steht';
       L.circleMarker([last.lat, last.lng], { radius: 9, color: '#fff', weight: 3, fillColor: statusColor, fillOpacity: 1 })
         .bindPopup(`<b>${leg.vehicle_name}</b><br>${statusTxt}<br>${fmtHM(last.time)}<br>${last.location || ''}`)
@@ -176,11 +178,13 @@ export function RouteSharePage() {
 
   if (error) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#f0f2f7] p-6">
-        <div className="max-w-md rounded-2xl bg-white p-12 text-center shadow-lg">
-          <div className="mb-3 text-4xl">🔒</div>
-          <h1 className="mb-2 text-xl font-bold">Link nicht verfügbar</h1>
-          <p className="text-sm text-gray-500">Dieser Tracking-Link ist inaktiv, deaktiviert oder abgelaufen. Bitte fordern Sie einen aktuellen Link beim Absender an.</p>
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 p-6">
+        <div className="max-w-md rounded-2xl border border-slate-200 bg-white p-10 text-center shadow-sm">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+            <Lock size={22} />
+          </div>
+          <h1 className="mb-2 text-lg font-semibold text-slate-900">Link nicht verfügbar</h1>
+          <p className="text-sm text-slate-500">Dieser Tracking-Link ist inaktiv, deaktiviert oder abgelaufen. Bitte fordern Sie einen aktuellen Link beim Absender an.</p>
         </div>
       </div>
     );
@@ -188,36 +192,72 @@ export function RouteSharePage() {
 
   const title = data?.label || (legs.length === 1 ? legs[0].vehicle_name : 'Streckenverfolgung');
 
+  const Stat = ({ icon, children }: { icon: ReactNode; children: ReactNode }) => (
+    <span className="inline-flex items-center gap-1.5 text-slate-500">{icon}{children}</span>
+  );
+
   return (
-    <div className="flex h-screen flex-col bg-[#f0f2f7]">
-      <header className="flex flex-wrap items-center justify-between gap-3 bg-gradient-to-r from-[#1e293b] to-[#1e40af] px-5 py-3.5 text-white shadow-md">
-        <div className="min-w-0">
-          <h1 className="truncate text-lg font-bold leading-tight">{title}</h1>
-          <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs opacity-90">
-            <span>📍 {data ? `${data.total_km} km` : '—'}</span>
-            {legs.length > 1 && <span>🚚 {legs.length} Fahrzeuge</span>}
-            {totalStops > 0 && <span>⏸ {totalStops} Halte</span>}
-            {data && <span>🗓 {periodLabel(data)}</span>}
+    <div className="flex h-screen flex-col bg-slate-50">
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white px-5 py-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white">
+            <Navigation size={18} />
+          </div>
+          <div className="min-w-0">
+            <h1 className="truncate text-base font-semibold text-slate-900">{title}</h1>
+            <div className="mt-0.5 flex flex-wrap items-center gap-x-4 gap-y-0.5 text-xs">
+              {data && <Stat icon={<CalendarDays size={13} />}>{dayLabel(data)}</Stat>}
+              {data && <Stat icon={<Gauge size={13} />}>{data.total_km} km</Stat>}
+              {legs.length > 1 && <Stat icon={<Truck size={13} />}>{legs.length} Fahrzeuge</Stat>}
+              {totalStops > 0 && <Stat icon={<Clock size={13} />}>{totalStops} Halte</Stat>}
+            </div>
           </div>
         </div>
-        <div className="text-right text-xs">
-          {data?.live && (
-            <div className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-1 font-semibold">
-              <span className="h-2 w-2 animate-pulse rounded-full bg-green-400" /> Live
+        <div className="flex flex-wrap items-center justify-end gap-2 text-xs">
+          {data?.pickable && (
+            <div className="flex items-center gap-0.5 rounded-lg border border-slate-200 p-0.5">
+              <button
+                onClick={() => data && setSelectedDay(shiftDay(data.selected_day, -1))}
+                disabled={!data || data.selected_day <= data.min_day}
+                className="rounded p-1 text-slate-500 hover:bg-slate-100 disabled:opacity-30"
+                aria-label="Vorheriger Tag"
+              ><ChevronLeft size={16} /></button>
+              <input
+                type="date"
+                value={data.selected_day}
+                min={data.min_day}
+                max={data.max_day}
+                onChange={(e) => setSelectedDay(e.target.value)}
+                className="border-0 bg-transparent px-1 text-xs text-slate-700 outline-none"
+              />
+              <button
+                onClick={() => data && setSelectedDay(shiftDay(data.selected_day, 1))}
+                disabled={!data || data.selected_day >= data.max_day}
+                className="rounded p-1 text-slate-500 hover:bg-slate-100 disabled:opacity-30"
+                aria-label="Nächster Tag"
+              ><ChevronRight size={16} /></button>
             </div>
           )}
-          {data?.updated_at && <div className="mt-1 opacity-80">Aktualisiert: {fmtHM(data.updated_at)}</div>}
+          {data?.pickable && !data.is_today && (
+            <button onClick={() => data && setSelectedDay(data.max_day)} className="rounded-lg border border-slate-200 px-2 py-1 font-medium text-slate-600 hover:bg-slate-50">Heute</button>
+          )}
+          {data?.live && (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 font-semibold text-emerald-700 ring-1 ring-emerald-200">
+              <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" /> Live
+            </span>
+          )}
+          {data?.updated_at && <span className="text-slate-400">Aktualisiert {fmtHM(data.updated_at)}</span>}
         </div>
       </header>
 
       <main className="flex min-h-0 flex-1 flex-col md:flex-row">
         <div ref={mapElRef} className="min-h-[48vh] flex-1 md:min-h-0" style={{ zIndex: 0 }} />
 
-        <aside className="flex w-full flex-col overflow-y-auto border-t bg-[#f0f2f7] md:w-[380px] md:max-w-[44vw] md:border-l md:border-t-0">
-          {loading && <div className="p-6 text-center text-sm text-gray-400">Wird geladen…</div>}
+        <aside className="flex w-full flex-col overflow-y-auto border-t border-slate-200 bg-slate-50 md:w-[380px] md:max-w-[44vw] md:border-l md:border-t-0">
+          {loading && <div className="p-8 text-center text-sm text-slate-400">Wird geladen…</div>}
 
           {!loading && !hasAnyPoint && (
-            <div className="p-6 text-center text-sm text-gray-400">
+            <div className="p-8 text-center text-sm text-slate-400">
               Keine Standortdaten.
               <br />Die Strecke erscheint, sobald GPS-Positionen eintreffen.
             </div>
@@ -226,68 +266,71 @@ export function RouteSharePage() {
           {!loading && hasAnyPoint && (
             <div className="space-y-3 p-3">
               {legs.map((leg) => (
-                <div key={leg.vehicle_id} className="overflow-hidden rounded-xl bg-white shadow-sm">
-                  <div className="flex items-center justify-between gap-2 border-b px-3.5 py-2.5">
-                    <div className="flex min-w-0 items-center gap-2">
-                      <span className="h-3 w-3 flex-shrink-0 rounded-full" style={{ backgroundColor: leg.color }} />
+                <div key={leg.vehicle_id} className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+                  <div className="flex items-center justify-between gap-2 px-4 py-3">
+                    <div className="flex min-w-0 items-center gap-2.5">
+                      <span className="h-9 w-1.5 flex-shrink-0 rounded-full" style={{ backgroundColor: leg.color }} />
                       <div className="min-w-0">
-                        <div className="truncate text-sm font-bold">{leg.vehicle_name || leg.vehicle_id}</div>
-                        {leg.driver_name && <div className="truncate text-xs text-gray-500">{leg.driver_name}</div>}
+                        <div className="truncate text-sm font-semibold text-slate-900">{leg.vehicle_name || leg.vehicle_id}</div>
+                        {leg.driver_name && <div className="truncate text-xs text-slate-500">{leg.driver_name}</div>}
                       </div>
                     </div>
                     <div className="flex flex-shrink-0 flex-col items-end gap-1">
                       {leg.status.moving ? (
-                        <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-green-100 px-2 py-0.5 text-xs font-bold text-green-700">
-                          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-green-500" /> Fährt · {leg.status.speed} km/h
+                        <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200">
+                          <Navigation size={11} /> {leg.status.speed} km/h
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-700">
-                          ⏸ Steht{leg.status.stoppedMin >= 5 ? ` · ${fmtDur(leg.status.stoppedMin)}` : ''}
+                        <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">
+                          <span className="h-2 w-2 rounded-full bg-amber-500" /> Steht{leg.status.stoppedMin >= 5 ? ` · ${fmtDur(leg.status.stoppedMin)}` : ''}
                         </span>
                       )}
-                      <span className="text-xs font-semibold text-gray-400">{leg.total_km} km</span>
+                      <span className="text-xs font-medium text-slate-400">{leg.total_km} km</span>
                     </div>
                   </div>
 
                   {leg.last && (
-                    <div
-                      className="flex cursor-pointer items-start gap-2 bg-amber-50 px-3.5 py-2.5"
+                    <button
                       onClick={() => leg.last && mapRef.current?.setView([leg.last.lat, leg.last.lng], 14)}
+                      className="flex w-full items-start gap-2 border-t border-slate-100 bg-slate-50/70 px-4 py-2.5 text-left hover:bg-slate-100"
                     >
-                      <span className="mt-0.5 h-2.5 w-2.5 flex-shrink-0 rounded-full bg-red-500" />
+                      <MapPin size={14} className="mt-0.5 flex-shrink-0 text-rose-500" />
                       <div className="min-w-0">
-                        <div className="text-xs font-bold">{data?.live ? 'Letzte Position' : 'Streckenende'} · {fmtHM(leg.last.time)}</div>
-                        <div className="text-xs text-gray-600">{leg.last.location || '—'}</div>
+                        <div className="text-xs font-semibold text-slate-700">{data?.live ? 'Letzte Position' : 'Streckenende'} · {fmtHM(leg.last.time)}</div>
+                        <div className="text-xs text-slate-500">{leg.last.location || '—'}</div>
                       </div>
-                    </div>
+                    </button>
                   )}
 
                   {leg.stops.length > 0 && (
-                    <ul className="border-t">
-                      {[...leg.stops].reverse().map((s, i) => (
-                        <li
-                          key={i}
-                          className="flex cursor-pointer items-start gap-2 border-b px-3.5 py-2 last:border-0 hover:bg-gray-50"
-                          onClick={() => mapRef.current?.setView([s.lat, s.lng], 15)}
-                        >
-                          <span className="mt-1 h-2 w-2 flex-shrink-0 rounded-full bg-gray-400" />
-                          <div className="min-w-0">
-                            <div className="text-xs font-semibold">
-                              {fmtHM(s.from)}–{fmtHM(s.to)}{' '}
-                              <span className="font-medium text-gray-400">· Standzeit {fmtDur(s.durMin)}</span>
-                            </div>
-                            <div className="text-xs text-gray-500">{s.location || '—'}</div>
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
+                    <div className="border-t border-slate-100 pb-1">
+                      <div className="px-4 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Halte</div>
+                      <ul className="px-1">
+                        {[...leg.stops].reverse().map((s, i) => (
+                          <li key={i}>
+                            <button
+                              onClick={() => mapRef.current?.setView([s.lat, s.lng], 15)}
+                              className="flex w-full items-start gap-2 rounded-lg px-3 py-1.5 text-left hover:bg-slate-50"
+                            >
+                              <Clock size={13} className="mt-0.5 flex-shrink-0 text-slate-400" />
+                              <div className="min-w-0">
+                                <div className="text-xs font-medium text-slate-700">
+                                  {fmtHM(s.from)}–{fmtHM(s.to)} <span className="text-slate-400">· {fmtDur(s.durMin)}</span>
+                                </div>
+                                <div className="text-xs text-slate-500">{s.location || '—'}</div>
+                              </div>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
                   )}
                 </div>
               ))}
             </div>
           )}
 
-          <div className="mt-auto px-4 py-3 text-center text-[11px] text-gray-400">
+          <div className="mt-auto border-t border-slate-200 px-4 py-3 text-center text-[11px] text-slate-400">
             Adressen &amp; Karte: © OpenStreetMap, CARTO · Privater Link — bitte nicht weitergeben.
           </div>
         </aside>

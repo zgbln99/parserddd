@@ -232,11 +232,14 @@ export interface RouteLeg {
 
 export interface PublicRoute {
   label: string;
-  day: string;
-  hours: number;
+  selected_day: string;
+  min_day: string;
+  max_day: string;
+  pickable: boolean;
+  is_today: boolean;
+  live: boolean;
   from_time: string;
   to_time: string;
-  live: boolean;
   routes: RouteLeg[];
   total_km: number;
   updated_at: string;
@@ -244,8 +247,10 @@ export interface PublicRoute {
 
 // Public route view — plain fetch (no credentials / no 401-redirect) so a
 // visitor is never bounced to /login; an invalid/expired token returns 404.
-export async function fetchPublicRoute(token: string): Promise<PublicRoute> {
-  const res = await fetch(`/api/route-share/${encodeURIComponent(token)}`);
+// `day` (YYYY-MM-DD) selects which day to show; omitted = today.
+export async function fetchPublicRoute(token: string, day?: string): Promise<PublicRoute> {
+  const url = `/api/route-share/${encodeURIComponent(token)}${day ? `?day=${encodeURIComponent(day)}` : ''}`;
+  const res = await fetch(url);
   const text = await res.text();
   let data: any;
   try { data = JSON.parse(text); } catch { throw new Error(`HTTP ${res.status}`); }

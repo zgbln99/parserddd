@@ -7,6 +7,7 @@ shows exactly the same route, history and reverse-geocoded addresses.
 """
 
 from datetime import datetime, timezone, timedelta
+from zoneinfo import ZoneInfo
 
 from flask import Blueprint, jsonify, request
 
@@ -16,6 +17,8 @@ from services import route_share_service as svc
 from routes.vehicles import fetch_vehicle_trail, TrailError
 
 bp = Blueprint('routeshare', __name__)
+
+CET = ZoneInfo('Europe/Berlin')
 
 
 def _public_url(token: str) -> str:
@@ -163,13 +166,38 @@ def api_route_share_public(token):
     if not svc.is_live(s):
         return jsonify({'error': 'Link nieaktywny lub wygasł / Link inaktiv oder abgelaufen'}), 404
     svc.touch_access(token)
+
+    # The route is shown one day at a time (default: today). A live/range share
+    # lets the viewer browse the last N days; a fixed-day share shows that day.
+    today = datetime.now(CET).date()
+    if s['day']:
+        selected = s['day']
+        min_day = max_day = s['day']
+        pickable = False
+        fetch_day, from_time, to_time = s['day'], s['from_time'], s['to_time']
+    else:
+        days_back = max(1, min(31, (int(s['hours']) + 23) // 24))
+        min_d = today - timedelta(days=days_back - 1)
+        selected_d = today
+        req = (request.args.get('day') or '').strip()
+        if req:
+            try:
+                rd = datetime.strptime(req, '%Y-%m-%d').date()
+                if min_d <= rd <= today:
+                    selected_d = rd
+            except ValueError:
+                pass
+        selected = selected_d.isoformat()
+        min_day, max_day = min_d.isoformat(), today.isoformat()
+        pickable = True
+        fetch_day, from_time, to_time = selected, '', ''
+
     routes = []
     total_km = 0.0
     for v in s['vehicles']:
         try:
             trail = fetch_vehicle_trail(
-                v['id'], hours=s['hours'], date_str=s['day'],
-                from_time=s['from_time'], to_time=s['to_time'],
+                v['id'], date_str=fetch_day, from_time=from_time, to_time=to_time,
             )
         except TrailError:
             # Never leak upstream details to the public; render an empty route.
@@ -182,13 +210,18 @@ def api_route_share_public(token):
             'total_km': trail['total_km'],
         })
         total_km += trail.get('total_km') or 0.0
+
+    is_today = selected == today.isoformat()
     return jsonify({
         'label': s['label'],
-        'day': s['day'],
-        'hours': s['hours'],
-        'from_time': s['from_time'],
-        'to_time': s['to_time'],
-        'live': not s['day'],
+        'selected_day': selected,
+        'min_day': min_day,
+        'max_day': max_day,
+        'pickable': pickable,
+        'is_today': is_today,
+        'live': is_today,
+        'from_time': from_time,
+        'to_time': to_time,
         'routes': routes,
         'total_km': round(total_km, 1),
         'updated_at': datetime.now(timezone.utc).isoformat(),

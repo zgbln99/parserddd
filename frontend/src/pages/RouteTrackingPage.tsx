@@ -12,9 +12,9 @@ import {
   type VehicleLocation,
 } from '../lib/api';
 
+// Live range = how many days back the viewer can browse (per-day view, default today).
 const LIVE_PRESETS = [
-  { h: 6, pl: 'Ostatnie 6 h', de: 'Letzte 6 Std' },
-  { h: 24, pl: 'Ostatni dzień (24 h)', de: 'Letzter Tag (24 Std)' },
+  { h: 24, pl: 'Tylko dziś', de: 'Nur heute' },
   { h: 72, pl: 'Ostatnie 3 dni', de: 'Letzte 3 Tage' },
   { h: 168, pl: 'Ostatnie 7 dni', de: 'Letzte 7 Tage' },
   { h: 336, pl: 'Ostatnie 14 dni', de: 'Letzte 14 Tage' },
@@ -273,12 +273,13 @@ export function RouteTrackingPage() {
 
               {fMode === 'live' ? (
                 <div>
-                  <label className="mb-1 block text-xs font-semibold text-muted">{de ? 'Verlauf' : 'Historia'}</label>
+                  <label className="mb-1 block text-xs font-semibold text-muted">{de ? 'Verfügbare Tage' : 'Dni do przeglądania'}</label>
                   <select value={fHours} onChange={(e) => setFHours(parseInt(e.target.value))} className="w-full rounded-lg border px-3 py-2 text-sm">
                     {LIVE_PRESETS.map((p) => (
                       <option key={p.h} value={p.h}>{de ? p.de : p.pl}</option>
                     ))}
                   </select>
+                  <p className="mt-1 text-[11px] text-muted">{de ? 'Empfänger sieht standardmäßig heute und kann zurückblättern.' : 'Odbiorca widzi domyślnie dziś i może cofać dni.'}</p>
                 </div>
               ) : (
                 <div className="space-y-3">
