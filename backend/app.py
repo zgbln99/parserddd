@@ -369,6 +369,27 @@ def _init_db():
         );
     ''')
 
+    # route_shares — public, no-login links to follow a vehicle's route on a
+    # map with history + reverse-geocoded addresses (see services/route_share).
+    conn.executescript('''
+        CREATE TABLE IF NOT EXISTS route_shares (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            token         TEXT NOT NULL UNIQUE,
+            vehicle_id    TEXT NOT NULL,
+            vehicle_name  TEXT NOT NULL DEFAULT '',
+            driver_name   TEXT NOT NULL DEFAULT '',
+            label         TEXT NOT NULL DEFAULT '',
+            hours         INTEGER NOT NULL DEFAULT 24,
+            day           TEXT NOT NULL DEFAULT '',
+            enabled       INTEGER NOT NULL DEFAULT 1,
+            created_by    TEXT NOT NULL DEFAULT 'admin',
+            created_at    TEXT NOT NULL,
+            expires_at    TEXT NOT NULL DEFAULT '',
+            last_access   TEXT NOT NULL DEFAULT '',
+            access_count  INTEGER NOT NULL DEFAULT 0
+        );
+    ''')
+
     conn.commit()
     conn.close()
     logger.info('Database initialized: %s', DATABASE_FILE)
