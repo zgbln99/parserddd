@@ -30,9 +30,13 @@ def _share_dict(s: dict) -> dict:
         'vehicle_id': s['vehicle_id'],
         'vehicle_name': s['vehicle_name'],
         'driver_name': s['driver_name'],
+        'vehicles': s['vehicles'],
+        'vehicle_count': len(s['vehicles']),
         'label': s['label'],
         'hours': s['hours'],
         'day': s['day'],
+        'from_time': s['from_time'],
+        'to_time': s['to_time'],
         'enabled': s['enabled'],
         'created_at': s['created_at'],
         'expires_at': s['expires_at'],
@@ -57,9 +61,28 @@ def api_route_shares_list():
 @permission_required('vehicles')
 def api_route_shares_create():
     data = request.get_json(silent=True) or {}
-    vehicle_id = (data.get('vehicle_id') or '').strip()
-    if not vehicle_id:
-        return jsonify({'error': 'vehicle_id is required'}), 400
+
+    # Accept a list of vehicles, or fall back to a single vehicle_id.
+    vehicles = []
+    raw_vehicles = data.get('vehicles')
+    if isinstance(raw_vehicles, list):
+        for v in raw_vehicles:
+            if isinstance(v, dict) and str(v.get('id', '')).strip():
+                vehicles.append({
+                    'id': str(v.get('id')).strip(),
+                    'name': (v.get('name') or '').strip(),
+                    'driver': (v.get('driver') or '').strip(),
+                })
+    if not vehicles:
+        vid = (data.get('vehicle_id') or '').strip()
+        if vid:
+            vehicles = [{
+                'id': vid,
+                'name': (data.get('vehicle_name') or '').strip(),
+                'driver': (data.get('driver_name') or '').strip(),
+            }]
+    if not vehicles:
+        return jsonify({'error': 'at least one vehicle is required'}), 400
 
     day = (data.get('day') or '').strip()
     if day:
@@ -67,6 +90,22 @@ def api_route_shares_create():
             datetime.strptime(day, '%Y-%m-%d')
         except ValueError:
             return jsonify({'error': 'day must be YYYY-MM-DD'}), 400
+
+    def _norm_hm(value):
+        value = (value or '').strip()
+        if not value:
+            return ''
+        try:
+            hh, mm = value.split(':')
+            hh, mm = int(hh), int(mm)
+            if 0 <= hh <= 24 and 0 <= mm <= 59:
+                return f'{hh:02d}:{mm:02d}'
+        except (ValueError, IndexError):
+            pass
+        return ''
+
+    from_time = _norm_hm(data.get('from_time')) if day else ''
+    to_time = _norm_hm(data.get('to_time')) if day else ''
 
     try:
         hours = int(data.get('hours') or 24)
@@ -82,15 +121,15 @@ def api_route_shares_create():
         expires_at = (datetime.now(timezone.utc) + timedelta(days=exp_days)).isoformat()
 
     share = svc.create_share(
-        vehicle_id=vehicle_id,
-        vehicle_name=(data.get('vehicle_name') or '').strip(),
-        driver_name=(data.get('driver_name') or '').strip(),
+        vehicles=vehicles,
         label=(data.get('label') or '').strip(),
         hours=hours,
         day=day,
+        from_time=from_time,
+        to_time=to_time,
         expires_at=expires_at,
     )
-    _log_activity('route_share_create', f"{share['vehicle_name'] or vehicle_id} ({share['token']})")
+    _log_activity('route_share_create', f"{len(vehicles)} veh ({share['token']})")
     return jsonify(_share_dict(share))
 
 
@@ -124,19 +163,33 @@ def api_route_share_public(token):
     if not svc.is_live(s):
         return jsonify({'error': 'Link nieaktywny lub wygasł / Link inaktiv oder abgelaufen'}), 404
     svc.touch_access(token)
-    try:
-        trail = fetch_vehicle_trail(s['vehicle_id'], hours=s['hours'], date_str=s['day'])
-    except TrailError:
-        # Never leak upstream details to the public; render an empty route.
-        trail = {'points': [], 'total_km': 0.0, 'hours': s['hours'], 'date': s['day']}
+    routes = []
+    total_km = 0.0
+    for v in s['vehicles']:
+        try:
+            trail = fetch_vehicle_trail(
+                v['id'], hours=s['hours'], date_str=s['day'],
+                from_time=s['from_time'], to_time=s['to_time'],
+            )
+        except TrailError:
+            # Never leak upstream details to the public; render an empty route.
+            trail = {'points': [], 'total_km': 0.0}
+        routes.append({
+            'vehicle_id': v['id'],
+            'vehicle_name': v.get('name') or '',
+            'driver_name': v.get('driver') or '',
+            'points': trail['points'],
+            'total_km': trail['total_km'],
+        })
+        total_km += trail.get('total_km') or 0.0
     return jsonify({
         'label': s['label'],
-        'driver_name': s['driver_name'],
-        'vehicle_name': s['vehicle_name'],
         'day': s['day'],
         'hours': s['hours'],
+        'from_time': s['from_time'],
+        'to_time': s['to_time'],
         'live': not s['day'],
-        'points': trail['points'],
-        'total_km': trail['total_km'],
+        'routes': routes,
+        'total_km': round(total_km, 1),
         'updated_at': datetime.now(timezone.utc).isoformat(),
     })

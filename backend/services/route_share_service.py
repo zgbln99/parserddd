@@ -14,6 +14,7 @@ Mirrors ``driver_profile_service`` conventions:
 
 from __future__ import annotations
 
+import json
 import secrets
 from datetime import datetime, timezone
 from typing import Any, Mapping
@@ -25,6 +26,36 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _clean_vehicles(vehicles) -> list[dict[str, str]]:
+    """Normalize a list of {id, name, driver} dicts, dropping entries w/o id."""
+    out = []
+    for v in (vehicles or []):
+        if not isinstance(v, dict):
+            continue
+        vid = str(v.get("id", "")).strip()
+        if not vid:
+            continue
+        out.append({
+            "id": vid,
+            "name": (v.get("name") or "").strip(),
+            "driver": (v.get("driver") or "").strip(),
+        })
+    return out
+
+
+def _vehicles_from_row(row: Mapping[str, Any]) -> list[dict[str, str]]:
+    raw = (row["vehicles_json"] if "vehicles_json" in row.keys() else "") or ""
+    if raw:
+        try:
+            vs = _clean_vehicles(json.loads(raw))
+            if vs:
+                return vs
+        except (ValueError, TypeError):
+            pass
+    # Fallback for legacy single-vehicle shares (pre vehicles_json column).
+    return [{"id": row["vehicle_id"], "name": row["vehicle_name"] or "", "driver": row["driver_name"] or ""}]
+
+
 def _row_to_dict(row: Mapping[str, Any]) -> dict[str, Any]:
     return {
         "id": row["id"],
@@ -32,9 +63,12 @@ def _row_to_dict(row: Mapping[str, Any]) -> dict[str, Any]:
         "vehicle_id": row["vehicle_id"],
         "vehicle_name": row["vehicle_name"],
         "driver_name": row["driver_name"],
+        "vehicles": _vehicles_from_row(row),
         "label": row["label"],
         "hours": row["hours"],
         "day": row["day"],
+        "from_time": (row["from_time"] if "from_time" in row.keys() else "") or "",
+        "to_time": (row["to_time"] if "to_time" in row.keys() else "") or "",
         "enabled": bool(row["enabled"]),
         "created_by": row["created_by"],
         "created_at": row["created_at"],
@@ -46,20 +80,21 @@ def _row_to_dict(row: Mapping[str, Any]) -> dict[str, Any]:
 
 def create_share(
     *,
-    vehicle_id: str,
-    vehicle_name: str = "",
-    driver_name: str = "",
+    vehicles,
     label: str = "",
     hours: int = 24,
     day: str = "",
+    from_time: str = "",
+    to_time: str = "",
     expires_at: str = "",
     created_by: str = "admin",
 ) -> dict[str, Any]:
-    vehicle_id = (vehicle_id or "").strip()
-    if not vehicle_id:
-        raise ValueError("vehicle_id is required")
+    vehicles = _clean_vehicles(vehicles)
+    if not vehicles:
+        raise ValueError("at least one vehicle is required")
+    first = vehicles[0]
     try:
-        hours = max(1, min(168, int(hours)))
+        hours = max(1, min(744, int(hours)))
     except (TypeError, ValueError):
         hours = 24
     token = secrets.token_urlsafe(18)
@@ -69,11 +104,14 @@ def create_share(
             """
             INSERT INTO route_shares
             (token, vehicle_id, vehicle_name, driver_name, label, hours, day,
-             enabled, created_by, created_at, expires_at, last_access, access_count)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, '', 0)
+             from_time, to_time, vehicles_json, enabled, created_by, created_at,
+             expires_at, last_access, access_count)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, '', 0)
             """,
-            (token, vehicle_id, vehicle_name or "", driver_name or "", label or "",
-             hours, day or "", created_by or "admin", now, expires_at or ""),
+            (token, first["id"], first["name"], first["driver"], label or "",
+             hours, day or "", from_time or "", to_time or "",
+             json.dumps(vehicles, ensure_ascii=False),
+             created_by or "admin", now, expires_at or ""),
         )
         db.commit()
     return get_by_token(token)  # type: ignore[return-value]

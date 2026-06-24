@@ -381,6 +381,9 @@ def _init_db():
             label         TEXT NOT NULL DEFAULT '',
             hours         INTEGER NOT NULL DEFAULT 24,
             day           TEXT NOT NULL DEFAULT '',
+            from_time     TEXT NOT NULL DEFAULT '',
+            to_time       TEXT NOT NULL DEFAULT '',
+            vehicles_json TEXT NOT NULL DEFAULT '',
             enabled       INTEGER NOT NULL DEFAULT 1,
             created_by    TEXT NOT NULL DEFAULT 'admin',
             created_at    TEXT NOT NULL,
@@ -389,6 +392,13 @@ def _init_db():
             access_count  INTEGER NOT NULL DEFAULT 0
         );
     ''')
+    # Migrate older route_shares tables that predate these columns.
+    for _col in ('from_time', 'to_time', 'vehicles_json'):
+        try:
+            conn.execute(f"SELECT {_col} FROM route_shares LIMIT 1")
+        except Exception:
+            conn.execute(f"ALTER TABLE route_shares ADD COLUMN {_col} TEXT NOT NULL DEFAULT ''")
+            conn.commit()
 
     conn.commit()
     conn.close()

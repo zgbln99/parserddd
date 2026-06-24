@@ -164,15 +164,25 @@ export const fetchVehicleTrail = (vehicleId: string, hours = 8, date?: string) =
   );
 
 // ---- Route tracking / public share links ----
+export interface RouteShareVehicle {
+  id: string;
+  name: string;
+  driver: string;
+}
+
 export interface RouteShare {
   id: number;
   token: string;
   vehicle_id: string;
   vehicle_name: string;
   driver_name: string;
+  vehicles: RouteShareVehicle[];
+  vehicle_count: number;
   label: string;
   hours: number;
   day: string;
+  from_time: string;
+  to_time: string;
   enabled: boolean;
   created_at: string;
   expires_at: string;
@@ -183,12 +193,12 @@ export interface RouteShare {
 }
 
 export interface CreateRouteShareInput {
-  vehicle_id: string;
-  vehicle_name?: string;
-  driver_name?: string;
+  vehicles: RouteShareVehicle[];
   label?: string;
   hours?: number;
   day?: string;
+  from_time?: string;
+  to_time?: string;
   expires_in_days?: number;
 }
 
@@ -212,14 +222,22 @@ export const toggleRouteShare = (id: number, enabled: boolean) =>
 export const deleteRouteShare = (id: number) =>
   request<{ ok: boolean }>(`/api/route-shares/${id}`, { method: 'DELETE' });
 
+export interface RouteLeg {
+  vehicle_id: string;
+  vehicle_name: string;
+  driver_name: string;
+  points: TrailPoint[];
+  total_km: number;
+}
+
 export interface PublicRoute {
   label: string;
-  driver_name: string;
-  vehicle_name: string;
   day: string;
   hours: number;
+  from_time: string;
+  to_time: string;
   live: boolean;
-  points: TrailPoint[];
+  routes: RouteLeg[];
   total_km: number;
   updated_at: string;
 }

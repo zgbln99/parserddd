@@ -341,14 +341,17 @@ class TrailError(Exception):
         self.status = status
 
 
-def fetch_vehicle_trail(vehicle_id, hours=8, date_str=''):
+def fetch_vehicle_trail(vehicle_id, hours=8, date_str='', from_time='', to_time=''):
     """Fetch one vehicle's GPS breadcrumb trail from Samsara.
 
-    Either the last N hours (``hours``, default 8) or a full historic day
-    (``date_str`` = YYYY-MM-DD, interpreted in Europe/Berlin). Returns
-    ``{'points': [...], 'total_km': float, 'hours': int, 'date': str}`` where
-    each point is ``{lat, lng, time, speed_kmh, location}`` (``location`` is
-    the Samsara reverse-geocoded address). Raises ``TrailError(msg, status)``
+    Window is either:
+      - the last N ``hours`` (live; up to 744 h ≈ 31 days), or
+      - a historic ``date_str`` = YYYY-MM-DD (Europe/Berlin), optionally
+        narrowed to a ``from_time``..``to_time`` range (HH:MM) within that day.
+
+    Returns ``{'points': [...], 'total_km': float, 'hours': int, 'date': str}``
+    where each point is ``{lat, lng, time, speed_kmh, location}`` (``location``
+    is the Samsara reverse-geocoded address). Raises ``TrailError(msg, status)``
     on misconfiguration or an upstream failure.
 
     Shared by the authenticated ``/api/vehicles/<id>/trail`` endpoint and the
@@ -358,9 +361,16 @@ def fetch_vehicle_trail(vehicle_id, hours=8, date_str=''):
         raise TrailError('Samsara API not configured', 400)
 
     try:
-        hours = max(1, min(168, int(hours)))
+        hours = max(1, min(744, int(hours)))
     except (TypeError, ValueError):
         hours = 8
+
+    def _hm(value, default_h, default_m):
+        try:
+            parts = str(value).split(':')
+            return int(parts[0]), (int(parts[1]) if len(parts) > 1 else 0)
+        except (ValueError, IndexError):
+            return default_h, default_m
 
     now = datetime.now(timezone.utc)
     date_str = (date_str or '').strip()
@@ -369,8 +379,14 @@ def fetch_vehicle_trail(vehicle_id, hours=8, date_str=''):
             day = datetime.strptime(date_str, '%Y-%m-%d')
         except ValueError:
             raise TrailError('date must be YYYY-MM-DD', 400)
-        day_start = day.replace(tzinfo=CET)
-        day_end = day_start + timedelta(days=1)
+        day_base = day.replace(tzinfo=CET)
+        sh, sm = _hm(from_time, 0, 0)
+        day_start = day_base + timedelta(hours=sh, minutes=sm)
+        if (to_time or '').strip():
+            eh, em = _hm(to_time, 24, 0)
+            day_end = day_base + timedelta(hours=eh, minutes=em)
+        else:
+            day_end = day_base + timedelta(days=1)
         start_dt = day_start.astimezone(timezone.utc)
         end_dt = min(day_end.astimezone(timezone.utc), now)
         if end_dt <= start_dt:

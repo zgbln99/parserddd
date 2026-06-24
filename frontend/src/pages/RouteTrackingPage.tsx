@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Route as RouteIcon, Plus, Copy, ExternalLink, Trash2, RefreshCw, Power } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Route as RouteIcon, Plus, Copy, ExternalLink, Trash2, RefreshCw, Power, Search } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { Spinner } from '../components/Spinner';
 import {
@@ -12,6 +12,15 @@ import {
   type VehicleLocation,
 } from '../lib/api';
 
+const LIVE_PRESETS = [
+  { h: 6, pl: 'Ostatnie 6 h', de: 'Letzte 6 Std' },
+  { h: 24, pl: 'Ostatni dzień (24 h)', de: 'Letzter Tag (24 Std)' },
+  { h: 72, pl: 'Ostatnie 3 dni', de: 'Letzte 3 Tage' },
+  { h: 168, pl: 'Ostatnie 7 dni', de: 'Letzte 7 Tage' },
+  { h: 336, pl: 'Ostatnie 14 dni', de: 'Letzte 14 Tage' },
+  { h: 720, pl: 'Ostatni miesiąc (30 dni)', de: 'Letzter Monat (30 Tage)' },
+];
+
 export function RouteTrackingPage() {
   const { locale } = useI18n();
   const de = locale === 'de';
@@ -23,13 +32,16 @@ export function RouteTrackingPage() {
 
   const [showCreate, setShowCreate] = useState(false);
   const [vehicles, setVehicles] = useState<VehicleLocation[]>([]);
+  const [vehSearch, setVehSearch] = useState('');
 
   // create form state
-  const [fVeh, setFVeh] = useState('');
+  const [fVehs, setFVehs] = useState<string[]>([]);
   const [fLabel, setFLabel] = useState('');
   const [fMode, setFMode] = useState<'live' | 'day'>('live');
   const [fHours, setFHours] = useState(24);
   const [fDay, setFDay] = useState('');
+  const [fFrom, setFFrom] = useState('');
+  const [fTo, setFTo] = useState('');
   const [fExpire, setFExpire] = useState(0);
   const [saving, setSaving] = useState(false);
   const [formErr, setFormErr] = useState('');
@@ -47,25 +59,40 @@ export function RouteTrackingPage() {
   const flash = (m: string) => { setToast(m); setTimeout(() => setToast(''), 1800); };
 
   const openCreate = () => {
-    setFVeh(''); setFLabel(''); setFMode('live'); setFHours(24); setFDay(''); setFExpire(0); setFormErr('');
+    setFVehs([]); setFLabel(''); setFMode('live'); setFHours(24);
+    setFDay(''); setFFrom(''); setFTo(''); setFExpire(0); setFormErr(''); setVehSearch('');
     setShowCreate(true);
     if (vehicles.length === 0) {
       fetchVehicleLocations().then((r) => setVehicles(r.vehicles || [])).catch(() => {});
     }
   };
 
+  const toggleVeh = (id: string) =>
+    setFVehs((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+
+  const filteredVehicles = useMemo(() => {
+    const q = vehSearch.trim().toLowerCase();
+    if (!q) return vehicles;
+    return vehicles.filter(
+      (v) => v.vehicle_name.toLowerCase().includes(q) || (v.driver_name || '').toLowerCase().includes(q),
+    );
+  }, [vehicles, vehSearch]);
+
   const submit = () => {
-    if (!fVeh) { setFormErr(de ? 'Fahrzeug wählen' : 'Wybierz pojazd'); return; }
+    if (fVehs.length === 0) { setFormErr(de ? 'Mind. ein Fahrzeug wählen' : 'Wybierz min. jeden pojazd'); return; }
     if (fMode === 'day' && !fDay) { setFormErr(de ? 'Tag wählen' : 'Wybierz dzień'); return; }
-    const veh = vehicles.find((v) => v.vehicle_id === fVeh);
+    const chosen = fVehs.map((id) => {
+      const v = vehicles.find((x) => x.vehicle_id === id);
+      return { id, name: v?.vehicle_name || '', driver: v?.driver_name || '' };
+    });
     setSaving(true); setFormErr('');
     createRouteShare({
-      vehicle_id: fVeh,
-      vehicle_name: veh?.vehicle_name || '',
-      driver_name: veh?.driver_name || '',
+      vehicles: chosen,
       label: fLabel.trim(),
       hours: fMode === 'live' ? fHours : 24,
       day: fMode === 'day' ? fDay : '',
+      from_time: fMode === 'day' ? fFrom : '',
+      to_time: fMode === 'day' ? fTo : '',
       expires_in_days: fExpire || 0,
     })
       .then(() => { setShowCreate(false); flash(de ? 'Link erstellt' : 'Link utworzony'); load(); })
@@ -86,9 +113,21 @@ export function RouteTrackingPage() {
   const onToggle = (s: RouteShare) => { toggleRouteShare(s.id, !s.enabled).then(load).catch((e) => flash(e.message)); };
 
   const onDelete = (s: RouteShare) => {
-    const who = s.driver_name || s.label || s.vehicle_name || `#${s.id}`;
+    const who = s.label || s.driver_name || s.vehicle_name || `#${s.id}`;
     if (!window.confirm(de ? `Link „${who}" löschen?` : `Usunąć link „${who}"?`)) return;
     deleteRouteShare(s.id).then(() => { flash(de ? 'Gelöscht' : 'Usunięto'); load(); }).catch((e) => flash(e.message));
+  };
+
+  const vehLabel = (s: RouteShare) =>
+    s.vehicle_count > 1 ? `${s.vehicle_count} ${de ? 'Fahrzeuge' : 'pojazdy'}` : (s.vehicle_name || s.vehicle_id);
+
+  const periodLabel = (s: RouteShare) => {
+    if (s.day) {
+      const range = s.from_time || s.to_time ? ` ${s.from_time || '00:00'}–${s.to_time || '24:00'}` : '';
+      return s.day + range;
+    }
+    const p = LIVE_PRESETS.find((x) => x.h === s.hours);
+    return p ? (de ? p.de : p.pl) : (de ? `Letzte ${s.hours} Std` : `Ostatnie ${s.hours} h`);
   };
 
   return (
@@ -133,8 +172,8 @@ export function RouteTrackingPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b text-left text-xs uppercase tracking-wide text-muted">
-                  <th className="px-4 py-3">{de ? 'Fahrer / Beschr.' : 'Kierowca / opis'}</th>
-                  <th className="px-4 py-3">{de ? 'Fahrzeug' : 'Pojazd'}</th>
+                  <th className="px-4 py-3">{de ? 'Beschreibung' : 'Opis'}</th>
+                  <th className="px-4 py-3">{de ? 'Fahrzeuge' : 'Pojazdy'}</th>
                   <th className="px-4 py-3">{de ? 'Zeitraum' : 'Zakres'}</th>
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3">{de ? 'Aufrufe' : 'Wejścia'}</th>
@@ -145,13 +184,15 @@ export function RouteTrackingPage() {
                 {shares.map((s) => (
                   <tr key={s.id} className="border-b last:border-0 hover:bg-gray-50">
                     <td className="px-4 py-3">
-                      <div className="font-semibold">{s.driver_name || s.label || '—'}</div>
-                      {s.label && s.driver_name && <div className="text-xs text-muted">{s.label}</div>}
+                      <div className="font-semibold">{s.label || s.driver_name || (de ? 'Link' : 'Link')}</div>
                     </td>
-                    <td className="px-4 py-3">{s.vehicle_name || s.vehicle_id}</td>
                     <td className="px-4 py-3">
-                      {s.day ? s.day : (de ? `Letzte ${s.hours} Std` : `Ostatnie ${s.hours} h`)}
+                      <div>{vehLabel(s)}</div>
+                      {s.vehicle_count > 1 && (
+                        <div className="text-xs text-muted">{s.vehicles.map((v) => v.name || v.id).join(', ')}</div>
+                      )}
                     </td>
+                    <td className="px-4 py-3">{periodLabel(s)}</td>
                     <td className="px-4 py-3">
                       {s.expired ? (
                         <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">{de ? 'abgelaufen' : 'wygasł'}</span>
@@ -182,49 +223,82 @@ export function RouteTrackingPage() {
 
       {showCreate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setShowCreate(false)}>
-          <div className="w-full max-w-md rounded-2xl bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
+          <div className="flex max-h-[90vh] w-full max-w-md flex-col rounded-2xl bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between border-b px-5 py-4">
               <h3 className="font-bold">{de ? 'Neuer Tracking-Link' : 'Nowy link śledzenia'}</h3>
               <button onClick={() => setShowCreate(false)} className="text-gray-400 hover:text-gray-700">✕</button>
             </div>
-            <div className="space-y-4 px-5 py-4">
+            <div className="space-y-4 overflow-y-auto px-5 py-4">
               {formErr && <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{formErr}</div>}
+
               <div>
-                <label className="mb-1 block text-xs font-semibold text-muted">{de ? 'Fahrzeug' : 'Pojazd'} *</label>
-                <select value={fVeh} onChange={(e) => setFVeh(e.target.value)} className="w-full rounded-lg border px-3 py-2 text-sm">
-                  <option value="">{vehicles.length ? (de ? '— wählen —' : '— wybierz —') : (de ? 'Lade…' : 'Ładowanie…')}</option>
-                  {vehicles.map((v) => (
-                    <option key={v.vehicle_id} value={v.vehicle_id}>
-                      {v.vehicle_name}{v.driver_name ? ` — ${v.driver_name}` : ''}
-                    </option>
-                  ))}
-                </select>
+                <label className="mb-1 block text-xs font-semibold text-muted">
+                  {de ? 'Fahrzeuge' : 'Pojazdy'} * <span className="text-gray-400">({fVehs.length} {de ? 'gewählt' : 'wybranych'})</span>
+                </label>
+                <div className="relative mb-2">
+                  <Search size={14} className="absolute left-2.5 top-2.5 text-gray-400" />
+                  <input value={vehSearch} onChange={(e) => setVehSearch(e.target.value)} placeholder={de ? 'Suchen…' : 'Szukaj…'} className="w-full rounded-lg border py-2 pl-8 pr-3 text-sm" />
+                </div>
+                <div className="max-h-44 overflow-y-auto rounded-lg border">
+                  {vehicles.length === 0 ? (
+                    <div className="px-3 py-6 text-center text-xs text-muted">{de ? 'Lade Fahrzeuge…' : 'Ładowanie pojazdów…'}</div>
+                  ) : filteredVehicles.length === 0 ? (
+                    <div className="px-3 py-6 text-center text-xs text-muted">{de ? 'Keine Treffer' : 'Brak wyników'}</div>
+                  ) : (
+                    filteredVehicles.map((v) => (
+                      <label key={v.vehicle_id} className="flex cursor-pointer items-center gap-2 border-b px-3 py-2 text-sm last:border-0 hover:bg-gray-50">
+                        <input type="checkbox" checked={fVehs.includes(v.vehicle_id)} onChange={() => toggleVeh(v.vehicle_id)} />
+                        <span className="flex-1">{v.vehicle_name}{v.driver_name ? <span className="text-gray-400"> — {v.driver_name}</span> : null}</span>
+                      </label>
+                    ))
+                  )}
+                </div>
               </div>
+
               <div>
                 <label className="mb-1 block text-xs font-semibold text-muted">
                   {de ? 'Beschreibung' : 'Opis'} <span className="text-gray-400">({de ? 'optional' : 'opcjonalnie'})</span>
                 </label>
                 <input value={fLabel} onChange={(e) => setFLabel(e.target.value)} placeholder={de ? 'z.B. Lieferung #4521' : 'np. Dostawa #4521'} className="w-full rounded-lg border px-3 py-2 text-sm" />
               </div>
+
               <div className="flex gap-2">
                 <button type="button" onClick={() => setFMode('live')} className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium ${fMode === 'live' ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : ''}`}>
-                  {de ? 'Live (letzte Std)' : 'Na żywo (ostatnie h)'}
+                  {de ? 'Live' : 'Na żywo'}
                 </button>
                 <button type="button" onClick={() => setFMode('day')} className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium ${fMode === 'day' ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : ''}`}>
                   {de ? 'Bestimmter Tag' : 'Konkretny dzień'}
                 </button>
               </div>
+
               {fMode === 'live' ? (
                 <div>
-                  <label className="mb-1 block text-xs font-semibold text-muted">{de ? 'Verlauf (Stunden)' : 'Historia (godziny)'}</label>
-                  <input type="number" min={1} max={168} value={fHours} onChange={(e) => setFHours(parseInt(e.target.value) || 24)} className="w-full rounded-lg border px-3 py-2 text-sm" />
+                  <label className="mb-1 block text-xs font-semibold text-muted">{de ? 'Verlauf' : 'Historia'}</label>
+                  <select value={fHours} onChange={(e) => setFHours(parseInt(e.target.value))} className="w-full rounded-lg border px-3 py-2 text-sm">
+                    {LIVE_PRESETS.map((p) => (
+                      <option key={p.h} value={p.h}>{de ? p.de : p.pl}</option>
+                    ))}
+                  </select>
                 </div>
               ) : (
-                <div>
-                  <label className="mb-1 block text-xs font-semibold text-muted">{de ? 'Tag' : 'Dzień'}</label>
-                  <input type="date" value={fDay} onChange={(e) => setFDay(e.target.value)} className="w-full rounded-lg border px-3 py-2 text-sm" />
+                <div className="space-y-3">
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold text-muted">{de ? 'Tag' : 'Dzień'}</label>
+                    <input type="date" value={fDay} onChange={(e) => setFDay(e.target.value)} className="w-full rounded-lg border px-3 py-2 text-sm" />
+                  </div>
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <label className="mb-1 block text-xs font-semibold text-muted">{de ? 'Von' : 'Od godz.'} <span className="text-gray-400">({de ? 'optional' : 'opcj.'})</span></label>
+                      <input type="time" value={fFrom} onChange={(e) => setFFrom(e.target.value)} className="w-full rounded-lg border px-3 py-2 text-sm" />
+                    </div>
+                    <div className="flex-1">
+                      <label className="mb-1 block text-xs font-semibold text-muted">{de ? 'Bis' : 'Do godz.'} <span className="text-gray-400">({de ? 'optional' : 'opcj.'})</span></label>
+                      <input type="time" value={fTo} onChange={(e) => setFTo(e.target.value)} className="w-full rounded-lg border px-3 py-2 text-sm" />
+                    </div>
+                  </div>
                 </div>
               )}
+
               <div>
                 <label className="mb-1 block text-xs font-semibold text-muted">{de ? 'Ablauf' : 'Wygaśnięcie'}</label>
                 <select value={fExpire} onChange={(e) => setFExpire(parseInt(e.target.value))} className="w-full rounded-lg border px-3 py-2 text-sm">
