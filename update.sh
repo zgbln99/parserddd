@@ -17,11 +17,18 @@ set -e
 main() {
     BRANCH="${1:-claude/youthful-bardeen-4zn5jw}"
     APP_DIR="$(cd "$(dirname "$0")" && pwd)"
-    GUNICORN="$(command -v gunicorn || echo /usr/local/bin/gunicorn)"
+    # Run gunicorn THROUGH the Python interpreter (avoids systemd 203/EXEC from
+    # the console-script shebang/exec bit). Mirrors the manual invocation.
+    PYTHON="$(command -v python3.12 || command -v python3 || echo /usr/local/bin/python3.12)"
+    GUNICORN_BIN="$(command -v gunicorn || echo /usr/local/bin/gunicorn)"
     PORT="${PORT:-8000}"
     SERVICE="ddd-reader"
 
     cd "$APP_DIR"
+
+    if ! "$PYTHON" -c 'import gunicorn' 2>/dev/null; then
+        echo "!! UWAGA: $PYTHON nie widzi modulu gunicorn (sprobuj: $PYTHON -m pip install gunicorn)"
+    fi
 
     echo "== [1/4] Pobieranie kodu ($BRANCH) =="
     git fetch origin "$BRANCH"
@@ -36,7 +43,7 @@ After=network.target
 [Service]
 User=root
 WorkingDirectory=${APP_DIR}
-ExecStart=${GUNICORN} --bind 0.0.0.0:${PORT} --workers 2 --timeout 120 app:app
+ExecStart=${PYTHON} ${GUNICORN_BIN} --bind 0.0.0.0:${PORT} --workers 2 --timeout 120 app:app
 ExecReload=/bin/kill -HUP \$MAINPID
 Restart=always
 RestartSec=5
@@ -56,6 +63,10 @@ EOF
 
     echo "== [4/4] Weryfikacja =="
     systemctl --no-pager -l status "$SERVICE" | head -6 || true
+    if ! systemctl is-active --quiet "$SERVICE"; then
+        echo "!! Usluga nie wstala — ostatnie logi:"
+        journalctl -u "$SERVICE" -n 20 --no-pager || true
+    fi
     echo "--- Samsara (localhost:${PORT}) ---"
     curl -sS "localhost:${PORT}/api/track/samsara/check" 2>&1 | head -3 || true
     echo ""
