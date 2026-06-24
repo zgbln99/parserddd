@@ -732,6 +732,7 @@ export const pl = {
   // Odometer page
   navOdometer: 'Przebieg',
   navFleetMap: 'Mapa floty',
+  navRouteTracking: 'Śledzenie tras',
   navFuelCards: 'Karty paliwowe',
   navSafety: 'Wykroczenia jazdy',
   navDiagnostics: 'Diagnostyka',

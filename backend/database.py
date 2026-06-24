@@ -312,6 +312,33 @@ def init_db():
             '' if engine == 'postgresql' else 'AUTOINCREMENT',
         ))
 
+        # route_shares — public, no-login links to follow a vehicle's/driver's
+        # route on a map with history + reverse-geocoded addresses. A dispatcher
+        # creates a link (vehicle + a live window of N hours, or a specific day),
+        # shares the URL (``/r/<token>``); anyone with the link sees the route
+        # read-only. Links can be disabled and optionally expire.
+        db.executescript('''
+            CREATE TABLE IF NOT EXISTS route_shares (
+                id            {} PRIMARY KEY {},
+                token         TEXT NOT NULL UNIQUE,
+                vehicle_id    TEXT NOT NULL,
+                vehicle_name  TEXT NOT NULL DEFAULT '',
+                driver_name   TEXT NOT NULL DEFAULT '',
+                label         TEXT NOT NULL DEFAULT '',
+                hours         INTEGER NOT NULL DEFAULT 24,
+                day           TEXT NOT NULL DEFAULT '',
+                enabled       INTEGER NOT NULL DEFAULT 1,
+                created_by    TEXT NOT NULL DEFAULT 'admin',
+                created_at    TEXT NOT NULL,
+                expires_at    TEXT NOT NULL DEFAULT '',
+                last_access   TEXT NOT NULL DEFAULT '',
+                access_count  INTEGER NOT NULL DEFAULT 0
+            );
+        '''.format(
+            'SERIAL' if engine == 'postgresql' else 'INTEGER',
+            '' if engine == 'postgresql' else 'AUTOINCREMENT',
+        ))
+
         # vehicle_movement — last-seen-moving timestamps for stop alerts.
         db.executescript('''
             CREATE TABLE IF NOT EXISTS vehicle_movement (

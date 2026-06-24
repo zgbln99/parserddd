@@ -734,6 +734,7 @@ export const de: Record<TranslationKey, string> = {
   // Odometer page
   navOdometer: 'Kilometerstand',
   navFleetMap: 'Flottenkarte',
+  navRouteTracking: 'Routenverfolgung',
   navFuelCards: 'Tankkarten',
   navSafety: 'Fahrverhalten',
   navDiagnostics: 'Diagnose',

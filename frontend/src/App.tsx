@@ -27,6 +27,8 @@ const TollCollectPage = lazy(() => import('./pages/TollCollectPage').then(m => (
 const SamsaraKmPage = lazy(() => import('./pages/SamsaraKmPage').then(m => ({ default: m.SamsaraKmPage })));
 const OdometerPage = lazy(() => import('./pages/OdometerPage').then(m => ({ default: m.OdometerPage })));
 const FleetMapPage = lazy(() => import('./pages/FleetMapPage').then(m => ({ default: m.FleetMapPage })));
+const RouteTrackingPage = lazy(() => import('./pages/RouteTrackingPage').then(m => ({ default: m.RouteTrackingPage })));
+const RouteSharePage = lazy(() => import('./pages/RouteSharePage').then(m => ({ default: m.RouteSharePage })));
 const FuelCardsPage = lazy(() => import('./pages/FuelCardsPage').then(m => ({ default: m.FuelCardsPage })));
 const SafetyEventsPage = lazy(() => import('./pages/SafetyEventsPage').then(m => ({ default: m.SafetyEventsPage })));
 const DiagnosticsPage = lazy(() => import('./pages/DiagnosticsPage').then(m => ({ default: m.DiagnosticsPage })));
@@ -112,7 +114,9 @@ export function App() {
   // Public, token-bearer pages (driver profile, signing) must never show the
   // internal app chrome — even when an admin opens them while logged in.
   const isPublicPage =
-    location.pathname.startsWith('/profil/') || location.pathname.startsWith('/sign/');
+    location.pathname.startsWith('/profil/') ||
+    location.pathname.startsWith('/sign/') ||
+    location.pathname.startsWith('/r/');
 
   return (
     <>
@@ -131,6 +135,8 @@ export function App() {
           <Route path="/sign/:token" element={<SignPage />} />
           {/* Public driver profile — no auth, token-bearer + password */}
           <Route path="/profil/:token" element={<DriverProfilePage />} />
+          {/* Public route tracking — no auth, token-bearer */}
+          <Route path="/r/:token" element={<RouteSharePage />} />
           <Route path="/login" element={loggedIn ? <Navigate to="/" replace /> : <LoginPage />} />
           <Route path="/" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
           <Route path="/drivers" element={<PermissionRoute permission="drivers"><DriversPage /></PermissionRoute>} />
@@ -148,6 +154,7 @@ export function App() {
           <Route path="/samsara-km" element={<PermissionRoute permission="samsara_km"><SamsaraKmPage /></PermissionRoute>} />
           <Route path="/odometer" element={<PermissionRoute permission="vehicles"><OdometerPage /></PermissionRoute>} />
           <Route path="/map" element={<PermissionRoute permission="vehicles"><FleetMapPage /></PermissionRoute>} />
+          <Route path="/route-tracking" element={<PermissionRoute permission="vehicles"><RouteTrackingPage /></PermissionRoute>} />
           <Route path="/fuel-cards" element={<PermissionRoute permission="vehicles"><FuelCardsPage /></PermissionRoute>} />
           <Route path="/safety" element={<PermissionRoute permission="vehicles"><SafetyEventsPage /></PermissionRoute>} />
           <Route path="/diagnostics" element={<PermissionRoute permission="vehicles"><DiagnosticsPage /></PermissionRoute>} />

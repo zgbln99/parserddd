@@ -333,43 +333,55 @@ def api_vehicles_locations():
     return jsonify({'vehicles': rows})
 
 
-@bp.route('/api/vehicles/<vehicle_id>/trail', methods=['GET'])
-@permission_required('vehicles')
-def api_vehicle_trail(vehicle_id):
-    """GPS breadcrumb trail of one vehicle.
+class TrailError(Exception):
+    """Raised when a Samsara trail fetch fails; carries an HTTP status."""
 
-    Either the last N hours (?hours=8, default) or a full historic day
-    (?date=YYYY-MM-DD, interpreted in Europe/Berlin). Returns ordered
-    points (lat/lng/time/speed) for drawing the route on the map.
+    def __init__(self, message, status=502):
+        super().__init__(message)
+        self.status = status
+
+
+def fetch_vehicle_trail(vehicle_id, hours=8, date_str=''):
+    """Fetch one vehicle's GPS breadcrumb trail from Samsara.
+
+    Either the last N hours (``hours``, default 8) or a full historic day
+    (``date_str`` = YYYY-MM-DD, interpreted in Europe/Berlin). Returns
+    ``{'points': [...], 'total_km': float, 'hours': int, 'date': str}`` where
+    each point is ``{lat, lng, time, speed_kmh, location}`` (``location`` is
+    the Samsara reverse-geocoded address). Raises ``TrailError(msg, status)``
+    on misconfiguration or an upstream failure.
+
+    Shared by the authenticated ``/api/vehicles/<id>/trail`` endpoint and the
+    public route-share link, so both render exactly the same route.
     """
     if not SAMSARA_API_TOKEN:
-        return jsonify({'error': 'Samsara API not configured'}), 400
+        raise TrailError('Samsara API not configured', 400)
 
     try:
-        hours = max(1, min(72, int(request.args.get('hours', 8))))
+        hours = max(1, min(168, int(hours)))
     except (TypeError, ValueError):
         hours = 8
 
     now = datetime.now(timezone.utc)
-    date_str = (request.args.get('date') or '').strip()
+    date_str = (date_str or '').strip()
     if date_str:
         try:
             day = datetime.strptime(date_str, '%Y-%m-%d')
         except ValueError:
-            return jsonify({'error': 'date must be YYYY-MM-DD'}), 400
+            raise TrailError('date must be YYYY-MM-DD', 400)
         day_start = day.replace(tzinfo=CET)
         day_end = day_start + timedelta(days=1)
         start_dt = day_start.astimezone(timezone.utc)
         end_dt = min(day_end.astimezone(timezone.utc), now)
         if end_dt <= start_dt:
-            return jsonify({'vehicle_id': vehicle_id, 'hours': 24, 'points': []})
+            return {'points': [], 'total_km': 0.0, 'hours': hours, 'date': date_str}
         start_time = start_dt.replace(microsecond=0).isoformat().replace('+00:00', 'Z')
         end_time = end_dt.replace(microsecond=0).isoformat().replace('+00:00', 'Z')
     else:
         start_time = (now.replace(microsecond=0) - timedelta(hours=hours)).isoformat().replace('+00:00', 'Z')
         end_time = now.replace(microsecond=0).isoformat().replace('+00:00', 'Z')
-    headers = {'Authorization': f'Bearer {SAMSARA_API_TOKEN}'}
 
+    headers = {'Authorization': f'Bearer {SAMSARA_API_TOKEN}'}
     points = []
     after = None
     for _ in range(50):
@@ -387,10 +399,12 @@ def api_vehicle_trail(vehicle_id):
                 headers=headers, params=params, timeout=30,
             )
             if resp.status_code != 200:
-                return jsonify({'error': f'Samsara API error: {resp.status_code}'}), 502
+                raise TrailError(f'Samsara API error: {resp.status_code}', 502)
             data = resp.json()
+        except TrailError:
+            raise
         except Exception as e:
-            return jsonify({'error': str(e)}), 502
+            raise TrailError(str(e), 502)
 
         for entry in data.get('data', []):
             for gp in entry.get('gps', []):
@@ -425,12 +439,28 @@ def api_vehicle_trail(vehicle_id):
         except Exception:
             continue
 
-    _log_activity('vehicle_trail', f'{vehicle_id}: {len(points)} pts / {round(total_km, 1)} km')
+    return {'points': points, 'total_km': round(total_km, 1), 'hours': hours, 'date': date_str}
+
+
+@bp.route('/api/vehicles/<vehicle_id>/trail', methods=['GET'])
+@permission_required('vehicles')
+def api_vehicle_trail(vehicle_id):
+    """GPS breadcrumb trail of one vehicle (last N hours or a historic day)."""
+    try:
+        hours = int(request.args.get('hours', 8))
+    except (TypeError, ValueError):
+        hours = 8
+    date_str = (request.args.get('date') or '').strip()
+    try:
+        result = fetch_vehicle_trail(vehicle_id, hours=hours, date_str=date_str)
+    except TrailError as e:
+        return jsonify({'error': str(e)}), e.status
+    _log_activity('vehicle_trail', f"{vehicle_id}: {len(result['points'])} pts / {result['total_km']} km")
     return jsonify({
         'vehicle_id': vehicle_id,
-        'hours': hours,
-        'points': points,
-        'total_km': round(total_km, 1),
+        'hours': result['hours'],
+        'points': result['points'],
+        'total_km': result['total_km'],
     })
 
 

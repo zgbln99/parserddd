@@ -163,6 +163,78 @@ export const fetchVehicleTrail = (vehicleId: string, hours = 8, date?: string) =
     `/api/vehicles/${encodeURIComponent(vehicleId)}/trail?hours=${hours}${date ? `&date=${date}` : ''}`,
   );
 
+// ---- Route tracking / public share links ----
+export interface RouteShare {
+  id: number;
+  token: string;
+  vehicle_id: string;
+  vehicle_name: string;
+  driver_name: string;
+  label: string;
+  hours: number;
+  day: string;
+  enabled: boolean;
+  created_at: string;
+  expires_at: string;
+  last_access: string;
+  access_count: number;
+  url: string;
+  expired: boolean;
+}
+
+export interface CreateRouteShareInput {
+  vehicle_id: string;
+  vehicle_name?: string;
+  driver_name?: string;
+  label?: string;
+  hours?: number;
+  day?: string;
+  expires_in_days?: number;
+}
+
+export const fetchRouteShares = () =>
+  request<{ shares: RouteShare[] }>('/api/route-shares');
+
+export const createRouteShare = (input: CreateRouteShareInput) =>
+  request<RouteShare>('/api/route-shares', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+
+export const toggleRouteShare = (id: number, enabled: boolean) =>
+  request<RouteShare>(`/api/route-shares/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ enabled }),
+  });
+
+export const deleteRouteShare = (id: number) =>
+  request<{ ok: boolean }>(`/api/route-shares/${id}`, { method: 'DELETE' });
+
+export interface PublicRoute {
+  label: string;
+  driver_name: string;
+  vehicle_name: string;
+  day: string;
+  hours: number;
+  live: boolean;
+  points: TrailPoint[];
+  total_km: number;
+  updated_at: string;
+}
+
+// Public route view — plain fetch (no credentials / no 401-redirect) so a
+// visitor is never bounced to /login; an invalid/expired token returns 404.
+export async function fetchPublicRoute(token: string): Promise<PublicRoute> {
+  const res = await fetch(`/api/route-share/${encodeURIComponent(token)}`);
+  const text = await res.text();
+  let data: any;
+  try { data = JSON.parse(text); } catch { throw new Error(`HTTP ${res.status}`); }
+  if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
+  return data as PublicRoute;
+}
+
 export interface SafetyEvent {
   time: string;
   vehicle_name: string;
