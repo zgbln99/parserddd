@@ -1,10 +1,11 @@
 import { useRef, useEffect, useState } from 'react';
 import { useI18n } from '../../i18n';
-import { Download, FileText, Printer, Table2, Sheet, Scale, Clock, ChevronDown } from 'lucide-react';
+import { Download, FileText, Printer, Table2, Sheet, Scale, Clock, CalendarClock, ChevronDown } from 'lucide-react';
 
 export interface ExportDropdownProps {
   onXlsx: () => void;
   onCsv: () => void;
+  onArbeitszeitenCsv: () => void;
   onPdf: () => void;
   onArbeitszeitPdf: () => void;
   onDatev: () => void;
@@ -17,6 +18,7 @@ export interface ExportDropdownProps {
 export function ExportDropdown({
   onXlsx,
   onCsv,
+  onArbeitszeitenCsv,
   onPdf,
   onArbeitszeitPdf,
   onDatev,
@@ -57,6 +59,9 @@ export function ExportDropdown({
             </button>}
             {fv('export_csv') && <button onClick={() => { onCsv(); setExportOpen(false); }} className="flex w-full items-center gap-3 px-4 py-2 text-[13px] text-ink hover:bg-[#f7f9fc] dark:hover:bg-white/5 transition">
               <Download size={14} className="text-muted" /> {t('analysisExportCsv')}
+            </button>}
+            {fv('export_arbeitszeiten_csv') && <button onClick={() => { onArbeitszeitenCsv(); setExportOpen(false); }} className="flex w-full items-center gap-3 px-4 py-2 text-[13px] text-ink hover:bg-[#f7f9fc] dark:hover:bg-white/5 transition">
+              <CalendarClock size={14} className="text-sky-500" /> {t('analysisExportArbeitszeiten')}
             </button>}
             {fv('export_pdf') && <button onClick={() => { onPdf(); setExportOpen(false); }} className="flex w-full items-center gap-3 px-4 py-2 text-[13px] text-ink hover:bg-[#f7f9fc] dark:hover:bg-white/5 transition">
               <FileText size={14} className="text-muted" /> {t('analysisExportPdf')}

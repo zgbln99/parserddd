@@ -360,6 +360,11 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
     exportCsv(di.driver_name || 'driver', shifts);
   };
 
+  const handleArbeitszeitenCsv = async () => {
+    const { exportArbeitszeitenCsv } = await import('../lib/export-arbeitszeiten');
+    exportArbeitszeitenCsv(di.driver_name || 'Fahrer', shifts);
+  };
+
   const handlePdfExport = async () => {
     const { generateAnalysisPdf } = await import('../lib/pdf-generator');
     generateAnalysisPdf(di.driver_name || 'Fahrer', di.card_number || '', s as any, shifts as any);
@@ -1057,6 +1062,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
         <ExportDropdown
           onXlsx={handleXlsxExport}
           onCsv={handleExport}
+          onArbeitszeitenCsv={handleArbeitszeitenCsv}
           onPdf={handlePdfExport}
           onArbeitszeitPdf={handleArbeitszeitPdf}
           onDatev={handleDatevExport}

@@ -131,6 +131,7 @@ export const de: Record<TranslationKey, string> = {
   analysisValidUntil: 'Gültig bis',
   analysisShifts: 'Schichten',
   analysisExportCsv: 'CSV-Export',
+  analysisExportArbeitszeiten: 'Arbeitszeiten (CSV)',
   analysisTotalShifts: 'Schichten gesamt',
   analysisDietCount: 'Verpflegungspauschalen',
   analysisDateFilter: 'Schichten filtern',

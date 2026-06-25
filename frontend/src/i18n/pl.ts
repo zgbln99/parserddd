@@ -129,6 +129,7 @@ export const pl = {
   analysisValidUntil: 'Ważna do',
   analysisShifts: 'Zmiany',
   analysisExportCsv: 'Eksport CSV',
+  analysisExportArbeitszeiten: 'Czas pracy (CSV, DE)',
   analysisTotalShifts: 'Łącznie zmian',
   analysisDietCount: 'Diety',
   analysisDateFilter: 'Filtruj zmiany',
