@@ -3,18 +3,40 @@
 // front and centre, for payroll / time tracking. Built client-side from the
 // shifts already loaded in the analysis. Semicolon-delimited + UTF-8 BOM so
 // it opens correctly (umlauts, columns) in German Excel.
-import type { ShiftDetail } from '../types';
+import type { ShiftDetail, TimeSegment } from '../types';
 
 // The shift data carries Polish weekday codes (see ShiftTable); map to German.
 const WEEKDAY_DE: Record<string, string> = {
   Pn: 'Mo', Wt: 'Di', 'Śr': 'Mi', Cz: 'Do', Pt: 'Fr', So: 'Sa', Nd: 'So',
 };
 
-/** "YYYY-MM-DD HH:MM" or "HH:MM" -> "HH:MM" (empty-safe). */
-function hhmm(v: string): string {
+/** Extract "HH:MM" from a value that may be "YYYY-MM-DD HH:MM",
+ *  "YYYY-MM-DDTHH:MM:SS", or already "HH:MM" — empty-safe. */
+function pickTime(v: string): string {
   if (!v) return '';
-  const part = v.includes(' ') ? v.split(' ')[1] : v;
-  return (part || '').slice(0, 5);
+  const m = /(\d{1,2}):(\d{2})/.exec(String(v));
+  return m ? `${m[1].padStart(2, '0')}:${m[2]}` : '';
+}
+
+/** All activity segments of a shift (driving + break). */
+function segTimes(sh: ShiftDetail): TimeSegment[] {
+  return [...(sh.driving_segments || []), ...(sh.break_segments || [])];
+}
+
+/** Shift start time — from shift_start, else the earliest activity segment. */
+function startTime(sh: ShiftDetail): string {
+  const t = pickTime(sh.shift_start);
+  if (t) return t;
+  const starts = segTimes(sh).map((s) => s && s.start).filter(Boolean).sort();
+  return starts.length ? pickTime(starts[0]) : '';
+}
+
+/** Shift end time — from shift_end, else the latest activity segment. */
+function endTime(sh: ShiftDetail): string {
+  const t = pickTime(sh.shift_end);
+  if (t) return t;
+  const ends = segTimes(sh).map((s) => s && s.end).filter(Boolean).sort();
+  return ends.length ? pickTime(ends[ends.length - 1]) : '';
 }
 
 /** ISO "YYYY-MM-DD" -> German "DD.MM.YYYY". */
@@ -75,8 +97,8 @@ export function exportArbeitszeitenCsv(driverName: string, shifts: ShiftDetail[]
     return csvRow([
       germanDate(sh.shift_date),
       WEEKDAY_DE[sh.weekday] ?? sh.weekday ?? '',
-      hhmm(sh.shift_start),
-      hhmm(sh.shift_end),
+      startTime(sh),
+      endTime(sh),
       sh.break_hm || minToHm(sh.break_minutes),
       sh.work_hm || minToHm(sh.work_minutes),
       decimalH(sh.work_minutes || 0),

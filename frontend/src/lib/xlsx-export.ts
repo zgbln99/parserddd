@@ -20,6 +20,8 @@ interface ShiftRow {
   work_minutes: number;
   driving_minutes: number;
   break_minutes: number;
+  driving_segments?: { start: string; end: string }[];
+  break_segments?: { start: string; end: string }[];
 }
 
 interface Summary {
@@ -194,10 +196,27 @@ const AZ_WEEKDAY_DE: Record<string, string> = {
 const FILL_WEEKEND = { fgColor: { rgb: 'FCEBEA' } }; // soft rose for Sa/So rows
 const FONT_DANGER = { name: 'Calibri', sz: 10, bold: true, color: { rgb: 'C0392B' } };
 
-function azHhmm(v: string): string {
+function azPickTime(v: string): string {
   if (!v) return '';
-  const part = v.includes(' ') ? v.split(' ')[1] : v;
-  return (part || '').slice(0, 5);
+  const m = /(\d{1,2}):(\d{2})/.exec(String(v));
+  return m ? `${m[1].padStart(2, '0')}:${m[2]}` : '';
+}
+function azSegs(sh: ShiftRow): { start: string; end: string }[] {
+  return [...(sh.driving_segments || []), ...(sh.break_segments || [])];
+}
+/** Shift start time — from shift_start, else the earliest activity segment. */
+function azStartTime(sh: ShiftRow): string {
+  const t = azPickTime(sh.shift_start);
+  if (t) return t;
+  const starts = azSegs(sh).map((s) => s && s.start).filter(Boolean).sort();
+  return starts.length ? azPickTime(starts[0]) : '';
+}
+/** Shift end time — from shift_end, else the latest activity segment. */
+function azEndTime(sh: ShiftRow): string {
+  const t = azPickTime(sh.shift_end);
+  if (t) return t;
+  const ends = azSegs(sh).map((s) => s && s.end).filter(Boolean).sort();
+  return ends.length ? azPickTime(ends[ends.length - 1]) : '';
 }
 function azGermanDate(iso: string): string {
   if (!iso) return '';
@@ -250,8 +269,8 @@ export function exportArbeitszeitenXlsx(driverName: string, shifts: ShiftRow[]) 
     return [
       azGermanDate(sh.shift_date),
       wd,
-      azHhmm(sh.shift_start),
-      azHhmm(sh.shift_end),
+      azStartTime(sh),
+      azEndTime(sh),
       azMinToHm(sh.break_minutes),
       azMinToHm(sh.work_minutes),
       Math.round(((sh.work_minutes || 0) / 60) * 100) / 100,
