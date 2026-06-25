@@ -130,6 +130,7 @@ export const pl = {
   analysisShifts: 'Zmiany',
   analysisExportCsv: 'Eksport CSV',
   analysisExportArbeitszeiten: 'Czas pracy (CSV, DE)',
+  analysisExportArbeitszeitenXlsx: 'Czas pracy (Excel, DE)',
   analysisTotalShifts: 'Łącznie zmian',
   analysisDietCount: 'Diety',
   analysisDateFilter: 'Filtruj zmiany',

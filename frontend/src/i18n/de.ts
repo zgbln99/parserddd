@@ -132,6 +132,7 @@ export const de: Record<TranslationKey, string> = {
   analysisShifts: 'Schichten',
   analysisExportCsv: 'CSV-Export',
   analysisExportArbeitszeiten: 'Arbeitszeiten (CSV)',
+  analysisExportArbeitszeitenXlsx: 'Arbeitszeiten (Excel)',
   analysisTotalShifts: 'Schichten gesamt',
   analysisDietCount: 'Verpflegungspauschalen',
   analysisDateFilter: 'Schichten filtern',

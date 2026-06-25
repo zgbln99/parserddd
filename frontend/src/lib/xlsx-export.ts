@@ -185,6 +185,171 @@ function styleRange(ws: XLSX.WorkSheet, r1: number, c1: number, r2: number, c2: 
   }
 }
 
+// ── Arbeitszeiten (work hours) — a clean, German Excel sheet for ONE driver,
+//    focused on the start/end of each working day. The styled counterpart to
+//    the Arbeitszeiten CSV; reuses the house header/zebra/totals styling.
+const AZ_WEEKDAY_DE: Record<string, string> = {
+  Pn: 'Mo', Wt: 'Di', 'Śr': 'Mi', Cz: 'Do', Pt: 'Fr', So: 'Sa', Nd: 'So',
+};
+const FILL_WEEKEND = { fgColor: { rgb: 'FCEBEA' } }; // soft rose for Sa/So rows
+const FONT_DANGER = { name: 'Calibri', sz: 10, bold: true, color: { rgb: 'C0392B' } };
+
+function azHhmm(v: string): string {
+  if (!v) return '';
+  const part = v.includes(' ') ? v.split(' ')[1] : v;
+  return (part || '').slice(0, 5);
+}
+function azGermanDate(iso: string): string {
+  if (!iso) return '';
+  const p = iso.slice(0, 10).split('-');
+  return p.length === 3 ? `${p[2]}.${p[1]}.${p[0]}` : iso;
+}
+function azMinToHm(min: number): string {
+  const m = Math.max(0, Math.round(min || 0));
+  return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+}
+
+export function exportArbeitszeitenXlsx(driverName: string, shifts: ShiftRow[]) {
+  const wb = XLSX.utils.book_new();
+
+  const sorted = [...(shifts || [])].sort((a, b) =>
+    (a.shift_start || a.shift_date || '').localeCompare(b.shift_start || b.shift_date || ''),
+  );
+
+  const headers = [
+    'Datum', 'Wochentag', 'Arbeitsbeginn', 'Arbeitsende',
+    'Pause', 'Arbeitszeit', 'Std.', 'Lenkzeit', 'Fahrzeug',
+  ];
+  const COLS = headers.length; // 9
+  const STD_COL = 6;           // "Std." — the one true-number column
+
+  // Period label for the subtitle (MM.YYYY, or a range across months).
+  const dates = sorted.map((s) => s.shift_date).filter(Boolean).sort();
+  let zeitraum = '';
+  if (dates.length) {
+    const f = dates[0];
+    const l = dates[dates.length - 1];
+    zeitraum = f.slice(0, 7) === l.slice(0, 7)
+      ? azGermanDate(f).slice(3)
+      : `${azGermanDate(f)} – ${azGermanDate(l)}`;
+  }
+
+  const HDR_ROW = 4;           // 0..3 = title block, 4 = header
+  const DATA_START = HDR_ROW + 1;
+
+  let sumWork = 0;
+  let sumBreak = 0;
+  let sumDrive = 0;
+  const weekendFlags: boolean[] = [];
+  const bodyRows: (string | number)[][] = sorted.map((sh) => {
+    sumWork += sh.work_minutes || 0;
+    sumBreak += sh.break_minutes || 0;
+    sumDrive += sh.driving_minutes || 0;
+    const wd = AZ_WEEKDAY_DE[sh.weekday] ?? sh.weekday ?? '';
+    weekendFlags.push(wd === 'Sa' || wd === 'So');
+    return [
+      azGermanDate(sh.shift_date),
+      wd,
+      azHhmm(sh.shift_start),
+      azHhmm(sh.shift_end),
+      azMinToHm(sh.break_minutes),
+      azMinToHm(sh.work_minutes),
+      Math.round(((sh.work_minutes || 0) / 60) * 100) / 100,
+      azMinToHm(sh.driving_minutes),
+      (sh.vehicles || []).join(', '),
+    ];
+  });
+
+  const totalsRow: (string | number)[] = [
+    'Summe', '', '', '',
+    azMinToHm(sumBreak), azMinToHm(sumWork),
+    Math.round((sumWork / 60) * 100) / 100,
+    azMinToHm(sumDrive), '',
+  ];
+
+  const aoa: (string | number)[][] = [
+    ['Arbeitszeiten'],
+    [driverName || 'Fahrer'],
+    [zeitraum ? `Zeitraum: ${zeitraum}` : ''],
+    [],
+    headers,
+    ...bodyRows,
+    totalsRow,
+  ];
+  const TOTALS_ROW = DATA_START + bodyRows.length;
+
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [
+    { wch: 12 }, { wch: 11 }, { wch: 14 }, { wch: 13 },
+    { wch: 9 }, { wch: 12 }, { wch: 9 }, { wch: 11 }, { wch: 28 },
+  ];
+  ws['!merges'] = [
+    { s: { r: 0, c: 0 }, e: { r: 0, c: COLS - 1 } },
+    { s: { r: 1, c: 0 }, e: { r: 1, c: COLS - 1 } },
+    { s: { r: 2, c: 0 }, e: { r: 2, c: COLS - 1 } },
+  ];
+  ws['!rows'] = [{ hpt: 22 }, { hpt: 18 }, { hpt: 16 }, { hpt: 6 }, { hpt: 20 }];
+  ws['!freeze'] = { xSplit: 0, ySplit: DATA_START };
+  ws['!autofilter'] = {
+    ref: XLSX.utils.encode_range({ s: { r: HDR_ROW, c: 0 }, e: { r: TOTALS_ROW - 1, c: COLS - 1 } }),
+  };
+
+  // Title block
+  styleRange(ws, 0, 0, 0, COLS - 1, { font: FONT_TITLE });
+  styleRange(ws, 1, 0, 1, COLS - 1, { font: FONT_SUBTITLE });
+  styleRange(ws, 2, 0, 2, COLS - 1, { font: FONT_META });
+
+  // Header row — white on dark blue
+  const alignFor = (c: number): 'left' | 'center' | 'right' => {
+    if (c === STD_COL) return 'right';
+    if (c >= 2 && c <= 7) return 'center';
+    return 'left';
+  };
+  for (let c = 0; c < COLS; c++) {
+    styleCell(ws, HDR_ROW, c, {
+      font: { ...FONT_BOLD, color: { rgb: 'FFFFFF' } },
+      fill: FILL_HEADER,
+      border: BORDERS_ALL,
+      alignment: { horizontal: alignFor(c), vertical: 'center', wrapText: true },
+    });
+  }
+
+  // Data rows — zebra, with weekends tinted rose and the weekday in red
+  for (let i = 0; i < bodyRows.length; i++) {
+    const r = DATA_START + i;
+    const isWeekend = weekendFlags[i];
+    const isAlt = i % 2 === 1;
+    const rowFill = isWeekend ? FILL_WEEKEND : (isAlt ? FILL_ALT : undefined);
+    for (let c = 0; c < COLS; c++) {
+      styleCell(ws, r, c, {
+        font: c === 1 ? (isWeekend ? FONT_DANGER : FONT_BOLD) : FONT_DEFAULT,
+        border: BORDERS_ALL,
+        fill: rowFill,
+        alignment: { horizontal: alignFor(c), vertical: 'center' },
+      });
+    }
+    applyNumberFormat(ws, r, STD_COL, '0.00');
+  }
+
+  // Totals row
+  for (let c = 0; c < COLS; c++) {
+    styleCell(ws, TOTALS_ROW, c, {
+      font: { ...FONT_BOLD, sz: 11 },
+      fill: FILL_TOTAL,
+      border: BORDER_BOTTOM_THICK,
+      alignment: { horizontal: alignFor(c), vertical: 'center' },
+    });
+  }
+  applyNumberFormat(ws, TOTALS_ROW, STD_COL, '0.00');
+
+  XLSX.utils.book_append_sheet(wb, ws, 'Arbeitszeiten');
+
+  const safeName = (driverName || 'Fahrer')
+    .replace(/[^a-zA-Z0-9äöüÄÖÜß _-]/g, '').trim().replace(/\s+/g, '_') || 'Fahrer';
+  const period = dates.length ? dates[0].slice(0, 7) : '';
+  XLSX.writeFile(wb, `Arbeitszeiten_${safeName}${period ? '_' + period : ''}.xlsx`);
+}
+
 export function exportTollToXlsx(
   vehicles: TollVehicleGroup[],
   period: string,
