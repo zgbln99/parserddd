@@ -311,6 +311,31 @@ export const updateFuelCard = (id: number, payload: FuelCardPayload) =>
 export const deleteFuelCard = (id: number) =>
   request<{ ok: boolean }>(`/api/fuel-cards/${id}`, { method: 'DELETE' });
 
+export interface BulkFuelCardInput {
+  provider: string;
+  driver_name: string;
+  vehicle_name: string;
+  monthly_limit_eur: number;
+  expiry_date: string;
+  status: 'active' | 'ordered' | 'blocked';
+  notes: string;
+  cards: string[];
+}
+
+export interface BulkFuelCardResult {
+  inserted: number;
+  skipped_duplicates: number;
+  skipped_blank: number;
+  total: number;
+}
+
+export const bulkCreateFuelCards = (payload: BulkFuelCardInput) =>
+  request<BulkFuelCardResult>('/api/fuel-cards/bulk', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
 // Vehicle deadlines (TÜV/HU, insurance, ADR, tacho calibration…)
 export interface VehicleDeadline {
   id: number;

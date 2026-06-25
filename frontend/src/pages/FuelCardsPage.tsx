@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   CreditCard, Search, Plus, Pencil, Trash2, AlertTriangle, Fuel, Truck, PackageOpen,
+  Layers, CheckCircle2,
 } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { Card, StatCard } from '../components/Card';
@@ -9,9 +10,9 @@ import { Spinner } from '../components/Spinner';
 import { Modal } from '../components/Modal';
 import { EmptyState } from '../components/EmptyState';
 import {
-  fetchFuelCards, createFuelCard, updateFuelCard, deleteFuelCard,
+  fetchFuelCards, createFuelCard, updateFuelCard, deleteFuelCard, bulkCreateFuelCards,
   fetchSamsaraVehicles,
-  type FuelCard, type FuelCardPayload, type SamsaraVehicle,
+  type FuelCard, type FuelCardPayload, type SamsaraVehicle, type BulkFuelCardResult,
 } from '../lib/api';
 
 /**
@@ -25,6 +26,30 @@ const EMPTY: FuelCardPayload = {
   provider: '',
   vehicle_name: '',
   driver_name: '',
+  monthly_limit_eur: 0,
+  expiry_date: '',
+  status: 'active',
+  notes: '',
+};
+
+type BulkForm = {
+  provider: string;
+  cards: string;
+  no_driver: boolean;
+  driver_name: string;
+  vehicle_name: string;
+  monthly_limit_eur: number;
+  expiry_date: string;
+  status: FuelCard['status'];
+  notes: string;
+};
+
+const EMPTY_BULK: BulkForm = {
+  provider: '',
+  cards: '',
+  no_driver: true,
+  driver_name: '',
+  vehicle_name: '',
   monthly_limit_eur: 0,
   expiry_date: '',
   status: 'active',
@@ -55,6 +80,13 @@ export function FuelCardsPage() {
   const [form, setForm] = useState<FuelCardPayload>(EMPTY);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
+
+  // bulk import modal
+  const [showBulk, setShowBulk] = useState(false);
+  const [bulk, setBulk] = useState<BulkForm>(EMPTY_BULK);
+  const [bulkSaving, setBulkSaving] = useState(false);
+  const [bulkError, setBulkError] = useState('');
+  const [bulkResult, setBulkResult] = useState<BulkFuelCardResult | null>(null);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -131,6 +163,48 @@ export function FuelCardsPage() {
       setFormError(e instanceof Error ? e.message : String(e));
     } finally {
       setSaving(false);
+    }
+  };
+
+  const openBulk = () => {
+    setBulk(EMPTY_BULK);
+    setBulkError('');
+    setBulkResult(null);
+    setShowBulk(true);
+  };
+
+  const bulkCount = useMemo(
+    () => bulk.cards.split('\n').map((s) => s.trim()).filter(Boolean).length,
+    [bulk.cards],
+  );
+
+  const handleBulkSave = async () => {
+    const cards = bulk.cards.split('\n').map((s) => s.trim()).filter(Boolean);
+    if (cards.length === 0) {
+      setBulkError(de ? 'Bitte mindestens eine Karte eingeben.' : 'Wpisz przynajmniej jedną kartę.');
+      return;
+    }
+    setBulkSaving(true);
+    setBulkError('');
+    setBulkResult(null);
+    try {
+      const res = await bulkCreateFuelCards({
+        provider: bulk.provider.trim(),
+        driver_name: bulk.no_driver ? '' : bulk.driver_name.trim(),
+        vehicle_name: bulk.vehicle_name.trim(),
+        monthly_limit_eur: bulk.monthly_limit_eur || 0,
+        expiry_date: bulk.expiry_date,
+        status: bulk.status,
+        notes: bulk.notes.trim(),
+        cards,
+      });
+      setBulkResult(res);
+      setBulk((b) => ({ ...b, cards: '' }));
+      load();
+    } catch (e) {
+      setBulkError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBulkSaving(false);
     }
   };
 
@@ -218,6 +292,13 @@ export function FuelCardsPage() {
           ))}
         </div>
         <div className="flex-1" />
+        <button
+          onClick={openBulk}
+          className="btn-press inline-flex items-center justify-center gap-2 rounded-xl border border-border px-4 py-2 text-sm font-semibold text-ink transition hover:bg-surface"
+        >
+          <Layers size={15} />
+          {de ? 'Massenimport' : 'Masowe dodawanie'}
+        </button>
         <button
           onClick={openCreate}
           className="btn-primary btn-press inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold"
@@ -433,6 +514,160 @@ export function FuelCardsPage() {
               className="btn-primary btn-press px-4 py-2 text-sm font-semibold disabled:opacity-50"
             >
               {saving ? <Spinner size="sm" /> : (de ? 'Speichern' : 'Zapisz')}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Bulk import modal — many cards for one provider at once */}
+      <Modal
+        open={showBulk}
+        onClose={() => setShowBulk(false)}
+        title={de ? 'Tankkarten – Massenimport' : 'Karty paliwowe – masowe dodawanie'}
+      >
+        <div className="space-y-3">
+          <p className="text-xs text-muted">
+            {de
+              ? 'Eine Karte pro Zeile. Es zählt die Kartennummer bzw. der Kartenname – ein Kennzeichen ist nicht nötig. Anbieter und die Felder unten gelten für alle Karten der Liste.'
+              : 'Jedna karta na linię. Wpisz numer lub nazwę karty – tablica rejestracyjna nie jest wymagana. Dostawca i pola poniżej zostaną przypisane do wszystkich kart z listy.'}
+          </p>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="text-sm">
+              <span className="mb-1 block text-xs font-medium text-muted">{de ? 'Anbieter (für alle)' : 'Dostawca (dla wszystkich)'}</span>
+              <input
+                type="text"
+                list="fuel-providers"
+                value={bulk.provider}
+                onChange={(e) => setBulk({ ...bulk, provider: e.target.value })}
+                className="input w-full rounded-xl px-3 py-2 text-sm"
+                placeholder="Hoyer / Aral / Star…"
+              />
+            </label>
+            <div className="text-sm">
+              <span className="mb-1 block text-xs font-medium text-muted">Status</span>
+              <div className="flex gap-1.5">
+                {(['active', 'ordered', 'blocked'] as const).map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => setBulk({ ...bulk, status: s })}
+                    className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                      bulk.status === s ? 'bg-primary-600 text-white' : 'border border-border text-muted hover:bg-surface'
+                    }`}
+                  >
+                    {s === 'active' ? (de ? 'Aktiv' : 'Aktywna') : s === 'ordered' ? (de ? 'Bestellt' : 'Zamówiona') : (de ? 'Gesperrt' : 'Zablokowana')}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <label className="block text-sm">
+            <div className="mb-1 flex items-center justify-between">
+              <span className="text-xs font-medium text-muted">
+                {de ? 'Kartennummern / -namen (eine pro Zeile)' : 'Numery / nazwy kart (jedna na linię)'}
+              </span>
+              {bulkCount > 0 && (
+                <span className="text-xs font-semibold text-primary-600">
+                  {bulkCount} {de ? 'Karten' : 'kart'}
+                </span>
+              )}
+            </div>
+            <textarea
+              value={bulk.cards}
+              onChange={(e) => setBulk({ ...bulk, cards: e.target.value })}
+              rows={7}
+              className="input w-full rounded-xl px-3 py-2 font-mono text-sm"
+              placeholder={
+                de
+                  ? 'Karte-A\nKarte-B\n7088 0012 3456 7890\n\n(optional pro Zeile: Karte ; Fahrer ; Fahrzeug)'
+                  : 'Karta-A\nKarta-B\n7088 0012 3456 7890\n\n(opcjonalnie w linii: Karta ; Kierowca ; Pojazd)'
+              }
+              autoFocus
+            />
+          </label>
+
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={bulk.no_driver}
+              onChange={(e) => setBulk({ ...bulk, no_driver: e.target.checked })}
+              className="h-4 w-4 rounded border-border"
+            />
+            <span className="font-medium text-ink">{de ? 'Keine Fahrerzuordnung' : 'Bez przypisania do kierowcy'}</span>
+          </label>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className={`text-sm ${bulk.no_driver ? 'opacity-50' : ''}`}>
+              <span className="mb-1 block text-xs font-medium text-muted">{de ? 'Fahrer (für alle)' : 'Kierowca (dla wszystkich)'}</span>
+              <input
+                type="text"
+                value={bulk.driver_name}
+                disabled={bulk.no_driver}
+                onChange={(e) => setBulk({ ...bulk, driver_name: e.target.value })}
+                className="input w-full rounded-xl px-3 py-2 text-sm disabled:cursor-not-allowed"
+                placeholder={de ? 'optional' : 'opcjonalnie'}
+              />
+            </label>
+            <label className="text-sm">
+              <span className="mb-1 block text-xs font-medium text-muted">{de ? 'Fahrzeug (für alle)' : 'Pojazd (dla wszystkich)'}</span>
+              <input
+                type="text"
+                list="fuel-vehicles"
+                value={bulk.vehicle_name}
+                onChange={(e) => setBulk({ ...bulk, vehicle_name: e.target.value })}
+                className="input w-full rounded-xl px-3 py-2 text-sm"
+                placeholder={de ? 'optional' : 'opcjonalnie'}
+              />
+            </label>
+            <label className="text-sm">
+              <span className="mb-1 block text-xs font-medium text-muted">{de ? 'Monatslimit (€)' : 'Limit miesięczny (€)'}</span>
+              <input
+                type="number"
+                min={0}
+                step={50}
+                value={bulk.monthly_limit_eur || ''}
+                onChange={(e) => setBulk({ ...bulk, monthly_limit_eur: Number(e.target.value) || 0 })}
+                className="input w-full rounded-xl px-3 py-2 text-sm"
+                placeholder={de ? 'optional' : 'opcjonalnie'}
+              />
+            </label>
+            <label className="text-sm">
+              <span className="mb-1 block text-xs font-medium text-muted">{de ? 'Gültig bis' : 'Ważna do'}</span>
+              <input
+                type="date"
+                value={bulk.expiry_date}
+                onChange={(e) => setBulk({ ...bulk, expiry_date: e.target.value })}
+                className="input w-full rounded-xl px-3 py-2 text-sm dark:[color-scheme:dark]"
+              />
+            </label>
+          </div>
+
+          {bulkResult && (
+            <div className="flex items-start gap-2 rounded-xl bg-green-500/10 px-4 py-2.5 text-sm text-green-700 dark:text-green-300">
+              <CheckCircle2 size={16} className="mt-0.5 shrink-0" />
+              <span>
+                {de ? 'Hinzugefügt' : 'Dodano'}: <b>{bulkResult.inserted}</b>
+                {bulkResult.skipped_duplicates > 0 && (
+                  <> · {de ? 'übersprungen (Duplikate)' : 'pominięto (duplikaty)'}: <b>{bulkResult.skipped_duplicates}</b></>
+                )}
+              </span>
+            </div>
+          )}
+          {bulkError && <p className="text-sm text-danger">{bulkError}</p>}
+
+          <div className="flex justify-end gap-2 pt-1">
+            <button onClick={() => setShowBulk(false)} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-ink transition hover:bg-surface">
+              {de ? 'Schließen' : 'Zamknij'}
+            </button>
+            <button
+              onClick={handleBulkSave}
+              disabled={bulkSaving || bulkCount === 0}
+              className="btn-primary btn-press inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold disabled:opacity-50"
+            >
+              {bulkSaving ? <Spinner size="sm" /> : <Layers size={15} />}
+              {de ? `${bulkCount} Karten hinzufügen` : `Dodaj ${bulkCount} kart`}
             </button>
           </div>
         </div>
