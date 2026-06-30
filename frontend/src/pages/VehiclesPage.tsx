@@ -2,12 +2,14 @@ import { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   Calendar, Truck, RefreshCw, AlertCircle, Printer, MapPin, Search,
   Save, Download, Trash2, ChevronDown, ChevronRight, CheckSquare, Square, FileDown,
+  CalendarDays, CalendarRange,
 } from 'lucide-react';
 // pdf-generator is lazy-loaded on demand (heavy: jsPDF + fonts).
 import { useI18n } from '../i18n';
 import { useDateFilter } from '../hooks/useDateFilter';
 import { fetchSamsaraVehicles, fetchVehicleActivity } from '../lib/api';
 import type { SamsaraVehicle, VehicleActivity, VehicleDebugInfo, VehicleDayActivity } from '../lib/api';
+import { isoWeek, weekKey, weekRange } from '../lib/kw';
 import { Card } from '../components/Card';
 import { Spinner } from '../components/Spinner';
 import { Badge } from '../components/Badge';
@@ -63,6 +65,7 @@ export function VehiclesPage() {
   const [debugInfo, setDebugInfo] = useState<VehicleDebugInfo | null>(null);
   const [timeFrom, setTimeFrom] = useState('');
   const [timeTo, setTimeTo] = useState('');
+  const [dayView, setDayView] = useState<'daily' | 'weekly'>('daily');
 
   // Saved reports
   const [savedReports, setSavedReports] = useState<SavedReport[]>(loadSavedReports);
@@ -436,6 +439,49 @@ export function VehiclesPage() {
   const totalMinutes = useMemo(() => filteredDays.reduce((s, d) => s + d.duration_minutes, 0), [filteredDays]);
   const fmtDuration = (min: number) => `${Math.floor(min / 60)}h ${min % 60}m`;
 
+  // Per-calendar-week (KW) daily averages for the displayed vehicle.
+  const weekSummaries = useMemo(() => {
+    const byWeek = new Map<string, { days: number; km: number; min: number; sample: Date }>();
+    for (const d of filteredDays) {
+      if (d.distance_km <= 0 && d.duration_minutes <= 0) continue; // active days only
+      const dt = new Date(d.date + 'T00:00:00');
+      const key = weekKey(dt);
+      let w = byWeek.get(key);
+      if (!w) { w = { days: 0, km: 0, min: 0, sample: dt }; byWeek.set(key, w); }
+      w.days += 1;
+      w.km += d.distance_km;
+      w.min += d.duration_minutes;
+    }
+    return Array.from(byWeek.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([key, w]) => {
+        const div = w.days || 1;
+        return {
+          key,
+          label: `KW ${isoWeek(w.sample).week}`,
+          range: weekRange(w.sample),
+          days: w.days,
+          totalKm: Math.round(w.km * 10) / 10,
+          avgKmPerDay: Math.round((w.km / div) * 10) / 10,
+          totalMinutes: w.min,
+          avgMinPerDay: Math.round(w.min / div),
+        };
+      });
+  }, [filteredDays]);
+
+  const weekGrand = useMemo(() => {
+    const days = weekSummaries.reduce((s, w) => s + w.days, 0);
+    const km = weekSummaries.reduce((s, w) => s + w.totalKm, 0);
+    const min = weekSummaries.reduce((s, w) => s + w.totalMinutes, 0);
+    const div = days || 1;
+    return {
+      days,
+      km: Math.round(km * 10) / 10,
+      avgKm: Math.round((km / div) * 10) / 10,
+      avgMin: Math.round(min / div),
+    };
+  }, [weekSummaries]);
+
   // Group saved reports by vehicle for display
   const savedByVehicle = useMemo(() => {
     const map = new Map<string, SavedReport[]>();
@@ -654,15 +700,36 @@ export function VehiclesPage() {
 
           {/* Day-by-day table */}
           <Card className="overflow-hidden">
-            <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-3">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-3">
               <h2 className="text-sm font-semibold">{activity.vehicle_name} — {monthLabel(period, locale)}</h2>
-              <button
-                onClick={handleExportCurrentPdf}
-                className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-red-700"
-              >
-                <FileDown size={14} /> {t('analysisExportPdf')}
-              </button>
+              <div className="flex items-center gap-2">
+                <div className="inline-flex rounded-lg border border-border p-0.5 bg-surface">
+                  <button
+                    onClick={() => setDayView('daily')}
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+                      dayView === 'daily' ? 'bg-white dark:bg-gray-700 text-ink shadow-sm' : 'text-muted hover:text-ink'
+                    }`}
+                  >
+                    <CalendarDays size={13} /> {locale === 'de' ? 'Täglich' : 'Dziennie'}
+                  </button>
+                  <button
+                    onClick={() => setDayView('weekly')}
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+                      dayView === 'weekly' ? 'bg-white dark:bg-gray-700 text-ink shadow-sm' : 'text-muted hover:text-ink'
+                    }`}
+                  >
+                    <CalendarRange size={13} /> {locale === 'de' ? 'Ø pro KW' : 'Śr. wg KW'}
+                  </button>
+                </div>
+                <button
+                  onClick={handleExportCurrentPdf}
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-red-700"
+                >
+                  <FileDown size={14} /> {t('analysisExportPdf')}
+                </button>
+              </div>
             </div>
+            {dayView === 'daily' && (<>
             <div className="hidden sm:block overflow-x-auto">
               <table className="w-full min-w-[800px] text-sm">
                 <thead>
@@ -739,6 +806,50 @@ export function VehiclesPage() {
                 <Badge variant="blue">{fmtDuration(totalMinutes)}</Badge>
               </div>
             </div>
+            </>)}
+
+            {/* Ø per calendar week (KW) */}
+            {dayView === 'weekly' && (
+              <div className="overflow-x-auto">
+                {weekSummaries.length === 0 ? (
+                  <p className="px-5 py-8 text-center text-sm text-muted">{t('vehiclesNoActivity')}</p>
+                ) : (
+                  <table className="w-full min-w-[640px] text-sm">
+                    <thead>
+                      <tr className="border-b border-border">
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted">{locale === 'de' ? 'KW' : 'Tydz. (KW)'}</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted">{locale === 'de' ? 'Zeitraum' : 'Okres'}</th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-muted">{locale === 'de' ? 'Tage' : 'Dni'}</th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-blue-600 dark:text-blue-400">{locale === 'de' ? 'Ø km/Tag' : 'Śr. km/dzień'}</th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-muted">{locale === 'de' ? 'Ø Dauer/Tag' : 'Śr. czas/dzień'}</th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-muted">{locale === 'de' ? 'Gesamt km' : 'Razem km'}</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {weekSummaries.map((w) => (
+                        <tr key={w.key} className="transition hover:bg-primary-50/30 dark:hover:bg-white/5">
+                          <td className="whitespace-nowrap px-4 py-2.5 font-semibold">{w.label}</td>
+                          <td className="whitespace-nowrap px-4 py-2.5 text-muted">{w.range}</td>
+                          <td className="whitespace-nowrap px-4 py-2.5 text-right text-muted">{w.days}</td>
+                          <td className="whitespace-nowrap px-4 py-2.5 text-right font-mono font-bold text-blue-600 dark:text-blue-400">{fmtKm(w.avgKmPerDay)}</td>
+                          <td className="whitespace-nowrap px-4 py-2.5 text-right text-muted">{fmtDuration(w.avgMinPerDay)}</td>
+                          <td className="whitespace-nowrap px-4 py-2.5 text-right font-mono">{fmtKm(w.totalKm)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="border-t-2 border-border bg-black/[0.02] font-semibold dark:bg-white/5">
+                        <td className="px-4 py-3" colSpan={2}>{t('vehiclesTotal')}</td>
+                        <td className="px-4 py-3 text-right">{weekGrand.days}</td>
+                        <td className="px-4 py-3 text-right font-mono text-blue-600 dark:text-blue-400">{fmtKm(weekGrand.avgKm)}</td>
+                        <td className="px-4 py-3 text-right"><Badge variant="blue">{fmtDuration(weekGrand.avgMin)}</Badge></td>
+                        <td className="px-4 py-3 text-right font-mono">{fmtKm(weekGrand.km)}</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                )}
+              </div>
+            )}
           </Card>
         </>
       )}
