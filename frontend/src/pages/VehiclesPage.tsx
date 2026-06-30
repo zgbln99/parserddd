@@ -353,6 +353,30 @@ export function VehiclesPage() {
     );
   };
 
+  // Averages export (daily / weekly / monthly) for the displayed vehicle
+  const handleExportAveragesCurrent = async () => {
+    if (!activity || !period) return;
+    const { exportVehicleAveragesToXlsx } = await import('../lib/xlsx-export');
+    exportVehicleAveragesToXlsx(
+      [{ vehicle: activity.vehicle_name, plate: selectedVehicle?.license_plate || '', days: filteredDays }],
+      'LTS Logistik GmbH',
+    );
+  };
+
+  // Averages export for the selected saved vehicles (days merged across periods)
+  const handleExportAveragesSaved = async () => {
+    const selected = savedReports.filter(r => selectedForExport.has(r.id));
+    if (selected.length === 0) return;
+    const byVeh = new Map<string, { vehicle: string; plate: string; days: VehicleDayActivity[] }>();
+    for (const r of selected) {
+      let v = byVeh.get(r.vehicleName);
+      if (!v) { v = { vehicle: r.vehicleName, plate: r.plate, days: [] }; byVeh.set(r.vehicleName, v); }
+      v.days.push(...r.days);
+    }
+    const { exportVehicleAveragesToXlsx } = await import('../lib/xlsx-export');
+    exportVehicleAveragesToXlsx(Array.from(byVeh.values()), 'LTS Logistik GmbH');
+  };
+
   const isAlreadySaved = activity && period && selectedVehicle
     ? savedReports.some(r => r.id === `${activity.vehicle_name}__${period}`)
     : false;
@@ -722,6 +746,13 @@ export function VehiclesPage() {
                   </button>
                 </div>
                 <button
+                  onClick={handleExportAveragesCurrent}
+                  title={locale === 'de' ? 'Durchschnitte: Tag / Woche / Monat' : 'Średnie: dzień / tydzień / miesiąc'}
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-700"
+                >
+                  <Download size={14} /> {locale === 'de' ? 'Ø Excel' : 'Śr. Excel'}
+                </button>
+                <button
                   onClick={handleExportCurrentPdf}
                   className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-red-700"
                 >
@@ -875,6 +906,11 @@ export function VehiclesPage() {
             <button onClick={handleExportExcel} disabled={selectedForExport.size === 0}
               className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-medium bg-emerald-600 text-white hover:bg-emerald-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
               <Download size={14} /> {t('analysisExportXlsx')}
+            </button>
+            <button onClick={handleExportAveragesSaved} disabled={selectedForExport.size === 0}
+              title={locale === 'de' ? 'Durchschnitte: Tag / Woche / Monat' : 'Średnie: dzień / tydzień / miesiąc'}
+              className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-medium bg-teal-600 text-white hover:bg-teal-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+              <Download size={14} /> {locale === 'de' ? 'Ø Tag/Woche/Monat' : 'Śr. dzień/tydz./mies.'}
             </button>
             <button onClick={handleExportPdf} disabled={selectedForExport.size === 0}
               className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-medium bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">

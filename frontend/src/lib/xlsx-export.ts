@@ -1,4 +1,5 @@
 import * as XLSX from 'xlsx-js-style';
+import { isoWeek, weekKey, weekRange } from './kw';
 
 interface ShiftRow {
   shift_date: string;
@@ -1448,6 +1449,203 @@ export interface VehicleActivityGroup {
   days: VehicleActivityDay[];
   totalKm: number;
   totalMinutes: number;
+}
+
+// ─── Vehicle KM averages (daily / weekly / monthly) ───
+
+export interface VehicleAvgInput {
+  vehicle: string;
+  plate?: string;
+  days: { date: string; distance_km: number; duration_minutes: number }[];
+}
+
+const MONTH_ABBR_DE = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
+function monthLabelDe(ym: string): string {
+  const [y, m] = ym.split('-').map(Number);
+  return m >= 1 && m <= 12 ? `${MONTH_ABBR_DE[m - 1]} ${y}` : ym;
+}
+function avgHm(min: number): string {
+  const m = Math.max(0, Math.round(min || 0));
+  return `${Math.floor(m / 60)}h ${pad2x(m % 60)}m`;
+}
+
+/**
+ * Export per-vehicle km averages: daily (Ø km/active day), weekly (Ø km per
+ * calendar week) and monthly (Ø km per month). One summary sheet plus a
+ * per-KW and a per-month breakdown. `days` is the raw daily activity; rest
+ * days (0 km and 0 min) are ignored.
+ */
+export function exportVehicleAveragesToXlsx(vehicles: VehicleAvgInput[], companyName: string) {
+  const wb = XLSX.utils.book_new();
+  const r1 = (n: number) => Math.round(n * 10) / 10;
+
+  interface Agg {
+    vehicle: string;
+    plate: string;
+    activeDays: number;
+    totalKm: number;
+    totalMin: number;
+    weeks: Map<string, { km: number; days: number; sample: Date }>;
+    months: Map<string, { km: number; days: number }>;
+  }
+
+  const aggs: Agg[] = vehicles.map((v) => {
+    const weeks = new Map<string, { km: number; days: number; sample: Date }>();
+    const months = new Map<string, { km: number; days: number }>();
+    let activeDays = 0;
+    let totalKm = 0;
+    let totalMin = 0;
+    for (const d of (v.days || [])) {
+      const km = d.distance_km || 0;
+      const min = d.duration_minutes || 0;
+      if (km <= 0 && min <= 0) continue; // active days only
+      activeDays++;
+      totalKm += km;
+      totalMin += min;
+      const dt = new Date(d.date + 'T00:00:00');
+      const wk = weekKey(dt);
+      let w = weeks.get(wk);
+      if (!w) { w = { km: 0, days: 0, sample: dt }; weeks.set(wk, w); }
+      w.km += km; w.days++;
+      const mk = (d.date || '').slice(0, 7);
+      let mo = months.get(mk);
+      if (!mo) { mo = { km: 0, days: 0 }; months.set(mk, mo); }
+      mo.km += km; mo.days++;
+    }
+    return { vehicle: v.vehicle, plate: v.plate || '', activeDays, totalKm, totalMin, weeks, months };
+  }).filter((a) => a.activeDays > 0);
+
+  const NUM = '#,##0.0';
+  const INT = '#,##0';
+
+  // ── Sheet 1: Durchschnitt (summary) ──
+  const sHead = ['Fahrzeug', 'Kennzeichen', 'Tage', 'Wochen', 'Monate', 'Gesamt km', 'Ø km/Tag', 'Ø km/Woche', 'Ø km/Monat', 'Ø Dauer/Tag'];
+  const sCols = sHead.length; // 10
+  const sAoa: (string | number)[][] = [
+    [companyName],
+    ['Kilometer — Durchschnitte (Tag / Woche / Monat)'],
+    [],
+    sHead,
+  ];
+  const S_HDR = 3;
+  const S_START = 4;
+  let gKm = 0, gDays = 0, gWeeks = 0, gMonths = 0, gMin = 0;
+  for (const a of aggs) {
+    const wc = a.weeks.size;
+    const mc = a.months.size;
+    gKm += a.totalKm; gDays += a.activeDays; gWeeks += wc; gMonths += mc; gMin += a.totalMin;
+    sAoa.push([
+      a.vehicle, a.plate, a.activeDays, wc, mc, r1(a.totalKm),
+      r1(a.totalKm / (a.activeDays || 1)),
+      r1(a.totalKm / (wc || 1)),
+      r1(a.totalKm / (mc || 1)),
+      avgHm(a.totalMin / (a.activeDays || 1)),
+    ]);
+  }
+  const S_END = sAoa.length - 1;
+  sAoa.push([]);
+  const S_TOTAL = sAoa.length;
+  sAoa.push([
+    'GESAMT', '', gDays, gWeeks, gMonths, r1(gKm),
+    r1(gKm / (gDays || 1)), r1(gKm / (gWeeks || 1)), r1(gKm / (gMonths || 1)), avgHm(gMin / (gDays || 1)),
+  ]);
+
+  const wsS = XLSX.utils.aoa_to_sheet(sAoa);
+  wsS['!cols'] = [{ wch: 22 }, { wch: 14 }, { wch: 7 }, { wch: 8 }, { wch: 8 }, { wch: 12 }, { wch: 11 }, { wch: 12 }, { wch: 12 }, { wch: 12 }];
+  wsS['!merges'] = [
+    { s: { r: 0, c: 0 }, e: { r: 0, c: sCols - 1 } },
+    { s: { r: 1, c: 0 }, e: { r: 1, c: sCols - 1 } },
+  ];
+  wsS['!freeze'] = { xSplit: 0, ySplit: S_START };
+  if (S_END >= S_START) {
+    wsS['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: S_HDR, c: 0 }, e: { r: S_END, c: sCols - 1 } }) };
+  }
+  styleRange(wsS, 0, 0, 0, sCols - 1, { font: FONT_TITLE });
+  styleRange(wsS, 1, 0, 1, sCols - 1, { font: FONT_SUBTITLE });
+  for (let c = 0; c < sCols; c++) {
+    styleCell(wsS, S_HDR, c, { font: { ...FONT_BOLD, color: { rgb: 'FFFFFF' } }, fill: FILL_HEADER, border: BORDERS_ALL, alignment: { horizontal: c >= 2 ? 'right' : 'left', vertical: 'center', wrapText: true } });
+  }
+  for (let r = S_START; r <= S_END; r++) {
+    const alt = (r - S_START) % 2 === 1;
+    for (let c = 0; c < sCols; c++) {
+      styleCell(wsS, r, c, { font: c === 0 ? FONT_BOLD : FONT_DEFAULT, border: BORDERS_ALL, fill: alt ? FILL_ALT : undefined, alignment: { horizontal: c >= 2 ? 'right' : 'left', vertical: 'center' } });
+    }
+    applyNumberFormat(wsS, r, 2, INT); applyNumberFormat(wsS, r, 3, INT); applyNumberFormat(wsS, r, 4, INT);
+    for (let c = 5; c <= 8; c++) applyNumberFormat(wsS, r, c, NUM);
+  }
+  for (let c = 0; c < sCols; c++) {
+    styleCell(wsS, S_TOTAL, c, { font: { ...FONT_BOLD, sz: 11 }, fill: FILL_TOTAL, border: BORDER_BOTTOM_THICK, alignment: { horizontal: c >= 2 ? 'right' : 'left', vertical: 'center' } });
+  }
+  applyNumberFormat(wsS, S_TOTAL, 2, INT); applyNumberFormat(wsS, S_TOTAL, 3, INT); applyNumberFormat(wsS, S_TOTAL, 4, INT);
+  for (let c = 5; c <= 8; c++) applyNumberFormat(wsS, S_TOTAL, c, NUM);
+  XLSX.utils.book_append_sheet(wb, wsS, 'Durchschnitt');
+
+  // ── Sheet 2: Pro KW (per calendar week) ──
+  const wHead = ['Fahrzeug', 'KW', 'Zeitraum', 'Tage', 'Ø km/Tag', 'Gesamt km'];
+  const wCols = wHead.length;
+  const wAoa: (string | number)[][] = [['Ø km je Kalenderwoche (KW)'], [], wHead];
+  const W_HDR = 2;
+  const W_START = 3;
+  for (const a of aggs) {
+    for (const [key, w] of [...a.weeks.entries()].sort((x, y) => x[0].localeCompare(y[0]))) {
+      void key;
+      wAoa.push([a.vehicle, `KW ${isoWeek(w.sample).week}`, weekRange(w.sample), w.days, r1(w.km / (w.days || 1)), r1(w.km)]);
+    }
+  }
+  const W_END = wAoa.length - 1;
+  const wsW = XLSX.utils.aoa_to_sheet(wAoa);
+  wsW['!cols'] = [{ wch: 22 }, { wch: 8 }, { wch: 18 }, { wch: 7 }, { wch: 11 }, { wch: 12 }];
+  wsW['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: wCols - 1 } }];
+  wsW['!freeze'] = { xSplit: 0, ySplit: W_START };
+  if (W_END >= W_START) {
+    wsW['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: W_HDR, c: 0 }, e: { r: W_END, c: wCols - 1 } }) };
+  }
+  styleRange(wsW, 0, 0, 0, wCols - 1, { font: FONT_SUBTITLE });
+  for (let c = 0; c < wCols; c++) {
+    styleCell(wsW, W_HDR, c, { font: { ...FONT_BOLD, color: { rgb: 'FFFFFF' } }, fill: FILL_HEADER, border: BORDERS_ALL, alignment: { horizontal: c >= 3 ? 'right' : 'left', vertical: 'center', wrapText: true } });
+  }
+  for (let r = W_START; r <= W_END; r++) {
+    const alt = (r - W_START) % 2 === 1;
+    for (let c = 0; c < wCols; c++) {
+      styleCell(wsW, r, c, { font: c === 0 ? FONT_BOLD : FONT_DEFAULT, border: BORDERS_ALL, fill: alt ? FILL_ALT : undefined, alignment: { horizontal: c >= 3 ? 'right' : 'left', vertical: 'center' } });
+    }
+    applyNumberFormat(wsW, r, 3, INT); applyNumberFormat(wsW, r, 4, NUM); applyNumberFormat(wsW, r, 5, NUM);
+  }
+  XLSX.utils.book_append_sheet(wb, wsW, 'Pro KW');
+
+  // ── Sheet 3: Pro Monat (per month) ──
+  const mHead = ['Fahrzeug', 'Monat', 'Tage', 'Ø km/Tag', 'Gesamt km'];
+  const mCols = mHead.length;
+  const mAoa: (string | number)[][] = [['Ø km je Monat'], [], mHead];
+  const M_HDR = 2;
+  const M_START = 3;
+  for (const a of aggs) {
+    for (const [key, mo] of [...a.months.entries()].sort((x, y) => x[0].localeCompare(y[0]))) {
+      mAoa.push([a.vehicle, monthLabelDe(key), mo.days, r1(mo.km / (mo.days || 1)), r1(mo.km)]);
+    }
+  }
+  const M_END = mAoa.length - 1;
+  const wsM = XLSX.utils.aoa_to_sheet(mAoa);
+  wsM['!cols'] = [{ wch: 22 }, { wch: 12 }, { wch: 7 }, { wch: 11 }, { wch: 12 }];
+  wsM['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: mCols - 1 } }];
+  wsM['!freeze'] = { xSplit: 0, ySplit: M_START };
+  if (M_END >= M_START) {
+    wsM['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: M_HDR, c: 0 }, e: { r: M_END, c: mCols - 1 } }) };
+  }
+  styleRange(wsM, 0, 0, 0, mCols - 1, { font: FONT_SUBTITLE });
+  for (let c = 0; c < mCols; c++) {
+    styleCell(wsM, M_HDR, c, { font: { ...FONT_BOLD, color: { rgb: 'FFFFFF' } }, fill: FILL_HEADER, border: BORDERS_ALL, alignment: { horizontal: c >= 2 ? 'right' : 'left', vertical: 'center', wrapText: true } });
+  }
+  for (let r = M_START; r <= M_END; r++) {
+    const alt = (r - M_START) % 2 === 1;
+    for (let c = 0; c < mCols; c++) {
+      styleCell(wsM, r, c, { font: c === 0 ? FONT_BOLD : FONT_DEFAULT, border: BORDERS_ALL, fill: alt ? FILL_ALT : undefined, alignment: { horizontal: c >= 2 ? 'right' : 'left', vertical: 'center' } });
+    }
+    applyNumberFormat(wsM, r, 2, INT); applyNumberFormat(wsM, r, 3, NUM); applyNumberFormat(wsM, r, 4, NUM);
+  }
+  XLSX.utils.book_append_sheet(wb, wsM, 'Pro Monat');
+
+  XLSX.writeFile(wb, 'KM_Durchschnitte.xlsx');
 }
 
 export function exportVehicleActivityToXlsx(
