@@ -4,6 +4,7 @@
  */
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { computeVehicleAverages, type VehicleAvgInput } from './vehicle-averages';
 
 // ── Brand colors ──
 const C = {
@@ -2597,6 +2598,86 @@ export async function generateVehiclesActivityPdf(groups: VehiclesPdfGroup[], pe
 
   fleetFooter(c);
   doc.save(`Fahrzeug-Aktivitaet_${safeName(periodStr)}.pdf`);
+}
+
+// ── 3b) KM averages (daily / weekly / monthly) — minimal one-page sheet ──
+
+const kmDec = (n: number) => n.toLocaleString('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+
+export async function generateVehicleAveragesPdf(
+  vehicles: VehicleAvgInput[],
+  opts: { subtitle?: string; filename?: string } = {},
+) {
+  const aggs = computeVehicleAverages(vehicles);
+  const multi = aggs.length > 1;
+  const c = await ctx(multi ? 'landscape' : 'portrait');
+  const { doc } = c;
+
+  const sub = opts.subtitle
+    || (aggs.length === 1
+      ? [aggs[0].vehicle, aggs[0].plate].filter(Boolean).join('   ·   ')
+      : `${aggs.length} Fahrzeuge`);
+  let y = fleetHeader(c, 'Kilometer – Durchschnitte', sub);
+
+  // Fleet-level averages = total ÷ count at each granularity.
+  const gKm = aggs.reduce((s, a) => s + a.totalKm, 0);
+  const gDays = aggs.reduce((s, a) => s + a.activeDays, 0);
+  const gWeeks = aggs.reduce((s, a) => s + a.weeks, 0);
+  const gMonths = aggs.reduce((s, a) => s + a.months, 0);
+  const fAvgDay = gKm / (gDays || 1);
+  const fAvgWeek = gKm / (gWeeks || 1);
+  const fAvgMonth = gKm / (gMonths || 1);
+
+  y = fleetMetrics(c, y, [
+    { label: 'Ø km / Tag', value: kmDec(fAvgDay) },
+    { label: 'Ø km / Woche', value: kmDec(fAvgWeek) },
+    { label: 'Ø km / Monat', value: kmDec(fAvgMonth) },
+  ]) + 3;
+
+  if (multi) {
+    fleetTable(
+      c,
+      y,
+      [['Fahrzeug', 'Tage', 'Wochen', 'Monate', 'Ø km/Tag', 'Ø km/Woche', 'Ø km/Monat', 'Gesamt km']],
+      aggs.map((a) => [
+        a.vehicle, a.activeDays, a.weeks, a.months,
+        kmDec(a.avgKmDay), kmDec(a.avgKmWeek), kmDec(a.avgKmMonth), kmDec(a.totalKm),
+      ]),
+      [['Gesamt', gDays, gWeeks, gMonths, kmDec(fAvgDay), kmDec(fAvgWeek), kmDec(fAvgMonth), kmDec(gKm)]],
+      {
+        0: { fontStyle: 'bold' },
+        1: { halign: 'right' },
+        2: { halign: 'right' },
+        3: { halign: 'right' },
+        4: { halign: 'right', fontStyle: 'bold' },
+        5: { halign: 'right' },
+        6: { halign: 'right' },
+        7: { halign: 'right', fontStyle: 'bold' },
+      },
+    );
+  } else if (aggs.length === 1) {
+    const a = aggs[0];
+    y = fleetSection(c, y, 'Pro Kalenderwoche (KW)') + 1;
+    fleetTable(
+      c,
+      y,
+      [['KW', 'Zeitraum', 'Tage', 'Ø km/Tag', 'Gesamt km']],
+      a.weekRows.map((w) => [w.label, w.range, w.days, kmDec(w.avgKmDay), kmDec(w.km)]),
+      [['Summe', '', a.activeDays, kmDec(a.avgKmDay), kmDec(a.totalKm)]],
+      {
+        0: { fontStyle: 'bold', cellWidth: 22 },
+        1: { textColor: F.mut },
+        2: { halign: 'right', cellWidth: 22 },
+        3: { halign: 'right', fontStyle: 'bold', cellWidth: 32 },
+        4: { halign: 'right', cellWidth: 32 },
+      },
+    );
+  }
+
+  fleetFooter(c);
+  const fname = opts.filename
+    || (aggs.length === 1 ? `Durchschnitte_${safeName(aggs[0].vehicle)}` : 'KM_Durchschnitte');
+  doc.save(`${fname}.pdf`);
 }
 
 // ── 4) Driver list ──

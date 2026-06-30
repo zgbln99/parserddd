@@ -1,5 +1,5 @@
 import * as XLSX from 'xlsx-js-style';
-import { isoWeek, weekKey, weekRange } from './kw';
+import { computeVehicleAverages, type VehicleAvgInput } from './vehicle-averages';
 
 interface ShiftRow {
   shift_date: string;
@@ -1453,17 +1453,6 @@ export interface VehicleActivityGroup {
 
 // ─── Vehicle KM averages (daily / weekly / monthly) ───
 
-export interface VehicleAvgInput {
-  vehicle: string;
-  plate?: string;
-  days: { date: string; distance_km: number; duration_minutes: number }[];
-}
-
-const MONTH_ABBR_DE = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
-function monthLabelDe(ym: string): string {
-  const [y, m] = ym.split('-').map(Number);
-  return m >= 1 && m <= 12 ? `${MONTH_ABBR_DE[m - 1]} ${y}` : ym;
-}
 function avgHm(min: number): string {
   const m = Math.max(0, Math.round(min || 0));
   return `${Math.floor(m / 60)}h ${pad2x(m % 60)}m`;
@@ -1472,48 +1461,12 @@ function avgHm(min: number): string {
 /**
  * Export per-vehicle km averages: daily (Ø km/active day), weekly (Ø km per
  * calendar week) and monthly (Ø km per month). One summary sheet plus a
- * per-KW and a per-month breakdown. `days` is the raw daily activity; rest
- * days (0 km and 0 min) are ignored.
+ * per-KW and a per-month breakdown. Aggregation is shared with the PDF export.
  */
 export function exportVehicleAveragesToXlsx(vehicles: VehicleAvgInput[], companyName: string) {
   const wb = XLSX.utils.book_new();
   const r1 = (n: number) => Math.round(n * 10) / 10;
-
-  interface Agg {
-    vehicle: string;
-    plate: string;
-    activeDays: number;
-    totalKm: number;
-    totalMin: number;
-    weeks: Map<string, { km: number; days: number; sample: Date }>;
-    months: Map<string, { km: number; days: number }>;
-  }
-
-  const aggs: Agg[] = vehicles.map((v) => {
-    const weeks = new Map<string, { km: number; days: number; sample: Date }>();
-    const months = new Map<string, { km: number; days: number }>();
-    let activeDays = 0;
-    let totalKm = 0;
-    let totalMin = 0;
-    for (const d of (v.days || [])) {
-      const km = d.distance_km || 0;
-      const min = d.duration_minutes || 0;
-      if (km <= 0 && min <= 0) continue; // active days only
-      activeDays++;
-      totalKm += km;
-      totalMin += min;
-      const dt = new Date(d.date + 'T00:00:00');
-      const wk = weekKey(dt);
-      let w = weeks.get(wk);
-      if (!w) { w = { km: 0, days: 0, sample: dt }; weeks.set(wk, w); }
-      w.km += km; w.days++;
-      const mk = (d.date || '').slice(0, 7);
-      let mo = months.get(mk);
-      if (!mo) { mo = { km: 0, days: 0 }; months.set(mk, mo); }
-      mo.km += km; mo.days++;
-    }
-    return { vehicle: v.vehicle, plate: v.plate || '', activeDays, totalKm, totalMin, weeks, months };
-  }).filter((a) => a.activeDays > 0);
+  const aggs = computeVehicleAverages(vehicles);
 
   const NUM = '#,##0.0';
   const INT = '#,##0';
@@ -1531,15 +1484,10 @@ export function exportVehicleAveragesToXlsx(vehicles: VehicleAvgInput[], company
   const S_START = 4;
   let gKm = 0, gDays = 0, gWeeks = 0, gMonths = 0, gMin = 0;
   for (const a of aggs) {
-    const wc = a.weeks.size;
-    const mc = a.months.size;
-    gKm += a.totalKm; gDays += a.activeDays; gWeeks += wc; gMonths += mc; gMin += a.totalMin;
+    gKm += a.totalKm; gDays += a.activeDays; gWeeks += a.weeks; gMonths += a.months; gMin += a.totalMin;
     sAoa.push([
-      a.vehicle, a.plate, a.activeDays, wc, mc, r1(a.totalKm),
-      r1(a.totalKm / (a.activeDays || 1)),
-      r1(a.totalKm / (wc || 1)),
-      r1(a.totalKm / (mc || 1)),
-      avgHm(a.totalMin / (a.activeDays || 1)),
+      a.vehicle, a.plate, a.activeDays, a.weeks, a.months, a.totalKm,
+      a.avgKmDay, a.avgKmWeek, a.avgKmMonth, avgHm(a.avgMinDay),
     ]);
   }
   const S_END = sAoa.length - 1;
@@ -1587,9 +1535,8 @@ export function exportVehicleAveragesToXlsx(vehicles: VehicleAvgInput[], company
   const W_HDR = 2;
   const W_START = 3;
   for (const a of aggs) {
-    for (const [key, w] of [...a.weeks.entries()].sort((x, y) => x[0].localeCompare(y[0]))) {
-      void key;
-      wAoa.push([a.vehicle, `KW ${isoWeek(w.sample).week}`, weekRange(w.sample), w.days, r1(w.km / (w.days || 1)), r1(w.km)]);
+    for (const w of a.weekRows) {
+      wAoa.push([a.vehicle, w.label, w.range, w.days, w.avgKmDay, w.km]);
     }
   }
   const W_END = wAoa.length - 1;
@@ -1620,8 +1567,8 @@ export function exportVehicleAveragesToXlsx(vehicles: VehicleAvgInput[], company
   const M_HDR = 2;
   const M_START = 3;
   for (const a of aggs) {
-    for (const [key, mo] of [...a.months.entries()].sort((x, y) => x[0].localeCompare(y[0]))) {
-      mAoa.push([a.vehicle, monthLabelDe(key), mo.days, r1(mo.km / (mo.days || 1)), r1(mo.km)]);
+    for (const mo of a.monthRows) {
+      mAoa.push([a.vehicle, mo.label, mo.days, mo.avgKmDay, mo.km]);
     }
   }
   const M_END = mAoa.length - 1;

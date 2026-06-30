@@ -353,17 +353,18 @@ export function VehiclesPage() {
     );
   };
 
-  // Averages export (daily / weekly / monthly) for the displayed vehicle
+  // Averages PDF (daily / weekly / monthly) for the displayed vehicle
   const handleExportAveragesCurrent = async () => {
     if (!activity || !period) return;
-    const { exportVehicleAveragesToXlsx } = await import('../lib/xlsx-export');
-    exportVehicleAveragesToXlsx(
+    const { generateVehicleAveragesPdf } = await import('../lib/pdf-generator');
+    const sub = [activity.vehicle_name, selectedVehicle?.license_plate].filter(Boolean).join('   ·   ');
+    await generateVehicleAveragesPdf(
       [{ vehicle: activity.vehicle_name, plate: selectedVehicle?.license_plate || '', days: filteredDays }],
-      'LTS Logistik GmbH',
+      { subtitle: sub },
     );
   };
 
-  // Averages export for the selected saved vehicles (days merged across periods)
+  // Averages PDF for the selected saved vehicles (days merged across periods)
   const handleExportAveragesSaved = async () => {
     const selected = savedReports.filter(r => selectedForExport.has(r.id));
     if (selected.length === 0) return;
@@ -373,8 +374,8 @@ export function VehiclesPage() {
       if (!v) { v = { vehicle: r.vehicleName, plate: r.plate, days: [] }; byVeh.set(r.vehicleName, v); }
       v.days.push(...r.days);
     }
-    const { exportVehicleAveragesToXlsx } = await import('../lib/xlsx-export');
-    exportVehicleAveragesToXlsx(Array.from(byVeh.values()), 'LTS Logistik GmbH');
+    const { generateVehicleAveragesPdf } = await import('../lib/pdf-generator');
+    await generateVehicleAveragesPdf(Array.from(byVeh.values()), {});
   };
 
   const isAlreadySaved = activity && period && selectedVehicle
@@ -747,10 +748,10 @@ export function VehiclesPage() {
                 </div>
                 <button
                   onClick={handleExportAveragesCurrent}
-                  title={locale === 'de' ? 'Durchschnitte: Tag / Woche / Monat' : 'Średnie: dzień / tydzień / miesiąc'}
-                  className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-700"
+                  title={locale === 'de' ? 'Durchschnitte (PDF): Tag / Woche / Monat' : 'Średnie (PDF): dzień / tydzień / miesiąc'}
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-indigo-700"
                 >
-                  <Download size={14} /> {locale === 'de' ? 'Ø Excel' : 'Śr. Excel'}
+                  <FileDown size={14} /> {locale === 'de' ? 'Ø PDF' : 'Śr. PDF'}
                 </button>
                 <button
                   onClick={handleExportCurrentPdf}
@@ -908,9 +909,9 @@ export function VehiclesPage() {
               <Download size={14} /> {t('analysisExportXlsx')}
             </button>
             <button onClick={handleExportAveragesSaved} disabled={selectedForExport.size === 0}
-              title={locale === 'de' ? 'Durchschnitte: Tag / Woche / Monat' : 'Średnie: dzień / tydzień / miesiąc'}
-              className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-medium bg-teal-600 text-white hover:bg-teal-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
-              <Download size={14} /> {locale === 'de' ? 'Ø Tag/Woche/Monat' : 'Śr. dzień/tydz./mies.'}
+              title={locale === 'de' ? 'Durchschnitte (PDF): Tag / Woche / Monat' : 'Średnie (PDF): dzień / tydzień / miesiąc'}
+              className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-medium bg-indigo-600 text-white hover:bg-indigo-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+              <FileDown size={14} /> {locale === 'de' ? 'Ø PDF (Tag/Woche/Monat)' : 'Śr. PDF (dzień/tydz./mies.)'}
             </button>
             <button onClick={handleExportPdf} disabled={selectedForExport.size === 0}
               className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-medium bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
