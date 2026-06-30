@@ -612,6 +612,16 @@ export const de: Record<TranslationKey, string> = {
   samDaysCount: 'Tage',
   samVehiclesCount: 'Fahrzeuge',
   samExportExcel: 'Excel exportieren',
+  samViewDaily: 'Täglich',
+  samViewWeekly: 'Ø pro KW',
+  samWeeklyHint: 'Tagesdurchschnitt je Kalenderwoche (KW)',
+  samWeek: 'KW',
+  samPeriod: 'Zeitraum',
+  samAvgDayKm: 'Ø km Tag',
+  samAvgNightKm: 'Ø km Nacht',
+  samAvgTotalKm: 'Ø km/Tag',
+  samWeeksCount: 'Wochen',
+  samExportExcelWeekly: 'Excel (KW) exportieren',
 
   // Night simulator
   navNightSim: 'Nacht (Sim.)',

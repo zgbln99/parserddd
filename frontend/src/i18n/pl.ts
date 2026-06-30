@@ -610,6 +610,16 @@ export const pl = {
   samDaysCount: 'dni',
   samVehiclesCount: 'pojazdów',
   samExportExcel: 'Eksport do Excel',
+  samViewDaily: 'Dziennie',
+  samViewWeekly: 'Śr. wg KW',
+  samWeeklyHint: 'Średnia dzienna wg tygodnia kalendarzowego (KW)',
+  samWeek: 'KW',
+  samPeriod: 'Okres',
+  samAvgDayKm: 'Śr. km dzień',
+  samAvgNightKm: 'Śr. km noc',
+  samAvgTotalKm: 'Śr. km/dzień',
+  samWeeksCount: 'tyg.',
+  samExportExcelWeekly: 'Eksport Excel (KW)',
 
   // Night simulator
   navNightSim: 'Nocne (sym.)',

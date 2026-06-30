@@ -1,5 +1,5 @@
-import { useState, useMemo, useCallback, useRef } from 'react';
-import { Upload, AlertCircle, Truck, ChevronDown, ChevronRight, X, FileText, Download, Sun, Moon, Clock } from 'lucide-react';
+import { useState, useMemo, useCallback, useRef, Fragment } from 'react';
+import { Upload, AlertCircle, Truck, ChevronDown, ChevronRight, X, FileText, Download, Sun, Moon, Clock, CalendarDays, CalendarRange } from 'lucide-react';
 import * as XLSX from 'xlsx-js-style';
 import { useI18n } from '../i18n';
 import { Card } from '../components/Card';
@@ -34,6 +34,28 @@ interface VehicleSummary {
   totalDayKm: number;
   totalNightKm: number;
   totalKm: number;
+}
+
+interface WeekSummary {
+  key: string;       // "2026-W23" (sortable)
+  week: number;      // ISO week number
+  label: string;     // "KW 23"
+  range: string;     // "01.06.–07.06."
+  days: number;      // active days in this week
+  avgDayKm: number;  // per active day
+  avgNightKm: number;
+  avgTotalKm: number;
+  totalKm: number;   // week total
+}
+
+interface VehicleWeekSummary {
+  vehicle: string;
+  weeks: WeekSummary[];
+  totalKm: number;
+  totalDays: number;
+  avgDayKm: number;   // overall daily averages across all weeks
+  avgNightKm: number;
+  avgTotalKm: number;
 }
 
 // ─── CSV Parsing ───
@@ -296,6 +318,85 @@ function computeVehicleSummaries(
   return summaries.sort((a, b) => a.vehicle.localeCompare(b.vehicle));
 }
 
+// ─── KW (ISO calendar week) aggregation ───
+
+const round1 = (n: number) => Math.round(n * 10) / 10;
+
+/** ISO-8601 week number + week-year for a date. */
+function isoWeek(date: Date): { year: number; week: number } {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = d.getUTCDay() || 7;            // Mon=1 … Sun=7
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);    // shift to the week's Thursday
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const week = Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+  return { year: d.getUTCFullYear(), week };
+}
+
+/** Monday of the (ISO) week that contains `date`, in local time. */
+function mondayOf(date: Date): Date {
+  const d = new Date(date);
+  const dayNum = (d.getDay() + 6) % 7;          // Mon=0 … Sun=6
+  d.setDate(d.getDate() - dayNum);
+  return d;
+}
+
+function ddmm(d: Date) { return `${pad2(d.getDate())}.${pad2(d.getMonth() + 1)}.`; }
+
+/** Roll the per-day summaries up into per-calendar-week daily averages. */
+function computeVehicleWeeks(summaries: VehicleSummary[]): VehicleWeekSummary[] {
+  return summaries.map((vs) => {
+    const byWeek = new Map<string, {
+      dayKm: number; nightKm: number; totalKm: number; days: number; week: number; mon: Date;
+    }>();
+    let vDay = 0;
+    let vNight = 0;
+    for (const d of vs.days) {
+      const dt = new Date(d.date + 'T00:00:00');
+      const { year, week } = isoWeek(dt);
+      const key = `${year}-W${pad2(week)}`;
+      let w = byWeek.get(key);
+      if (!w) { w = { dayKm: 0, nightKm: 0, totalKm: 0, days: 0, week, mon: mondayOf(dt) }; byWeek.set(key, w); }
+      w.dayKm += d.dayKm;
+      w.nightKm += d.nightKm;
+      w.totalKm += d.totalKm;
+      w.days += 1;
+      vDay += d.dayKm;
+      vNight += d.nightKm;
+    }
+
+    const weeks: WeekSummary[] = Array.from(byWeek.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([key, w]) => {
+        const sun = new Date(w.mon);
+        sun.setDate(sun.getDate() + 6);
+        const div = w.days || 1;
+        return {
+          key,
+          week: w.week,
+          label: `KW ${w.week}`,
+          range: `${ddmm(w.mon)}–${ddmm(sun)}`,
+          days: w.days,
+          avgDayKm: round1(w.dayKm / div),
+          avgNightKm: round1(w.nightKm / div),
+          avgTotalKm: round1(w.totalKm / div),
+          totalKm: round1(w.totalKm),
+        };
+      });
+
+    const totalDays = weeks.reduce((s, w) => s + w.days, 0);
+    const div = totalDays || 1;
+    return {
+      vehicle: vs.vehicle,
+      weeks,
+      totalKm: round1(vDay + vNight),
+      totalDays,
+      avgDayKm: round1(vDay / div),
+      avgNightKm: round1(vNight / div),
+      avgTotalKm: round1((vDay + vNight) / div),
+    };
+  });
+}
+
 // ─── Formatters ───
 
 function fmtKm(n: number) {
@@ -317,6 +418,7 @@ export function SamsaraKmPage() {
 
   // UI state
   const [expandedVehicles, setExpandedVehicles] = useState<Set<string>>(new Set());
+  const [viewMode, setViewMode] = useState<'daily' | 'weekly'>('daily');
 
   const summaries = useMemo(
     () => computeVehicleSummaries(rows, dayStart, dayEnd),
@@ -326,6 +428,20 @@ export function SamsaraKmPage() {
   const grandDayKm = useMemo(() => summaries.reduce((s, v) => s + v.totalDayKm, 0), [summaries]);
   const grandNightKm = useMemo(() => summaries.reduce((s, v) => s + v.totalNightKm, 0), [summaries]);
   const grandTotalKm = useMemo(() => summaries.reduce((s, v) => s + v.totalKm, 0), [summaries]);
+
+  // Per-calendar-week (KW) daily averages
+  const vehicleWeeks = useMemo(() => computeVehicleWeeks(summaries), [summaries]);
+  const grandWeekly = useMemo(() => {
+    const totalDays = vehicleWeeks.reduce((s, v) => s + v.totalDays, 0);
+    const div = totalDays || 1;
+    return {
+      totalDays,
+      totalKm: round1(grandTotalKm),
+      avgDay: round1(grandDayKm / div),
+      avgNight: round1(grandNightKm / div),
+      avgPerDay: round1(grandTotalKm / div),
+    };
+  }, [vehicleWeeks, grandDayKm, grandNightKm, grandTotalKm]);
 
   const handleFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -389,8 +505,13 @@ export function SamsaraKmPage() {
 
   const handleExportExcel = async () => {
     if (summaries.length === 0) return;
-    const { exportSamsaraKmToXlsx } = await import('../lib/xlsx-export');
-    exportSamsaraKmToXlsx(summaries, dayStart, dayEnd, 'LTS Logistik GmbH');
+    if (viewMode === 'weekly') {
+      const { exportSamsaraKmWeeklyToXlsx } = await import('../lib/xlsx-export');
+      exportSamsaraKmWeeklyToXlsx(vehicleWeeks, dayStart, dayEnd, 'LTS Logistik GmbH');
+    } else {
+      const { exportSamsaraKmToXlsx } = await import('../lib/xlsx-export');
+      exportSamsaraKmToXlsx(summaries, dayStart, dayEnd, 'LTS Logistik GmbH');
+    }
   };
 
   const dayLabel = `${pad2(dayStart)}:00–${pad2(dayEnd)}:00`;
@@ -536,18 +657,47 @@ export function SamsaraKmPage() {
             </Card>
           </div>
 
-          {/* Export button */}
-          <div className="flex items-center gap-3">
+          {/* View toggle (daily ↔ Ø per calendar week) + export */}
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="inline-flex rounded-lg border border-gray-300 dark:border-gray-600 p-0.5 bg-gray-100 dark:bg-gray-800">
+              <button
+                onClick={() => setViewMode('daily')}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  viewMode === 'daily'
+                    ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
+                    : 'text-muted hover:text-gray-700 dark:hover:text-gray-300'
+                }`}
+              >
+                <CalendarDays className="w-3.5 h-3.5" />
+                {t('samViewDaily')}
+              </button>
+              <button
+                onClick={() => setViewMode('weekly')}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  viewMode === 'weekly'
+                    ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
+                    : 'text-muted hover:text-gray-700 dark:hover:text-gray-300'
+                }`}
+              >
+                <CalendarRange className="w-3.5 h-3.5" />
+                {t('samViewWeekly')}
+              </button>
+            </div>
+            {viewMode === 'weekly' && (
+              <span className="text-xs text-muted">{t('samWeeklyHint')}</span>
+            )}
+            <div className="flex-1" />
             <button
               onClick={handleExportExcel}
               className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-medium bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-emerald-700 dark:hover:bg-emerald-600 transition-colors"
             >
               <Download className="w-3.5 h-3.5" />
-              {t('samExportExcel')}
+              {viewMode === 'weekly' ? t('samExportExcelWeekly') : t('samExportExcel')}
             </button>
           </div>
 
-          {/* Vehicle table */}
+          {/* Vehicle table — daily */}
+          {viewMode === 'daily' && (
           <Card>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -666,6 +816,142 @@ export function SamsaraKmPage() {
               </table>
             </div>
           </Card>
+          )}
+
+          {/* Vehicle table — Ø per calendar week (KW) */}
+          {viewMode === 'weekly' && (
+          <Card>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+                    <th className="w-8 px-3 py-3" />
+                    <th className="text-left px-3 py-3 font-semibold text-muted">
+                      {t('samVehicle')} / {t('samWeek')}
+                    </th>
+                    <th className="text-left px-3 py-3 font-semibold text-muted">
+                      {t('samPeriod')}
+                    </th>
+                    <th className="text-right px-3 py-3 font-semibold text-muted hidden sm:table-cell">
+                      {t('samDaysCount')}
+                    </th>
+                    <th className="text-right px-3 py-3 font-semibold text-amber-600 dark:text-amber-400">
+                      <span className="inline-flex items-center gap-1"><Sun className="w-3 h-3" /> {t('samAvgDayKm')}</span>
+                    </th>
+                    <th className="text-right px-3 py-3 font-semibold text-indigo-600 dark:text-indigo-400">
+                      <span className="inline-flex items-center gap-1"><Moon className="w-3 h-3" /> {t('samAvgNightKm')}</span>
+                    </th>
+                    <th className="text-right px-3 py-3 font-semibold text-blue-600 dark:text-blue-400">
+                      {t('samAvgTotalKm')}
+                    </th>
+                    <th className="text-right px-3 py-3 font-semibold text-muted">
+                      {t('samTotalKm')}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {vehicleWeeks.map((vw) => {
+                    const isExpanded = expandedVehicles.has(vw.vehicle);
+                    return (
+                      <Fragment key={`w-${vw.vehicle}`}>
+                        {/* Vehicle summary row */}
+                        <tr
+                          className="border-b border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/30 font-medium"
+                          onClick={() => toggleVehicle(vw.vehicle)}
+                        >
+                          <td className="px-3 py-3 text-muted">
+                            {isExpanded
+                              ? <ChevronDown className="w-4 h-4" />
+                              : <ChevronRight className="w-4 h-4" />}
+                          </td>
+                          <td className="px-3 py-3 text-gray-900 dark:text-white">
+                            <div className="flex items-center gap-2">
+                              <Truck className="w-4 h-4 text-muted" />
+                              <span className="font-mono">{vw.vehicle}</span>
+                            </div>
+                          </td>
+                          <td className="px-3 py-3 text-muted text-xs">
+                            {vw.weeks.length} {t('samWeeksCount')}
+                          </td>
+                          <td className="px-3 py-3 text-right text-muted text-xs hidden sm:table-cell">
+                            {vw.totalDays}
+                          </td>
+                          <td className="px-3 py-3 text-right font-bold text-amber-600 dark:text-amber-400 font-mono">
+                            {fmtKm(vw.avgDayKm)}
+                          </td>
+                          <td className="px-3 py-3 text-right font-bold text-indigo-600 dark:text-indigo-400 font-mono">
+                            {fmtKm(vw.avgNightKm)}
+                          </td>
+                          <td className="px-3 py-3 text-right font-bold text-blue-600 dark:text-blue-400 font-mono">
+                            {fmtKm(vw.avgTotalKm)}
+                          </td>
+                          <td className="px-3 py-3 text-right font-bold text-muted font-mono">
+                            {fmtKm(vw.totalKm)}
+                          </td>
+                        </tr>
+
+                        {/* Expanded per-week rows */}
+                        {isExpanded && vw.weeks.map((wk) => (
+                          <tr
+                            key={`${vw.vehicle}-${wk.key}`}
+                            className="border-b border-gray-50 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/20 text-xs"
+                          >
+                            <td className="px-3 py-2" />
+                            <td className="px-3 py-2 text-gray-700 dark:text-gray-300 font-mono font-semibold">
+                              {wk.label}
+                            </td>
+                            <td className="px-3 py-2 text-muted">
+                              {wk.range}
+                            </td>
+                            <td className="px-3 py-2 text-right text-muted hidden sm:table-cell">
+                              {wk.days}
+                            </td>
+                            <td className="px-3 py-2 text-right text-amber-600 dark:text-amber-400 font-mono">
+                              {wk.avgDayKm > 0 ? fmtKm(wk.avgDayKm) : '–'}
+                            </td>
+                            <td className="px-3 py-2 text-right text-indigo-600 dark:text-indigo-400 font-mono">
+                              {wk.avgNightKm > 0 ? fmtKm(wk.avgNightKm) : '–'}
+                            </td>
+                            <td className="px-3 py-2 text-right text-blue-600 dark:text-blue-400 font-mono font-medium">
+                              {fmtKm(wk.avgTotalKm)}
+                            </td>
+                            <td className="px-3 py-2 text-right text-muted font-mono">
+                              {fmtKm(wk.totalKm)}
+                            </td>
+                          </tr>
+                        ))}
+                      </Fragment>
+                    );
+                  })}
+
+                  {/* Grand total */}
+                  <tr className="border-t-2 border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800/50 font-bold">
+                    <td className="px-3 py-3" />
+                    <td className="px-3 py-3 text-gray-900 dark:text-white">RAZEM</td>
+                    <td className="px-3 py-3 text-muted text-xs">
+                      {vehicleWeeks.length} {t('samVehiclesCount')}
+                    </td>
+                    <td className="px-3 py-3 text-right text-muted text-xs hidden sm:table-cell">
+                      {grandWeekly.totalDays}
+                    </td>
+                    <td className="px-3 py-3 text-right text-amber-700 dark:text-amber-300 font-mono text-base">
+                      {fmtKm(grandWeekly.avgDay)}
+                    </td>
+                    <td className="px-3 py-3 text-right text-indigo-700 dark:text-indigo-300 font-mono text-base">
+                      {fmtKm(grandWeekly.avgNight)}
+                    </td>
+                    <td className="px-3 py-3 text-right text-blue-700 dark:text-blue-300 font-mono text-base">
+                      {fmtKm(grandWeekly.avgPerDay)}
+                    </td>
+                    <td className="px-3 py-3 text-right text-muted font-mono text-base">
+                      {fmtKm(grandWeekly.totalKm)} km
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </Card>
+          )}
         </>
       )}
     </div>

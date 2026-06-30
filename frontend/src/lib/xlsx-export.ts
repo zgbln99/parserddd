@@ -1260,6 +1260,145 @@ export function exportSamsaraKmToXlsx(
   XLSX.writeFile(wb, `KM_Tag_Nacht_${safePeriod}.xlsx`);
 }
 
+// ─── Samsara KM — daily average per calendar week (KW) ───
+
+export interface SamsaraWeekRow {
+  label: string;       // "KW 23"
+  range: string;       // "01.06.–07.06."
+  days: number;        // active days that week
+  avgDayKm: number;    // per active day
+  avgNightKm: number;
+  avgTotalKm: number;
+  totalKm: number;     // week total
+}
+
+export interface SamsaraVehicleWeekly {
+  vehicle: string;
+  weeks: SamsaraWeekRow[];
+  totalKm: number;
+  totalDays: number;
+  avgDayKm: number;    // overall per-day averages
+  avgNightKm: number;
+  avgTotalKm: number;
+}
+
+/** Flat "Ø pro KW" sheet: one row per (vehicle, calendar week) + a GESAMT row. */
+export function exportSamsaraKmWeeklyToXlsx(
+  vehicles: SamsaraVehicleWeekly[],
+  dayStart: number,
+  dayEnd: number,
+  companyName: string,
+) {
+  const wb = XLSX.utils.book_new();
+
+  const dayLabel = `${pad2x(dayStart)}:00–${pad2x(dayEnd)}:00`;
+  const nightLabel = `${pad2x(dayEnd)}:00–${pad2x(dayStart)}:00`;
+
+  const headers = [
+    'Kennzeichen', 'KW', 'Zeitraum', 'Tage',
+    `Ø km Tag (${dayLabel})`, `Ø km Nacht (${nightLabel})`, 'Ø km/Tag', 'Gesamt km',
+  ];
+  const COLS = headers.length; // 8
+
+  const data: (string | number)[][] = [
+    [companyName],
+    ['Kilometer — Tagesdurchschnitt je Kalenderwoche (KW)'],
+    [`Tagschicht: ${dayLabel}  |  Nachtschicht: ${nightLabel}`],
+    [],
+    headers,
+  ];
+  const HDR_ROW = data.length - 1; // 4
+  const DATA_START = data.length;  // 5
+
+  // Sort vehicles by plate; weeks already chronological from the caller.
+  const sorted = [...vehicles].sort((a, b) => a.vehicle.localeCompare(b.vehicle));
+  let grandDay = 0;
+  let grandNight = 0;
+  let grandKm = 0;
+  let grandDays = 0;
+  for (const v of sorted) {
+    for (const w of v.weeks) {
+      data.push([v.vehicle, w.label, w.range, w.days, w.avgDayKm, w.avgNightKm, w.avgTotalKm, w.totalKm]);
+    }
+    grandDay += v.avgDayKm * v.totalDays;
+    grandNight += v.avgNightKm * v.totalDays;
+    grandKm += v.totalKm;
+    grandDays += v.totalDays;
+  }
+  const div = grandDays || 1;
+  const DATA_END = data.length - 1; // last data row index
+  data.push([]);
+  const TOTAL_ROW = data.length;
+  data.push([
+    'GESAMT', '', '', grandDays,
+    Math.round((grandDay / div) * 10) / 10,
+    Math.round((grandNight / div) * 10) / 10,
+    Math.round((grandKm / div) * 10) / 10,
+    Math.round(grandKm * 10) / 10,
+  ]);
+
+  const ws = XLSX.utils.aoa_to_sheet(data);
+  ws['!cols'] = [
+    { wch: 20 }, { wch: 8 }, { wch: 18 }, { wch: 7 },
+    { wch: 18 }, { wch: 18 }, { wch: 12 }, { wch: 12 },
+  ];
+  ws['!merges'] = [
+    { s: { r: 0, c: 0 }, e: { r: 0, c: COLS - 1 } },
+    { s: { r: 1, c: 0 }, e: { r: 1, c: COLS - 1 } },
+    { s: { r: 2, c: 0 }, e: { r: 2, c: COLS - 1 } },
+  ];
+  ws['!freeze'] = { xSplit: 0, ySplit: DATA_START };
+  if (DATA_END >= DATA_START) {
+    ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: HDR_ROW, c: 0 }, e: { r: DATA_END, c: COLS - 1 } }) };
+  }
+
+  // Title block
+  styleRange(ws, 0, 0, 0, COLS - 1, { font: FONT_TITLE });
+  styleRange(ws, 1, 0, 1, COLS - 1, { font: FONT_SUBTITLE });
+  styleRange(ws, 2, 0, 2, COLS - 1, { font: FONT_META });
+
+  // Header
+  for (let c = 0; c < COLS; c++) {
+    styleCell(ws, HDR_ROW, c, {
+      font: { ...FONT_BOLD, color: { rgb: 'FFFFFF' } },
+      fill: FILL_HEADER,
+      border: BORDERS_ALL,
+      alignment: { horizontal: c >= 3 ? 'right' : 'left', vertical: 'center', wrapText: true },
+    });
+  }
+
+  // Data rows — zebra + number formats
+  for (let r = DATA_START; r <= DATA_END; r++) {
+    const isAlt = (r - DATA_START) % 2 === 1;
+    for (let c = 0; c < COLS; c++) {
+      styleCell(ws, r, c, {
+        font: c === 0 ? FONT_BOLD : FONT_DEFAULT,
+        border: BORDERS_ALL,
+        fill: isAlt ? FILL_ALT : undefined,
+        alignment: { horizontal: c >= 3 ? 'right' : 'left', vertical: 'center' },
+      });
+    }
+    for (let c = 4; c < COLS; c++) applyNumberFormat(ws, r, c, '#,##0.0');
+    applyNumberFormat(ws, r, 3, '#,##0');
+  }
+
+  // Totals row
+  for (let c = 0; c < COLS; c++) {
+    styleCell(ws, TOTAL_ROW, c, {
+      font: { ...FONT_BOLD, sz: 11 },
+      fill: FILL_TOTAL,
+      border: BORDER_BOTTOM_THICK,
+      alignment: { horizontal: c >= 3 ? 'right' : 'left', vertical: 'center' },
+    });
+  }
+  for (let c = 4; c < COLS; c++) applyNumberFormat(ws, TOTAL_ROW, c, '#,##0.0');
+  applyNumberFormat(ws, TOTAL_ROW, 3, '#,##0');
+
+  XLSX.utils.book_append_sheet(wb, ws, 'Ø pro KW');
+
+  XLSX.writeFile(wb, 'KM_Durchschnitt_KW.xlsx');
+}
+
 export function generateGoogleSheetsUrl(driverName: string, summary: Summary, shifts: ShiftRow[]): void {
   // Build TSV content for clipboard (Google Sheets pasting)
   const headers = ['Datum', 'Tag', 'Start', 'Ende', 'Dauer', 'Fahrzeit', 'Arbeit', 'Pause', 'Nacht 25%', 'Nacht 40%', 'VMA'].join('\t');
