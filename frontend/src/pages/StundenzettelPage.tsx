@@ -231,7 +231,7 @@ export function StundenzettelPage() {
     setName('');
   };
 
-  // DATEV "Vorlage zur Dokumentation der täglichen Arbeitszeit" PDF
+  // DATEV "Vorlage zur Dokumentation der täglichen Arbeitszeit" PDF (redrawn)
   const handleDatevPdf = async () => {
     const { generateStundenzettelDatevPdf } = await import('../lib/pdf-generator');
     await generateStundenzettelDatevPdf({
@@ -242,6 +242,27 @@ export function StundenzettelPage() {
       days: days.map(d => ({ day: d.day, start: d.start, end: d.end, pause: d.pause, code: d.code })),
       locale,
     });
+  };
+
+  // Fill the ORIGINAL DATEV Excel template (1:1 with the source file)
+  const [xlsxBusy, setXlsxBusy] = useState(false);
+  const handleDatevXlsx = async () => {
+    setXlsxBusy(true);
+    setError('');
+    try {
+      const { fillStundenzettelXlsx } = await import('../lib/stundenzettel-xlsx');
+      await fillStundenzettelXlsx({
+        name,
+        year,
+        month,
+        days: days.map(d => ({ day: d.day, start: d.start, end: d.end, pause: d.pause, code: d.code })),
+        locale,
+      });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setXlsxBusy(false);
+    }
   };
 
   // Calculate totals
@@ -356,8 +377,12 @@ export function StundenzettelPage() {
           {t('stzOcrFill')}
           <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp,application/pdf" className="hidden" onChange={handleOcrUpload} />
         </label>
+        <button onClick={handleDatevXlsx} disabled={xlsxBusy}
+          className="btn-primary inline-flex items-center gap-2 px-3 py-2 text-sm rounded-lg disabled:opacity-50">
+          {xlsxBusy ? <Spinner size="sm" /> : <FileDown size={14} />} Excel (DATEV)
+        </button>
         <button onClick={handleDatevPdf}
-          className="btn-primary inline-flex items-center gap-2 px-3 py-2 text-sm rounded-lg">
+          className="btn-secondary inline-flex items-center gap-2 px-3 py-2 text-sm rounded-lg">
           <FileDown size={14} /> {t('stzExportPdf')}
         </button>
         {loading && <Spinner />}
