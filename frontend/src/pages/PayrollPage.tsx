@@ -6,7 +6,8 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useI18n } from '../i18n';
-import { fetchDrivers, parseVacationPdf, fetchPayrollStatus, setPayrollStatus, analyzeDropboxFile, uploadFahrerliste, fahrerlisteStatus, fahrerlisteDownloadUrl, type VacationEntry, type PayrollStatusValue, type FahrerlisteStatus } from '../lib/api';
+import { fetchDrivers, parseVacationPdf, fetchPayrollStatus, setPayrollStatus, analyzeDropboxFile, uploadFahrerliste, fahrerlisteStatus, fahrerlisteDownloadUrl, fetchMonthlyDays, fahrerlisteFill, type VacationEntry, type PayrollStatusValue, type FahrerlisteStatus } from '../lib/api';
+import { buildFahrerlisteFillPayload } from '../lib/fahrerliste-fill';
 import { Card, StatCard } from '../components/Card';
 import { Badge } from '../components/Badge';
 import { Spinner } from '../components/Spinner';
@@ -69,6 +70,12 @@ export function PayrollPage() {
   const [preloading, setPreloading] = useState(false);
   const [preloadProgress, setPreloadProgress] = useState({ done: 0, total: 0, current: '' });
   const preloadCancelRef = useRef(false);
+
+  // Bulk "send all pending drivers to the accountant's Fahrerliste (list)"
+  const [sendingList, setSendingList] = useState(false);
+  const [sendProgress, setSendProgress] = useState({ done: 0, total: 0, current: '' });
+  const [sendResult, setSendResult] = useState<{ ok: number; errors: { name: string; error: string }[] } | null>(null);
+  const sendCancelRef = useRef(false);
 
   // Vacation PDF — persisted in localStorage
   const vacFileRef = useRef<HTMLInputElement>(null);
@@ -242,6 +249,67 @@ export function PayrollPage() {
     return data;
   }, [driverData, showOnlyNew, searchText]);
 
+  // Drivers with new files that are still not calculated (excl. Stundenzettel).
+  const pendingForList = useMemo(
+    () => driverData.filter(dd => dd.hasNewFiles && dd.status !== 'policzony' && dd.status !== 'stundenzettel'),
+    [driverData],
+  );
+
+  // Analyse each pending driver and write their numbers into the Fahrerliste,
+  // then mark them 'policzony'. Sequential, with progress + cancel.
+  const handleSendAllToList = useCallback(async () => {
+    if (!flStatus?.exists) {
+      setError(locale === 'de' ? 'Bitte zuerst die Fahrerliste hochladen.' : 'Najpierw wgraj listę księgową (Fahrerliste).');
+      return;
+    }
+    const pending = driverData.filter(dd => dd.hasNewFiles && dd.status !== 'policzony' && dd.status !== 'stundenzettel');
+    if (pending.length === 0) return;
+
+    setSendingList(true);
+    sendCancelRef.current = false;
+    setSendResult(null);
+    setError('');
+    let done = 0;
+    const okKeys: string[] = [];
+    const errors: { name: string; error: string }[] = [];
+
+    for (const dd of pending) {
+      if (sendCancelRef.current) break;
+      done++;
+      setSendProgress({ done, total: pending.length, current: dd.driver.name });
+      const key = dd.driver.card_number || dd.driver.name;
+      try {
+        const path = dd.driver.files[0]?.path;
+        if (!path) throw new Error(locale === 'de' ? 'keine Datei' : 'brak pliku');
+        const result = await analyzeDropboxFile(path);
+        let monthly = null;
+        try {
+          if (dd.driver.card_number) monthly = await fetchMonthlyDays(dd.driver.card_number, period);
+        } catch { /* optional */ }
+        const payload = buildFahrerlisteFillPayload(result, period, monthly, dd.vacation?.total_tage);
+        await fahrerlisteFill(payload);
+        okKeys.push(key);
+      } catch (e) {
+        errors.push({ name: dd.driver.name, error: e instanceof Error ? e.message : String(e) });
+      }
+    }
+
+    // Mark the successfully-sent drivers as calculated.
+    if (okKeys.length) {
+      setStatuses(prev => {
+        const next = { ...prev };
+        for (const k of okKeys) next[k] = 'policzony';
+        return next;
+      });
+      for (const k of okKeys) setPayrollStatus(period, k, 'policzony').catch(() => {});
+    }
+
+    setSendingList(false);
+    setSendProgress({ done: 0, total: 0, current: '' });
+    setSendResult({ ok: okKeys.length, errors });
+    fahrerlisteStatus(period).then(setFlStatus).catch(() => {});
+  }, [flStatus, driverData, period, locale]);
+
   const toggleStatus = async (key: string) => {
     const current = statuses[key] || '';
     const next = nextStatus(current);
@@ -348,6 +416,42 @@ export function PayrollPage() {
         <StatCard icon={<CheckCircle size={20} />} label={t('payrollDone')} value={driversPoliczony} color="green" />
         <StatCard icon={<FileText size={20} />} label="Stundenzettel" value={driversStz} color="blue" />
         <StatCard icon={<Clock size={20} />} label={t('payrollRemaining')} value={driversRemaining} color={driversRemaining > 0 ? 'orange' : 'primary'} />
+      </div>
+
+      {/* Send pending drivers (new files, not yet calculated) to the list */}
+      <div className="flex items-center gap-3 flex-wrap">
+        {sendingList ? (
+          <div className="flex items-center gap-2 text-sm">
+            <Spinner size="sm" />
+            <span className="text-muted">{sendProgress.done}/{sendProgress.total} — {sendProgress.current}</span>
+            <button onClick={() => { sendCancelRef.current = true; }} className="text-danger text-xs font-medium">Stop</button>
+          </div>
+        ) : (
+          <button
+            onClick={handleSendAllToList}
+            disabled={pendingForList.length === 0 || !flStatus?.exists}
+            title={!flStatus?.exists ? (locale === 'de' ? 'Zuerst Fahrerliste hochladen' : 'Najpierw wgraj listę księgową') : ''}
+            className="btn-primary inline-flex items-center gap-2 px-4 py-2 text-sm rounded-lg disabled:opacity-50"
+          >
+            <FileSpreadsheet size={15} />
+            {locale === 'de' ? `An Fahrerliste senden (${pendingForList.length})` : `Wyślij do listy księgowej (${pendingForList.length})`}
+          </button>
+        )}
+        {!flStatus?.exists && !sendingList && (
+          <span className="text-xs text-muted">
+            {locale === 'de' ? 'Fahrerliste für diesen Monat zuerst hochladen ↓' : 'Najpierw wgraj listę księgową dla tego miesiąca ↓'}
+          </span>
+        )}
+        {!sendingList && sendResult && (
+          <span className="text-xs">
+            <span className="font-medium text-emerald-600">{sendResult.ok} {locale === 'de' ? 'gesendet' : 'wysłano'}</span>
+            {sendResult.errors.length > 0 && (
+              <span className="text-red-500" title={sendResult.errors.map(e => `${e.name}: ${e.error}`).join('\n')}>
+                {' · '}{sendResult.errors.length} {locale === 'de' ? 'Fehler' : 'błędów'}
+              </span>
+            )}
+          </span>
+        )}
       </div>
 
       {/* Vacation upload */}
