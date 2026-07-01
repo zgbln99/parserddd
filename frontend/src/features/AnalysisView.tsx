@@ -2,6 +2,7 @@ import { useMemo, useState, useCallback, useRef, useEffect } from 'react';
 import { useI18n } from '../i18n';
 import { formatDate } from '../lib/format';
 import { getHolidayMap } from '../lib/holidays';
+import { buildDayWorkMap, buildVacationDaySet, findConflicts } from '../lib/vacation-conflicts';
 import { exportCsv, exportDatev, fetchDriverConfig, fetchMonthlyDays, saveMonthlyDays, fetchMindestlohnSettings, fahrerlisteFill } from '../lib/api';
 import type { DriverConfig, MonthlyDays, MindestlohnSettings } from '../lib/api';
 import { computeMindestlohn, parseHmToMinutes, DEFAULT_MINDESTLOHN_SETTINGS } from '../lib/mindestlohn';
@@ -1653,76 +1654,13 @@ function MonthlyGridCopy({
   // alternative day FREE, move that one there. Never push onto a day that
   // already has a shift — prevents the cascade where the moved shift just
   // collides with its neighbour.
-  const dayWorkMap = useMemo(() => {
-    const dayOf = (s?: string) => {
-      if (!s) return NaN;
-      const d = parseInt(s.slice(8, 10), 10);
-      return isNaN(d) ? NaN : d;
-    };
-
-    // Pass 1: tentative assignment by grid_date.
-    const assignment = new Map<number, number>();
-    const dayOccupancy = new Map<number, number[]>();
-    shifts.forEach((sh, i) => {
-      const d = !isNaN(dayOf(sh.grid_date)) ? dayOf(sh.grid_date) : dayOf(sh.shift_date);
-      if (isNaN(d)) return;
-      assignment.set(i, d);
-      const bucket = dayOccupancy.get(d) ?? [];
-      bucket.push(i);
-      dayOccupancy.set(d, bucket);
-    });
-
-    const isFree = (d: number) => !(dayOccupancy.get(d)?.length);
-
-    // Pass 2: for each colliding day, try to move shifts whose alternative
-    // candidate (shift_date or end_date — whichever grid_date didn't pick)
-    // is empty. Only moves into genuinely free days, so no cascades.
-    for (const [day, idxs] of dayOccupancy) {
-      if (idxs.length <= 1) continue;
-      // Snapshot — we mutate dayOccupancy as we move shifts.
-      for (const i of [...idxs]) {
-        const current = dayOccupancy.get(day) ?? [];
-        if (current.length <= 1) break; // collision resolved
-        const sh = shifts[i];
-        const startDay = dayOf(sh.shift_date);
-        const endDay = dayOf(sh.shift_end);
-        // The "other" candidate — the side of midnight grid_date didn't pick.
-        const altDay = day === startDay ? endDay : startDay;
-        if (isNaN(altDay) || altDay === day || !isFree(altDay)) continue;
-        // Move shift i from `day` to `altDay`.
-        assignment.set(i, altDay);
-        dayOccupancy.set(day, current.filter(j => j !== i));
-        dayOccupancy.set(altDay, [i]);
-      }
-    }
-
-    const map: Record<number, number> = {};
-    shifts.forEach((sh, i) => {
-      const d = assignment.get(i);
-      if (d == null) return;
-      map[d] = (map[d] || 0) + sh.duration_minutes;
-    });
-    return map;
-  }, [shifts]);
+  const dayWorkMap = useMemo(() => buildDayWorkMap(shifts), [shifts]);
 
   // Build set of vacation days from PDF ranges
-  const vacationDaySet = useMemo(() => {
-    const set = new Set<number>();
-    if (!vacationRanges?.length) return set;
-    for (const range of vacationRanges) {
-      const vonDate = new Date(range.von);
-      const bisDate = new Date(range.bis);
-      for (let d = new Date(vonDate); d <= bisDate; d.setDate(d.getDate() + 1)) {
-        if (d.getFullYear() === year && d.getMonth() + 1 === month) {
-          const dayOfWeek = d.getDay();
-          if (dayOfWeek !== 0 && dayOfWeek !== 6) {
-            set.add(d.getDate());
-          }
-        }
-      }
-    }
-    return set;
-  }, [vacationRanges, year, month]);
+  const vacationDaySet = useMemo(
+    () => buildVacationDaySet(vacationRanges, year, month),
+    [vacationRanges, year, month],
+  );
 
   // Merge: saved absence days + vacation from PDF (PDF fills gaps, doesn't overwrite)
   const absenceDays = useMemo(() => {
@@ -1744,22 +1682,10 @@ function MonthlyGridCopy({
   // Conflicts: days where vacation collides with card work hours — either a
   // PDF vacation day we refused to auto-fill, or a previously saved mark on
   // a day that (after re-analysis) turns out to have work.
-  const vacationConflicts = useMemo(() => {
-    const saved = monthlyDays?.absence_days || {};
-    const list: { day: number; work: number; source: 'pdf' | 'saved'; mark?: 'Ur' | 'Kr' }[] = [];
-    for (const day of vacationDaySet) {
-      if ((dayWorkMap[day] || 0) > 0 && !saved[String(day)]) {
-        list.push({ day, work: dayWorkMap[day], source: 'pdf' });
-      }
-    }
-    for (const [key, mark] of Object.entries(saved)) {
-      const d = Number(key);
-      if ((dayWorkMap[d] || 0) > 0) {
-        list.push({ day: d, work: dayWorkMap[d], source: 'saved', mark: mark as 'Ur' | 'Kr' });
-      }
-    }
-    return list.sort((a, b) => a.day - b.day);
-  }, [monthlyDays?.absence_days, vacationDaySet, dayWorkMap]);
+  const vacationConflicts = useMemo(
+    () => findConflicts(dayWorkMap, vacationDaySet, monthlyDays?.absence_days),
+    [monthlyDays?.absence_days, vacationDaySet, dayWorkMap],
+  );
 
   // Generate weekday names for each day
   const wdNames = locale === 'de' ? weekdayDeShort : weekdayPlShort;

@@ -8,6 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import { useI18n } from '../i18n';
 import { fetchDrivers, parseVacationPdf, fetchPayrollStatus, setPayrollStatus, clearPayrollStatus, analyzeDropboxFile, uploadFahrerliste, fahrerlisteStatus, fahrerlisteDownloadUrl, fetchMonthlyDays, fahrerlisteFill, type VacationEntry, type PayrollStatusValue, type FahrerlisteStatus } from '../lib/api';
 import { buildFahrerlisteFillPayload } from '../lib/fahrerliste-fill';
+import { computeVacationConflicts, type DayConflict } from '../lib/vacation-conflicts';
 import { Card, StatCard } from '../components/Card';
 import { Badge } from '../components/Badge';
 import { Spinner } from '../components/Spinner';
@@ -31,6 +32,16 @@ function matchVacationToDriver(vacationName: string, driverName: string): boolea
   if (dParts.length >= 2 && vLast === dParts[0] && dParts[0].length >= 3) return true;
   return false;
 }
+
+// One driver flagged by the vacation-conflict scan.
+interface DriverConflict {
+  name: string;
+  cardNumber: string;
+  conflicts: DayConflict[];
+}
+
+// Work minutes -> "H:MM"
+const fmtWorkMin = (min: number) => `${Math.floor(min / 60)}:${String(min % 60).padStart(2, '0')}`;
 
 function getCurrentPeriod() {
   const now = new Date();
@@ -76,6 +87,12 @@ export function PayrollPage() {
   const [sendProgress, setSendProgress] = useState({ done: 0, total: 0, current: '' });
   const [sendResult, setSendResult] = useState<{ ok: number; errors: { name: string; error: string }[] } | null>(null);
   const sendCancelRef = useRef(false);
+
+  // Cross-driver vacation conflict scan (vacation/absence vs. card work)
+  const [checkingConflicts, setCheckingConflicts] = useState(false);
+  const [conflictProgress, setConflictProgress] = useState({ done: 0, total: 0, current: '' });
+  const [conflictResults, setConflictResults] = useState<DriverConflict[] | null>(null);
+  const conflictCancelRef = useRef(false);
 
   // Vacation PDF — persisted in localStorage
   const vacFileRef = useRef<HTMLInputElement>(null);
@@ -310,6 +327,74 @@ export function PayrollPage() {
     fahrerlisteStatus(period).then(setFlStatus).catch(() => {});
   }, [flStatus, driverData, period, locale]);
 
+  // Candidates for the conflict scan: drivers with a matched vacation entry
+  // and at least one card file (only those can have a vacation-vs-work clash).
+  const conflictCandidates = useMemo(
+    () => driverData.filter(dd => dd.vacation && dd.driver.files.length > 0),
+    [driverData],
+  );
+
+  // Scan each candidate's card for days worked while on declared vacation (or
+  // marked Ur/Kr). Same detection rules as the per-driver panel in AnalysisView.
+  const handleCheckConflicts = useCallback(async () => {
+    const candidates = driverData.filter(dd => dd.vacation && dd.driver.files.length > 0);
+    if (candidates.length === 0) return;
+    const [y, m] = period.split('-').map(Number);
+    if (!y || !m) return;
+
+    setCheckingConflicts(true);
+    conflictCancelRef.current = false;
+    setConflictResults(null);
+    setError('');
+    const results: DriverConflict[] = [];
+    let done = 0;
+
+    for (const dd of candidates) {
+      if (conflictCancelRef.current) break;
+      done++;
+      setConflictProgress({ done, total: candidates.length, current: dd.driver.name });
+      try {
+        const path = dd.driver.files[0]?.path;
+        if (!path) continue;
+        const result = await analyzeDropboxFile(path);
+        const shifts = (result.shift_details || []).filter(
+          sh => (sh.shift_date || '').slice(0, 7) === period,
+        );
+        let absenceDays: Record<string, 'Ur' | 'Kr'> | undefined;
+        try {
+          if (dd.driver.card_number) {
+            const monthly = await fetchMonthlyDays(dd.driver.card_number, period);
+            absenceDays = monthly?.absence_days;
+          }
+        } catch { /* saved marks are optional */ }
+        const conflicts = computeVacationConflicts({
+          shifts,
+          ranges: dd.vacation?.ranges,
+          absenceDays,
+          year: y,
+          month: m,
+        });
+        if (conflicts.length) {
+          results.push({ name: dd.driver.name, cardNumber: dd.driver.card_number || '', conflicts });
+        }
+      } catch { /* skip drivers whose card can't be analysed */ }
+    }
+
+    setCheckingConflicts(false);
+    setConflictProgress({ done: 0, total: 0, current: '' });
+    setConflictResults(results);
+  }, [driverData, period]);
+
+  // Open a flagged driver's analysis (same URL the table row builds).
+  const openConflictDriver = (dc: DriverConflict) => {
+    const dd = driverData.find(x => (x.driver.card_number || x.driver.name) === (dc.cardNumber || dc.name));
+    const d = dd?.driver;
+    if (!d || d.files.length === 0) return;
+    const vacParam = dd?.vacation ? `&vacation=${encodeURIComponent(JSON.stringify(dd.vacation.ranges))}` : '';
+    const fileInfo = `&fileDate=${encodeURIComponent(d.files[0].file_date || '')}&fileModified=${encodeURIComponent(d.files[0].modified || '')}`;
+    navigate(`/payroll/${encodeURIComponent(d.card_number || d.name)}?period=${period}&path=${encodeURIComponent(d.files[0].path)}&name=${encodeURIComponent(d.name)}${vacParam}${fileInfo}`);
+  };
+
   const toggleStatus = async (key: string) => {
     const current = statuses[key] || '';
     const next = nextStatus(current);
@@ -492,6 +577,27 @@ export function PayrollPage() {
             </button>
           </span>
         )}
+        {vacationEntries.length > 0 && (
+          <button
+            onClick={handleCheckConflicts}
+            disabled={checkingConflicts || conflictCandidates.length === 0}
+            title={locale === 'de'
+              ? 'Karten der Urlauber auf Arbeit an Urlaubstagen prüfen'
+              : 'Sprawdź karty urlopowiczów pod kątem pracy w dni urlopu'}
+            className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/30 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {checkingConflicts ? <Spinner /> : <AlertCircle size={14} />}
+            {locale === 'de'
+              ? `Urlaubskonflikte prüfen (${conflictCandidates.length})`
+              : `Sprawdź konflikty urlopów (${conflictCandidates.length})`}
+          </button>
+        )}
+        {checkingConflicts && (
+          <span className="inline-flex items-center gap-2 text-xs text-muted">
+            {conflictProgress.done}/{conflictProgress.total} — {conflictProgress.current}
+            <button onClick={() => { conflictCancelRef.current = true; }} className="text-danger font-medium">Stop</button>
+          </span>
+        )}
 
         {/* Fahrerliste (accountant's monthly Excel) */}
         <div className="ml-auto flex items-center gap-3 flex-wrap">
@@ -519,6 +625,57 @@ export function PayrollPage() {
           )}
         </div>
       </div>
+
+      {/* Vacation-conflict results */}
+      {conflictResults !== null && (
+        <div className="rounded-xl border border-border overflow-hidden">
+          {conflictResults.length === 0 ? (
+            <div className="flex items-center gap-2 px-4 py-3 text-sm bg-emerald-50 dark:bg-emerald-900/15 text-emerald-700 dark:text-emerald-300">
+              <CheckCircle size={16} />
+              {locale === 'de' ? 'Keine Urlaubskonflikte gefunden.' : 'Nie znaleziono konfliktów urlopów.'}
+              <button onClick={() => setConflictResults(null)} className="ml-auto text-muted hover:text-ink"><X size={14} /></button>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center gap-2 px-4 py-3 text-sm font-semibold bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-200 border-b border-amber-200/60 dark:border-amber-800/40">
+                <AlertCircle size={16} />
+                {locale === 'de'
+                  ? `${conflictResults.length} Fahrer mit Arbeit an Urlaubs-/Abwesenheitstagen`
+                  : `${conflictResults.length} kierowców z pracą w dni urlopu/nieobecności`}
+                <button onClick={() => setConflictResults(null)} className="ml-auto text-muted hover:text-ink"><X size={14} /></button>
+              </div>
+              <ul className="divide-y divide-border">
+                {conflictResults.map((dc) => (
+                  <li key={dc.cardNumber || dc.name} className="px-4 py-2.5">
+                    <button
+                      onClick={() => openConflictDriver(dc)}
+                      className="text-sm font-medium text-ink hover:underline text-left"
+                    >
+                      {dc.name}
+                    </button>
+                    <div className="mt-1 flex flex-wrap gap-1.5">
+                      {dc.conflicts.map((c) => (
+                        <span
+                          key={c.day}
+                          title={c.source === 'saved'
+                            ? (c.mark === 'Kr'
+                                ? (locale === 'de' ? 'Krank eingetragen, Karte zeigt Arbeit' : 'Wpisano chorobę, karta pokazuje pracę')
+                                : (locale === 'de' ? 'Urlaub eingetragen, Karte zeigt Arbeit' : 'Wpisano urlop, karta pokazuje pracę'))
+                            : (locale === 'de' ? 'Urlaub (Liste), Karte zeigt Arbeit' : 'Urlop (lista), karta pokazuje pracę')}
+                          className="inline-flex items-center gap-1 rounded-full bg-amber-100 dark:bg-amber-900/30 px-2 py-0.5 text-xs font-medium text-amber-800 dark:text-amber-200"
+                        >
+                          {String(c.day).padStart(2, '0')}.{period.slice(5, 7)}. · {fmtWorkMin(c.work)}
+                          {c.mark === 'Kr' ? ' (Kr)' : ''}
+                        </span>
+                      ))}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </div>
+      )}
 
       {/* Filters */}
       <div className="flex items-center gap-3 flex-wrap">
