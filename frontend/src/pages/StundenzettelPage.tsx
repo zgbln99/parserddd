@@ -10,6 +10,7 @@ import { Card, StatCard } from '../components/Card';
 import { Badge } from '../components/Badge';
 import { Spinner } from '../components/Spinner';
 import { MonthSelect } from '../components/MonthSelect';
+import { getHolidayMap } from '../lib/holidays';
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: string | null }> {
   state = { error: null as string | null };
@@ -120,15 +121,21 @@ function monthsBetween(fromYM: string, toYM: string): { year: number; month: num
   return out;
 }
 
-/** Build a month's day grid from a shift pattern (weekdays, optionally Sat). */
+/** Build a month's day grid from a shift pattern (weekdays, optionally Sat).
+ *  When markHolidays is set, working days that are German (Berlin) public
+ *  holidays are marked 'F' instead of getting work hours. */
 function buildMonthDaysPattern(
-  year: number, month: number, start: string, end: string, pause: number, includeSat: boolean,
+  year: number, month: number, start: string, end: string, pause: number,
+  includeSat: boolean, markHolidays: boolean,
 ): EditableDay[] {
   const count = daysInMonth(year, month);
+  const holidays = markHolidays ? getHolidayMap(year) : null;
   return Array.from({ length: count }, (_, i) => {
     const day = i + 1;
     const dow = new Date(year, month - 1, day).getDay();
     const work = (dow >= 1 && dow <= 5) || (includeSat && dow === 6);
+    const key = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    if (work && holidays?.has(key)) return { day, start: '', end: '', pause: 0, code: 'F' };
     return { day, start: work ? start : '', end: work ? end : '', pause: work ? pause : 0, code: '' };
   });
 }
@@ -258,6 +265,20 @@ export function StundenzettelPage() {
     setName('');
   };
 
+  // Mark German (Berlin) public holidays in the current month as F.
+  const applyHolidays = () => {
+    const hol = getHolidayMap(year);
+    setDays(prev => prev.map(d => {
+      const dow = new Date(year, month - 1, d.day).getDay();
+      const key = `${year}-${String(month).padStart(2, '0')}-${String(d.day).padStart(2, '0')}`;
+      // Mon–Fri holidays always; a Saturday only if it was actually worked.
+      if (hol.has(key) && ((dow >= 1 && dow <= 5) || (dow === 6 && (d.start || d.end)))) {
+        return { ...d, code: 'F', start: '', end: '', pause: 0 };
+      }
+      return d;
+    }));
+  };
+
   const stzPayload = () => ({
     name,
     year,
@@ -324,6 +345,7 @@ export function StundenzettelPage() {
   const [massEnd, setMassEnd] = useState('');
   const [massPause, setMassPause] = useState(30);
   const [massSat, setMassSat] = useState(false);
+  const [massHolidays, setMassHolidays] = useState(true);
   const [massPrepared, setMassPrepared] = useState(false);
   const [massBusy, setMassBusy] = useState(false);
   const [massProgress, setMassProgress] = useState('');
@@ -342,7 +364,7 @@ export function StundenzettelPage() {
     setMassResult(null);
     const grids: Record<string, EditableDay[]> = { ...monthGrids, [period]: days };
     for (const { year: y, month: m } of massMonths) {
-      grids[ymKey(y, m)] = buildMonthDaysPattern(y, m, massStart, massEnd, massPause, massSat);
+      grids[ymKey(y, m)] = buildMonthDaysPattern(y, m, massStart, massEnd, massPause, massSat, massHolidays);
     }
     setMonthGrids(grids);
     const [fy, fm] = massFrom.split('-').map(Number);
@@ -364,7 +386,7 @@ export function StundenzettelPage() {
         name,
         year: y,
         month: m,
-        days: grids[ymKey(y, m)] || buildMonthDaysPattern(y, m, massStart, massEnd, massPause, massSat),
+        days: grids[ymKey(y, m)] || buildMonthDaysPattern(y, m, massStart, massEnd, massPause, massSat, massHolidays),
       }));
       const { saveManyStundenzettelToStorage } = await import('../lib/stundenzettel-xlsx');
       const res = await saveManyStundenzettelToStorage(
@@ -558,6 +580,11 @@ export function StundenzettelPage() {
             className="btn-primary px-3 py-1 text-xs rounded-lg disabled:opacity-40">
             {t('stzBulkApply')}
           </button>
+          <button onClick={applyHolidays}
+            title={locale === 'de' ? 'Feiertage (Berlin) als F markieren' : 'Oznacz święta (Berlin) jako F'}
+            className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-1 text-xs font-medium text-muted hover:bg-surface">
+            <CalendarDays size={12} /> {locale === 'de' ? 'Feiertage BE' : 'Święta BE'}
+          </button>
         </div>
         {bulkRange === 'custom' && (
           <div className="flex items-center gap-1 mt-2 flex-wrap">
@@ -622,6 +649,10 @@ export function StundenzettelPage() {
             <label className="flex items-center gap-1 text-xs text-muted cursor-pointer">
               <input type="checkbox" checked={massSat} onChange={e => { setMassSat(e.target.checked); resetPrepared(); }} className="rounded" />
               {locale === 'de' ? 'inkl. Sa' : 'z sobotą'}
+            </label>
+            <label className="flex items-center gap-1 text-xs text-muted cursor-pointer" title={locale === 'de' ? 'Feiertage Berlin automatisch als F markieren' : 'Automatycznie oznacz święta (Berlin) jako F'}>
+              <input type="checkbox" checked={massHolidays} onChange={e => { setMassHolidays(e.target.checked); resetPrepared(); }} className="rounded" />
+              {locale === 'de' ? 'Feiertage (Berlin)' : 'Święta (Berlin)'}
             </label>
           </div>
           <div className="flex items-center gap-3 flex-wrap">

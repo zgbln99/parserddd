@@ -38,8 +38,10 @@ function toISO(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-/** Get all German public holidays for a given year */
-export function getGermanHolidays(year: number): Holiday[] {
+export type HolidayRegion = 'BE' | 'DE';
+
+/** Get all German public holidays for a given year (default: Berlin). */
+export function getGermanHolidays(year: number, region: HolidayRegion = 'BE'): Holiday[] {
   const easter = easterSunday(year);
 
   const holidays: Holiday[] = [
@@ -57,13 +59,24 @@ export function getGermanHolidays(year: number): Holiday[] {
     { date: toISO(addDays(easter, 50)), name: 'Pfingstmontag', namePl: 'Poniedziałek Zesł. Ducha Św.' },
   ];
 
+  // Berlin-specific public holidays
+  if (region === 'BE') {
+    if (year >= 2019) {
+      holidays.push({ date: `${year}-03-08`, name: 'Internationaler Frauentag', namePl: 'Międzynarodowy Dzień Kobiet' });
+    }
+    if (year === 2025) {
+      // One-off Berlin holiday: 80th anniversary of the liberation
+      holidays.push({ date: '2025-05-08', name: '80. Jahrestag der Befreiung', namePl: '80. rocznica wyzwolenia' });
+    }
+  }
+
   return holidays;
 }
 
-/** Build a map: "YYYY-MM-DD" → Holiday for quick lookup */
-export function getHolidayMap(year: number): Map<string, Holiday> {
+/** Build a map: "YYYY-MM-DD" → Holiday for quick lookup (default: Berlin). */
+export function getHolidayMap(year: number, region: HolidayRegion = 'BE'): Map<string, Holiday> {
   const map = new Map<string, Holiday>();
-  for (const h of getGermanHolidays(year)) {
+  for (const h of getGermanHolidays(year, region)) {
     map.set(h.date, h);
   }
   return map;
