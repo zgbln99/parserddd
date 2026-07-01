@@ -128,6 +128,14 @@ export const setPayrollStatus = (period: string, cardNumber: string, status: Pay
     body: JSON.stringify({ card_number: cardNumber, status }),
   });
 
+// Bulk-clear statuses for a period in one DB op (empty status → clear all).
+export const clearPayrollStatus = (period: string, status?: 'policzony' | 'stundenzettel') =>
+  request<{ ok: boolean; cleared: number }>(`/api/payroll-status/${encodeURIComponent(period)}/clear`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(status ? { status } : {}),
+  });
+
 // Live fleet locations (Samsara GPS snapshot)
 export interface VehicleLocation {
   vehicle_id: string;

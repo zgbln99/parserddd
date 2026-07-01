@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useI18n } from '../i18n';
-import { fetchDrivers, parseVacationPdf, fetchPayrollStatus, setPayrollStatus, analyzeDropboxFile, uploadFahrerliste, fahrerlisteStatus, fahrerlisteDownloadUrl, fetchMonthlyDays, fahrerlisteFill, type VacationEntry, type PayrollStatusValue, type FahrerlisteStatus } from '../lib/api';
+import { fetchDrivers, parseVacationPdf, fetchPayrollStatus, setPayrollStatus, clearPayrollStatus, analyzeDropboxFile, uploadFahrerliste, fahrerlisteStatus, fahrerlisteDownloadUrl, fetchMonthlyDays, fahrerlisteFill, type VacationEntry, type PayrollStatusValue, type FahrerlisteStatus } from '../lib/api';
 import { buildFahrerlisteFillPayload } from '../lib/fahrerliste-fill';
 import { Card, StatCard } from '../components/Card';
 import { Badge } from '../components/Badge';
@@ -356,6 +356,27 @@ export function PayrollPage() {
     }
   };
 
+  // Clear all 'policzony' drivers for the period in one DB operation.
+  const handleClearCalculated = async () => {
+    const count = driverData.filter(d => d.status === 'policzony').length;
+    if (count === 0) return;
+    if (!window.confirm(locale === 'de'
+      ? `${count} als berechnet markierte Fahrer zurücksetzen?`
+      : `Odznaczyć ${count} policzonych kierowców?`)) return;
+    // Optimistic: drop all 'policzony' keys from local state.
+    setStatuses(prev => {
+      const next: Record<string, PayrollStatusValue> = {};
+      for (const [k, v] of Object.entries(prev)) if (v !== 'policzony') next[k] = v;
+      return next;
+    });
+    try {
+      await clearPayrollStatus(period, 'policzony');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      loadStatuses(period); // reload true DB state on failure
+    }
+  };
+
   // Stats
   const totalDrivers = driverData.length;
   const driversWithNew = driverData.filter(d => d.hasNewFiles).length;
@@ -533,6 +554,18 @@ export function PayrollPage() {
             className="text-xs text-muted hover:text-ink font-medium"
           >
             {t('payrollUncheckAll')}
+          </button>
+          <span className="text-xs text-muted">|</span>
+          <button
+            onClick={handleClearCalculated}
+            disabled={driversPoliczony === 0}
+            title={locale === 'de' ? 'Alle berechneten Fahrer in der DB zurücksetzen' : 'Odznacz wszystkich policzonych (zapis w bazie)'}
+            className="inline-flex items-center gap-1 text-xs font-medium text-danger hover:opacity-80 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <Circle size={12} />
+            {locale === 'de'
+              ? `Berechnete zurücksetzen (${driverData.filter(d => d.status === 'policzony').length})`
+              : `Odznacz policzonych (${driverData.filter(d => d.status === 'policzony').length})`}
           </button>
         </div>
       </div>
