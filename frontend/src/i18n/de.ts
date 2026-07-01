@@ -561,6 +561,7 @@ export const de: Record<TranslationKey, string> = {
   stzSubtitle: 'Bild oder PDF hochladen — automatische Erkennung und Berechnung',
   stzUpload: 'Stundenzettel hochladen',
   stzOcrFill: 'Mit OCR ausfüllen (Foto/PDF)',
+  stzExportPdf: 'Arbeitszeit-PDF',
   stzNamePlaceholder: 'Name des Fahrers',
   stzClear: 'Löschen',
   stzFormats: 'JPG, PNG, WebP oder PDF',

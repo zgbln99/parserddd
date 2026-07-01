@@ -559,6 +559,7 @@ export const pl = {
   stzSubtitle: 'Wgraj zdjęcie lub PDF stundenzettla — automatyczne rozpoznawanie i obliczenia',
   stzUpload: 'Wgraj Stundenzettel',
   stzOcrFill: 'Wypełnij z OCR (zdjęcie/PDF)',
+  stzExportPdf: 'PDF czasu pracy',
   stzNamePlaceholder: 'Nazwisko kierowcy',
   stzClear: 'Wyczyść',
   stzFormats: 'JPG, PNG, WebP lub PDF',

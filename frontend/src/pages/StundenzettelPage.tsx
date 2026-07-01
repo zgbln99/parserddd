@@ -2,7 +2,7 @@ import { useState, useCallback, useRef, useMemo, useEffect, Component, type Reac
 import {
   Upload, FileText, AlertCircle, Clock, Moon, UtensilsCrossed,
   CalendarDays, Thermometer, Palmtree, Star, ClipboardCopy, Check,
-  Plus, Trash2,
+  Plus, Trash2, FileDown,
 } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { parseStundenzettel, fetchConfig, type StundenzettelDay } from '../lib/api';
@@ -106,7 +106,7 @@ function getCurrentPeriod() {
 }
 
 export function StundenzettelPage() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const fileRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -231,6 +231,19 @@ export function StundenzettelPage() {
     setName('');
   };
 
+  // DATEV "Vorlage zur Dokumentation der täglichen Arbeitszeit" PDF
+  const handleDatevPdf = async () => {
+    const { generateStundenzettelDatevPdf } = await import('../lib/pdf-generator');
+    await generateStundenzettelDatevPdf({
+      firma: 'LTS Logistik GmbH',
+      name,
+      year,
+      month,
+      days: days.map(d => ({ day: d.day, start: d.start, end: d.end, pause: d.pause, code: d.code })),
+      locale,
+    });
+  };
+
   // Calculate totals
   const totals = useMemo(() => {
     let workMin = 0, n25 = 0, n40 = 0, diets = 0, workDays = 0;
@@ -343,6 +356,10 @@ export function StundenzettelPage() {
           {t('stzOcrFill')}
           <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp,application/pdf" className="hidden" onChange={handleOcrUpload} />
         </label>
+        <button onClick={handleDatevPdf}
+          className="btn-primary inline-flex items-center gap-2 px-3 py-2 text-sm rounded-lg">
+          <FileDown size={14} /> {t('stzExportPdf')}
+        </button>
         {loading && <Spinner />}
         {hasAnyData && (
           <button onClick={clearAll} className="text-xs text-muted hover:text-red-500 flex items-center gap-1">

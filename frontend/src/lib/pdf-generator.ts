@@ -2725,3 +2725,219 @@ export async function generateDriversPdf(rows: DriverPdfRow[]) {
   fleetFooter(c);
   doc.save(`Fahrerliste_${new Date().toISOString().slice(0, 10)}.pdf`);
 }
+
+// ── 5) Stundenzettel — DATEV "Vorlage zur Dokumentation der täglichen Arbeitszeit" ──
+
+export interface StundenzettelDatevDay {
+  day: number;
+  start: string;   // "HH:MM"
+  end: string;     // "HH:MM"
+  pause: number;   // minutes
+  code: string;    // '', K, U, UU, F, …
+}
+
+export interface StundenzettelDatevInput {
+  firma: string;
+  name: string;
+  persNr?: string;
+  year: number;
+  month: number;           // 1-12
+  days: StundenzettelDatevDay[];
+  locale?: 'de' | 'pl';    // weekday abbreviations follow the UI locale
+}
+
+const STZ_WD_DE = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
+const STZ_WD_PL = ['niedz', 'pon', 'wt', 'śr', 'czw', 'pt', 'sob'];
+const STZ_MONTHS_DE = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
+
+function stzToMin(t: string): number | null {
+  const m = /^(\d{1,2}):(\d{2})$/.exec((t || '').trim());
+  return m ? +m[1] * 60 + +m[2] : null;
+}
+
+export async function generateStundenzettelDatevPdf(input: StundenzettelDatevInput) {
+  const c = await ctx('portrait');
+  const { doc, W, M } = c;
+
+  // Inter font so Polish weekday abbreviations (śr, niedz…) render correctly.
+  const fonts = await loadInterFonts();
+  if (fonts) registerInterFont(doc, fonts);
+  const FONT = fonts ? 'Inter' : 'helvetica';
+
+  const wd = (input.locale === 'pl' ? STZ_WD_PL : STZ_WD_DE);
+  const count = new Date(input.year, input.month, 0).getDate();
+  const byDay = new Map(input.days.map((d) => [d.day, d]));
+
+  // ── Title + brand ──
+  doc.setFont(FONT, 'bold');
+  doc.setFontSize(13);
+  doc.setTextColor(30, 30, 30);
+  doc.text('Vorlage zur Dokumentation der täglichen Arbeitszeit', M, 15);
+  if (c.logo) {
+    try { doc.addImage(c.logo, 'PNG', W - M - 34, 8, 34, 15); } catch { /* skip */ }
+  }
+
+  // ── Header fields (label + boxed value) ──
+  const box = (x: number, y: number, w: number, h: number, value: string) => {
+    doc.setDrawColor(120, 120, 120);
+    doc.setLineWidth(0.2);
+    doc.rect(x, y, w, h);
+    if (value) {
+      doc.setFont(FONT, 'normal');
+      doc.setFontSize(9);
+      doc.setTextColor(40, 40, 40);
+      doc.text(value, x + w / 2, y + h / 2 + 1.4, { align: 'center' });
+    }
+  };
+  const label = (s: string, x: number, y: number) => {
+    doc.setFont(FONT, 'normal');
+    doc.setFontSize(9.5);
+    doc.setTextColor(40, 40, 40);
+    doc.text(s, x, y);
+  };
+
+  let hy = 22;
+  label('Firma:', M, hy + 4);
+  box(M + 42, hy, W - M - (M + 42), 6.5, input.firma);
+  hy += 9;
+  label('Name des Mitarbeiters:', M, hy + 4);
+  box(M + 42, hy, W - M - (M + 42), 6.5, input.name);
+  hy += 9;
+  label('Pers.-Nr.:', M, hy + 4);
+  box(M + 42, hy, 28, 6.5, input.persNr || '');
+  label('Monat/Jahr:', M + 82, hy + 4);
+  box(M + 116, hy, W - M - (M + 116), 6.5, `${STZ_MONTHS_DE[input.month - 1]} ${String(input.year).slice(-2)}`);
+  hy += 11;
+
+  // ── Day grid ──
+  let sumNet = 0;
+  const body = [];
+  for (let d = 1; d <= count; d++) {
+    const rec = byDay.get(d);
+    const dow = new Date(input.year, input.month - 1, d).getDay();
+    const kal = `${wd[dow]}, ${String(d).padStart(2, '0')}`;
+    const codeUp = (rec?.code || '').toUpperCase();
+    let beginn = '';
+    let ende = '';
+    let gross = 0;
+    let net = 0;
+    let pauseMin = 0;
+    if (rec && !codeUp) {
+      const s = stzToMin(rec.start);
+      const e0 = stzToMin(rec.end);
+      if (s !== null && e0 !== null) {
+        let e = e0;
+        if (e <= s) e += 1440;
+        gross = e - s;
+        pauseMin = Math.max(0, rec.pause || 0);
+        net = Math.max(0, gross - pauseMin);
+        beginn = rec.start;
+        ende = rec.end;
+      }
+    }
+    sumNet += net;
+    body.push([
+      kal,
+      beginn,
+      ende,
+      hm(gross),
+      '',
+      codeUp,
+      '',
+      pauseMin > 0 ? hm(pauseMin) : '',
+      hm(net),
+    ]);
+  }
+
+  autoTable(doc, {
+    startY: hy,
+    head: [[
+      'Kalendertag',
+      'Beginn\n(Uhrzeit)',
+      'Ende\n(Uhrzeit)',
+      'Dauer\n(Summe)',
+      'aufgezeichnet\nam:',
+      '*',
+      'Bemerkungen',
+      { content: 'Pause', colSpan: 2 },
+    ]],
+    body,
+    theme: 'grid',
+    styles: { font: FONT, fontSize: 8, cellPadding: { top: 0.85, bottom: 0.85, left: 2, right: 2 }, lineColor: [120, 120, 120], lineWidth: 0.15, textColor: [30, 30, 30], valign: 'middle' },
+    headStyles: { font: FONT, fontStyle: 'bold', fontSize: 7.5, fillColor: [210, 210, 210], textColor: [30, 30, 30], halign: 'center', valign: 'middle', lineColor: [120, 120, 120], lineWidth: 0.15 },
+    columnStyles: {
+      0: { cellWidth: 20, halign: 'left' },
+      1: { cellWidth: 18, halign: 'center' },
+      2: { cellWidth: 18, halign: 'center' },
+      3: { cellWidth: 18, halign: 'center' },
+      4: { cellWidth: 24, halign: 'center' },
+      5: { cellWidth: 8, halign: 'center', fontStyle: 'bold' },
+      6: { cellWidth: 40, halign: 'left' },
+      7: { cellWidth: 18, halign: 'right' },
+      8: { cellWidth: 18, halign: 'right' },
+    },
+    margin: { left: M, right: M },
+  });
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let y = (doc as any).lastAutoTable.finalY + 5;
+
+  // ── Summe ──
+  doc.setFont(FONT, 'normal');
+  doc.setFontSize(9.5);
+  doc.setTextColor(40, 40, 40);
+  doc.text('Summe:', M + 44, y, { align: 'right' });
+  doc.setFont(FONT, 'bold');
+  doc.setFontSize(11);
+  doc.text(hm(sumNet), M + 50, y);
+  doc.setDrawColor(30, 30, 30);
+  doc.setLineWidth(0.4);
+  const sw = doc.getTextWidth(hm(sumNet));
+  doc.line(M + 50, y + 1.5, M + 50 + sw + 4, y + 1.5);
+
+  // ── Signatures ──
+  y += 14;
+  doc.setDrawColor(60, 60, 60);
+  doc.setLineWidth(0.25);
+  const sig = (x0: number, w1: number, w2: number, l1: string, l2: string) => {
+    doc.line(x0, y, x0 + w1, y);
+    doc.line(x0 + w1 + 6, y, x0 + w1 + 6 + w2, y);
+    doc.setFont(FONT, 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(80, 80, 80);
+    doc.text(l1, x0, y + 4);
+    doc.text(l2, x0 + w1 + 6, y + 4);
+  };
+  const half = (W - 2 * M) / 2;
+  sig(M + 4, 26, half - 40, 'Datum', 'Unterschrift des Arbeitnehmers');
+  sig(M + half + 4, 26, half - 40, 'Datum', 'Unterschrift des Arbeitgebers');
+
+  // ── Legend ──
+  y += 12;
+  doc.setFont(FONT, 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(40, 40, 40);
+  doc.text('* Tragen Sie in diese Spalte eines der folgenden Kürzel ein, wenn es für diesen Kalendertag zutrifft:', M, y);
+  y += 4;
+  // Schlüssel box
+  doc.setFillColor(210, 210, 210);
+  doc.setDrawColor(120, 120, 120);
+  doc.setLineWidth(0.2);
+  doc.rect(M + 40, y, 42, 22, 'FD');
+  doc.setTextColor(40, 40, 40);
+  doc.text('Schlüssel', M + 40 + 21, y + 12.5, { align: 'center' });
+  // key list with a separating vertical line
+  const lx = M + 92;
+  doc.line(lx + 8, y, lx + 8, y + 22);
+  const keys: [string, string][] = [['K', 'Krank'], ['U', 'Urlaub'], ['UU', 'unbezahlter Urlaub'], ['F', 'Feiertag']];
+  keys.forEach(([k, v], i) => {
+    const ky = y + 5.5 + i * 5;
+    doc.setFont(FONT, 'bold');
+    doc.text(k, lx, ky);
+    doc.setFont(FONT, 'normal');
+    doc.text(v, lx + 12, ky);
+  });
+
+  const fname = `Arbeitszeit_${safeName(input.name || 'Mitarbeiter')}_${input.year}-${String(input.month).padStart(2, '0')}`;
+  doc.save(`${fname}.pdf`);
+}
