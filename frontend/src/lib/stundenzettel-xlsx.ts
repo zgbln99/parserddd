@@ -175,29 +175,27 @@ export async function saveStundenzettelToStorage(input: StzXlsxInput): Promise<{
 }
 
 /**
- * Mass generation: save one Stundenzettel per employee (same month + day grid,
- * each into its own folder) to the server storage. Runs sequentially so the
- * server-side PDF conversions don't pile up.
+ * Mass generation: save a batch of Stundenzettel (each its own
+ * name/month/day-grid) to the server storage, each into its per-name folder.
+ * Runs sequentially so the server-side PDF conversions don't pile up.
  */
 export async function saveManyStundenzettelToStorage(
-  base: { year: number; month: number; days: StzXlsxDay[] },
-  names: string[],
+  items: StzXlsxInput[],
   onProgress?: (done: number, total: number, current: string) => void,
-): Promise<{ ok: string[]; errors: { name: string; error: string }[] }> {
-  const ok: string[] = [];
-  const errors: { name: string; error: string }[] = [];
-  const list = names.map((n) => n.trim()).filter(Boolean);
-  let done = 0;
-  for (const name of list) {
-    onProgress?.(done, list.length, name);
+): Promise<{ ok: number; errors: { label: string; error: string }[] }> {
+  const errors: { label: string; error: string }[] = [];
+  let ok = 0;
+  for (let i = 0; i < items.length; i++) {
+    const it = items[i];
+    const label = `${it.name} ${it.year}-${String(it.month).padStart(2, '0')}`.trim();
+    onProgress?.(i, items.length, label);
     try {
-      await saveStundenzettelToStorage({ name, year: base.year, month: base.month, days: base.days });
-      ok.push(name);
+      await saveStundenzettelToStorage(it);
+      ok++;
     } catch (e) {
-      errors.push({ name, error: e instanceof Error ? e.message : String(e) });
+      errors.push({ label, error: e instanceof Error ? e.message : String(e) });
     }
-    done++;
   }
-  onProgress?.(done, list.length, '');
+  onProgress?.(items.length, items.length, '');
   return { ok, errors };
 }

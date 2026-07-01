@@ -105,6 +105,34 @@ function getCurrentPeriod() {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 }
 
+/** Inclusive list of {year, month} from one 'YYYY-MM' to another (capped 60). */
+function monthsBetween(fromYM: string, toYM: string): { year: number; month: number }[] {
+  const [fy, fm] = fromYM.split('-').map(Number);
+  const [ty, tm] = toYM.split('-').map(Number);
+  if (!fy || !fm || !ty || !tm) return [];
+  const out: { year: number; month: number }[] = [];
+  let y = fy, m = fm, guard = 0;
+  while ((y < ty || (y === ty && m <= tm)) && guard++ < 60) {
+    out.push({ year: y, month: m });
+    m++;
+    if (m > 12) { m = 1; y++; }
+  }
+  return out;
+}
+
+/** Build a month's day grid from a shift pattern (weekdays, optionally Sat). */
+function buildMonthDaysPattern(
+  year: number, month: number, start: string, end: string, pause: number, includeSat: boolean,
+): EditableDay[] {
+  const count = daysInMonth(year, month);
+  return Array.from({ length: count }, (_, i) => {
+    const day = i + 1;
+    const dow = new Date(year, month - 1, day).getDay();
+    const work = (dow >= 1 && dow <= 5) || (includeSat && dow === 6);
+    return { day, start: work ? start : '', end: work ? end : '', pause: work ? pause : 0, code: '' };
+  });
+}
+
 export function StundenzettelPage() {
   const { t, locale } = useI18n();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -126,20 +154,19 @@ export function StundenzettelPage() {
     parseInt(getCurrentPeriod().slice(0, 4)),
     parseInt(getCurrentPeriod().slice(5, 7)),
   ));
+  // Per-month grids so edits to each month survive when switching months
+  // (needed for multi-month generation where you tweak individual months).
+  const [monthGrids, setMonthGrids] = useState<Record<string, EditableDay[]>>({});
 
   const handlePeriodChange = (newPeriod: string) => {
-    setPeriod(newPeriod);
+    if (newPeriod === period) return;
     const y = parseInt(newPeriod.slice(0, 4)) || year;
     const m = parseInt(newPeriod.slice(5, 7)) || month;
-    // Keep existing data for days that exist in new month, add/remove as needed
-    setDays(prev => {
-      const newCount = daysInMonth(y, m);
-      const result: EditableDay[] = [];
-      for (let i = 1; i <= newCount; i++) {
-        result.push(prev.find(d => d.day === i) || { day: i, start: '', end: '', pause: 0, code: '' });
-      }
-      return result;
-    });
+    // Snapshot the current month, then load the target month (or a fresh grid).
+    setMonthGrids(prev => ({ ...prev, [period]: days }));
+    setPeriod(newPeriod);
+    const existing = monthGrids[newPeriod];
+    setDays(existing ? existing.map(d => ({ ...d })) : makeEmptyDays(y, m));
   };
 
   // Load pre-filled data from analysis page (via localStorage)
@@ -287,31 +314,65 @@ export function StundenzettelPage() {
     }
   };
 
-  // Mass generation: one Stundenzettel per employee (current grid), saved
-  // to the storage — each into its own folder (<Name>/XLSX, <Name>/PDF).
-  const [massNames, setMassNames] = useState('');
+  // Mass generation: many months for ONE employee. "Prepare" fills each month
+  // in the range from a shift pattern into monthGrids; you can then open any
+  // month above and tweak it (e.g. add U = Urlaub); "Save all" writes one file
+  // per month into the employee's folder (<Name>/XLSX, <Name>/PDF).
+  const [massFrom, setMassFrom] = useState(period);
+  const [massTo, setMassTo] = useState(period);
+  const [massStart, setMassStart] = useState('');
+  const [massEnd, setMassEnd] = useState('');
+  const [massPause, setMassPause] = useState(30);
+  const [massSat, setMassSat] = useState(false);
+  const [massPrepared, setMassPrepared] = useState(false);
   const [massBusy, setMassBusy] = useState(false);
   const [massProgress, setMassProgress] = useState('');
-  const [massResult, setMassResult] = useState<{ ok: number; errors: { name: string; error: string }[] } | null>(null);
-  const massCount = useMemo(
-    () => massNames.split('\n').map(s => s.trim()).filter(Boolean).length,
-    [massNames],
-  );
-  const handleMassGenerate = async () => {
-    const names = massNames.split('\n').map(s => s.trim()).filter(Boolean);
-    if (!names.length) return;
+  const [massResult, setMassResult] = useState<{ ok: number; errors: { label: string; error: string }[] } | null>(null);
+  const massMonths = useMemo(() => monthsBetween(massFrom, massTo), [massFrom, massTo]);
+  const ymKey = (y: number, m: number) => `${y}-${String(m).padStart(2, '0')}`;
+  const resetPrepared = () => setMassPrepared(false);
+
+  // Fill every month in the range with the pattern, then open the first month
+  // for editing. Snapshots the currently-open month first.
+  const handleMassPrepare = () => {
+    if (!name.trim()) { setError(locale === 'de' ? 'Bitte Mitarbeiternamen oben eingeben.' : 'Wpisz nazwisko pracownika u góry.'); return; }
+    if (!massStart || !massEnd) { setError(locale === 'de' ? 'Bitte Start und Ende angeben.' : 'Podaj godziny start i koniec.'); return; }
+    if (massMonths.length === 0) { setError(locale === 'de' ? 'Ungültiger Monatsbereich.' : 'Zły zakres miesięcy.'); return; }
+    setError('');
+    setMassResult(null);
+    const grids: Record<string, EditableDay[]> = { ...monthGrids, [period]: days };
+    for (const { year: y, month: m } of massMonths) {
+      grids[ymKey(y, m)] = buildMonthDaysPattern(y, m, massStart, massEnd, massPause, massSat);
+    }
+    setMonthGrids(grids);
+    const [fy, fm] = massFrom.split('-').map(Number);
+    setPeriod(massFrom);
+    setDays((grids[massFrom] || makeEmptyDays(fy, fm)).map(d => ({ ...d })));
+    setMassPrepared(true);
+  };
+
+  // Save every month in the range from monthGrids (live edits of the open
+  // month included), each into the employee's folder.
+  const handleMassSaveAll = async () => {
+    if (!name.trim() || massMonths.length === 0) return;
     setMassBusy(true);
     setError('');
     setMassResult(null);
     try {
+      const grids: Record<string, EditableDay[]> = { ...monthGrids, [period]: days };
+      const items = massMonths.map(({ year: y, month: m }) => ({
+        name,
+        year: y,
+        month: m,
+        days: grids[ymKey(y, m)] || buildMonthDaysPattern(y, m, massStart, massEnd, massPause, massSat),
+      }));
       const { saveManyStundenzettelToStorage } = await import('../lib/stundenzettel-xlsx');
       const res = await saveManyStundenzettelToStorage(
-        { year, month, days: days.map(d => ({ day: d.day, start: d.start, end: d.end, pause: d.pause, code: d.code })) },
-        names,
+        items,
         (done, total, current) => setMassProgress(current ? `${done}/${total} — ${current}` : `${done}/${total}`),
       );
-      setMassResult({ ok: res.ok.length, errors: res.errors });
-      if (res.errors.length) setError(res.errors.map(e => `${e.name}: ${e.error}`).join(' | '));
+      setMassResult(res);
+      if (res.errors.length) setError(res.errors.map(e => `${e.label}: ${e.error}`).join(' | '));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -535,28 +596,44 @@ export function StundenzettelPage() {
           <div className="flex items-center gap-2 flex-wrap">
             <Users size={15} className="text-primary-600" />
             <span className="text-xs font-semibold uppercase tracking-wider text-muted">
-              {locale === 'de' ? 'Massengenerierung' : 'Masowe generowanie'}
+              {locale === 'de' ? 'Massengenerierung — mehrere Monate' : 'Masowe generowanie — wiele miesięcy'}
             </span>
             <span className="text-[11px] text-muted">
-              {locale === 'de'
-                ? 'Ein Stundenzettel je Mitarbeiter — mit den aktuell eingetragenen Zeiten, gespeichert je in eigenen Ordner (…/Name/XLSX, …/Name/PDF).'
-                : 'Jeden Stundenzettel na pracownika — z aktualnie wpisanymi godzinami, zapisywany do własnego folderu (…/Nazwisko/XLSX, …/Nazwisko/PDF).'}
+              {locale === 'de' ? 'Mitarbeiter: ' : 'Pracownik: '}
+              <b className="text-ink">{name || (locale === 'de' ? '— oben eintragen —' : '— wpisz u góry —')}</b>
             </span>
           </div>
-          <textarea
-            value={massNames}
-            onChange={e => setMassNames(e.target.value)}
-            rows={4}
-            placeholder={locale === 'de'
-              ? 'Ein Name pro Zeile, z. B.:\nRatajczak Dorian\nMustermann Max'
-              : 'Jedno nazwisko na linię, np.:\nRatajczak Dorian\nKowalski Jan'}
-            className="input w-full rounded-lg px-3 py-2 text-sm font-mono"
-          />
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs text-muted">{locale === 'de' ? 'Von' : 'Od'}</span>
+            <MonthSelect value={massFrom} onChange={(v) => { setMassFrom(v); resetPrepared(); }} className="input rounded-lg px-2 py-1 text-sm" />
+            <span className="text-xs text-muted">{locale === 'de' ? 'bis' : 'do'}</span>
+            <MonthSelect value={massTo} onChange={(v) => { setMassTo(v); resetPrepared(); }} className="input rounded-lg px-2 py-1 text-sm" />
+            <span className="ml-2 text-xs text-muted">{locale === 'de' ? 'Zeiten' : 'Godziny'}</span>
+            <input type="time" value={massStart} onChange={e => { setMassStart(e.target.value); resetPrepared(); }}
+              className="input rounded px-2 py-1 text-xs font-mono w-24" />
+            <input type="time" value={massEnd} onChange={e => { setMassEnd(e.target.value); resetPrepared(); }}
+              className="input rounded px-2 py-1 text-xs font-mono w-24" />
+            <div className="flex items-center gap-1">
+              <span className="text-xs text-muted">{t('stzPause')}</span>
+              <input type="number" min={0} max={180} value={massPause || ''} placeholder="0"
+                onChange={e => { setMassPause(parseInt(e.target.value) || 0); resetPrepared(); }}
+                className="input rounded px-2 py-1 text-xs font-mono w-14 text-center" />
+            </div>
+            <label className="flex items-center gap-1 text-xs text-muted cursor-pointer">
+              <input type="checkbox" checked={massSat} onChange={e => { setMassSat(e.target.checked); resetPrepared(); }} className="rounded" />
+              {locale === 'de' ? 'inkl. Sa' : 'z sobotą'}
+            </label>
+          </div>
           <div className="flex items-center gap-3 flex-wrap">
-            <button onClick={handleMassGenerate} disabled={massBusy || massCount === 0}
+            <button onClick={handleMassPrepare} disabled={massBusy || massMonths.length === 0 || !name.trim() || !massStart || !massEnd}
+              className="btn-secondary inline-flex items-center gap-2 px-3 py-2 text-sm rounded-lg disabled:opacity-50">
+              <CalendarDays size={14} />
+              {locale === 'de' ? `${massMonths.length} Monate vorbereiten` : `Przygotuj (${massMonths.length} mies.)`}
+            </button>
+            <button onClick={handleMassSaveAll} disabled={massBusy || !massPrepared || massMonths.length === 0}
               className="btn-primary inline-flex items-center gap-2 px-3 py-2 text-sm rounded-lg disabled:opacity-50">
               {massBusy ? <Spinner size="sm" /> : <CloudUpload size={14} />}
-              {locale === 'de' ? `${massCount} generieren & speichern` : `Generuj i zapisz (${massCount})`}
+              {locale === 'de' ? `Alle speichern (${massMonths.length})` : `Zapisz wszystkie (${massMonths.length})`}
             </button>
             {massBusy && massProgress && <span className="text-xs text-muted">{massProgress}</span>}
             {!massBusy && massResult && (
@@ -568,6 +645,13 @@ export function StundenzettelPage() {
               </span>
             )}
           </div>
+          {massPrepared && (
+            <p className="text-[11px] text-muted">
+              {locale === 'de'
+                ? '✏️ Monate vorbereitet — oben den Monat wählen und in der Tabelle anpassen (z. B. U = Urlaub, K = Krank), dann „Alle speichern". Gespeichert je in …/Name/XLSX und …/Name/PDF.'
+                : '✏️ Miesiące przygotowane — wybierz miesiąc u góry i popraw w tabeli (np. U = urlop, K = chory), potem „Zapisz wszystkie". Zapis do …/Nazwisko/XLSX i …/Nazwisko/PDF.'}
+            </p>
+          )}
         </div>
       </Card>
 
