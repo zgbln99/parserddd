@@ -97,6 +97,7 @@ _activity_lock = threading.Lock()
 # ---------------------------------------------------------------------------
 
 TOLLCOLLECT_FOLDER = '/TollCollect'
+STUNDENZETTEL_FOLDER = '/Stundenzettel'
 
 # ---------------------------------------------------------------------------
 # Flask config

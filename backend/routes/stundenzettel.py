@@ -13,7 +13,9 @@ from collections import defaultdict
 from flask import Blueprint, request, jsonify, Response
 
 from auth.decorators import login_required
-from config import logger
+from auth.helpers import _log_activity
+from config import logger, STUNDENZETTEL_FOLDER
+from services.dropbox_service import get_server_dropbox_client
 from services.openai_service import _parse_stundenzettel_with_openai, _calculate_stundenzettel
 
 bp = Blueprint('stundenzettel', __name__)
@@ -26,6 +28,50 @@ def _soffice_bin():
         if path:
             return path
     return None
+
+
+def _xlsx_to_pdf(data: bytes) -> bytes:
+    """Convert .xlsx bytes to PDF via headless LibreOffice (1:1 with the sheet).
+
+    Raises RuntimeError on failure and subprocess.TimeoutExpired on timeout.
+    """
+    soffice = _soffice_bin()
+    if not soffice:
+        raise RuntimeError('LibreOffice ist auf dem Server nicht installiert')
+    with tempfile.TemporaryDirectory() as workdir:
+        xlsx_path = os.path.join(workdir, 'input.xlsx')
+        with open(xlsx_path, 'wb') as fh:
+            fh.write(data)
+        # LibreOffice needs a writable HOME and an isolated user profile so that
+        # concurrent conversions don't clash.
+        env = os.environ.copy()
+        env['HOME'] = workdir
+        profile = 'file://' + os.path.join(workdir, 'lo-profile')
+        proc = subprocess.run(
+            [soffice, '--headless', '--nologo', '--nofirststartwizard', '--norestore',
+             '-env:UserInstallation=' + profile,
+             '--convert-to', 'pdf', '--outdir', workdir, xlsx_path],
+            env=env, capture_output=True, timeout=120,
+        )
+        pdf_path = os.path.join(workdir, 'input.pdf')
+        if proc.returncode != 0 or not os.path.exists(pdf_path):
+            logger.error('soffice convert failed rc=%s stderr=%s',
+                         proc.returncode, (proc.stderr or b'')[:500])
+            raise RuntimeError('PDF-Konvertierung fehlgeschlagen')
+        with open(pdf_path, 'rb') as fh:
+            return fh.read()
+
+
+def _safe_stz_name(period: str, name: str, fallback: str) -> str:
+    """Build a storage-safe base filename, e.g. '2025-10 Arbeitszeit Marek Piatak'."""
+    if re.match(r'^\d{4}-\d{2}$', period or ''):
+        label = f"{period} Arbeitszeit {name}".strip()
+    else:
+        label = (name or '').strip()
+    if not label:
+        label = re.sub(r'\.xlsx?$', '', fallback or 'Arbeitszeit', flags=re.I)
+    safe = ''.join(c for c in label if c.isalnum() or c in '._- ').strip()
+    return safe or 'Arbeitszeit'
 
 
 @bp.route('/api/stundenzettel/pdf', methods=['POST'])
@@ -42,42 +88,60 @@ def api_stundenzettel_pdf():
     if len(data) > 8 * 1024 * 1024:
         return jsonify({'error': 'File too large'}), 413
 
-    soffice = _soffice_bin()
-    if not soffice:
-        return jsonify({'error': 'LibreOffice ist auf dem Server nicht installiert'}), 500
-
     download_name = os.path.basename(file.filename or 'Arbeitszeit.xlsx')
     download_name = re.sub(r'\.xlsx?$', '', download_name, flags=re.I) + '.pdf'
 
-    with tempfile.TemporaryDirectory() as workdir:
-        xlsx_path = os.path.join(workdir, 'input.xlsx')
-        with open(xlsx_path, 'wb') as fh:
-            fh.write(data)
-        # LibreOffice needs a writable HOME and an isolated user profile so that
-        # concurrent conversions don't clash.
-        env = os.environ.copy()
-        env['HOME'] = workdir
-        profile = 'file://' + os.path.join(workdir, 'lo-profile')
-        try:
-            proc = subprocess.run(
-                [soffice, '--headless', '--nologo', '--nofirststartwizard', '--norestore',
-                 '-env:UserInstallation=' + profile,
-                 '--convert-to', 'pdf', '--outdir', workdir, xlsx_path],
-                env=env, capture_output=True, timeout=120,
-            )
-        except subprocess.TimeoutExpired:
-            return jsonify({'error': 'PDF-Konvertierung hat zu lange gedauert'}), 504
-        pdf_path = os.path.join(workdir, 'input.pdf')
-        if proc.returncode != 0 or not os.path.exists(pdf_path):
-            logger.error('soffice convert failed rc=%s stderr=%s',
-                         proc.returncode, (proc.stderr or b'')[:500])
-            return jsonify({'error': 'PDF-Konvertierung fehlgeschlagen'}), 500
-        with open(pdf_path, 'rb') as fh:
-            pdf_bytes = fh.read()
+    try:
+        pdf_bytes = _xlsx_to_pdf(data)
+    except subprocess.TimeoutExpired:
+        return jsonify({'error': 'PDF-Konvertierung hat zu lange gedauert'}), 504
+    except RuntimeError as exc:
+        return jsonify({'error': str(exc)}), 500
 
     resp = Response(pdf_bytes, mimetype='application/pdf')
     resp.headers['Content-Disposition'] = f'attachment; filename="{download_name}"'
     return resp
+
+
+@bp.route('/api/stundenzettel/save-to-dropbox', methods=['POST'])
+@login_required
+def api_stundenzettel_save_to_dropbox():
+    """Archive the filled Stundenzettel on the server storage (MEGA S4),
+    like MAUT / driver cards: saves the .xlsx and (best-effort) the PDF."""
+    if 'file' not in request.files:
+        return jsonify({'error': 'Brak pliku'}), 400
+    file = request.files['file']
+    data = file.read()
+    if not data:
+        return jsonify({'error': 'Pusty plik'}), 400
+    if len(data) > 8 * 1024 * 1024:
+        return jsonify({'error': 'Plik za duży'}), 413
+
+    period = (request.form.get('period') or '').strip()
+    name = (request.form.get('name') or '').strip()
+    safe = _safe_stz_name(period, name, file.filename or '')
+
+    dbx = get_server_dropbox_client()
+    if not dbx:
+        return jsonify({'error': 'Brak polaczenia z Dropbox'}), 500
+
+    saved = []
+    try:
+        dbx.files_upload(data, f"{STUNDENZETTEL_FOLDER}/{safe}.xlsx")
+        saved.append(f"{safe}.xlsx")
+    except Exception as exc:
+        return jsonify({'error': str(exc)}), 500
+
+    # PDF is best-effort — a failed conversion must not lose the .xlsx save.
+    try:
+        pdf_bytes = _xlsx_to_pdf(data)
+        dbx.files_upload(pdf_bytes, f"{STUNDENZETTEL_FOLDER}/{safe}.pdf")
+        saved.append(f"{safe}.pdf")
+    except Exception as exc:
+        logger.warning('Stundenzettel PDF save skipped: %s', exc)
+
+    _log_activity('stundenzettel_save', safe)
+    return jsonify({'ok': True, 'folder': STUNDENZETTEL_FOLDER, 'saved': saved})
 
 
 @bp.route('/api/stundenzettel/parse', methods=['POST'])

@@ -11,7 +11,7 @@
 //   G = * (K/U/UU/F/…)   J = Pause (HHMM int)   F43 = SUM(K11:K41)
 
 const TEMPLATE_URL = '/templates/arbeitszeit-vorlage.xlsx';
-const WD_PL = ['niedz', 'pon', 'wt', 'śr', 'czw', 'pt', 'sob'];
+// The DATEV form is a German document → Kalendertag weekdays in German.
 const WD_DE = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
 
 export interface StzXlsxDay {
@@ -27,7 +27,6 @@ export interface StzXlsxInput {
   year: number;
   month: number;         // 1-12
   days: StzXlsxDay[];
-  locale: 'de' | 'pl';
 }
 
 function toMin(t: string): number | null {
@@ -62,8 +61,8 @@ export async function buildStundenzettelXlsx(input: StzXlsxInput): Promise<{ blo
   await wb.xlsx.load(buf);
   const ws = wb.worksheets[0];
 
-  const { name, year, month, locale } = input;
-  const wd = locale === 'pl' ? WD_PL : WD_DE;
+  const { name, year, month } = input;
+  const wd = WD_DE;
   const count = new Date(year, month, 0).getDate();
   const byDay = new Map(input.days.map((d) => [d.day, d]));
 
@@ -153,4 +152,24 @@ export async function downloadStundenzettelPdf(input: StzXlsxInput): Promise<voi
   }
   const pdf = await res.blob();
   triggerDownload(pdf, filename.replace(/\.xlsx$/i, '.pdf'));
+}
+
+/** Fill the template and archive it on the server storage (MEGA S4), like MAUT. */
+export async function saveStundenzettelToStorage(input: StzXlsxInput): Promise<{ saved: string[]; folder: string }> {
+  const { blob, filename } = await buildStundenzettelXlsx(input);
+  const form = new FormData();
+  form.append('file', blob, filename);
+  form.append('period', `${input.year}-${String(input.month).padStart(2, '0')}`);
+  form.append('name', input.name || '');
+  const res = await fetch('/api/stundenzettel/save-to-dropbox', {
+    method: 'POST',
+    credentials: 'include',
+    body: form,
+  });
+  if (!res.ok) {
+    let msg = `Speichern fehlgeschlagen (${res.status})`;
+    try { const j = await res.json(); if (j?.error) msg = j.error; } catch { /* ignore */ }
+    throw new Error(msg);
+  }
+  return res.json();
 }

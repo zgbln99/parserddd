@@ -2,7 +2,7 @@ import { useState, useCallback, useRef, useMemo, useEffect, Component, type Reac
 import {
   Upload, FileText, AlertCircle, Clock, Moon, UtensilsCrossed,
   CalendarDays, Thermometer, Palmtree, Star, ClipboardCopy, Check,
-  Plus, Trash2, FileDown,
+  Plus, Trash2, FileDown, CloudUpload,
 } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { parseStundenzettel, fetchConfig, type StundenzettelDay } from '../lib/api';
@@ -236,7 +236,6 @@ export function StundenzettelPage() {
     year,
     month,
     days: days.map(d => ({ day: d.day, start: d.start, end: d.end, pause: d.pause, code: d.code })),
-    locale,
   });
 
   // Fill the ORIGINAL DATEV Excel template (1:1 with the source file)
@@ -266,6 +265,25 @@ export function StundenzettelPage() {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setPdfBusy(false);
+    }
+  };
+
+  // Archive to the server storage (MEGA S4), like MAUT / driver cards
+  const [saveBusy, setSaveBusy] = useState(false);
+  const [saveOk, setSaveOk] = useState(false);
+  const handleSaveToStorage = async () => {
+    setSaveBusy(true);
+    setError('');
+    setSaveOk(false);
+    try {
+      const { saveStundenzettelToStorage } = await import('../lib/stundenzettel-xlsx');
+      await saveStundenzettelToStorage(stzPayload());
+      setSaveOk(true);
+      setTimeout(() => setSaveOk(false), 4000);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSaveBusy(false);
     }
   };
 
@@ -388,6 +406,12 @@ export function StundenzettelPage() {
         <button onClick={handleDatevPdf} disabled={pdfBusy}
           className="btn-secondary inline-flex items-center gap-2 px-3 py-2 text-sm rounded-lg disabled:opacity-50">
           {pdfBusy ? <Spinner size="sm" /> : <FileDown size={14} />} PDF (DATEV)
+        </button>
+        <button onClick={handleSaveToStorage} disabled={saveBusy}
+          title={locale === 'de' ? 'Auf dem Server-Speicher ablegen (MEGA S4)' : 'Zapisz w magazynie serwera (MEGA S4)'}
+          className="btn-secondary inline-flex items-center gap-2 px-3 py-2 text-sm rounded-lg disabled:opacity-50">
+          {saveBusy ? <Spinner size="sm" /> : saveOk ? <Check size={14} className="text-emerald-600" /> : <CloudUpload size={14} />}
+          {saveOk ? (locale === 'de' ? 'Gespeichert' : 'Zapisano') : (locale === 'de' ? 'Auf Server speichern' : 'Zapisz na dysku')}
         </button>
         {loading && <Spinner />}
         {hasAnyData && (
