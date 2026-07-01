@@ -45,7 +45,8 @@ function monthSerial(year: number, month: number): number {
   return Math.round((Date.UTC(year, month - 1, 1) - Date.UTC(1899, 11, 30)) / 86400000);
 }
 
-export async function fillStundenzettelXlsx(input: StzXlsxInput): Promise<void> {
+/** Fill the DATEV template and return the .xlsx blob + a suggested filename. */
+export async function buildStundenzettelXlsx(input: StzXlsxInput): Promise<{ blob: Blob; filename: string }> {
   const mod = await import('exceljs');
   // exceljs ships as UMD/CJS; the Vite interop may expose it as the namespace
   // itself or under `.default`. Pick whichever actually has Workbook.
@@ -114,13 +115,42 @@ export async function fillStundenzettelXlsx(input: StzXlsxInput): Promise<void> 
   const blob = new Blob([out], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   });
+  const slug = (name || 'Mitarbeiter').replace(/[^\p{L}\p{N}]+/gu, '_').replace(/^_+|_+$/g, '') || 'Mitarbeiter';
+  return { blob, filename: `Arbeitszeit_${slug}_${year}-${String(month).padStart(2, '0')}.xlsx` };
+}
+
+function triggerDownload(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  const slug = (name || 'Mitarbeiter').replace(/[^\p{L}\p{N}]+/gu, '_').replace(/^_+|_+$/g, '') || 'Mitarbeiter';
   a.href = url;
-  a.download = `Arbeitszeit_${slug}_${year}-${String(month).padStart(2, '0')}.xlsx`;
+  a.download = filename;
   a.rel = 'noopener';
   document.body.appendChild(a);
   a.click();
   setTimeout(() => { a.remove(); URL.revokeObjectURL(url); }, 1500);
+}
+
+/** Fill the template and download the .xlsx (1:1 with the source file). */
+export async function downloadStundenzettelXlsx(input: StzXlsxInput): Promise<void> {
+  const { blob, filename } = await buildStundenzettelXlsx(input);
+  triggerDownload(blob, filename);
+}
+
+/** Fill the template, convert to PDF server-side (LibreOffice), download the PDF. */
+export async function downloadStundenzettelPdf(input: StzXlsxInput): Promise<void> {
+  const { blob, filename } = await buildStundenzettelXlsx(input);
+  const form = new FormData();
+  form.append('file', blob, filename);
+  const res = await fetch('/api/stundenzettel/pdf', {
+    method: 'POST',
+    credentials: 'include',
+    body: form,
+  });
+  if (!res.ok) {
+    let msg = `PDF-Konvertierung fehlgeschlagen (${res.status})`;
+    try { const j = await res.json(); if (j?.error) msg = j.error; } catch { /* ignore */ }
+    throw new Error(msg);
+  }
+  const pdf = await res.blob();
+  triggerDownload(pdf, filename.replace(/\.xlsx$/i, '.pdf'));
 }

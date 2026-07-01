@@ -5,16 +5,79 @@ Stundenzettel Blueprint — OCR parsing of timesheets and vacation PDFs.
 import json
 import os
 import re
+import shutil
+import subprocess
 import tempfile
 from collections import defaultdict
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, Response
 
 from auth.decorators import login_required
 from config import logger
 from services.openai_service import _parse_stundenzettel_with_openai, _calculate_stundenzettel
 
 bp = Blueprint('stundenzettel', __name__)
+
+
+def _soffice_bin():
+    """Locate the LibreOffice binary (soffice / libreoffice), or None."""
+    for name in ('soffice', 'libreoffice'):
+        path = shutil.which(name)
+        if path:
+            return path
+    return None
+
+
+@bp.route('/api/stundenzettel/pdf', methods=['POST'])
+@login_required
+def api_stundenzettel_pdf():
+    """Convert an already-filled .xlsx (the DATEV Arbeitszeit template) to PDF
+    via headless LibreOffice, so the PDF is 1:1 with the spreadsheet."""
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file uploaded'}), 400
+    file = request.files['file']
+    data = file.read()
+    if not data:
+        return jsonify({'error': 'Empty file'}), 400
+    if len(data) > 8 * 1024 * 1024:
+        return jsonify({'error': 'File too large'}), 413
+
+    soffice = _soffice_bin()
+    if not soffice:
+        return jsonify({'error': 'LibreOffice ist auf dem Server nicht installiert'}), 500
+
+    download_name = os.path.basename(file.filename or 'Arbeitszeit.xlsx')
+    download_name = re.sub(r'\.xlsx?$', '', download_name, flags=re.I) + '.pdf'
+
+    with tempfile.TemporaryDirectory() as workdir:
+        xlsx_path = os.path.join(workdir, 'input.xlsx')
+        with open(xlsx_path, 'wb') as fh:
+            fh.write(data)
+        # LibreOffice needs a writable HOME and an isolated user profile so that
+        # concurrent conversions don't clash.
+        env = os.environ.copy()
+        env['HOME'] = workdir
+        profile = 'file://' + os.path.join(workdir, 'lo-profile')
+        try:
+            proc = subprocess.run(
+                [soffice, '--headless', '--nologo', '--nofirststartwizard', '--norestore',
+                 '-env:UserInstallation=' + profile,
+                 '--convert-to', 'pdf', '--outdir', workdir, xlsx_path],
+                env=env, capture_output=True, timeout=120,
+            )
+        except subprocess.TimeoutExpired:
+            return jsonify({'error': 'PDF-Konvertierung hat zu lange gedauert'}), 504
+        pdf_path = os.path.join(workdir, 'input.pdf')
+        if proc.returncode != 0 or not os.path.exists(pdf_path):
+            logger.error('soffice convert failed rc=%s stderr=%s',
+                         proc.returncode, (proc.stderr or b'')[:500])
+            return jsonify({'error': 'PDF-Konvertierung fehlgeschlagen'}), 500
+        with open(pdf_path, 'rb') as fh:
+            pdf_bytes = fh.read()
+
+    resp = Response(pdf_bytes, mimetype='application/pdf')
+    resp.headers['Content-Disposition'] = f'attachment; filename="{download_name}"'
+    return resp
 
 
 @bp.route('/api/stundenzettel/parse', methods=['POST'])

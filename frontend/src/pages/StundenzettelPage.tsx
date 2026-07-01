@@ -231,18 +231,13 @@ export function StundenzettelPage() {
     setName('');
   };
 
-  // DATEV "Vorlage zur Dokumentation der täglichen Arbeitszeit" PDF (redrawn)
-  const handleDatevPdf = async () => {
-    const { generateStundenzettelDatevPdf } = await import('../lib/pdf-generator');
-    await generateStundenzettelDatevPdf({
-      firma: 'LTS Logistik GmbH',
-      name,
-      year,
-      month,
-      days: days.map(d => ({ day: d.day, start: d.start, end: d.end, pause: d.pause, code: d.code })),
-      locale,
-    });
-  };
+  const stzPayload = () => ({
+    name,
+    year,
+    month,
+    days: days.map(d => ({ day: d.day, start: d.start, end: d.end, pause: d.pause, code: d.code })),
+    locale,
+  });
 
   // Fill the ORIGINAL DATEV Excel template (1:1 with the source file)
   const [xlsxBusy, setXlsxBusy] = useState(false);
@@ -250,18 +245,27 @@ export function StundenzettelPage() {
     setXlsxBusy(true);
     setError('');
     try {
-      const { fillStundenzettelXlsx } = await import('../lib/stundenzettel-xlsx');
-      await fillStundenzettelXlsx({
-        name,
-        year,
-        month,
-        days: days.map(d => ({ day: d.day, start: d.start, end: d.end, pause: d.pause, code: d.code })),
-        locale,
-      });
+      const { downloadStundenzettelXlsx } = await import('../lib/stundenzettel-xlsx');
+      await downloadStundenzettelXlsx(stzPayload());
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setXlsxBusy(false);
+    }
+  };
+
+  // Same filled template, converted to PDF 1:1 on the server (LibreOffice)
+  const [pdfBusy, setPdfBusy] = useState(false);
+  const handleDatevPdf = async () => {
+    setPdfBusy(true);
+    setError('');
+    try {
+      const { downloadStundenzettelPdf } = await import('../lib/stundenzettel-xlsx');
+      await downloadStundenzettelPdf(stzPayload());
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setPdfBusy(false);
     }
   };
 
@@ -381,9 +385,9 @@ export function StundenzettelPage() {
           className="btn-primary inline-flex items-center gap-2 px-3 py-2 text-sm rounded-lg disabled:opacity-50">
           {xlsxBusy ? <Spinner size="sm" /> : <FileDown size={14} />} Excel (DATEV)
         </button>
-        <button onClick={handleDatevPdf}
-          className="btn-secondary inline-flex items-center gap-2 px-3 py-2 text-sm rounded-lg">
-          <FileDown size={14} /> {t('stzExportPdf')}
+        <button onClick={handleDatevPdf} disabled={pdfBusy}
+          className="btn-secondary inline-flex items-center gap-2 px-3 py-2 text-sm rounded-lg disabled:opacity-50">
+          {pdfBusy ? <Spinner size="sm" /> : <FileDown size={14} />} PDF (DATEV)
         </button>
         {loading && <Spinner />}
         {hasAnyData && (

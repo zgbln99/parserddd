@@ -41,8 +41,15 @@ ENV PYTHONUNBUFFERED=1 \
     FRONTEND_DIR=/app/frontend/dist \
     GUNICORN_WORKERS=2
 
+# curl for the healthcheck; LibreOffice (Calc) for server-side xlsx→pdf export
+# of the DATEV Stundenzettel template. Liberation/Carlito give Arial/Calibri-
+# metric-compatible fonts so the converted PDF matches the Excel layout, and
+# DejaVu covers Polish glyphs (śr, czw, …).
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl \
+    && apt-get install -y --no-install-recommends \
+       curl \
+       libreoffice-calc \
+       fonts-liberation fonts-crosextra-carlito fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app/backend
