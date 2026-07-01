@@ -74,6 +74,13 @@ def _safe_stz_name(period: str, name: str, fallback: str) -> str:
     return safe or 'Arbeitszeit'
 
 
+def _safe_folder(name: str) -> str:
+    """One storage-safe path segment from an employee name (no slashes / traversal)."""
+    safe = ''.join(c for c in (name or '') if c.isalnum() or c in ' ._-').strip()
+    safe = safe.strip('. ')  # no leading/trailing dots or spaces
+    return safe or 'Unbekannt'
+
+
 @bp.route('/api/stundenzettel/pdf', methods=['POST'])
 @login_required
 def api_stundenzettel_pdf():
@@ -119,7 +126,12 @@ def api_stundenzettel_save_to_dropbox():
 
     period = (request.form.get('period') or '').strip()
     name = (request.form.get('name') or '').strip()
-    safe = _safe_stz_name(period, name, file.filename or '')
+    # Per-employee folder with XLSX / PDF subfolders:
+    #   /Stundenzettel/<Name>/XLSX/<file>.xlsx
+    #   /Stundenzettel/<Name>/PDF/<file>.pdf
+    folder = _safe_folder(name)
+    base = _safe_stz_name(period, name, file.filename or '')
+    root = f"{STUNDENZETTEL_FOLDER}/{folder}"
 
     dbx = get_server_dropbox_client()
     if not dbx:
@@ -127,21 +139,21 @@ def api_stundenzettel_save_to_dropbox():
 
     saved = []
     try:
-        dbx.files_upload(data, f"{STUNDENZETTEL_FOLDER}/{safe}.xlsx")
-        saved.append(f"{safe}.xlsx")
+        dbx.files_upload(data, f"{root}/XLSX/{base}.xlsx")
+        saved.append(f"{folder}/XLSX/{base}.xlsx")
     except Exception as exc:
         return jsonify({'error': str(exc)}), 500
 
     # PDF is best-effort — a failed conversion must not lose the .xlsx save.
     try:
         pdf_bytes = _xlsx_to_pdf(data)
-        dbx.files_upload(pdf_bytes, f"{STUNDENZETTEL_FOLDER}/{safe}.pdf")
-        saved.append(f"{safe}.pdf")
+        dbx.files_upload(pdf_bytes, f"{root}/PDF/{base}.pdf")
+        saved.append(f"{folder}/PDF/{base}.pdf")
     except Exception as exc:
         logger.warning('Stundenzettel PDF save skipped: %s', exc)
 
-    _log_activity('stundenzettel_save', safe)
-    return jsonify({'ok': True, 'folder': STUNDENZETTEL_FOLDER, 'saved': saved})
+    _log_activity('stundenzettel_save', folder)
+    return jsonify({'ok': True, 'folder': root, 'saved': saved})
 
 
 @bp.route('/api/stundenzettel/parse', methods=['POST'])

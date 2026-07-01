@@ -2,7 +2,7 @@ import { useState, useCallback, useRef, useMemo, useEffect, Component, type Reac
 import {
   Upload, FileText, AlertCircle, Clock, Moon, UtensilsCrossed,
   CalendarDays, Thermometer, Palmtree, Star, ClipboardCopy, Check,
-  Plus, Trash2, FileDown, CloudUpload,
+  Plus, Trash2, FileDown, CloudUpload, Users,
 } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { parseStundenzettel, fetchConfig, type StundenzettelDay } from '../lib/api';
@@ -287,6 +287,39 @@ export function StundenzettelPage() {
     }
   };
 
+  // Mass generation: one Stundenzettel per employee (current grid), saved
+  // to the storage — each into its own folder (<Name>/XLSX, <Name>/PDF).
+  const [massNames, setMassNames] = useState('');
+  const [massBusy, setMassBusy] = useState(false);
+  const [massProgress, setMassProgress] = useState('');
+  const [massResult, setMassResult] = useState<{ ok: number; errors: { name: string; error: string }[] } | null>(null);
+  const massCount = useMemo(
+    () => massNames.split('\n').map(s => s.trim()).filter(Boolean).length,
+    [massNames],
+  );
+  const handleMassGenerate = async () => {
+    const names = massNames.split('\n').map(s => s.trim()).filter(Boolean);
+    if (!names.length) return;
+    setMassBusy(true);
+    setError('');
+    setMassResult(null);
+    try {
+      const { saveManyStundenzettelToStorage } = await import('../lib/stundenzettel-xlsx');
+      const res = await saveManyStundenzettelToStorage(
+        { year, month, days: days.map(d => ({ day: d.day, start: d.start, end: d.end, pause: d.pause, code: d.code })) },
+        names,
+        (done, total, current) => setMassProgress(current ? `${done}/${total} — ${current}` : `${done}/${total}`),
+      );
+      setMassResult({ ok: res.ok.length, errors: res.errors });
+      if (res.errors.length) setError(res.errors.map(e => `${e.name}: ${e.error}`).join(' | '));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setMassBusy(false);
+      setMassProgress('');
+    }
+  };
+
   // Calculate totals
   const totals = useMemo(() => {
     let workMin = 0, n25 = 0, n40 = 0, diets = 0, workDays = 0;
@@ -494,6 +527,48 @@ export function StundenzettelPage() {
             )}
           </div>
         )}
+      </Card>
+
+      {/* Mass generation — one sheet per employee, saved into per-name folders */}
+      <Card className="p-3">
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Users size={15} className="text-primary-600" />
+            <span className="text-xs font-semibold uppercase tracking-wider text-muted">
+              {locale === 'de' ? 'Massengenerierung' : 'Masowe generowanie'}
+            </span>
+            <span className="text-[11px] text-muted">
+              {locale === 'de'
+                ? 'Ein Stundenzettel je Mitarbeiter — mit den aktuell eingetragenen Zeiten, gespeichert je in eigenen Ordner (…/Name/XLSX, …/Name/PDF).'
+                : 'Jeden Stundenzettel na pracownika — z aktualnie wpisanymi godzinami, zapisywany do własnego folderu (…/Nazwisko/XLSX, …/Nazwisko/PDF).'}
+            </span>
+          </div>
+          <textarea
+            value={massNames}
+            onChange={e => setMassNames(e.target.value)}
+            rows={4}
+            placeholder={locale === 'de'
+              ? 'Ein Name pro Zeile, z. B.:\nRatajczak Dorian\nMustermann Max'
+              : 'Jedno nazwisko na linię, np.:\nRatajczak Dorian\nKowalski Jan'}
+            className="input w-full rounded-lg px-3 py-2 text-sm font-mono"
+          />
+          <div className="flex items-center gap-3 flex-wrap">
+            <button onClick={handleMassGenerate} disabled={massBusy || massCount === 0}
+              className="btn-primary inline-flex items-center gap-2 px-3 py-2 text-sm rounded-lg disabled:opacity-50">
+              {massBusy ? <Spinner size="sm" /> : <CloudUpload size={14} />}
+              {locale === 'de' ? `${massCount} generieren & speichern` : `Generuj i zapisz (${massCount})`}
+            </button>
+            {massBusy && massProgress && <span className="text-xs text-muted">{massProgress}</span>}
+            {!massBusy && massResult && (
+              <span className="text-xs">
+                <span className="font-medium text-emerald-600">{massResult.ok} OK</span>
+                {massResult.errors.length > 0 && (
+                  <span className="text-red-500"> · {massResult.errors.length} {locale === 'de' ? 'Fehler' : 'błędów'}</span>
+                )}
+              </span>
+            )}
+          </div>
+        </div>
       </Card>
 
       <ErrorBoundary>

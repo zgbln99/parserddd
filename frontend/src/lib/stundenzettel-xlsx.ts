@@ -173,3 +173,31 @@ export async function saveStundenzettelToStorage(input: StzXlsxInput): Promise<{
   }
   return res.json();
 }
+
+/**
+ * Mass generation: save one Stundenzettel per employee (same month + day grid,
+ * each into its own folder) to the server storage. Runs sequentially so the
+ * server-side PDF conversions don't pile up.
+ */
+export async function saveManyStundenzettelToStorage(
+  base: { year: number; month: number; days: StzXlsxDay[] },
+  names: string[],
+  onProgress?: (done: number, total: number, current: string) => void,
+): Promise<{ ok: string[]; errors: { name: string; error: string }[] }> {
+  const ok: string[] = [];
+  const errors: { name: string; error: string }[] = [];
+  const list = names.map((n) => n.trim()).filter(Boolean);
+  let done = 0;
+  for (const name of list) {
+    onProgress?.(done, list.length, name);
+    try {
+      await saveStundenzettelToStorage({ name, year: base.year, month: base.month, days: base.days });
+      ok.push(name);
+    } catch (e) {
+      errors.push({ name, error: e instanceof Error ? e.message : String(e) });
+    }
+    done++;
+  }
+  onProgress?.(done, list.length, '');
+  return { ok, errors };
+}
