@@ -160,21 +160,43 @@ function distributePayslip(
     .filter(({ d }) => d.code === '' && (d.start || d.end))
     .map(({ i }) => i);
 
-  const workIdx = eligible(base);
-  const shuffled = [...workIdx];
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-  }
-
+  const workIdx = eligible(base); // calendar-ordered eligible work-day indices
   const next = base.map(d => ({ ...d }));
-  let p = 0;
-  for (let n = 0; n < uCount && p < shuffled.length; n++, p++) {
-    next[shuffled[p]] = { ...next[shuffled[p]], code: 'U', start: '', end: '', pause: 0 };
-  }
-  for (let n = 0; n < kCount && p < shuffled.length; n++, p++) {
-    next[shuffled[p]] = { ...next[shuffled[p]], code: 'K', start: '', end: '', pause: 0 };
-  }
+  const used = new Set<number>();
+
+  // Place `count` absence days of `code` as ONE consecutive run of eligible
+  // working days — the way a person actually takes leave. Weekends/holidays in
+  // between aren't eligible, so the run naturally bridges them (a Thursday
+  // holiday makes two days land on Wed + Fri). When possible, prefer a run that
+  // spans a public holiday (F), so the leave brackets the Feiertag. A single
+  // day (count 1) just lands anywhere.
+  const placeBlock = (count: number, code: string) => {
+    const avail = workIdx.filter(i => !used.has(i));
+    const n = Math.min(Math.max(0, count), avail.length);
+    if (n <= 0) return;
+    const maxStart = avail.length - n;
+    const bridgesHoliday = (s: number) => {
+      const first = next[avail[s]].day;
+      const last = next[avail[s + n - 1]].day;
+      for (let dd = first + 1; dd < last; dd++) {
+        if (next[dd - 1]?.code === 'F') return true;
+      }
+      return false;
+    };
+    const tierA: number[] = [];
+    const tierB: number[] = [];
+    for (let s = 0; s <= maxStart; s++) (bridgesHoliday(s) ? tierA : tierB).push(s);
+    const pool = tierA.length ? tierA : tierB;
+    const start = pool[Math.floor(Math.random() * pool.length)] ?? 0;
+    for (let j = 0; j < n; j++) {
+      const idx = avail[start + j];
+      next[idx] = { ...next[idx], code, start: '', end: '', pause: 0 };
+      used.add(idx);
+    }
+  };
+
+  placeBlock(uCount, 'U');
+  placeBlock(kCount, 'K');
 
   const remWork = eligible(next);
   const W = remWork.length;
