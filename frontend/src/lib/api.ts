@@ -758,6 +758,26 @@ export const parseStundenzettel = async (file: File) => {
   });
 };
 
+// DATEV LohnViewer .ans export parsing → per-employee, per-month 25% night hours
+export interface LohnMonth {
+  period: string;   // YYYY-MM
+  night25: number;  // decimal hours
+  via_nb: boolean;  // value came from a Nachberechnung correction
+}
+export interface LohnEmployee {
+  pers_nr: string;
+  name: string;
+  months: LohnMonth[];
+}
+export const parseLohnAns = async (file: File) => {
+  const form = new FormData();
+  form.append('file', file);
+  return request<{ employees: LohnEmployee[] }>('/api/lohn/parse-ans', {
+    method: 'POST',
+    body: form,
+  });
+};
+
 // Vacation PDF parsing
 export interface VacationEntry {
   name: string;

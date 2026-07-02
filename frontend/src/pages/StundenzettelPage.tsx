@@ -5,7 +5,7 @@ import {
   Plus, Trash2, FileDown, CloudUpload, Users, Shuffle,
 } from 'lucide-react';
 import { useI18n } from '../i18n';
-import { parseStundenzettel, fetchConfig, type StundenzettelDay } from '../lib/api';
+import { parseStundenzettel, parseLohnAns, fetchConfig, type StundenzettelDay, type LohnEmployee, type LohnMonth } from '../lib/api';
 import { Card, StatCard } from '../components/Card';
 import { Badge } from '../components/Badge';
 import { Spinner } from '../components/Spinner';
@@ -165,6 +165,19 @@ export function StundenzettelPage() {
   // (needed for multi-month generation where you tweak individual months).
   const [monthGrids, setMonthGrids] = useState<Record<string, EditableDay[]>>({});
 
+  // "Match payslip" inputs for the open month (U/K days, 25% night hours).
+  const [absU, setAbsU] = useState(0);
+  const [absK, setAbsK] = useState(0);
+  const [absN25, setAbsN25] = useState(''); // decimal hours, e.g. "10,50"
+
+  // DATEV LohnViewer (.ans) import → per-employee, per-month 25% night hours.
+  const lohnRef = useRef<HTMLInputElement>(null);
+  const [lohnBusy, setLohnBusy] = useState(false);
+  const [lohnEmp, setLohnEmp] = useState<LohnEmployee | null>(null);
+  const [lohnAll, setLohnAll] = useState<LohnEmployee[]>([]);
+  const lohnFor = (p: string): LohnMonth | undefined => lohnEmp?.months.find(m => m.period === p);
+  const fmtHoursDe = (h: number) => h.toFixed(2).replace('.', ',');
+
   const handlePeriodChange = (newPeriod: string) => {
     if (newPeriod === period) return;
     const y = parseInt(newPeriod.slice(0, 4)) || year;
@@ -174,6 +187,9 @@ export function StundenzettelPage() {
     setPeriod(newPeriod);
     const existing = monthGrids[newPeriod];
     setDays(existing ? existing.map(d => ({ ...d })) : makeEmptyDays(y, m));
+    // Prefill the 25% night field from the imported Lohn export for this month.
+    const lm = lohnFor(newPeriod);
+    if (lm) setAbsN25(lm.night25 ? fmtHoursDe(lm.night25) : '');
   };
 
   // Load pre-filled data from analysis page (via localStorage)
@@ -284,10 +300,6 @@ export function StundenzettelPage() {
   // times earlier into the 04:00–06:00 window so the computed 25% night hours
   // equal the payslip's Nachtzuschlag (decimal, e.g. "10,50" = 10.5 h). Shift
   // duration is preserved, so total work hours are unchanged.
-  const [absU, setAbsU] = useState(0);
-  const [absK, setAbsK] = useState(0);
-  const [absN25, setAbsN25] = useState(''); // decimal hours, e.g. "10,50"
-
   const matchPayslip = () => {
     const uCount = Math.max(0, Math.floor(absU) || 0);
     const kCount = Math.max(0, Math.floor(absK) || 0);
@@ -501,6 +513,41 @@ export function StundenzettelPage() {
     }
   };
 
+  // Import a DATEV LohnViewer .ans export → 25% night hours per month. Picks the
+  // employee matching the typed name (else the only/first), sets the name and
+  // month range, and prefills the open month's 25% field.
+  const handleLohnAns = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setLohnBusy(true);
+    setError('');
+    try {
+      const res = await parseLohnAns(file);
+      const emps = res.employees || [];
+      setLohnAll(emps);
+      const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z]+/g, ' ').trim();
+      let pick: LohnEmployee | null = null;
+      if (name.trim()) {
+        const want = new Set(norm(name).split(/\s+/).filter(w => w.length >= 3));
+        pick = emps.find(emp => norm(emp.name).split(/\s+/).some(w => w.length >= 3 && want.has(w))) || null;
+      }
+      if (!pick) pick = emps[0] || null;
+      setLohnEmp(pick);
+      if (pick) {
+        if (!name.trim()) setName(pick.name);
+        const ps = pick.months.map(m => m.period).sort();
+        if (ps.length) { setMassFrom(ps[0]); setMassTo(ps[ps.length - 1]); resetPrepared(); }
+        const cur = pick.months.find(m => m.period === period);
+        if (cur) setAbsN25(cur.night25 ? fmtHoursDe(cur.night25) : '');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setLohnBusy(false);
+      if (lohnRef.current) lohnRef.current.value = '';
+    }
+  }, [name, period]);
+
   // Calculate totals
   const totals = useMemo(() => {
     let workMin = 0, n25 = 0, n40 = 0, diets = 0, workDays = 0;
@@ -701,6 +748,12 @@ export function StundenzettelPage() {
               <input type="text" inputMode="decimal" value={absN25} onChange={e => setAbsN25(e.target.value)} placeholder="10,50"
                 className="input w-14 rounded px-1 py-0.5 text-xs" />
             </label>
+            {lohnFor(period) && (
+              <span className="inline-flex items-center gap-0.5 text-[10px] text-emerald-600 dark:text-emerald-400"
+                title={locale === 'de' ? `Aus Lohn-Export: ${fmtHoursDe(lohnFor(period)!.night25)} h${lohnFor(period)!.via_nb ? ' (NB)' : ''}` : `Z listy płac: ${fmtHoursDe(lohnFor(period)!.night25)} h${lohnFor(period)!.via_nb ? ' (NB)' : ''}`}>
+                <Check size={11} />{fmtHoursDe(lohnFor(period)!.night25)}{lohnFor(period)!.via_nb ? ' NB' : ''}
+              </span>
+            )}
             <button onClick={matchPayslip} disabled={absU + absK === 0 && !absN25.trim()}
               className="inline-flex items-center gap-1 rounded-md bg-amber-600 text-white px-2 py-0.5 text-xs font-medium hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed">
               <Shuffle size={12} /> {locale === 'de' ? 'Anpassen' : 'Dopasuj'}
@@ -750,7 +803,37 @@ export function StundenzettelPage() {
               {locale === 'de' ? 'Mitarbeiter: ' : 'Pracownik: '}
               <b className="text-ink">{name || (locale === 'de' ? '— oben eintragen —' : '— wpisz u góry —')}</b>
             </span>
+            <label className="ml-auto btn-secondary inline-flex items-center gap-2 px-2.5 py-1 text-xs cursor-pointer"
+              title={locale === 'de' ? 'DATEV LohnViewer .ans importieren — füllt die 25%-Nachtstunden je Monat' : 'Importuj DATEV LohnViewer .ans — uzupełnia godziny 25% na miesiąc'}>
+              {lohnBusy ? <Spinner size="sm" /> : <FileDown size={13} />}
+              {locale === 'de' ? 'Lohn (.ans)' : 'Lohn (.ans)'}
+              <input ref={lohnRef} type="file" accept=".ans,.txt" className="hidden" onChange={handleLohnAns} />
+            </label>
+            {lohnEmp && (
+              <span className="inline-flex items-center gap-1 text-[11px] text-emerald-600 dark:text-emerald-400" title={lohnEmp.months.map(m => `${m.period}: ${fmtHoursDe(m.night25)}${m.via_nb ? ' (NB)' : ''}`).join('\n')}>
+                <Check size={12} /> {lohnEmp.name} · {lohnEmp.months.length} {locale === 'de' ? 'Monate (25%)' : 'mies. (25%)'}
+              </span>
+            )}
           </div>
+          {lohnAll.length > 1 && (
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[11px] text-muted">{locale === 'de' ? 'Mitarbeiter im Export:' : 'Pracownicy w eksporcie:'}</span>
+              {lohnAll.map(emp => (
+                <button key={emp.pers_nr}
+                  onClick={() => {
+                    setLohnEmp(emp);
+                    if (!name.trim()) setName(emp.name);
+                    const ps = emp.months.map(m => m.period).sort();
+                    if (ps.length) { setMassFrom(ps[0]); setMassTo(ps[ps.length - 1]); resetPrepared(); }
+                    const cur = emp.months.find(m => m.period === period);
+                    if (cur) setAbsN25(cur.night25 ? fmtHoursDe(cur.night25) : '');
+                  }}
+                  className={`rounded-md px-2 py-0.5 text-[11px] font-medium border ${lohnEmp?.pers_nr === emp.pers_nr ? 'bg-primary-600 text-white border-primary-600' : 'border-border text-muted hover:bg-surface'}`}>
+                  {emp.name}
+                </button>
+              ))}
+            </div>
+          )}
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-xs text-muted">{locale === 'de' ? 'Von' : 'Od'}</span>
             <MonthSelect value={massFrom} onChange={(v) => { setMassFrom(v); resetPrepared(); }} className="input rounded-lg px-2 py-1 text-sm" />

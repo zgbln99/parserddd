@@ -32,6 +32,7 @@ _BLUEPRINTS = [
     ("stundenzettel", "stundenzettel"),
     ("payroll", "payroll"),
     ("fahrerliste", "fahrerliste"),
+    ("lohn", "lohn"),
     ("status", "status"),
     ("sign", "sign"),
     ("compliance", "compliance"),
