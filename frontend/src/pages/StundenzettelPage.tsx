@@ -140,6 +140,64 @@ function buildMonthDaysPattern(
   });
 }
 
+const _toClock = (m: number) => {
+  const x = ((m % 1440) + 1440) % 1440;
+  return `${String(Math.floor(x / 60)).padStart(2, '0')}:${String(x % 60).padStart(2, '0')}`;
+};
+
+/** Apply a payslip to an already-built month: scatter `uCount` U and `kCount` K
+ *  onto random working days, then realise `t25min` minutes of 25% night by
+ *  pulling each remaining work day's START earlier into the 04:00–06:00 window
+ *  (END is kept — the shift just starts earlier, so the total hours grow to
+ *  include the night, matching how the driver actually worked). Even split,
+ *  max 120 min/day. Returns the new days plus how much 25% was actually placed
+ *  and the number of eligible work days. */
+function distributePayslip(
+  base: EditableDay[], uCount: number, kCount: number, t25min: number,
+): { days: EditableDay[]; placed25: number; workCount: number } {
+  const eligible = (arr: EditableDay[]) => arr
+    .map((d, i) => ({ d, i }))
+    .filter(({ d }) => d.code === '' && (d.start || d.end))
+    .map(({ i }) => i);
+
+  const workIdx = eligible(base);
+  const shuffled = [...workIdx];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+
+  const next = base.map(d => ({ ...d }));
+  let p = 0;
+  for (let n = 0; n < uCount && p < shuffled.length; n++, p++) {
+    next[shuffled[p]] = { ...next[shuffled[p]], code: 'U', start: '', end: '', pause: 0 };
+  }
+  for (let n = 0; n < kCount && p < shuffled.length; n++, p++) {
+    next[shuffled[p]] = { ...next[shuffled[p]], code: 'K', start: '', end: '', pause: 0 };
+  }
+
+  const remWork = eligible(next);
+  const W = remWork.length;
+  let placed25 = 0;
+  if (t25min > 0 && W > 0) {
+    let toPlace = Math.min(t25min, 120 * W);
+    placed25 = toPlace;
+    const perDay = new Array(W).fill(0);
+    const baseEach = Math.min(120, Math.floor(toPlace / W));
+    for (let i = 0; i < W; i++) perDay[i] = baseEach;
+    toPlace -= baseEach * W;
+    for (let i = 0; i < W && toPlace > 0; i++) { if (perDay[i] < 120) { perDay[i]++; toPlace--; } }
+    remWork.forEach((idx, k) => {
+      const nm = perDay[k];
+      if (nm <= 0) return;
+      // Start at 06:00 − nm so exactly nm minutes fall in [04:00, 06:00) = 25%;
+      // keep the end where it is.
+      next[idx] = { ...next[idx], start: _toClock(360 - nm) };
+    });
+  }
+  return { days: next, placed25, workCount: workIdx.length };
+}
+
 export function StundenzettelPage() {
   const { t, locale } = useI18n();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -302,23 +360,20 @@ export function StundenzettelPage() {
   };
 
   // "Match the payslip": scatter U (Urlaub) and K (Krank) onto random working
-  // days so their counts match the Lohnabrechnung, and shift work-day start
+  // days so their counts match the Lohnabrechnung, and pull work-day start
   // times earlier into the 04:00–06:00 window so the computed 25% night hours
-  // equal the payslip's Nachtzuschlag (decimal, e.g. "10,50" = 10.5 h). Shift
-  // duration is preserved, so total work hours are unchanged.
+  // equal the payslip's Nachtzuschlag (decimal, e.g. "10,50" = 10.5 h). The end
+  // stays put, so the shift simply starts earlier and the total hours grow to
+  // include the night — matching how the driver actually worked.
   const matchPayslip = () => {
     const uCount = Math.max(0, Math.floor(absU) || 0);
     const kCount = Math.max(0, Math.floor(absK) || 0);
     const t25 = Math.max(0, Math.round((parseFloat((absN25 || '').replace(',', '.')) || 0) * 60)); // target 25% minutes
     const hasPattern = !!(massStart && massEnd);
-    const minToClock = (m: number) => {
-      const x = ((m % 1440) + 1440) % 1440;
-      return `${String(Math.floor(x / 60)).padStart(2, '0')}:${String(x % 60).padStart(2, '0')}`;
-    };
 
-    // 1) Baseline. With a pattern (mass flow) every eligible weekday is reset to
-    //    a clean work day so the result is exact and re-runnable; without one
-    //    (single month) the day's own times are kept.
+    // Baseline. With a pattern (mass flow) every eligible weekday is reset to a
+    // clean work day so the result is exact and re-runnable; without one (single
+    // month) the day's own times are kept.
     const base = days.map(d => {
       if (d.code === 'F') return { ...d };
       const dow = new Date(year, month - 1, d.day).getDay();
@@ -328,64 +383,15 @@ export function StundenzettelPage() {
       return { ...d };
     });
 
-    // 2) Eligible work days (weekday, has times, no code).
-    const workIdx = base
-      .map((d, i) => ({ d, i }))
-      .filter(({ d }) => d.code === '' && (d.start || d.end))
-      .map(({ i }) => i);
-    const shuffled = [...workIdx];
-    for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-    }
-
-    // 3) Scatter U then K.
-    const next = base.map(d => ({ ...d }));
-    let p = 0;
-    for (let n = 0; n < uCount && p < shuffled.length; n++, p++) {
-      next[shuffled[p]] = { ...next[shuffled[p]], code: 'U', start: '', end: '', pause: 0 };
-    }
-    for (let n = 0; n < kCount && p < shuffled.length; n++, p++) {
-      next[shuffled[p]] = { ...next[shuffled[p]], code: 'K', start: '', end: '', pause: 0 };
-    }
-
-    // 4) Night 25%: spread the target minutes over the remaining work days,
-    //    max 120 min/day (04:00–06:00), and shift each such day earlier.
-    const remWork = next
-      .map((d, i) => ({ d, i }))
-      .filter(({ d }) => d.code === '' && (d.start || d.end))
-      .map(({ i }) => i);
-    const W = remWork.length;
-    let placed25 = 0;
-    if (t25 > 0 && W > 0) {
-      const cap = 120 * W;
-      let toPlace = Math.min(t25, cap);
-      placed25 = toPlace;
-      const perDay = new Array(W).fill(0);
-      const baseEach = Math.min(120, Math.floor(toPlace / W));
-      for (let i = 0; i < W; i++) perDay[i] = baseEach;
-      toPlace -= baseEach * W;
-      for (let i = 0; i < W && toPlace > 0; i++) { if (perDay[i] < 120) { perDay[i]++; toPlace--; } }
-      remWork.forEach((idx, k) => {
-        const nm = perDay[k];
-        if (nm <= 0) return;
-        const s = parseTimeToMin(next[idx].start);
-        const e = parseTimeToMin(next[idx].end);
-        if (s === null || e === null) return;
-        const dur = (e >= s ? e : e + 1440) - s;
-        const ns = 360 - nm; // 06:00 minus the night minutes → start in [04:00, 06:00)
-        next[idx] = { ...next[idx], start: minToClock(ns), end: minToClock(ns + dur) };
-      });
-    }
-
+    const { days: next, placed25, workCount } = distributePayslip(base, uCount, kCount, t25);
     setDays(next);
 
     // Feedback when the month can't hold what was requested.
     const warnings: string[] = [];
-    if (uCount + kCount > workIdx.length) {
+    if (uCount + kCount > workCount) {
       warnings.push(locale === 'de'
-        ? `Nur ${workIdx.length} Arbeitstage — ${uCount + kCount} U/K angefordert.`
-        : `Tylko ${workIdx.length} dni roboczych — zażądano ${uCount + kCount} U/K.`);
+        ? `Nur ${workCount} Arbeitstage — ${uCount + kCount} U/K angefordert.`
+        : `Tylko ${workCount} dni roboczych — zażądano ${uCount + kCount} U/K.`);
     }
     if (t25 > placed25) {
       warnings.push(locale === 'de'
@@ -457,9 +463,9 @@ export function StundenzettelPage() {
   // per month into the employee's folder (<Name>/XLSX, <Name>/PDF).
   const [massFrom, setMassFrom] = useState(period);
   const [massTo, setMassTo] = useState(period);
-  const [massStart, setMassStart] = useState('');
-  const [massEnd, setMassEnd] = useState('');
-  const [massPause, setMassPause] = useState(30);
+  const [massStart, setMassStart] = useState('06:00');
+  const [massEnd, setMassEnd] = useState('15:00');
+  const [massPause, setMassPause] = useState(45);
   const [massSat, setMassSat] = useState(false);
   const [massHolidays, setMassHolidays] = useState(true);
   const [massPrepared, setMassPrepared] = useState(false);
@@ -480,12 +486,20 @@ export function StundenzettelPage() {
     setMassResult(null);
     const grids: Record<string, EditableDay[]> = { ...monthGrids, [period]: days };
     for (const { year: y, month: m } of massMonths) {
-      grids[ymKey(y, m)] = buildMonthDaysPattern(y, m, massStart, massEnd, massPause, massSat, massHolidays);
+      const pat = buildMonthDaysPattern(y, m, massStart, massEnd, massPause, massSat, massHolidays);
+      // Auto-apply the payslip for this month if a Lohn export was imported:
+      // scatter its U/K days and pull starts earlier to hit the 25% night hours.
+      const lm = lohnEmp?.months.find(x => x.period === ymKey(y, m));
+      const u = Math.round(lm?.urlaub || 0);
+      const k = Math.round(lm?.krank || 0);
+      const t25 = Math.round((lm?.night25 || 0) * 60);
+      grids[ymKey(y, m)] = (u || k || t25) ? distributePayslip(pat, u, k, t25).days : pat;
     }
     setMonthGrids(grids);
     const [fy, fm] = massFrom.split('-').map(Number);
     setPeriod(massFrom);
     setDays((grids[massFrom] || makeEmptyDays(fy, fm)).map(d => ({ ...d })));
+    applyLohnMonth(lohnFor(massFrom));
     setMassPrepared(true);
   };
 
