@@ -43,6 +43,19 @@ _KK_LINE = re.compile(r'\d{7} \d{4} \d \d\d')
 # "und".
 _UNTERBRECHUNG = re.compile(r'Unterbrechung:\s*(.+)')
 _UU_RANGE = re.compile(r'(\d{1,2})\.-(\d{1,2})\.(\d{1,2})\.(\d{2})')
+# Eintritt / Austritt line in the header, e.g. "  060225 050226" (DDMMYY DDMMYY).
+# Austritt may be absent (permanent contract).
+_EIN_AUS = re.compile(r'^\s+(\d{6})(?:\s+(\d{6}))?\s*$')
+
+
+def _ddmmyy(s):
+    """DDMMYY → 'YYYY-MM-DD' (assumes 20YY), or None if not a plausible date."""
+    if not s or len(s) != 6:
+        return None
+    dd, mm, yy = int(s[0:2]), int(s[2:4]), int(s[4:6])
+    if not (1 <= dd <= 31 and 1 <= mm <= 12):
+        return None
+    return f"20{yy:02d}-{mm:02d}-{dd:02d}"
 
 
 def _de_hours(s: str) -> float:
@@ -93,7 +106,8 @@ def parse_ans(data):
 
     def _emp(pers):
         if pers not in emp:
-            emp[pers] = {'name': None, 'reg': {}, 'nb': {}, 'url': {}, 'krk': {}, 'uu': {}}
+            emp[pers] = {'name': None, 'reg': {}, 'nb': {}, 'url': {}, 'krk': {},
+                         'uu': {}, 'ein': set(), 'ausp': {}}
         return emp[pers]
 
     cur_pers = None
@@ -130,7 +144,8 @@ def parse_ans(data):
         # "Unterbrechung … Unbezahlter Urlaub" note.
         n25 = 0.0
         urlaub = krank = 0.0
-        got_night = got_kk = False
+        got_night = got_kk = got_dates = False
+        ein_here = aus_here = None
         uu_here = []  # (period, start_day, end_day)
         for j in range(i + 1, len(lines)):
             if _MONTH_HDR.search(lines[j]):
@@ -138,6 +153,12 @@ def parse_ans(data):
             if not got_kk and _KK_LINE.search(lines[j]):
                 urlaub, krank = _fehlzeiten(lines[j])
                 got_kk = True
+            if not got_dates:
+                dm = _EIN_AUS.match(lines[j])
+                if dm and _ddmmyy(dm.group(1)):
+                    ein_here = _ddmmyy(dm.group(1))
+                    aus_here = _ddmmyy(dm.group(2)) if dm.group(2) else None
+                    got_dates = True
             if not got_night:
                 nm = _NIGHT25.search(lines[j])
                 if nm:
@@ -166,6 +187,9 @@ def parse_ans(data):
             e['name'] = cur_name
         for pm2, sd, ed in uu_here:
             e['uu'].setdefault(pm2, set()).add((sd, ed))
+        if ein_here:
+            e['ein'].add(ein_here)
+        e['ausp'].setdefault(period, set()).add(aus_here)
         # Always record the month (even at 0 night) so the list mirrors the
         # payslips present; within a bucket keep the largest seen (reprints).
         bucket = e['nb'] if is_nb else e['reg']
@@ -190,7 +214,18 @@ def parse_ans(data):
                 'krank': round(e['krk'].get(pm, 0.0), 1),
                 'uu': uu,  # unbezahlter Urlaub as [startDay, endDay] ranges
             })
-        employees.append({'pers_nr': pers, 'name': e['name'] or '', 'months': months})
+        # Eintritt = earliest start date. Austritt = the end date on the LATEST
+        # payslip (a permanent contract shows none), so a superseded befristet
+        # end date from an earlier month never truncates later months.
+        eintritt = min(e['ein']) if e['ein'] else None
+        austritt = None
+        if periods:
+            last_aus = {a for a in e['ausp'].get(periods[-1], set()) if a}
+            austritt = max(last_aus) if last_aus else None
+        employees.append({
+            'pers_nr': pers, 'name': e['name'] or '', 'months': months,
+            'eintritt': eintritt, 'austritt': austritt,
+        })
 
     # Stable order: by name then pers_nr.
     employees.sort(key=lambda x: (x['name'].lower(), x['pers_nr']))

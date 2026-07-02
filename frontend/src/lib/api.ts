@@ -771,6 +771,8 @@ export interface LohnEmployee {
   pers_nr: string;
   name: string;
   months: LohnMonth[];
+  eintritt: string | null; // YYYY-MM-DD start date (respect mid-month starts)
+  austritt: string | null; // YYYY-MM-DD end date (null = permanent)
 }
 export const parseLohnAns = async (file: File) => {
   const form = new FormData();

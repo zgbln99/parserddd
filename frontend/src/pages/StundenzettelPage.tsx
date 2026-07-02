@@ -236,6 +236,29 @@ function distributePayslip(
   return { days: next, placed25, workCount: workIdx.length };
 }
 
+/** Clear work days outside the employment period, so a mid-month Eintritt only
+ *  starts on the entry day and an Austritt stops on the exit day. Dates are
+ *  YYYY-MM-DD; either may be null. */
+function boundByEmployment(
+  days: EditableDay[], year: number, month: number,
+  eintritt?: string | null, austritt?: string | null,
+): EditableDay[] {
+  const toNum = (iso?: string | null) => {
+    const m = iso ? iso.match(/^(\d{4})-(\d{2})-(\d{2})$/) : null;
+    return m ? +m[1] * 10000 + +m[2] * 100 + +m[3] : null;
+  };
+  const ein = toNum(eintritt);
+  const aus = toNum(austritt);
+  if (ein == null && aus == null) return days;
+  return days.map(d => {
+    const n = year * 10000 + month * 100 + d.day;
+    if ((ein != null && n < ein) || (aus != null && n > aus)) {
+      return { day: d.day, start: '', end: '', pause: 0, code: '' };
+    }
+    return d;
+  });
+}
+
 export function StundenzettelPage() {
   const { t, locale } = useI18n();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -421,8 +444,9 @@ export function StundenzettelPage() {
       return { ...d };
     });
 
+    const bounded = boundByEmployment(base, year, month, lohnEmp?.eintritt, lohnEmp?.austritt);
     const uu = lohnFor(period)?.uu ?? [];
-    const { days: next, placed25, workCount } = distributePayslip(base, uCount, kCount, t25, uu);
+    const { days: next, placed25, workCount } = distributePayslip(bounded, uCount, kCount, t25, uu);
     setDays(next);
 
     // Feedback when the month can't hold what was requested.
@@ -525,7 +549,9 @@ export function StundenzettelPage() {
     setMassResult(null);
     const grids: Record<string, EditableDay[]> = { ...monthGrids, [period]: days };
     for (const { year: y, month: m } of massMonths) {
-      const pat = buildMonthDaysPattern(y, m, massStart, massEnd, massPause, massSat, massHolidays);
+      let pat = buildMonthDaysPattern(y, m, massStart, massEnd, massPause, massSat, massHolidays);
+      // Respect the employment period (mid-month Eintritt / Austritt).
+      pat = boundByEmployment(pat, y, m, lohnEmp?.eintritt, lohnEmp?.austritt);
       // Auto-apply the payslip for this month if a Lohn export was imported:
       // scatter its U/K days and pull starts earlier to hit the 25% night hours.
       const lm = lohnEmp?.months.find(x => x.period === ymKey(y, m));
