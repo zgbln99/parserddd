@@ -2,7 +2,7 @@ import { useState, useCallback, useRef, useMemo, useEffect, Component, type Reac
 import {
   Upload, FileText, AlertCircle, Clock, Moon, UtensilsCrossed,
   CalendarDays, Thermometer, Palmtree, Star, ClipboardCopy, Check,
-  Plus, Trash2, FileDown, CloudUpload, Users,
+  Plus, Trash2, FileDown, CloudUpload, Users, Shuffle,
 } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { parseStundenzettel, fetchConfig, type StundenzettelDay } from '../lib/api';
@@ -277,6 +277,104 @@ export function StundenzettelPage() {
       }
       return d;
     }));
+  };
+
+  // "Match the payslip": scatter U (Urlaub) and K (Krank) onto random working
+  // days so their counts match the Lohnabrechnung, and shift work-day start
+  // times earlier into the 04:00–06:00 window so the computed 25% night hours
+  // equal the payslip's Nachtzuschlag (decimal, e.g. "10,50" = 10.5 h). Shift
+  // duration is preserved, so total work hours are unchanged.
+  const [absU, setAbsU] = useState(0);
+  const [absK, setAbsK] = useState(0);
+  const [absN25, setAbsN25] = useState(''); // decimal hours, e.g. "10,50"
+
+  const matchPayslip = () => {
+    const uCount = Math.max(0, Math.floor(absU) || 0);
+    const kCount = Math.max(0, Math.floor(absK) || 0);
+    const t25 = Math.max(0, Math.round((parseFloat((absN25 || '').replace(',', '.')) || 0) * 60)); // target 25% minutes
+    const hasPattern = !!(massStart && massEnd);
+    const minToClock = (m: number) => {
+      const x = ((m % 1440) + 1440) % 1440;
+      return `${String(Math.floor(x / 60)).padStart(2, '0')}:${String(x % 60).padStart(2, '0')}`;
+    };
+
+    // 1) Baseline. With a pattern (mass flow) every eligible weekday is reset to
+    //    a clean work day so the result is exact and re-runnable; without one
+    //    (single month) the day's own times are kept.
+    const base = days.map(d => {
+      if (d.code === 'F') return { ...d };
+      const dow = new Date(year, month - 1, d.day).getDay();
+      const weekend = dow === 0 || dow === 6;
+      if (weekend && !(d.start || d.end)) return { ...d };
+      if (hasPattern) return { ...d, code: '', start: massStart, end: massEnd, pause: massPause };
+      return { ...d };
+    });
+
+    // 2) Eligible work days (weekday, has times, no code).
+    const workIdx = base
+      .map((d, i) => ({ d, i }))
+      .filter(({ d }) => d.code === '' && (d.start || d.end))
+      .map(({ i }) => i);
+    const shuffled = [...workIdx];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+
+    // 3) Scatter U then K.
+    const next = base.map(d => ({ ...d }));
+    let p = 0;
+    for (let n = 0; n < uCount && p < shuffled.length; n++, p++) {
+      next[shuffled[p]] = { ...next[shuffled[p]], code: 'U', start: '', end: '', pause: 0 };
+    }
+    for (let n = 0; n < kCount && p < shuffled.length; n++, p++) {
+      next[shuffled[p]] = { ...next[shuffled[p]], code: 'K', start: '', end: '', pause: 0 };
+    }
+
+    // 4) Night 25%: spread the target minutes over the remaining work days,
+    //    max 120 min/day (04:00–06:00), and shift each such day earlier.
+    const remWork = next
+      .map((d, i) => ({ d, i }))
+      .filter(({ d }) => d.code === '' && (d.start || d.end))
+      .map(({ i }) => i);
+    const W = remWork.length;
+    let placed25 = 0;
+    if (t25 > 0 && W > 0) {
+      const cap = 120 * W;
+      let toPlace = Math.min(t25, cap);
+      placed25 = toPlace;
+      const perDay = new Array(W).fill(0);
+      const baseEach = Math.min(120, Math.floor(toPlace / W));
+      for (let i = 0; i < W; i++) perDay[i] = baseEach;
+      toPlace -= baseEach * W;
+      for (let i = 0; i < W && toPlace > 0; i++) { if (perDay[i] < 120) { perDay[i]++; toPlace--; } }
+      remWork.forEach((idx, k) => {
+        const nm = perDay[k];
+        if (nm <= 0) return;
+        const s = parseTimeToMin(next[idx].start);
+        const e = parseTimeToMin(next[idx].end);
+        if (s === null || e === null) return;
+        const dur = (e >= s ? e : e + 1440) - s;
+        const ns = 360 - nm; // 06:00 minus the night minutes → start in [04:00, 06:00)
+        next[idx] = { ...next[idx], start: minToClock(ns), end: minToClock(ns + dur) };
+      });
+    }
+
+    setDays(next);
+
+    // Feedback when the month can't hold what was requested.
+    const warnings: string[] = [];
+    if (uCount + kCount > workIdx.length) {
+      warnings.push(locale === 'de'
+        ? `Nur ${workIdx.length} Arbeitstage — ${uCount + kCount} U/K angefordert.`
+        : `Tylko ${workIdx.length} dni roboczych — zażądano ${uCount + kCount} U/K.`);
+    }
+    if (t25 > placed25) {
+      warnings.push(locale === 'de'
+        ? `25% auf ${(placed25 / 60).toFixed(2).replace('.', ',')} h begrenzt (max. 2 h/Tag).`
+        : `25% ograniczone do ${(placed25 / 60).toFixed(2).replace('.', ',')} h (maks. 2 h/dzień).`);
+    }
+    setError(warnings.join(' '));
   };
 
   const stzPayload = () => ({
@@ -585,6 +683,29 @@ export function StundenzettelPage() {
             className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-1 text-xs font-medium text-muted hover:bg-surface">
             <CalendarDays size={12} /> {locale === 'de' ? 'Feiertage BE' : 'Święta BE'}
           </button>
+          {/* Match the Lohnabrechnung: U/K day counts + 25% night hours */}
+          <div className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300/60 dark:border-amber-700/50 bg-amber-50/60 dark:bg-amber-900/10 px-2 py-1"
+            title={locale === 'de'
+              ? 'An die Lohnabrechnung anpassen: U/K zufällig verteilen und Start früher legen, bis die 25%-Stunden passen'
+              : 'Dopasuj do listy płac: rozłóż U/K losowo i przesuń start wcześniej, aż zgodzą się godziny 25%'}>
+            <span className="text-[11px] font-semibold text-amber-700 dark:text-amber-300">{locale === 'de' ? 'Lohnabr.' : 'Lista płac'}</span>
+            <label className="flex items-center gap-0.5 text-[11px] text-muted">U
+              <input type="number" min={0} value={absU || ''} onChange={e => setAbsU(parseInt(e.target.value) || 0)}
+                className="input w-10 rounded px-1 py-0.5 text-xs" />
+            </label>
+            <label className="flex items-center gap-0.5 text-[11px] text-muted">K
+              <input type="number" min={0} value={absK || ''} onChange={e => setAbsK(parseInt(e.target.value) || 0)}
+                className="input w-10 rounded px-1 py-0.5 text-xs" />
+            </label>
+            <label className="flex items-center gap-0.5 text-[11px] text-muted">{locale === 'de' ? '25%-Std' : '25% godz'}
+              <input type="text" inputMode="decimal" value={absN25} onChange={e => setAbsN25(e.target.value)} placeholder="10,50"
+                className="input w-14 rounded px-1 py-0.5 text-xs" />
+            </label>
+            <button onClick={matchPayslip} disabled={absU + absK === 0 && !absN25.trim()}
+              className="inline-flex items-center gap-1 rounded-md bg-amber-600 text-white px-2 py-0.5 text-xs font-medium hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed">
+              <Shuffle size={12} /> {locale === 'de' ? 'Anpassen' : 'Dopasuj'}
+            </button>
+          </div>
         </div>
         {bulkRange === 'custom' && (
           <div className="flex items-center gap-1 mt-2 flex-wrap">
