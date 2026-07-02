@@ -145,9 +145,17 @@ def parse_ans(data):
                     got_night = True
             um = _UNTERBRECHUNG.search(lines[j])
             if um:
-                ctx = ' '.join(lines[j + 1:j + 3])
-                if 'nbezahlt' in ctx:  # "Unbezahlter Urlaub"
-                    for rm in _UU_RANGE.finditer(um.group(1)):
+                # Any "Unterbrechung" note is unbezahlter Urlaub. Ranges may wrap
+                # onto the next line(s) (joined by "und"), so keep reading while
+                # the following lines still carry date ranges.
+                texts = [um.group(1)]
+                for jj in range(j + 1, min(j + 4, len(lines))):
+                    if _UU_RANGE.search(lines[jj]):
+                        texts.append(lines[jj])
+                    else:
+                        break
+                for t in texts:
+                    for rm in _UU_RANGE.finditer(t):
                         sd, ed, mo, yy = (int(x) for x in rm.groups())
                         if 1 <= mo <= 12:
                             uu_here.append((f"20{yy:02d}-{mo:02d}", sd, ed))
