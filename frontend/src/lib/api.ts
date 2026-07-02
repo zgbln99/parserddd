@@ -765,6 +765,7 @@ export interface LohnMonth {
   via_nb: boolean;  // value came from a Nachberechnung correction
   urlaub: number;   // Urlaub Tage (vacation days)
   krank: number;    // Krankh. Tg. (sick days)
+  uu: [number, number][]; // unbezahlter Urlaub as [startDay, endDay] ranges
 }
 export interface LohnEmployee {
   pers_nr: string;

@@ -154,15 +154,31 @@ const _toClock = (m: number) => {
  *  and the number of eligible work days. */
 function distributePayslip(
   base: EditableDay[], uCount: number, kCount: number, t25min: number,
+  uuRanges: number[][] = [],
 ): { days: EditableDay[]; placed25: number; workCount: number } {
   const eligible = (arr: EditableDay[]) => arr
     .map((d, i) => ({ d, i }))
     .filter(({ d }) => d.code === '' && (d.start || d.end))
     .map(({ i }) => i);
 
-  const workIdx = eligible(base); // calendar-ordered eligible work-day indices
   const next = base.map(d => ({ ...d }));
   const used = new Set<number>();
+
+  // Unbezahlter Urlaub (UU) — exact dates from the payslip note. Mark working
+  // days in each range as UU (clear the hours); weekends/holidays inside the
+  // range are left as they are.
+  for (const [s, e] of uuRanges) {
+    for (let day = s; day <= e; day++) {
+      const idx = day - 1;
+      const d = next[idx];
+      if (d && d.code === '' && (d.start || d.end)) {
+        next[idx] = { ...d, code: 'UU', start: '', end: '', pause: 0 };
+        used.add(idx);
+      }
+    }
+  }
+
+  const workIdx = eligible(next); // eligible days left after UU (calendar order)
 
   // Place `count` absence days of `code` as ONE consecutive run of eligible
   // working days — the way a person actually takes leave. Weekends/holidays in
@@ -405,7 +421,8 @@ export function StundenzettelPage() {
       return { ...d };
     });
 
-    const { days: next, placed25, workCount } = distributePayslip(base, uCount, kCount, t25);
+    const uu = lohnFor(period)?.uu ?? [];
+    const { days: next, placed25, workCount } = distributePayslip(base, uCount, kCount, t25, uu);
     setDays(next);
 
     // Feedback when the month can't hold what was requested.
@@ -515,7 +532,8 @@ export function StundenzettelPage() {
       const u = Math.round(lm?.urlaub || 0);
       const k = Math.round(lm?.krank || 0);
       const t25 = Math.round((lm?.night25 || 0) * 60);
-      grids[ymKey(y, m)] = (u || k || t25) ? distributePayslip(pat, u, k, t25).days : pat;
+      const uu = lm?.uu ?? [];
+      grids[ymKey(y, m)] = (u || k || t25 || uu.length) ? distributePayslip(pat, u, k, t25, uu).days : pat;
     }
     setMonthGrids(grids);
     const [fy, fm] = massFrom.split('-').map(Number);
@@ -799,6 +817,7 @@ export function StundenzettelPage() {
                   {`25%:${fmtHoursDe(lm.night25)}${lm.via_nb ? ' NB' : ''}`}
                   {lm.urlaub > 0 ? ` · U:${Math.round(lm.urlaub)}` : ''}
                   {lm.krank > 0 ? ` · K:${Math.round(lm.krank)}` : ''}
+                  {lm.uu.length > 0 ? ` · UU:${lm.uu.map(r => r[0] === r[1] ? `${r[0]}.` : `${r[0]}.–${r[1]}.`).join(',')}` : ''}
                 </span>
               );
             })()}

@@ -37,6 +37,12 @@ _PERS = re.compile(r'\*Pers\.-Nr\.\s*(\d+)\*')
 # Fehlzeiten (Anw./Urlaub/Krankh./Fehlz.) day counts are appended to it at
 # fixed form columns; each is the day count × 10 (e.g. "60" → 6,0 Tage).
 _KK_LINE = re.compile(r'\d{7} \d{4} \d \d\d')
+# Unbezahlter Urlaub is noted under "Hinweise zur Abrechnung" as an
+# interruption with exact dates, e.g. "- Unterbrechung: 21.-30.10.25" followed
+# by "Unbezahlter Urlaub". Same-month range "DD.-DD.MM.YY"; several joined by
+# "und".
+_UNTERBRECHUNG = re.compile(r'Unterbrechung:\s*(.+)')
+_UU_RANGE = re.compile(r'(\d{1,2})\.-(\d{1,2})\.(\d{1,2})\.(\d{2})')
 
 
 def _de_hours(s: str) -> float:
@@ -87,7 +93,7 @@ def parse_ans(data):
 
     def _emp(pers):
         if pers not in emp:
-            emp[pers] = {'name': None, 'reg': {}, 'nb': {}, 'url': {}, 'krk': {}}
+            emp[pers] = {'name': None, 'reg': {}, 'nb': {}, 'url': {}, 'krk': {}, 'uu': {}}
         return emp[pers]
 
     cur_pers = None
@@ -120,10 +126,12 @@ def parse_ans(data):
         period = f"{year}-{mon:02d}"
 
         # Look ahead within this page (until the next month header) for the
-        # Krankenkasse line (Fehlzeiten) and the 25% Nachtzuschlag line.
+        # Krankenkasse line (Fehlzeiten), the 25% Nachtzuschlag line, and any
+        # "Unterbrechung … Unbezahlter Urlaub" note.
         n25 = 0.0
         urlaub = krank = 0.0
         got_night = got_kk = False
+        uu_here = []  # (period, start_day, end_day)
         for j in range(i + 1, len(lines)):
             if _MONTH_HDR.search(lines[j]):
                 break
@@ -135,13 +143,21 @@ def parse_ans(data):
                 if nm:
                     n25 = _de_hours(nm.group(1))
                     got_night = True
-            if got_night and got_kk:
-                break
+            um = _UNTERBRECHUNG.search(lines[j])
+            if um:
+                ctx = ' '.join(lines[j + 1:j + 3])
+                if 'nbezahlt' in ctx:  # "Unbezahlter Urlaub"
+                    for rm in _UU_RANGE.finditer(um.group(1)):
+                        sd, ed, mo, yy = (int(x) for x in rm.groups())
+                        if 1 <= mo <= 12:
+                            uu_here.append((f"20{yy:02d}-{mo:02d}", sd, ed))
 
         pers = cur_pers or '?'
         e = _emp(pers)
         if cur_name and not e['name']:
             e['name'] = cur_name
+        for pm2, sd, ed in uu_here:
+            e['uu'].setdefault(pm2, set()).add((sd, ed))
         # Always record the month (even at 0 night) so the list mirrors the
         # payslips present; within a bucket keep the largest seen (reprints).
         bucket = e['nb'] if is_nb else e['reg']
@@ -152,17 +168,19 @@ def parse_ans(data):
 
     employees = []
     for pers, e in emp.items():
-        periods = sorted(set(list(e['reg'].keys()) + list(e['nb'].keys())))
+        periods = sorted(set(list(e['reg'].keys()) + list(e['nb'].keys()) + list(e['uu'].keys())))
         months = []
         for pm in periods:
             reg = e['reg'].get(pm, 0.0)
             nb = e['nb'].get(pm, 0.0)
+            uu = sorted([sd, ed] for sd, ed in e['uu'].get(pm, set()))
             months.append({
                 'period': pm,
                 'night25': round(reg + nb, 2),
                 'via_nb': nb > 0 and reg == 0,
                 'urlaub': round(e['url'].get(pm, 0.0), 1),
                 'krank': round(e['krk'].get(pm, 0.0), 1),
+                'uu': uu,  # unbezahlter Urlaub as [startDay, endDay] ranges
             })
         employees.append({'pers_nr': pers, 'name': e['name'] or '', 'months': months})
 
