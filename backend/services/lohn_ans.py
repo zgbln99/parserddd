@@ -204,12 +204,17 @@ def parse_ans(data):
         months = []
         for pm in periods:
             reg = e['reg'].get(pm, 0.0)
+            has_nb = pm in e['nb']
             nb = e['nb'].get(pm, 0.0)
+            # A Nachberechnung recalculates the WHOLE month and shows the full
+            # (corrected) 25% hours — it replaces the regular value, it is not an
+            # additional amount. So use the NB value when an NB page exists.
+            night = nb if has_nb else reg
             uu = sorted([sd, ed] for sd, ed in e['uu'].get(pm, set()))
             months.append({
                 'period': pm,
-                'night25': round(reg + nb, 2),
-                'via_nb': nb > 0 and reg == 0,
+                'night25': round(night, 2),
+                'via_nb': has_nb and reg == 0,
                 'urlaub': round(e['url'].get(pm, 0.0), 1),
                 'krank': round(e['krk'].get(pm, 0.0), 1),
                 'uu': uu,  # unbezahlter Urlaub as [startDay, endDay] ranges
