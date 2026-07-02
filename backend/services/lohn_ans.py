@@ -33,6 +33,10 @@ _MONTHS = {
 _MONTH_HDR = re.compile(r'f.r\s+([A-Za-zÄÖÜäöü]+)\s+(\d{4})(?:\s*\((\d+)\.\s*NB\))?')
 _NIGHT25 = re.compile(r'203\s+25%\s+Nachtzuschlag\s+Std\s+([\d.,]+)')
 _PERS = re.compile(r'\*Pers\.-Nr\.\s*(\d+)\*')
+# The Krankenkasse / SV line, e.g. "...KKH... 1658101 1111 2 30". The
+# Fehlzeiten (Anw./Urlaub/Krankh./Fehlz.) day counts are appended to it at
+# fixed form columns; each is the day count × 10 (e.g. "60" → 6,0 Tage).
+_KK_LINE = re.compile(r'\d{7} \d{4} \d \d\d')
 
 
 def _de_hours(s: str) -> float:
@@ -41,6 +45,28 @@ def _de_hours(s: str) -> float:
         return float(s.strip().replace('.', '').replace(',', '.'))
     except (ValueError, AttributeError):
         return 0.0
+
+
+def _fehlzeiten(kk_line: str):
+    """Extract (Urlaub, Krank) day counts from the Krankenkasse line.
+
+    The counts sit at fixed columns (Urlaub ~70, Krankh. ~76, Fehlz. ~82) and
+    are stored as days × 10. Values before column 63 are SV data, not absences.
+    """
+    urlaub = krank = 0.0
+    for m in re.finditer(r'(\d+)(-?)', kk_line):
+        col = m.start()
+        if col < 63:
+            continue
+        val = int(m.group(1)) / 10.0
+        if m.group(2) == '-':
+            val = -val
+        if 67 <= col <= 73:
+            urlaub = val
+        elif 74 <= col <= 80:
+            krank = val
+        # col >= 81 → Fehlz. Tage (not needed)
+    return urlaub, krank
 
 
 def parse_ans(data):
@@ -61,7 +87,7 @@ def parse_ans(data):
 
     def _emp(pers):
         if pers not in emp:
-            emp[pers] = {'name': None, 'reg': {}, 'nb': {}}
+            emp[pers] = {'name': None, 'reg': {}, 'nb': {}, 'url': {}, 'krk': {}}
         return emp[pers]
 
     cur_pers = None
@@ -94,14 +120,22 @@ def parse_ans(data):
         period = f"{year}-{mon:02d}"
 
         # Look ahead within this page (until the next month header) for the
-        # 25% Nachtzuschlag line.
+        # Krankenkasse line (Fehlzeiten) and the 25% Nachtzuschlag line.
         n25 = 0.0
+        urlaub = krank = 0.0
+        got_night = got_kk = False
         for j in range(i + 1, len(lines)):
             if _MONTH_HDR.search(lines[j]):
                 break
-            nm = _NIGHT25.search(lines[j])
-            if nm:
-                n25 = _de_hours(nm.group(1))
+            if not got_kk and _KK_LINE.search(lines[j]):
+                urlaub, krank = _fehlzeiten(lines[j])
+                got_kk = True
+            if not got_night:
+                nm = _NIGHT25.search(lines[j])
+                if nm:
+                    n25 = _de_hours(nm.group(1))
+                    got_night = True
+            if got_night and got_kk:
                 break
 
         pers = cur_pers or '?'
@@ -112,6 +146,9 @@ def parse_ans(data):
         # payslips present; within a bucket keep the largest seen (reprints).
         bucket = e['nb'] if is_nb else e['reg']
         bucket[period] = max(bucket.get(period, 0.0), n25)
+        # Urlaub/Krank days: keep the largest seen across regular + NB pages.
+        e['url'][period] = max(e['url'].get(period, 0.0), urlaub)
+        e['krk'][period] = max(e['krk'].get(period, 0.0), krank)
 
     employees = []
     for pers, e in emp.items():
@@ -124,6 +161,8 @@ def parse_ans(data):
                 'period': pm,
                 'night25': round(reg + nb, 2),
                 'via_nb': nb > 0 and reg == 0,
+                'urlaub': round(e['url'].get(pm, 0.0), 1),
+                'krank': round(e['krk'].get(pm, 0.0), 1),
             })
         employees.append({'pers_nr': pers, 'name': e['name'] or '', 'months': months})
 

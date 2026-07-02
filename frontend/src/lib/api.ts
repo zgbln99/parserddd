@@ -763,6 +763,8 @@ export interface LohnMonth {
   period: string;   // YYYY-MM
   night25: number;  // decimal hours
   via_nb: boolean;  // value came from a Nachberechnung correction
+  urlaub: number;   // Urlaub Tage (vacation days)
+  krank: number;    // Krankh. Tg. (sick days)
 }
 export interface LohnEmployee {
   pers_nr: string;

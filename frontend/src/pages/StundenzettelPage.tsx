@@ -177,6 +177,13 @@ export function StundenzettelPage() {
   const [lohnAll, setLohnAll] = useState<LohnEmployee[]>([]);
   const lohnFor = (p: string): LohnMonth | undefined => lohnEmp?.months.find(m => m.period === p);
   const fmtHoursDe = (h: number) => h.toFixed(2).replace('.', ',');
+  // Prefill the "match payslip" fields (U/K days, 25% night) from a Lohn month.
+  const applyLohnMonth = (lm: LohnMonth | undefined) => {
+    if (!lm) return;
+    setAbsN25(lm.night25 ? fmtHoursDe(lm.night25) : '');
+    setAbsU(Math.round(lm.urlaub) || 0);
+    setAbsK(Math.round(lm.krank) || 0);
+  };
 
   const handlePeriodChange = (newPeriod: string) => {
     if (newPeriod === period) return;
@@ -187,9 +194,8 @@ export function StundenzettelPage() {
     setPeriod(newPeriod);
     const existing = monthGrids[newPeriod];
     setDays(existing ? existing.map(d => ({ ...d })) : makeEmptyDays(y, m));
-    // Prefill the 25% night field from the imported Lohn export for this month.
-    const lm = lohnFor(newPeriod);
-    if (lm) setAbsN25(lm.night25 ? fmtHoursDe(lm.night25) : '');
+    // Prefill U/K + 25% night from the imported Lohn export for this month.
+    applyLohnMonth(lohnFor(newPeriod));
   };
 
   // Load pre-filled data from analysis page (via localStorage)
@@ -537,8 +543,7 @@ export function StundenzettelPage() {
         if (!name.trim()) setName(pick.name);
         const ps = pick.months.map(m => m.period).sort();
         if (ps.length) { setMassFrom(ps[0]); setMassTo(ps[ps.length - 1]); resetPrepared(); }
-        const cur = pick.months.find(m => m.period === period);
-        if (cur) setAbsN25(cur.night25 ? fmtHoursDe(cur.night25) : '');
+        applyLohnMonth(pick.months.find(m => m.period === period));
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -748,12 +753,19 @@ export function StundenzettelPage() {
               <input type="text" inputMode="decimal" value={absN25} onChange={e => setAbsN25(e.target.value)} placeholder="10,50"
                 className="input w-14 rounded px-1 py-0.5 text-xs" />
             </label>
-            {lohnFor(period) && (
-              <span className="inline-flex items-center gap-0.5 text-[10px] text-emerald-600 dark:text-emerald-400"
-                title={locale === 'de' ? `Aus Lohn-Export: ${fmtHoursDe(lohnFor(period)!.night25)} h${lohnFor(period)!.via_nb ? ' (NB)' : ''}` : `Z listy płac: ${fmtHoursDe(lohnFor(period)!.night25)} h${lohnFor(period)!.via_nb ? ' (NB)' : ''}`}>
-                <Check size={11} />{fmtHoursDe(lohnFor(period)!.night25)}{lohnFor(period)!.via_nb ? ' NB' : ''}
-              </span>
-            )}
+            {(() => {
+              const lm = lohnFor(period);
+              if (!lm) return null;
+              return (
+                <span className="inline-flex items-center gap-1 text-[10px] text-emerald-600 dark:text-emerald-400"
+                  title={locale === 'de' ? 'Aus Lohn-Export (.ans)' : 'Z listy płac (.ans)'}>
+                  <Check size={11} />
+                  {`25%:${fmtHoursDe(lm.night25)}${lm.via_nb ? ' NB' : ''}`}
+                  {lm.urlaub > 0 ? ` · U:${Math.round(lm.urlaub)}` : ''}
+                  {lm.krank > 0 ? ` · K:${Math.round(lm.krank)}` : ''}
+                </span>
+              );
+            })()}
             <button onClick={matchPayslip} disabled={absU + absK === 0 && !absN25.trim()}
               className="inline-flex items-center gap-1 rounded-md bg-amber-600 text-white px-2 py-0.5 text-xs font-medium hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed">
               <Shuffle size={12} /> {locale === 'de' ? 'Anpassen' : 'Dopasuj'}
@@ -825,8 +837,7 @@ export function StundenzettelPage() {
                     if (!name.trim()) setName(emp.name);
                     const ps = emp.months.map(m => m.period).sort();
                     if (ps.length) { setMassFrom(ps[0]); setMassTo(ps[ps.length - 1]); resetPrepared(); }
-                    const cur = emp.months.find(m => m.period === period);
-                    if (cur) setAbsN25(cur.night25 ? fmtHoursDe(cur.night25) : '');
+                    applyLohnMonth(emp.months.find(m => m.period === period));
                   }}
                   className={`rounded-md px-2 py-0.5 text-[11px] font-medium border ${lohnEmp?.pers_nr === emp.pers_nr ? 'bg-primary-600 text-white border-primary-600' : 'border-border text-muted hover:bg-surface'}`}>
                   {emp.name}
