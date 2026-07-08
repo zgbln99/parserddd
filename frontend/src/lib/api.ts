@@ -783,12 +783,18 @@ export const parseLohnAns = async (file: File) => {
   });
 };
 
-// Clean stored Stundenzettel PDFs (remove Vorlage title, DATEV logo, signature
-// labels → "Kontrolle durch") in MEGA S4, in place.
-export const listStundenzettelPdfs = () =>
-  request<{ pdfs: string[]; count: number }>('/api/stundenzettel/list-pdfs');
+// Clean stored Stundenzettel files (remove Vorlage title, DATEV logo, signature
+// labels → "Kontrolle durch", fit to one page) in MEGA S4, in place.
+export const listStundenzettelFiles = () =>
+  request<{ pdfs: string[]; xlsx: string[]; count: number }>('/api/stundenzettel/list-pdfs');
 export const cleanStundenzettelPdf = (path: string) =>
   request<{ ok: boolean; changed: boolean }>('/api/stundenzettel/clean-pdf', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path }),
+  });
+export const cleanStundenzettelXlsx = (path: string) =>
+  request<{ ok: boolean; changed: boolean }>('/api/stundenzettel/clean-xlsx', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ path }),

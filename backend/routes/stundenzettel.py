@@ -18,6 +18,7 @@ from config import logger, STUNDENZETTEL_FOLDER
 from services.dropbox_service import get_server_dropbox_client
 from services.openai_service import _parse_stundenzettel_with_openai, _calculate_stundenzettel
 from services.stz_pdf_clean import clean_pdf
+from services.stz_xlsx_clean import clean_xlsx
 
 bp = Blueprint('stundenzettel', __name__)
 
@@ -172,11 +173,10 @@ def api_stundenzettel_list_pdfs():
             entries.extend(result.entries)
     except Exception as exc:
         return jsonify({'error': str(exc)}), 500
-    pdfs = sorted(
-        p for e in entries
-        if (p := (getattr(e, 'path_display', '') or '')).lower().endswith('.pdf')
-    )
-    return jsonify({'pdfs': pdfs, 'count': len(pdfs)})
+    paths = [getattr(e, 'path_display', '') or '' for e in entries]
+    pdfs = sorted(p for p in paths if p.lower().endswith('.pdf'))
+    xlsx = sorted(p for p in paths if p.lower().endswith('.xlsx'))
+    return jsonify({'pdfs': pdfs, 'xlsx': xlsx, 'count': len(pdfs) + len(xlsx)})
 
 
 @bp.route('/api/stundenzettel/clean-pdf', methods=['POST'])
@@ -214,6 +214,40 @@ def api_stundenzettel_clean_pdf():
         except Exception as exc:
             return jsonify({'error': f'upload: {exc}'}), 500
     return jsonify({'ok': True, 'changed': changed})
+
+
+@bp.route('/api/stundenzettel/clean-xlsx', methods=['POST'])
+@login_required
+def api_stundenzettel_clean_xlsx():
+    """Download one stored Stundenzettel XLSX, strip the DATEV chrome (title,
+    logo, signature labels → 'Kontrolle durch'), fit it to one page, and
+    overwrite it in place."""
+    body = request.get_json(silent=True) or {}
+    path = (body.get('path') or '').strip()
+    if not path.lower().endswith('.xlsx'):
+        return jsonify({'error': 'invalid path'}), 400
+    if not path.startswith(STUNDENZETTEL_FOLDER + '/') or '..' in path:
+        return jsonify({'error': 'path out of scope'}), 400
+
+    dbx = get_server_dropbox_client()
+    if not dbx:
+        return jsonify({'error': 'Brak polaczenia z Dropbox'}), 500
+    try:
+        _meta, resp = dbx.files_download(path)
+        data = resp.content
+    except Exception as exc:
+        return jsonify({'error': f'download: {exc}'}), 500
+    try:
+        cleaned = clean_xlsx(data)
+    except Exception as exc:
+        logger.warning('clean-xlsx failed for %s: %s', path, exc)
+        return jsonify({'error': f'clean: {exc}'}), 500
+
+    try:
+        dbx.files_upload(cleaned, path)
+    except Exception as exc:
+        return jsonify({'error': f'upload: {exc}'}), 500
+    return jsonify({'ok': True, 'changed': True})
 
 
 @bp.route('/api/stundenzettel/parse', methods=['POST'])

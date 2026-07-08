@@ -5,7 +5,7 @@ import {
   Plus, Trash2, FileDown, CloudUpload, Users, Shuffle,
 } from 'lucide-react';
 import { useI18n } from '../i18n';
-import { parseStundenzettel, parseLohnAns, listStundenzettelPdfs, cleanStundenzettelPdf, fetchConfig, type StundenzettelDay, type LohnEmployee, type LohnMonth } from '../lib/api';
+import { parseStundenzettel, parseLohnAns, listStundenzettelFiles, cleanStundenzettelPdf, cleanStundenzettelXlsx, fetchConfig, type StundenzettelDay, type LohnEmployee, type LohnMonth } from '../lib/api';
 import { Card, StatCard } from '../components/Card';
 import { Badge } from '../components/Badge';
 import { Spinner } from '../components/Spinner';
@@ -643,27 +643,31 @@ export function StundenzettelPage() {
   // title, DATEV logo and signature labels (right → "Kontrolle durch").
   const handleCleanPdfs = useCallback(async () => {
     if (!window.confirm(locale === 'de'
-      ? 'Alle gespeicherten Stundenzettel-PDFs bereinigen (Vorlage-Titel, DATEV-Logo und Unterschriften entfernen)? Die Dateien werden überschrieben.'
-      : 'Wyczyścić wszystkie zapisane PDF-y (usunąć napis Vorlage, logo DATEV i podpisy)? Pliki zostaną nadpisane.')) return;
+      ? 'Alle gespeicherten Stundenzettel (PDF + Excel) bereinigen (Vorlage-Titel, DATEV-Logo und Unterschriften entfernen, auf eine Seite)? Die Dateien werden überschrieben.'
+      : 'Wyczyścić wszystkie zapisane pliki (PDF + Excel) — usunąć napis Vorlage, logo DATEV i podpisy, zmieścić na jednej stronie? Pliki zostaną nadpisane.')) return;
     setCleaning(true);
     cleanCancelRef.current = false;
     setCleanResult(null);
     setError('');
     try {
-      const { pdfs } = await listStundenzettelPdfs();
+      const { pdfs, xlsx } = await listStundenzettelFiles();
+      const jobs = [
+        ...pdfs.map(p => ({ path: p, kind: 'pdf' as const })),
+        ...xlsx.map(p => ({ path: p, kind: 'xlsx' as const })),
+      ];
       let changed = 0, errors = 0, done = 0;
-      for (const p of pdfs) {
+      for (const j of jobs) {
         if (cleanCancelRef.current) break;
         done++;
-        setCleanProgress({ done, total: pdfs.length, current: p.split('/').pop() || p });
+        setCleanProgress({ done, total: jobs.length, current: j.path.split('/').pop() || j.path });
         try {
-          const r = await cleanStundenzettelPdf(p);
+          const r = j.kind === 'pdf' ? await cleanStundenzettelPdf(j.path) : await cleanStundenzettelXlsx(j.path);
           if (r.changed) changed++;
         } catch {
           errors++;
         }
       }
-      setCleanResult({ changed, total: pdfs.length, errors });
+      setCleanResult({ changed, total: jobs.length, errors });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -1026,12 +1030,12 @@ export function StundenzettelPage() {
         <div className="flex items-center gap-3 flex-wrap">
           <FileDown size={15} className="text-primary-600" />
           <span className="text-xs font-semibold uppercase tracking-wider text-muted">
-            {locale === 'de' ? 'Gespeicherte PDFs bereinigen' : 'Wyczyść zapisane PDF-y'}
+            {locale === 'de' ? 'Gespeicherte Dateien bereinigen' : 'Wyczyść zapisane pliki'}
           </span>
           <span className="text-[11px] text-muted">
             {locale === 'de'
-              ? 'Entfernt Vorlage-Titel, DATEV-Logo und Unterschriften (rechts → „Kontrolle durch") aus allen PDFs auf MEGA S4.'
-              : 'Usuwa napis Vorlage, logo DATEV i podpisy (prawy → „Kontrolle durch") ze wszystkich PDF-ów na MEGA S4.'}
+              ? 'Entfernt Vorlage-Titel, DATEV-Logo und Unterschriften (rechts → „Kontrolle durch") aus allen PDFs und Excel-Dateien auf MEGA S4 und legt sie auf eine Seite.'
+              : 'Usuwa napis Vorlage, logo DATEV i podpisy (prawy → „Kontrolle durch") ze wszystkich PDF-ów i Exceli na MEGA S4 i mieści na jednej stronie.'}
           </span>
           <div className="ml-auto flex items-center gap-3">
             {cleaning ? (
@@ -1044,7 +1048,7 @@ export function StundenzettelPage() {
               <button onClick={handleCleanPdfs}
                 className="btn-secondary inline-flex items-center gap-2 px-3 py-2 text-sm rounded-lg">
                 <FileDown size={14} />
-                {locale === 'de' ? 'Alle PDFs bereinigen' : 'Wyczyść wszystkie PDF-y'}
+                {locale === 'de' ? 'Alle Dateien bereinigen' : 'Wyczyść wszystkie pliki'}
               </button>
             )}
             {!cleaning && cleanResult && (
