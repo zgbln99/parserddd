@@ -5,7 +5,7 @@ import {
   Plus, Trash2, FileDown, CloudUpload, Users, Shuffle,
 } from 'lucide-react';
 import { useI18n } from '../i18n';
-import { parseStundenzettel, parseLohnAns, fetchConfig, type StundenzettelDay, type LohnEmployee, type LohnMonth } from '../lib/api';
+import { parseStundenzettel, parseLohnAns, listStundenzettelPdfs, cleanStundenzettelPdf, fetchConfig, type StundenzettelDay, type LohnEmployee, type LohnMonth } from '../lib/api';
 import { Card, StatCard } from '../components/Card';
 import { Badge } from '../components/Badge';
 import { Spinner } from '../components/Spinner';
@@ -294,6 +294,12 @@ export function StundenzettelPage() {
   const [lohnBusy, setLohnBusy] = useState(false);
   const [lohnEmp, setLohnEmp] = useState<LohnEmployee | null>(null);
   const [lohnAll, setLohnAll] = useState<LohnEmployee[]>([]);
+
+  // Batch-clean stored PDFs (remove Vorlage/logo/signatures on MEGA S4).
+  const [cleaning, setCleaning] = useState(false);
+  const [cleanProgress, setCleanProgress] = useState({ done: 0, total: 0, current: '' });
+  const [cleanResult, setCleanResult] = useState<{ changed: number; total: number; errors: number } | null>(null);
+  const cleanCancelRef = useRef(false);
   const lohnFor = (p: string): LohnMonth | undefined => lohnEmp?.months.find(m => m.period === p);
   const fmtHoursDe = (h: number) => h.toFixed(2).replace('.', ',');
   // Prefill the "match payslip" fields (U/K days, 25% night) from a Lohn month.
@@ -632,6 +638,39 @@ export function StundenzettelPage() {
       if (lohnRef.current) lohnRef.current.value = '';
     }
   }, [name, period]);
+
+  // Batch-clean every stored Stundenzettel PDF on MEGA S4: remove the Vorlage
+  // title, DATEV logo and signature labels (right → "Kontrolle durch").
+  const handleCleanPdfs = useCallback(async () => {
+    if (!window.confirm(locale === 'de'
+      ? 'Alle gespeicherten Stundenzettel-PDFs bereinigen (Vorlage-Titel, DATEV-Logo und Unterschriften entfernen)? Die Dateien werden überschrieben.'
+      : 'Wyczyścić wszystkie zapisane PDF-y (usunąć napis Vorlage, logo DATEV i podpisy)? Pliki zostaną nadpisane.')) return;
+    setCleaning(true);
+    cleanCancelRef.current = false;
+    setCleanResult(null);
+    setError('');
+    try {
+      const { pdfs } = await listStundenzettelPdfs();
+      let changed = 0, errors = 0, done = 0;
+      for (const p of pdfs) {
+        if (cleanCancelRef.current) break;
+        done++;
+        setCleanProgress({ done, total: pdfs.length, current: p.split('/').pop() || p });
+        try {
+          const r = await cleanStundenzettelPdf(p);
+          if (r.changed) changed++;
+        } catch {
+          errors++;
+        }
+      }
+      setCleanResult({ changed, total: pdfs.length, errors });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setCleaning(false);
+      setCleanProgress({ done: 0, total: 0, current: '' });
+    }
+  }, [locale]);
 
   // Calculate totals
   const totals = useMemo(() => {
@@ -979,6 +1018,43 @@ export function StundenzettelPage() {
                 : '✏️ Miesiące przygotowane — wybierz miesiąc u góry i popraw w tabeli (np. U = urlop, K = chory), potem „Zapisz wszystkie". Zapis do …/Nazwisko/XLSX i …/Nazwisko/PDF.'}
             </p>
           )}
+        </div>
+      </Card>
+
+      {/* Batch-clean stored PDFs: strip Vorlage title / DATEV logo / signatures */}
+      <Card className="p-3">
+        <div className="flex items-center gap-3 flex-wrap">
+          <FileDown size={15} className="text-primary-600" />
+          <span className="text-xs font-semibold uppercase tracking-wider text-muted">
+            {locale === 'de' ? 'Gespeicherte PDFs bereinigen' : 'Wyczyść zapisane PDF-y'}
+          </span>
+          <span className="text-[11px] text-muted">
+            {locale === 'de'
+              ? 'Entfernt Vorlage-Titel, DATEV-Logo und Unterschriften (rechts → „Kontrolle durch") aus allen PDFs auf MEGA S4.'
+              : 'Usuwa napis Vorlage, logo DATEV i podpisy (prawy → „Kontrolle durch") ze wszystkich PDF-ów na MEGA S4.'}
+          </span>
+          <div className="ml-auto flex items-center gap-3">
+            {cleaning ? (
+              <>
+                <Spinner size="sm" />
+                <span className="text-xs text-muted">{cleanProgress.done}/{cleanProgress.total} — {cleanProgress.current}</span>
+                <button onClick={() => { cleanCancelRef.current = true; }} className="text-danger text-xs font-medium">Stop</button>
+              </>
+            ) : (
+              <button onClick={handleCleanPdfs}
+                className="btn-secondary inline-flex items-center gap-2 px-3 py-2 text-sm rounded-lg">
+                <FileDown size={14} />
+                {locale === 'de' ? 'Alle PDFs bereinigen' : 'Wyczyść wszystkie PDF-y'}
+              </button>
+            )}
+            {!cleaning && cleanResult && (
+              <span className="text-xs">
+                <span className="font-medium text-emerald-600">{cleanResult.changed} {locale === 'de' ? 'bereinigt' : 'wyczyszczone'}</span>
+                <span className="text-muted"> / {cleanResult.total}</span>
+                {cleanResult.errors > 0 && <span className="text-red-500"> · {cleanResult.errors} {locale === 'de' ? 'Fehler' : 'błędów'}</span>}
+              </span>
+            )}
+          </div>
         </div>
       </Card>
 

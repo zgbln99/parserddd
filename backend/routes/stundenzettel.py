@@ -17,6 +17,7 @@ from auth.helpers import _log_activity
 from config import logger, STUNDENZETTEL_FOLDER
 from services.dropbox_service import get_server_dropbox_client
 from services.openai_service import _parse_stundenzettel_with_openai, _calculate_stundenzettel
+from services.stz_pdf_clean import clean_pdf
 
 bp = Blueprint('stundenzettel', __name__)
 
@@ -154,6 +155,65 @@ def api_stundenzettel_save_to_dropbox():
 
     _log_activity('stundenzettel_save', folder)
     return jsonify({'ok': True, 'folder': root, 'saved': saved})
+
+
+@bp.route('/api/stundenzettel/list-pdfs')
+@login_required
+def api_stundenzettel_list_pdfs():
+    """List every stored Stundenzettel PDF under the Stundenzettel folder."""
+    dbx = get_server_dropbox_client()
+    if not dbx:
+        return jsonify({'error': 'Brak polaczenia z Dropbox'}), 500
+    try:
+        result = dbx.files_list_folder(STUNDENZETTEL_FOLDER, recursive=True)
+        entries = list(result.entries)
+        while getattr(result, 'has_more', False):
+            result = dbx.files_list_folder_continue(result.cursor)
+            entries.extend(result.entries)
+    except Exception as exc:
+        return jsonify({'error': str(exc)}), 500
+    pdfs = sorted(
+        p for e in entries
+        if (p := (getattr(e, 'path_display', '') or '')).lower().endswith('.pdf')
+    )
+    return jsonify({'pdfs': pdfs, 'count': len(pdfs)})
+
+
+@bp.route('/api/stundenzettel/clean-pdf', methods=['POST'])
+@login_required
+def api_stundenzettel_clean_pdf():
+    """Download one stored Stundenzettel PDF, strip the DATEV template chrome
+    (Vorlage title, logo, signature labels → 'Kontrolle durch'), and overwrite
+    it in place. Idempotent."""
+    body = request.get_json(silent=True) or {}
+    path = (body.get('path') or '').strip()
+    if not path.lower().endswith('.pdf'):
+        return jsonify({'error': 'invalid path'}), 400
+    # Keep it strictly inside the Stundenzettel folder; no traversal.
+    if not path.startswith(STUNDENZETTEL_FOLDER + '/') or '..' in path:
+        return jsonify({'error': 'path out of scope'}), 400
+
+    dbx = get_server_dropbox_client()
+    if not dbx:
+        return jsonify({'error': 'Brak polaczenia z Dropbox'}), 500
+    try:
+        _meta, resp = dbx.files_download(path)
+        data = resp.content
+    except Exception as exc:
+        return jsonify({'error': f'download: {exc}'}), 500
+    try:
+        cleaned = clean_pdf(data)
+    except Exception as exc:
+        logger.warning('clean-pdf failed for %s: %s', path, exc)
+        return jsonify({'error': f'clean: {exc}'}), 500
+
+    changed = cleaned is not data
+    if changed:
+        try:
+            dbx.files_upload(cleaned, path)
+        except Exception as exc:
+            return jsonify({'error': f'upload: {exc}'}), 500
+    return jsonify({'ok': True, 'changed': changed})
 
 
 @bp.route('/api/stundenzettel/parse', methods=['POST'])
