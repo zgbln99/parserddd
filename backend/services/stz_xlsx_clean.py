@@ -78,6 +78,8 @@ def clean_xlsx(data: bytes) -> bytes:
     out = io.BytesIO()
     with zipfile.ZipFile(out, 'w', zipfile.ZIP_DEFLATED) as zout:
         for n in names:
+            if n.endswith('/'):
+                continue  # directory marker — not a real part
             # Drop the DATEV logo parts entirely.
             if n.startswith('xl/drawings/') or n.startswith('xl/media/'):
                 continue
@@ -92,5 +94,12 @@ def clean_xlsx(data: bytes) -> bytes:
             elif n == '[Content_Types].xml':
                 raw = re.sub(r'<Override PartName="/xl/drawings/[^"]*"[^>]*/>', '',
                              raw.decode('utf-8')).encode('utf-8')
+            # ExcelJS corrupts the template's number-format code to the literal
+            # string "[object Object]", which Excel rejects (it removes the DXF
+            # and "repairs" the conditional formatting → the "may be damaged"
+            # prompt). Restore a valid format code.
+            if b'[object Object]' in raw:
+                raw = raw.replace(b'formatCode="[object Object]"',
+                                  b'formatCode="ddd\\,\\ dd;;"')
             zout.writestr(n, raw)
     return out.getvalue()
