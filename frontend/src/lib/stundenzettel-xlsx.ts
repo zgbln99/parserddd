@@ -1,14 +1,16 @@
 // Fill the ORIGINAL DATEV Excel template ("Vorlage zur Dokumentation der
-// täglichen Arbeitszeit") with the Stundenzettel data. Only cell VALUES are
-// written — the workbook (logo, styles, formulas, print layout) is otherwise
-// untouched, so the result is 1:1 with the source file, just filled in.
+// täglichen Arbeitszeit") with the Stundenzettel data. Times and codes are
+// written as values; Dauer, net and the monthly Summe are Excel FORMULAS, so
+// the sheet recalculates live when a time is edited in Excel. The workbook
+// (logo, styles, print layout) is otherwise untouched — 1:1 with the source.
 //
 // Template cell map (sheet "Arbeitszeitdokumentation"):
 //   E5  = employee name           H7 = month (date, 1st) → drives "Monat/Jahr"
 //   Day N → row 10+N (day 1 = row 11 … day 31 = row 41)
 //   B = Kalendertag (text, e.g. "śr, 01")   C = Beginn   D = Ende  (HHMM ints,
-//   format ##":"##)   E = Dauer   K = net  (time fractions, format h:mm)
-//   G = * (K/U/UU/F/…)   J = Pause (HHMM int)   F43 = SUM(K11:K41)
+//   format ##":"##)   J = Pause (HHMM int)   G = * (K/U/UU/F/…)
+//   E = Dauer = Ende−Beginn   K = net = Dauer−Pause  (formulas, format h:mm)
+//   F43 = SUM(K11:K41)
 
 const TEMPLATE_URL = '/templates/arbeitszeit-vorlage.xlsx';
 // The DATEV form is a German document → Kalendertag weekdays in German.
@@ -95,9 +97,19 @@ export async function buildStundenzettelXlsx(input: StzXlsxInput): Promise<{ blo
       const net = Math.max(0, gross - pause);
       ws.getCell(`C${r}`).value = hhmmInt(s);
       ws.getCell(`D${r}`).value = hhmmInt(e % 1440);
-      ws.getCell(`E${r}`).value = gross / 1440;
       if (pause > 0) ws.getCell(`J${r}`).value = hhmmInt(pause);
-      ws.getCell(`K${r}`).value = net / 1440;
+      // Let Excel compute the hours. C/D/J hold HHMM integers (600 = 6:00), so
+      // the formula converts HHMM→day-fraction; (D<=C) adds a day for overnight
+      // shifts. net = Dauer − Pause. Cached results are seeded so the sheet is
+      // already correct before the first recalculation.
+      ws.getCell(`E${r}`).value = {
+        formula: `((INT(D${r}/100)*60+MOD(D${r},100))-(INT(C${r}/100)*60+MOD(C${r},100)))/1440+(D${r}<=C${r})`,
+        result: gross / 1440,
+      };
+      ws.getCell(`K${r}`).value = {
+        formula: `E${r}-(INT(J${r}/100)*60+MOD(J${r},100))/1440`,
+        result: net / 1440,
+      };
       sumNet += net / 1440;
     } else {
       ws.getCell(`E${r}`).value = 0;
