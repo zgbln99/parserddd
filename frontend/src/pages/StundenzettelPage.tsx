@@ -222,9 +222,10 @@ function distributePayslip(
 
   // ── 40% night hours: genuine overnight shifts ──
   // For 40% (00:00–04:00) the shift must START BEFORE MIDNIGHT, so these days
-  // become evening→morning shifts. Template: 22:00→06:00 = 4h 40% (00–04) + 4h
-  // 25% (20–24 & 04–06); a shorter 22:00→(00:00+r) run carries the remainder.
+  // become evening→morning shifts. Template: 20:00→06:00 = 4h 40% (00–04) + 6h
+  // 25% (20–24 & 04–06); a shorter 20:00→(00:00+r) run carries the remainder.
   // The night days are spread evenly across the month.
+  const NIGHT_START = '20:00';          // night shift begins here (before midnight)
   const nightSet = new Set<number>();
   let placed40 = 0;
   if (t40min > 0 && W > 0) {
@@ -239,9 +240,9 @@ function distributePayslip(
       nightSet.add(idx);
       const f40 = (r40 > 0 && k === nN - 1) ? r40 : 240;
       if (f40 >= 240) {
-        next[idx] = { ...next[idx], start: '22:00', end: '06:00' };        // full night
+        next[idx] = { ...next[idx], start: NIGHT_START, end: '06:00' };        // full night
       } else {
-        next[idx] = { ...next[idx], start: '22:00', end: _toClock(f40), pause: 0 }; // short run
+        next[idx] = { ...next[idx], start: NIGHT_START, end: _toClock(f40), pause: 0 }; // short run
       }
     }
   }
