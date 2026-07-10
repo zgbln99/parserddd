@@ -758,10 +758,11 @@ export const parseStundenzettel = async (file: File) => {
   });
 };
 
-// DATEV LohnViewer .ans export parsing → per-employee, per-month 25% night hours
+// DATEV LohnViewer .ans export parsing → per-employee, per-month night hours
 export interface LohnMonth {
   period: string;   // YYYY-MM
-  night25: number;  // decimal hours
+  night25: number;  // decimal hours (20:00–06:00)
+  night40: number;  // decimal hours (00:00–04:00, shift started before midnight)
   via_nb: boolean;  // value came from a Nachberechnung correction
   urlaub: number;   // Urlaub Tage (vacation days)
   krank: number;    // Krankh. Tg. (sick days)

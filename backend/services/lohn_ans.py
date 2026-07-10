@@ -4,9 +4,9 @@ Parser for DATEV LohnViewer ASCII exports (.ans / .ans files).
 A LohnViewer ``.ans`` export is a fixed-layout ANSI text dump of one or more
 payslips. Each payslip page carries a month header ("für Juli 2024"), the
 employee's Personal-Nr and name, and the wage-type (Lohnart) lines. We extract,
-per employee and per calendar month, the **25% Nachtzuschlag hours** — the field
-the Stundenzettel generator needs to line its computed night hours up with the
-payroll run.
+per employee and per calendar month, the **25% and 40% Nachtzuschlag hours** —
+the fields the Stundenzettel generator needs to line its computed night hours
+up with the payroll run.
 
 Robustness details:
 - Nachberechnung (correction) pages read "für Nov 2024 (1. NB)" and carry the
@@ -31,7 +31,11 @@ _MONTHS = {
 }
 
 _MONTH_HDR = re.compile(r'f.r\s+([A-Za-zÄÖÜäöü]+)\s+(\d{4})(?:\s*\((\d+)\.\s*NB\))?')
-_NIGHT25 = re.compile(r'203\s+25%\s+Nachtzuschlag\s+Std\s+([\d.,]+)')
+# Any night-surcharge line, e.g. "203 25% Nachtzuschlag  Std  6,00 …" or
+# "204 40% Nachtzuschlag  Std  4,00 …". Capture the percentage generically so
+# both the 25% (20:00–06:00) and 40% (00:00–04:00) rates are read, regardless of
+# the leading Lohnart number.
+_NIGHT = re.compile(r'(\d+)\s*%\s+Nachtzuschlag\s+Std\s+([\d.,]+)')
 _PERS = re.compile(r'\*Pers\.-Nr\.\s*(\d+)\*')
 # The Krankenkasse / SV line, e.g. "...KKH... 1658101 1111 2 30". The
 # Fehlzeiten (Anw./Urlaub/Krankh./Fehlz.) day counts are appended to it at
@@ -93,7 +97,8 @@ def parse_ans(data):
 
     ``data`` may be bytes (decoded as latin-1, the DATEV ANSI code page) or str.
     Returns ``{"employees": [{"pers_nr", "name", "months": [...]}]}`` where each
-    month is ``{"period": "YYYY-MM", "night25": float, "via_nb": bool}``.
+    month is ``{"period", "night25", "night40", "via_nb", "urlaub", "krank",
+    "uu"}`` (night25/night40 are decimal hours).
     """
     if isinstance(data, (bytes, bytearray)):
         text = data.decode('latin-1', errors='replace')
@@ -106,8 +111,8 @@ def parse_ans(data):
 
     def _emp(pers):
         if pers not in emp:
-            emp[pers] = {'name': None, 'reg': {}, 'nb': {}, 'url': {}, 'krk': {},
-                         'uu': {}, 'ein': set(), 'ausp': {}}
+            emp[pers] = {'name': None, 'reg': {}, 'nb': {}, 'reg40': {}, 'nb40': {},
+                         'url': {}, 'krk': {}, 'uu': {}, 'ein': set(), 'ausp': {}}
         return emp[pers]
 
     cur_pers = None
@@ -142,9 +147,9 @@ def parse_ans(data):
         # Look ahead within this page (until the next month header) for the
         # Krankenkasse line (Fehlzeiten), the 25% Nachtzuschlag line, and any
         # "Unterbrechung … Unbezahlter Urlaub" note.
-        n25 = 0.0
+        n25 = n40 = 0.0
         urlaub = krank = 0.0
-        got_night = got_kk = got_dates = False
+        got25 = got40 = got_kk = got_dates = False
         ein_here = aus_here = None
         uu_here = []  # (period, start_day, end_day)
         for j in range(i + 1, len(lines)):
@@ -159,11 +164,14 @@ def parse_ans(data):
                     ein_here = _ddmmyy(dm.group(1))
                     aus_here = _ddmmyy(dm.group(2)) if dm.group(2) else None
                     got_dates = True
-            if not got_night:
-                nm = _NIGHT25.search(lines[j])
-                if nm:
-                    n25 = _de_hours(nm.group(1))
-                    got_night = True
+            nm = _NIGHT.search(lines[j])
+            if nm:
+                pct = int(nm.group(1))
+                val = _de_hours(nm.group(2))
+                if pct == 25 and not got25:
+                    n25 = val; got25 = True
+                elif pct == 40 and not got40:
+                    n40 = val; got40 = True
             um = _UNTERBRECHUNG.search(lines[j])
             if um:
                 # Any "Unterbrechung" note is unbezahlter Urlaub. Ranges may wrap
@@ -194,27 +202,33 @@ def parse_ans(data):
         # payslips present; within a bucket keep the largest seen (reprints).
         bucket = e['nb'] if is_nb else e['reg']
         bucket[period] = max(bucket.get(period, 0.0), n25)
+        bucket40 = e['nb40'] if is_nb else e['reg40']
+        bucket40[period] = max(bucket40.get(period, 0.0), n40)
         # Urlaub/Krank days: keep the largest seen across regular + NB pages.
         e['url'][period] = max(e['url'].get(period, 0.0), urlaub)
         e['krk'][period] = max(e['krk'].get(period, 0.0), krank)
 
     employees = []
     for pers, e in emp.items():
-        periods = sorted(set(list(e['reg'].keys()) + list(e['nb'].keys()) + list(e['uu'].keys())))
+        periods = sorted(set(list(e['reg'].keys()) + list(e['nb'].keys())
+                             + list(e['reg40'].keys()) + list(e['nb40'].keys())
+                             + list(e['uu'].keys())))
         months = []
         for pm in periods:
             reg = e['reg'].get(pm, 0.0)
-            has_nb = pm in e['nb']
-            nb = e['nb'].get(pm, 0.0)
+            reg40 = e['reg40'].get(pm, 0.0)
             # A Nachberechnung recalculates the WHOLE month and shows the full
-            # (corrected) 25% hours — it replaces the regular value, it is not an
+            # (corrected) hours — it replaces the regular value, it is not an
             # additional amount. So use the NB value when an NB page exists.
-            night = nb if has_nb else reg
+            has_nb = pm in e['nb'] or pm in e['nb40']
+            night = e['nb'].get(pm, 0.0) if has_nb else reg
+            night40 = e['nb40'].get(pm, 0.0) if has_nb else reg40
             uu = sorted([sd, ed] for sd, ed in e['uu'].get(pm, set()))
             months.append({
                 'period': pm,
                 'night25': round(night, 2),
-                'via_nb': has_nb and reg == 0,
+                'night40': round(night40, 2),
+                'via_nb': has_nb and reg == 0 and reg40 == 0,
                 'urlaub': round(e['url'].get(pm, 0.0), 1),
                 'krank': round(e['krk'].get(pm, 0.0), 1),
                 'uu': uu,  # unbezahlter Urlaub as [startDay, endDay] ranges

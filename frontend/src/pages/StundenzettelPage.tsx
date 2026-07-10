@@ -65,12 +65,15 @@ function calcDay(d: EditableDay, isSunday = false, _weekendDiet = false) {
   const gross = end - startMin;
   const work = Math.max(0, gross - d.pause);
 
+  // Night surcharges (§3b EStG): 20:00–06:00 → 25%; 00:00–04:00 → 40%, but only
+  // when the shift began before midnight — i.e. we are in the wrapped minutes
+  // (m >= 1440) of an overnight shift; otherwise those hours stay 25%.
   let night25 = 0, night40 = 0;
   for (let m = startMin; m < startMin + work && m < end; m++) {
     const h = (m % 1440) / 60 | 0;
-    if (h >= 22 || (h >= 4 && h < 6)) night25++;
-    else if (h >= 0 && h < 4) {
-      if (startMin < 1440) night40++; else night25++;
+    if (h >= 20 || (h >= 4 && h < 6)) night25++;
+    else if (h < 4) {
+      if (m >= 1440) night40++; else night25++;
     }
   }
 
@@ -146,16 +149,16 @@ const _toClock = (m: number) => {
 };
 
 /** Apply a payslip to an already-built month: scatter `uCount` U and `kCount` K
- *  onto random working days, then realise `t25min` minutes of 25% night by
- *  pulling each remaining work day's START earlier into the 04:00–06:00 window
- *  (END is kept — the shift just starts earlier, so the total hours grow to
- *  include the night, matching how the driver actually worked). Even split,
- *  max 120 min/day. Returns the new days plus how much 25% was actually placed
- *  and the number of eligible work days. */
+ *  onto working days, realise `t40min` minutes of 40% night as genuine overnight
+ *  shifts (22:00→06:00 — the start must be BEFORE midnight for the 40% rate) and
+ *  `t25min` minutes of 25% night by pulling the remaining day-shift starts into
+ *  the 04:00–06:00 window (the night shifts already carry 25% too, so only the
+ *  difference is topped up). Even split, max 240 min/day of 40% and 120 of 25%.
+ *  Returns the new days, how much 25%/40% was placed and the eligible day count. */
 function distributePayslip(
   base: EditableDay[], uCount: number, kCount: number, t25min: number,
-  uuRanges: number[][] = [],
-): { days: EditableDay[]; placed25: number; workCount: number } {
+  t40min = 0, uuRanges: number[][] = [],
+): { days: EditableDay[]; placed25: number; placed40: number; workCount: number } {
   const eligible = (arr: EditableDay[]) => arr
     .map((d, i) => ({ d, i }))
     .filter(({ d }) => d.code === '' && (d.start || d.end))
@@ -214,17 +217,52 @@ function distributePayslip(
   placeBlock(uCount, 'U');
   placeBlock(kCount, 'K');
 
-  const remWork = eligible(next);
-  const W = remWork.length;
-  let placed25 = 0;
-  if (t25min > 0 && W > 0) {
-    let toPlace = Math.min(t25min, 120 * W);
-    placed25 = toPlace;
-    const perDay = new Array(W).fill(0);
-    const baseEach = Math.min(120, Math.floor(toPlace / W));
-    for (let i = 0; i < W; i++) perDay[i] = baseEach;
-    toPlace -= baseEach * W;
-    for (let i = 0; i < W && toPlace > 0; i++) { if (perDay[i] < 120) { perDay[i]++; toPlace--; } }
+  const remAll = eligible(next);        // eligible work days after U/K/UU
+  const W = remAll.length;
+
+  // ── 40% night hours: genuine overnight shifts ──
+  // For 40% (00:00–04:00) the shift must START BEFORE MIDNIGHT, so these days
+  // become evening→morning shifts. Template: 22:00→06:00 = 4h 40% (00–04) + 4h
+  // 25% (20–24 & 04–06); a shorter 22:00→(00:00+r) run carries the remainder.
+  // The night days are spread evenly across the month.
+  const nightSet = new Set<number>();
+  let placed40 = 0;
+  if (t40min > 0 && W > 0) {
+    const toPlace = Math.min(t40min, 240 * W);
+    placed40 = toPlace;
+    const nFull = Math.floor(toPlace / 240);
+    const r40 = toPlace - nFull * 240;
+    const nN = Math.min(W, nFull + (r40 > 0 ? 1 : 0));
+    const stepF = W / nN;                // even spread across eligible days
+    for (let k = 0; k < nN; k++) {
+      const idx = remAll[Math.min(W - 1, Math.floor(k * stepF))];
+      nightSet.add(idx);
+      const f40 = (r40 > 0 && k === nN - 1) ? r40 : 240;
+      if (f40 >= 240) {
+        next[idx] = { ...next[idx], start: '22:00', end: '06:00' };        // full night
+      } else {
+        next[idx] = { ...next[idx], start: '22:00', end: _toClock(f40), pause: 0 }; // short run
+      }
+    }
+  }
+
+  // ── 25% night hours: pull the remaining day-shift starts into 04:00–06:00 ──
+  // The night shifts already produce 25% (evening + early morning); count that
+  // and top up only the difference on the ordinary day shifts.
+  let night25 = 0;
+  for (const idx of nightSet) night25 += calcDay(next[idx]).night25;
+  const remWork = remAll.filter(i => !nightSet.has(i));
+  const W25 = remWork.length;
+  let placed25 = night25;
+  const rem25 = Math.max(0, t25min - night25);
+  if (rem25 > 0 && W25 > 0) {
+    let toPlace = Math.min(rem25, 120 * W25);
+    placed25 += toPlace;
+    const perDay = new Array(W25).fill(0);
+    const baseEach = Math.min(120, Math.floor(toPlace / W25));
+    for (let i = 0; i < W25; i++) perDay[i] = baseEach;
+    toPlace -= baseEach * W25;
+    for (let i = 0; i < W25 && toPlace > 0; i++) { if (perDay[i] < 120) { perDay[i]++; toPlace--; } }
     remWork.forEach((idx, k) => {
       const nm = perDay[k];
       if (nm <= 0) return;
@@ -233,7 +271,7 @@ function distributePayslip(
       next[idx] = { ...next[idx], start: _toClock(360 - nm) };
     });
   }
-  return { days: next, placed25, workCount: workIdx.length };
+  return { days: next, placed25, placed40, workCount: workIdx.length };
 }
 
 /** Clear work days outside the employment period, so a mid-month Eintritt only
@@ -288,6 +326,7 @@ export function StundenzettelPage() {
   const [absU, setAbsU] = useState(0);
   const [absK, setAbsK] = useState(0);
   const [absN25, setAbsN25] = useState(''); // decimal hours, e.g. "10,50"
+  const [absN40, setAbsN40] = useState(''); // 40% night hours (00:00–04:00), decimal
 
   // DATEV LohnViewer (.ans) import → per-employee, per-month 25% night hours.
   const lohnRef = useRef<HTMLInputElement>(null);
@@ -306,6 +345,7 @@ export function StundenzettelPage() {
   const applyLohnMonth = (lm: LohnMonth | undefined) => {
     if (!lm) return;
     setAbsN25(lm.night25 ? fmtHoursDe(lm.night25) : '');
+    setAbsN40(lm.night40 ? fmtHoursDe(lm.night40) : '');
     setAbsU(Math.round(lm.urlaub) || 0);
     setAbsK(Math.round(lm.krank) || 0);
   };
@@ -436,6 +476,7 @@ export function StundenzettelPage() {
     const uCount = Math.max(0, Math.floor(absU) || 0);
     const kCount = Math.max(0, Math.floor(absK) || 0);
     const t25 = Math.max(0, Math.round((parseFloat((absN25 || '').replace(',', '.')) || 0) * 60)); // target 25% minutes
+    const t40 = Math.max(0, Math.round((parseFloat((absN40 || '').replace(',', '.')) || 0) * 60)); // target 40% minutes
     const hasPattern = !!(massStart && massEnd);
 
     // Baseline. With a pattern (mass flow) every eligible weekday is reset to a
@@ -452,7 +493,7 @@ export function StundenzettelPage() {
 
     const bounded = boundByEmployment(base, year, month, lohnEmp?.eintritt, lohnEmp?.austritt);
     const uu = lohnFor(period)?.uu ?? [];
-    const { days: next, placed25, workCount } = distributePayslip(bounded, uCount, kCount, t25, uu);
+    const { days: next, placed25, placed40, workCount } = distributePayslip(bounded, uCount, kCount, t25, t40, uu);
     setDays(next);
 
     // Feedback when the month can't hold what was requested.
@@ -466,6 +507,11 @@ export function StundenzettelPage() {
       warnings.push(locale === 'de'
         ? `25% auf ${(placed25 / 60).toFixed(2).replace('.', ',')} h begrenzt (max. 2 h/Tag).`
         : `25% ograniczone do ${(placed25 / 60).toFixed(2).replace('.', ',')} h (maks. 2 h/dzień).`);
+    }
+    if (t40 > placed40) {
+      warnings.push(locale === 'de'
+        ? `40% auf ${(placed40 / 60).toFixed(2).replace('.', ',')} h begrenzt (max. 4 h/Tag).`
+        : `40% ograniczone do ${(placed40 / 60).toFixed(2).replace('.', ',')} h (maks. 4 h/dzień).`);
     }
     setError(warnings.join(' '));
   };
@@ -564,8 +610,9 @@ export function StundenzettelPage() {
       const u = Math.round(lm?.urlaub || 0);
       const k = Math.round(lm?.krank || 0);
       const t25 = Math.round((lm?.night25 || 0) * 60);
+      const t40 = Math.round((lm?.night40 || 0) * 60);
       const uu = lm?.uu ?? [];
-      grids[ymKey(y, m)] = (u || k || t25 || uu.length) ? distributePayslip(pat, u, k, t25, uu).days : pat;
+      grids[ymKey(y, m)] = (u || k || t25 || t40 || uu.length) ? distributePayslip(pat, u, k, t25, t40, uu).days : pat;
     }
     setMonthGrids(grids);
     const [fy, fm] = massFrom.split('-').map(Number);
@@ -876,6 +923,10 @@ export function StundenzettelPage() {
               <input type="text" inputMode="decimal" value={absN25} onChange={e => setAbsN25(e.target.value)} placeholder="10,50"
                 className="input w-14 rounded px-1 py-0.5 text-xs" />
             </label>
+            <label className="flex items-center gap-0.5 text-[11px] text-muted" title={locale === 'de' ? '40%-Nacht (00:00–04:00, Schichtbeginn vor Mitternacht)' : '40% noc (00:00–04:00, start pracy przed północą)'}>{locale === 'de' ? '40%-Std' : '40% godz'}
+              <input type="text" inputMode="decimal" value={absN40} onChange={e => setAbsN40(e.target.value)} placeholder="0,00"
+                className="input w-14 rounded px-1 py-0.5 text-xs" />
+            </label>
             {(() => {
               const lm = lohnFor(period);
               if (!lm) return null;
@@ -884,13 +935,14 @@ export function StundenzettelPage() {
                   title={locale === 'de' ? 'Aus Lohn-Export (.ans)' : 'Z listy płac (.ans)'}>
                   <Check size={11} />
                   {`25%:${fmtHoursDe(lm.night25)}${lm.via_nb ? ' NB' : ''}`}
+                  {lm.night40 > 0 ? ` · 40%:${fmtHoursDe(lm.night40)}` : ''}
                   {lm.urlaub > 0 ? ` · U:${Math.round(lm.urlaub)}` : ''}
                   {lm.krank > 0 ? ` · K:${Math.round(lm.krank)}` : ''}
                   {lm.uu.length > 0 ? ` · UU:${lm.uu.map(r => r[0] === r[1] ? `${r[0]}.` : `${r[0]}.–${r[1]}.`).join(',')}` : ''}
                 </span>
               );
             })()}
-            <button onClick={matchPayslip} disabled={absU + absK === 0 && !absN25.trim()}
+            <button onClick={matchPayslip} disabled={absU + absK === 0 && !absN25.trim() && !absN40.trim()}
               className="inline-flex items-center gap-1 rounded-md bg-amber-600 text-white px-2 py-0.5 text-xs font-medium hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed">
               <Shuffle size={12} /> {locale === 'de' ? 'Anpassen' : 'Dopasuj'}
             </button>
