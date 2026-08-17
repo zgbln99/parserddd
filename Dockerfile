@@ -70,4 +70,6 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=25s --retries=3 \
 
 # WorkingDirectory is /app/backend so `from config/core/auth/routes import …`
 # resolve, while `backend.compliance` resolves via its own sys.path shim.
-CMD ["sh", "-c", "exec gunicorn --bind 0.0.0.0:8000 --workers ${GUNICORN_WORKERS:-2} --timeout 120 app:app"]
+# gthread: long Samsara/S4 IO calls must not monopolize a whole worker —
+# with sync workers two slow API calls freeze the entire app.
+CMD ["sh", "-c", "exec gunicorn --bind 0.0.0.0:8000 --worker-class gthread --workers ${GUNICORN_WORKERS:-2} --threads ${GUNICORN_THREADS:-8} --timeout 120 app:app"]
