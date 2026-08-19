@@ -1,0 +1,13 @@
+{
+  "appId": "de.ltslog.fleet",
+  "appName": "LTS Fleet",
+  "webDir": "www",
+  "server": {
+    "url": "https://dd.ltslog.de",
+    "cleartext": false
+  },
+  "android": {
+    "allowMixedContent": false,
+    "backgroundColor": "#0f172a"
+  }
+}
