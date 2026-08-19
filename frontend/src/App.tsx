@@ -60,8 +60,12 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     );
   }
   // Anyone who isn't logged in lands on the public marketing site rather
-  // than seeing the dispatcher login as the front door.
-  if (!loggedIn) return <LandingPage />;
+  // than seeing the dispatcher login as the front door — except inside the
+  // native Android shell, which should open straight on the login screen.
+  const isNativeApp =
+    typeof navigator !== 'undefined' && /LTSFleetApp/.test(navigator.userAgent)
+    || typeof (window as { Capacitor?: unknown }).Capacitor !== 'undefined';
+  if (!loggedIn) return isNativeApp ? <LoginPage /> : <LandingPage />;
   return <Layout>{children}</Layout>;
 }
 
