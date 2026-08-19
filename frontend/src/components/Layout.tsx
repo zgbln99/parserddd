@@ -33,6 +33,22 @@ export function Layout({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const fullBleed = useLocation().pathname === '/map';
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [dateSheetOpen, setDateSheetOpen] = useState(false);
+
+  const datePresets = [
+    { label: t('filterThisMonth'), fn: () => { const now = new Date(); setDateFrom(`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`); const last = new Date(now.getFullYear(), now.getMonth()+1, 0); setDateTo(`${last.getFullYear()}-${String(last.getMonth()+1).padStart(2,'0')}-${String(last.getDate()).padStart(2,'0')}`); }},
+    { label: t('filterLastMonth'), fn: () => { const now = new Date(); const first = new Date(now.getFullYear(), now.getMonth()-1, 1); const last = new Date(now.getFullYear(), now.getMonth(), 0); setDateFrom(`${first.getFullYear()}-${String(first.getMonth()+1).padStart(2,'0')}-01`); setDateTo(`${last.getFullYear()}-${String(last.getMonth()+1).padStart(2,'0')}-${String(last.getDate()).padStart(2,'0')}`); }},
+    { label: t('filterLast30'), fn: () => { const now = new Date(); const past = new Date(now.getTime() - 30*86400000); setDateFrom(`${past.getFullYear()}-${String(past.getMonth()+1).padStart(2,'0')}-${String(past.getDate()).padStart(2,'0')}`); setDateTo(`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`); }},
+  ];
+
+  // Compact label for the mobile date button, e.g. "07.2026" / "01.07–31.07".
+  const _monthVal = dateRangeToMonth(dateFrom, dateTo);
+  const _fmtDM = (s: string) => (s ? `${s.slice(8, 10)}.${s.slice(5, 7)}` : '…');
+  const mobileDateLabel = _monthVal
+    ? `${_monthVal.slice(5, 7)}.${_monthVal.slice(0, 4)}`
+    : (dateFrom || dateTo)
+      ? `${_fmtDM(dateFrom)}–${_fmtDM(dateTo)}`
+      : t('filterMonth');
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('ddd-sidebar') === 'collapsed');
   const [accentOpen, setAccentOpen] = useState(false);
 
@@ -319,26 +335,22 @@ export function Layout({ children }: { children: ReactNode }) {
               <Menu size={22} />
             </button>
 
-            {/* Date filter */}
+            {/* Date filter — inline on ≥sm */}
             <Calendar size={14} className="hidden text-muted sm:block" />
-            <div className="flex flex-1 flex-wrap items-center gap-2">
+            <div className="hidden flex-1 flex-wrap items-center gap-2 sm:flex">
               <MonthSelect
                 value={dateRangeToMonth(dateFrom, dateTo)}
                 onChange={(v) => { if (v) { const r = monthRange(v); setDateFrom(r.from); setDateTo(r.to); } }}
                 allowEmpty
                 emptyLabel={t('filterCustomRange')}
                 title={t('filterMonth')}
-                className="input rounded-lg px-3 py-2 text-sm sm:text-xs sm:px-2 sm:py-1 min-h-[44px] sm:min-h-0"
+                className="input rounded-lg px-2 py-1 text-xs"
               />
-              {[
-                { label: t('filterThisMonth'), fn: () => { const now = new Date(); setDateFrom(`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`); const last = new Date(now.getFullYear(), now.getMonth()+1, 0); setDateTo(`${last.getFullYear()}-${String(last.getMonth()+1).padStart(2,'0')}-${String(last.getDate()).padStart(2,'0')}`); }},
-                { label: t('filterLastMonth'), fn: () => { const now = new Date(); const first = new Date(now.getFullYear(), now.getMonth()-1, 1); const last = new Date(now.getFullYear(), now.getMonth(), 0); setDateFrom(`${first.getFullYear()}-${String(first.getMonth()+1).padStart(2,'0')}-01`); setDateTo(`${last.getFullYear()}-${String(last.getMonth()+1).padStart(2,'0')}-${String(last.getDate()).padStart(2,'0')}`); }},
-                { label: t('filterLast30'), fn: () => { const now = new Date(); const past = new Date(now.getTime() - 30*86400000); setDateFrom(`${past.getFullYear()}-${String(past.getMonth()+1).padStart(2,'0')}-${String(past.getDate()).padStart(2,'0')}`); setDateTo(`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`); }},
-              ].map(({ label, fn }) => (
+              {datePresets.map(({ label, fn }) => (
                 <button
                   key={label}
                   onClick={fn}
-                  className="hidden rounded-lg border border-border px-2.5 py-1 text-xs font-medium text-muted transition hover:border-primary-300 hover:text-ink sm:inline-flex"
+                  className="rounded-lg border border-border px-2.5 py-1 text-xs font-medium text-muted transition hover:border-primary-300 hover:text-ink"
                 >
                   {label}
                 </button>
@@ -347,14 +359,14 @@ export function Layout({ children }: { children: ReactNode }) {
                 type="date"
                 value={dateFrom}
                 onChange={(e) => setDateFrom(e.target.value)}
-                className="input rounded-lg px-3 py-2 text-sm sm:text-xs sm:px-2 sm:py-1 dark:[color-scheme:dark] min-h-[44px] sm:min-h-0"
+                className="input rounded-lg px-2 py-1 text-xs dark:[color-scheme:dark]"
               />
               <span className="text-xs text-muted">—</span>
               <input
                 type="date"
                 value={dateTo}
                 onChange={(e) => setDateTo(e.target.value)}
-                className="input rounded-lg px-3 py-2 text-sm sm:text-xs sm:px-2 sm:py-1 dark:[color-scheme:dark] min-h-[44px] sm:min-h-0"
+                className="input rounded-lg px-2 py-1 text-xs dark:[color-scheme:dark]"
               />
               {(dateFrom || dateTo) && (
                 <button
@@ -365,6 +377,22 @@ export function Layout({ children }: { children: ReactNode }) {
                   {t('clear')}
                 </button>
               )}
+            </div>
+
+            {/* Date filter — compact button on mobile, opens the sheet below */}
+            <div className="flex min-w-0 flex-1 sm:hidden">
+              <button
+                onClick={() => setDateSheetOpen((v) => !v)}
+                className={clsx(
+                  'flex min-h-[44px] max-w-full items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold transition',
+                  dateSheetOpen || dateFrom || dateTo
+                    ? 'border-primary-300 bg-primary-50 text-primary-600 dark:bg-primary-900/20'
+                    : 'border-border text-muted',
+                )}
+              >
+                <Calendar size={16} className="shrink-0" />
+                <span className="truncate">{mobileDateLabel}</span>
+              </button>
             </div>
 
             {/* Right cluster: search + notifications */}
@@ -391,6 +419,62 @@ export function Layout({ children }: { children: ReactNode }) {
               </button>
             </div>
           </div>
+
+          {/* Mobile date sheet */}
+          {dateSheetOpen && (
+            <div className="border-t border-border bg-card px-4 pb-4 pt-3 shadow-lg sm:hidden">
+              <MonthSelect
+                value={dateRangeToMonth(dateFrom, dateTo)}
+                onChange={(v) => { if (v) { const r = monthRange(v); setDateFrom(r.from); setDateTo(r.to); setDateSheetOpen(false); } }}
+                allowEmpty
+                emptyLabel={t('filterCustomRange')}
+                title={t('filterMonth')}
+                className="input mb-2 w-full rounded-xl px-3 py-2.5 text-sm"
+              />
+              <div className="mb-2 grid grid-cols-3 gap-1.5">
+                {datePresets.map(({ label, fn }) => (
+                  <button
+                    key={label}
+                    onClick={() => { fn(); setDateSheetOpen(false); }}
+                    className="rounded-xl border border-border px-2 py-2.5 text-xs font-semibold text-muted transition hover:border-primary-300 hover:text-ink"
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  className="input min-h-[44px] min-w-0 flex-1 rounded-xl px-3 py-2 text-sm dark:[color-scheme:dark]"
+                />
+                <span className="shrink-0 text-xs text-muted">—</span>
+                <input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  className="input min-h-[44px] min-w-0 flex-1 rounded-xl px-3 py-2 text-sm dark:[color-scheme:dark]"
+                />
+              </div>
+              <div className="mt-2.5 flex items-center justify-between">
+                {(dateFrom || dateTo) ? (
+                  <button
+                    onClick={() => { clear(); setDateSheetOpen(false); }}
+                    className="flex items-center gap-1 rounded-xl px-3 py-2 text-sm font-medium text-danger transition hover:bg-danger/5"
+                  >
+                    <X size={14} /> {t('clear')}
+                  </button>
+                ) : <span />}
+                <button
+                  onClick={() => setDateSheetOpen(false)}
+                  className="btn-primary btn-press px-5 py-2 text-sm font-semibold"
+                >
+                  OK
+                </button>
+              </div>
+            </div>
+          )}
         </header>
 
         {/* Content */}
