@@ -92,6 +92,15 @@ body {
   line-height: 22px;
 }
 
+/* Mobile overflow guard: grid/flex items default to min-width:auto, so one
+   wide table/chart/number silently stretches the whole page past the
+   viewport. Letting them shrink keeps pages viewport-wide; anything truly
+   wide scrolls inside its own overflow-x-auto wrapper instead. */
+.grid > *,
+.flex > * {
+  min-width: 0;
+}
+
 .dark {
   color-scheme: dark;
   --color-surface: #020d1a;

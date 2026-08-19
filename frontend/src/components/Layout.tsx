@@ -481,8 +481,8 @@ export function Layout({ children }: { children: ReactNode }) {
         {fullBleed ? (
           <main className="flex-1 overflow-hidden">{children}</main>
         ) : (
-          <main className="flex-1 px-4 py-6 pb-24 sm:px-6 lg:px-8 lg:pb-6">
-            <div className="mx-auto max-w-[1800px]">
+          <main className="min-w-0 flex-1 overflow-x-hidden px-4 py-6 pb-24 sm:px-6 lg:px-8 lg:pb-6">
+            <div className="mx-auto min-w-0 max-w-[1800px]">
               <PageTransition>{children}</PageTransition>
             </div>
           </main>
