@@ -21,6 +21,7 @@ _BLUEPRINTS = [
     ("auth", "auth"),
     ("drivers", "drivers"),
     ("analysis", "analysis"),
+    ("integrations", "integrations"),
     ("settlement", "settlement"),
     ("export", "export"),
     ("admin", "admin"),
