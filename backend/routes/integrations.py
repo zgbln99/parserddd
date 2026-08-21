@@ -102,7 +102,6 @@ def _match_driver(drivers, *, name: str = '', card_number: str = ''):
             inter = len(tokens & wanted_tokens)
             union = len(tokens | wanted_tokens)
             score = inter / union if union else 0.0
-            # Also reward a strong substring match such as "Jan Kowalski LKW".
             if wanted in norm or norm in wanted:
                 score = max(score, 0.9)
         if score > 0:
@@ -155,6 +154,11 @@ def _analyze_latest(driver):
                 pass
 
 
+def _minutes_to_hm(value) -> str:
+    total = max(0, int(value or 0))
+    return f'{total // 60}:{total % 60:02d}'
+
+
 def _compact_context(driver, latest, analysis, days: int):
     shifts = list(analysis.get('shift_details') or [])
     shifts.sort(key=lambda s: s.get('shift_date') or '')
@@ -168,6 +172,17 @@ def _compact_context(driver, latest, analysis, days: int):
             cutoff = None
 
     compact_shifts = []
+    totals = {
+        'work': 0,
+        'driving': 0,
+        'break': 0,
+        'availability': 0,
+        'night25': 0,
+        'night40': 0,
+        'diets': 0,
+        'shifts': 0,
+    }
+
     for s in shifts:
         date_str = s.get('shift_date') or ''
         if cutoff and date_str:
@@ -176,6 +191,7 @@ def _compact_context(driver, latest, analysis, days: int):
                     continue
             except ValueError:
                 pass
+
         compact_shifts.append({
             'date': date_str,
             'weekday': s.get('weekday'),
@@ -191,9 +207,16 @@ def _compact_context(driver, latest, analysis, days: int):
             'vehicles': s.get('vehicles') or [],
             'distanceKm': s.get('distance_km', 0),
         })
+        totals['work'] += int(s.get('work_minutes') or 0)
+        totals['driving'] += int(s.get('driving_minutes') or 0)
+        totals['break'] += int(s.get('break_minutes') or 0)
+        totals['availability'] += int(s.get('avail_minutes') or 0)
+        totals['night25'] += int(s.get('night_25_minutes') or 0)
+        totals['night40'] += int(s.get('night_40_minutes') or 0)
+        totals['diets'] += 1 if s.get('has_diet') else 0
+        totals['shifts'] += 1
 
     info = analysis.get('driver_info') or {}
-    summary = analysis.get('summary') or {}
     vehicles = []
     seen = set()
     for s in compact_shifts:
@@ -206,24 +229,25 @@ def _compact_context(driver, latest, analysis, days: int):
         'found': True,
         'driver': {
             'name': info.get('driver_name') or driver.get('name') or '',
-            # Only a suffix is needed for operator verification; do not expose
-            # the full tachograph card number to the language model.
             'cardSuffix': str(info.get('card_number') or driver.get('card_number') or '')[-6:],
         },
         'source': {
             'fileDate': latest.get('file_date') or '',
             'latestDownload': driver.get('latest_download') or latest.get('modified') or '',
             'dataThrough': latest_shift_date,
+            'rangeDays': days,
+            'rangeFrom': cutoff.isoformat() if cutoff else None,
+            'rangeTo': latest_shift_date or None,
         },
         'summary': {
-            'work': summary.get('total_work_hm'),
-            'driving': summary.get('total_driving_hm'),
-            'break': summary.get('total_break_hm'),
-            'availability': summary.get('total_avail_hm'),
-            'night25': summary.get('night_25_hm'),
-            'night40': summary.get('night_40_hm'),
-            'diets': summary.get('diet_count'),
-            'shifts': summary.get('total_shifts'),
+            'work': _minutes_to_hm(totals['work']),
+            'driving': _minutes_to_hm(totals['driving']),
+            'break': _minutes_to_hm(totals['break']),
+            'availability': _minutes_to_hm(totals['availability']),
+            'night25': _minutes_to_hm(totals['night25']),
+            'night40': _minutes_to_hm(totals['night40']),
+            'diets': totals['diets'],
+            'shifts': totals['shifts'],
         },
         'vehicles': vehicles,
         'recentShifts': compact_shifts[-45:],
