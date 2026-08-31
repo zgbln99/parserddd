@@ -20,22 +20,18 @@ const REFRESH_MS = 60_000;
 // Optional HERE tiles — enabled when VITE_HERE_API_KEY is set at build time.
 const HERE_KEY = (import.meta.env.VITE_HERE_API_KEY as string | undefined) || '';
 
+// Keyless, watermark-free basemaps (CARTO now stamps "API KEY REQUIRED"
+// on its keyless tiles, so OSM standard replaces it).
 const BASE_LAYERS: Record<string, { url: string; attribution: string; maxZoom: number }> = {
-  // Clean, colourful Google-like base — much nicer than raw OSM.
   voyager: {
-    url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-    attribution: '&copy; OpenStreetMap &copy; CARTO',
-    maxZoom: 20,
+    url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+    attribution: '&copy; OpenStreetMap contributors',
+    maxZoom: 19,
   },
   sat: {
     url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
     attribution: '&copy; Esri',
     maxZoom: 19,
-  },
-  dark: {
-    url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-    attribution: '&copy; OpenStreetMap &copy; CARTO',
-    maxZoom: 20,
   },
 };
 if (HERE_KEY) {
@@ -467,7 +463,6 @@ export function FleetMapPage() {
   const layerPills: { key: BaseLayerKey; label: string }[] = [
     { key: 'voyager', label: de ? 'Karte' : 'Mapa' },
     { key: 'sat', label: de ? 'Satellit' : 'Satelita' },
-    { key: 'dark', label: de ? 'Dunkel' : 'Ciemna' },
     ...(HERE_KEY ? [
       { key: 'here', label: 'HERE' },
       { key: 'heresat', label: 'HERE Sat' },

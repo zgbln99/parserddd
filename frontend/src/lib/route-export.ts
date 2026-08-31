@@ -12,9 +12,11 @@ import type { TrailPoint } from './api';
 
 // --- static map on canvas ---------------------------------------------------
 
+// OpenStreetMap standard tiles — free, CORS-enabled, no API key (CARTO
+// started watermarking its keyless tiles with "API KEY REQUIRED").
 const TILE_URL = (z: number, x: number, y: number) =>
-  `https://a.basemaps.cartocdn.com/rastertiles/voyager/${z}/${x}/${y}@2x.png`;
-const TILE = 512; // @2x tiles
+  `https://tile.openstreetmap.org/${z}/${x}/${y}.png`;
+const TILE = 256;
 
 const lon2tile = (lon: number, z: number) => ((lon + 180) / 360) * 2 ** z;
 const lat2tile = (lat: number, z: number) => {
@@ -137,7 +139,7 @@ export async function renderRouteSnapshot(
 
   // Attribution (tile licence requirement).
   g.font = '16px sans-serif';
-  const attr = '© OpenStreetMap © CARTO';
+  const attr = '© OpenStreetMap contributors';
   const tw = g.measureText(attr).width;
   g.fillStyle = 'rgba(255,255,255,0.85)';
   g.fillRect(width - tw - 16, height - 28, tw + 16, 28);
