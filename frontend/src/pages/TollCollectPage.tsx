@@ -129,6 +129,12 @@ function parseCSV(text: string): TollRow[] {
   return rows;
 }
 
+// Plates come formatted differently in Toll Collect CSV vs the tour-plan
+// Excel ("TF-LS 2213" vs "TFLS 2213") — compare on alphanumerics only.
+function normPlate(p: string): string {
+  return p.toUpperCase().replace(/[^A-Z0-9]/g, '');
+}
+
 function fmtEur(n: number) {
   return n.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' \u20AC';
 }
@@ -166,6 +172,78 @@ export function TollCollectPage() {
   // Extra tours: the same vehicle ran several tours — each gets its own
   // name + days and becomes a separate position in the export.
   const [extraTours, setExtraTours] = useState<Record<string, { tour: string; from: string; to: string }[]>>({});
+  // Tour plan from the monthly Excel (Monatsbericht Details):
+  // "NORMPLATE|YYYY-MM-DD" -> tour number/name. Day-accurate — the export
+  // splits a vehicle's toll by the tour it actually drove each day.
+  const [tourPlan, setTourPlan] = useState<Record<string, string>>({});
+  const [tourPlanInfo, setTourPlanInfo] = useState<{ files: string[]; entries: number; plates: number; from: string; to: string } | null>(null);
+  const tourPlanInputRef = useRef<HTMLInputElement>(null);
+
+  // One Monatsbericht per month — uploads MERGE, so several months can be
+  // loaded alongside several toll CSV months.
+  const handleTourPlanUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = '';
+    if (files.length === 0) return;
+    try {
+      const XLSX = await import('xlsx');
+      const toIso = (v: unknown): string => {
+        if (v instanceof Date) return `${v.getFullYear()}-${String(v.getMonth() + 1).padStart(2, '0')}-${String(v.getDate()).padStart(2, '0')}`;
+        if (typeof v === 'number') return new Date(Math.round((v - 25569) * 86400000)).toISOString().slice(0, 10);
+        const s = String(v ?? '').trim();
+        const m = s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})/);
+        if (m) return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
+        if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+        return '';
+      };
+      const added: Record<string, string> = {};
+      for (const file of files) {
+        const wb = XLSX.read(await file.arrayBuffer(), { cellDates: true });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows: unknown[][] = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true });
+        const hIdx = rows.findIndex(r => Array.isArray(r)
+          && r.some(c => /datum/i.test(String(c)))
+          && r.some(c => /fahrzeug|kennzeichen/i.test(String(c)))
+          && r.some(c => /tour/i.test(String(c))));
+        if (hIdx < 0) throw new Error(`${file.name}: ${locale === 'de' ? 'Spalten Datum/Tour/Fahrzeug nicht gefunden' : 'nie znaleziono kolumn Datum/Tour/Fahrzeug'}`);
+        const header = rows[hIdx].map(c => String(c ?? '').toLowerCase());
+        const ci = {
+          date: header.findIndex(h => h.includes('datum')),
+          tour: header.findIndex(h => h.includes('tour')),
+          plate: header.findIndex(h => h.includes('fahrzeug') || h.includes('kennzeichen')),
+        };
+        for (const r of rows.slice(hIdx + 1)) {
+          if (!Array.isArray(r)) continue;
+          const date = toIso(r[ci.date]);
+          const plate = normPlate(String(r[ci.plate] ?? ''));
+          const tour = String(r[ci.tour] ?? '').trim();
+          if (!date || !plate || !tour) continue;
+          added[`${plate}|${date}`] = tour;
+        }
+      }
+      if (Object.keys(added).length === 0) throw new Error(locale === 'de' ? 'Keine Zuordnungen in den Dateien' : 'Brak przypisań w plikach');
+      const merged = { ...tourPlan, ...added };
+      const plates = new Set<string>();
+      let from = ''; let to = '';
+      for (const key of Object.keys(merged)) {
+        const [plate, date] = key.split('|');
+        plates.add(plate);
+        if (!from || date < from) from = date;
+        if (!to || date > to) to = date;
+      }
+      setTourPlan(merged);
+      setTourPlanInfo(prev => ({
+        files: [...(prev?.files || []), ...files.map(f => f.name)],
+        entries: Object.keys(merged).length,
+        plates: plates.size,
+        from,
+        to,
+      }));
+      setError('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }, [locale, tourPlan]);
 
   // Dropbox state
   const [dbxFiles, setDbxFiles] = useState<TollCollectFile[]>([]);
@@ -488,6 +566,37 @@ export function TollCollectPage() {
         const baseRows = range?.from || range?.to
           ? allVehicleRows.filter(r => (!range.from || r.date >= range.from) && (!range.to || r.date <= range.to))
           : data.rows;
+
+        // Tour plan from the Monatsbericht Excel takes precedence: split the
+        // vehicle's toll by the tour it actually drove each day.
+        const np = normPlate(plate);
+        if (tourPlanInfo && baseRows.some(r => tourPlan[`${np}|${r.date}`])) {
+          const byTour = new Map<string, TollRow[]>();
+          const unassigned: TollRow[] = [];
+          for (const r of baseRows) {
+            const tr = tourPlan[`${np}|${r.date}`];
+            if (tr) {
+              const arr = byTour.get(tr) || [];
+              arr.push(r);
+              byTour.set(tr, arr);
+            } else unassigned.push(r);
+          }
+          const planGroups = [...byTour.entries()]
+            .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
+            .map(([tourName, rows]) => {
+              const days = [...new Set(rows.map(r => r.date))].sort();
+              return buildGroup(
+                `${plate} (T${tourName})`,
+                `Tour ${tourName}`,
+                rows,
+                `${days[0]} – ${days[days.length - 1]} · ${days.length} ${locale === 'de' ? 'Tage' : 'dni'}`,
+              );
+            });
+          if (unassigned.length > 0) {
+            planGroups.push(buildGroup(`${plate} (${locale === 'de' ? 'ohne Tour' : 'bez tury'})`, tours[plate] || '', unassigned, undefined));
+          }
+          return planGroups;
+        }
         const groups = [buildGroup(
           plate,
           tours[plate] || '',
@@ -714,6 +823,43 @@ export function TollCollectPage() {
             className="hidden"
             onChange={handleFileUpload}
           />
+        </div>
+
+        {/* Tour plan (Monatsbericht Excel): day-accurate vehicle→tour mapping */}
+        <div className="mt-3 flex items-center gap-2 flex-wrap px-1 pb-1">
+          <button
+            onClick={() => tourPlanInputRef.current?.click()}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-300 dark:border-indigo-700 px-3 py-1.5 text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition"
+          >
+            <Upload className="w-3.5 h-3.5" />
+            {locale === 'de' ? 'Tourplan laden (Excel)' : 'Wgraj plan tur (Excel)'}
+          </button>
+          <input
+            ref={tourPlanInputRef}
+            type="file"
+            accept=".xlsx,.xls"
+            multiple
+            className="hidden"
+            onChange={handleTourPlanUpload}
+          />
+          {tourPlanInfo ? (
+            <span className="inline-flex items-center gap-2 rounded-lg bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-800 px-2.5 py-1 text-xs text-indigo-700 dark:text-indigo-300">
+              {tourPlanInfo.files.length} {locale === 'de' ? 'Datei(en)' : 'plik(i)'} · {tourPlanInfo.entries} {locale === 'de' ? 'Zuordnungen' : 'przypisań'} · {tourPlanInfo.plates} {locale === 'de' ? 'Fzg.' : 'aut'} · {tourPlanInfo.from} – {tourPlanInfo.to}
+              <button
+                onClick={() => { setTourPlan({}); setTourPlanInfo(null); }}
+                className="text-muted hover:text-red-500"
+                title={locale === 'de' ? 'Tourplan entfernen' : 'Usuń plan tur'}
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          ) : (
+            <span className="text-xs text-muted italic">
+              {locale === 'de'
+                ? 'Monatsbericht (Datum/Tour/Fahrzeug) — Export teilt die Maut je Tour nach Tagen; mehrere Monate möglich'
+                : 'Monatsbericht (Datum/Tour/Fahrzeug) — eksport rozbije Maut na tury wg dni; można wgrać kilka miesięcy'}
+            </span>
+          )}
         </div>
       </Card>
 
@@ -1337,6 +1483,11 @@ export function TollCollectPage() {
                                 {dayExcluded && <X className="w-3 h-3" />}
                                 {r.date}
                               </button>
+                              {tourPlanInfo && tourPlan[`${normPlate(plate)}|${r.date}`] && (
+                                <span className="ml-1 inline-flex items-center rounded bg-indigo-100 dark:bg-indigo-900/40 px-1 py-0.5 text-[10px] font-bold text-indigo-600 dark:text-indigo-300">
+                                  T{tourPlan[`${normPlate(plate)}|${r.date}`]}
+                                </span>
+                              )}
                             </td>
                             <td className="px-3 py-2 text-muted">{r.time}</td>
                             <td className="px-3 py-2 text-muted hidden lg:table-cell max-w-xs truncate" title={r.route}>
