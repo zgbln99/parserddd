@@ -177,6 +177,9 @@ export function TollCollectPage() {
   // splits a vehicle's toll by the tour it actually drove each day.
   const [tourPlan, setTourPlan] = useState<Record<string, string>>({});
   const [tourPlanInfo, setTourPlanInfo] = useState<{ files: string[]; entries: number; plates: number; from: string; to: string } | null>(null);
+  // When on: export counts ONLY days with an assigned tour — no
+  // "(ohne Tour)" positions, and vehicles absent from the plan are skipped.
+  const [onlyTourDays, setOnlyTourDays] = useState(false);
   const tourPlanInputRef = useRef<HTMLInputElement>(null);
 
   // One Monatsbericht per month — uploads MERGE, so several months can be
@@ -607,11 +610,14 @@ export function TollCollectPage() {
                 `${days[0]} – ${days[days.length - 1]} · ${days.length} Tage`,
               );
             });
-          if (unassigned.length > 0) {
+          if (unassigned.length > 0 && !onlyTourDays) {
             planGroups.push(buildGroup(`${plate} (ohne Tour)`, tours[plate] || '', unassigned, undefined));
           }
           return planGroups;
         }
+        // Plan loaded, "only tour days" on, and this vehicle has no plan
+        // entries at all — skip it entirely.
+        if (tourPlanInfo && onlyTourDays) return [];
         const groups = [buildGroup(
           plate,
           tours[plate] || '',
@@ -861,7 +867,7 @@ export function TollCollectPage() {
             <span className="inline-flex items-center gap-2 rounded-lg bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-800 px-2.5 py-1 text-xs text-indigo-700 dark:text-indigo-300">
               {tourPlanInfo.files.length} {locale === 'de' ? 'Datei(en)' : 'plik(i)'} · {tourPlanInfo.entries} {locale === 'de' ? 'Zuordnungen' : 'przypisań'} · {tourPlanInfo.plates} {locale === 'de' ? 'Fzg.' : 'aut'} · {tourPlanInfo.from} – {tourPlanInfo.to}
               <button
-                onClick={() => { setTourPlan({}); setTourPlanInfo(null); }}
+                onClick={() => { setTourPlan({}); setTourPlanInfo(null); setOnlyTourDays(false); }}
                 className="text-muted hover:text-red-500"
                 title={locale === 'de' ? 'Tourplan entfernen' : 'Usuń plan tur'}
               >
@@ -874,6 +880,19 @@ export function TollCollectPage() {
                 ? 'Monatsbericht (Datum/Tour/Fahrzeug) — Export teilt die Maut je Tour nach Tagen; mehrere Monate möglich'
                 : 'Monatsbericht (Datum/Tour/Fahrzeug) — eksport rozbije Maut na tury wg dni; można wgrać kilka miesięcy'}
             </span>
+          )}
+          {tourPlanInfo && (
+            <label className="inline-flex cursor-pointer items-center gap-1.5 text-xs font-medium text-gray-700 dark:text-gray-300">
+              <input
+                type="checkbox"
+                checked={onlyTourDays}
+                onChange={e => setOnlyTourDays(e.target.checked)}
+                className="h-3.5 w-3.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-400"
+              />
+              {locale === 'de'
+                ? 'Nur Tage mit Tour abrechnen (ohne „ohne Tour")'
+                : 'Licz tylko dni z turą (pomiń „ohne Tour" i auta spoza planu)'}
+            </label>
           )}
         </div>
       </Card>
