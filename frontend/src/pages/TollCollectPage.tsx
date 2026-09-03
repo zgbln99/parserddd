@@ -603,11 +603,12 @@ export function TollCollectPage() {
                 `${plate} (T${tourName})`,
                 `Tour ${tourName}`,
                 rows,
-                `${days[0]} – ${days[days.length - 1]} · ${days.length} ${locale === 'de' ? 'Tage' : 'dni'}`,
+                // Export is always German — it goes to German recipients.
+                `${days[0]} – ${days[days.length - 1]} · ${days.length} Tage`,
               );
             });
           if (unassigned.length > 0) {
-            planGroups.push(buildGroup(`${plate} (${locale === 'de' ? 'ohne Tour' : 'bez tury'})`, tours[plate] || '', unassigned, undefined));
+            planGroups.push(buildGroup(`${plate} (ohne Tour)`, tours[plate] || '', unassigned, undefined));
           }
           return planGroups;
         }
