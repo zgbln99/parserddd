@@ -163,6 +163,9 @@ export function TollCollectPage() {
 
   // Per-vehicle custom date ranges for export
   const [vehicleDateRanges, setVehicleDateRanges] = useState<Record<string, { from: string; to: string }>>({});
+  // Extra tours: the same vehicle ran several tours — each gets its own
+  // name + days and becomes a separate position in the export.
+  const [extraTours, setExtraTours] = useState<Record<string, { tour: string; from: string; to: string }[]>>({});
 
   // Dropbox state
   const [dbxFiles, setDbxFiles] = useState<TollCollectFile[]>([]);
@@ -441,53 +444,69 @@ export function TollCollectPage() {
   const handleExportExcel = async () => {
     const selected = byVehicle
       .filter(([plate]) => selectedPlates.has(plate))
-      .map(([plate, data]): TollVehicleGroup => {
-        // Apply per-vehicle custom date range if set
-        const range = vehicleDateRanges[plate];
+      .flatMap(([plate, data]): TollVehicleGroup[] => {
         // Use ALL rows for this plate from allRows (bypass global date filter)
         const allVehicleRows = allRows.filter(r => r.plate === plate);
-        let exportRows = range?.from || range?.to
-          ? allVehicleRows.filter(r => {
-              if (range.from && r.date < range.from) return false;
-              if (range.to && r.date > range.to) return false;
-              return true;
-            })
-          : data.rows; // no custom range — use globally filtered rows
-        // Apply per-vehicle month exclusions
         const excluded = excludedMonths[plate];
-        if (excluded && excluded.size > 0) {
-          exportRows = exportRows.filter(r => !excluded.has(r.date.slice(0, 7)));
-        }
         const exDays = excludedDays[plate];
-        if (exDays && exDays.size > 0) {
-          exportRows = exportRows.filter(r => !exDays.has(r.date));
-        }
-        const totalKm = exportRows.reduce((s, r) => s + r.km, 0);
-        const totalAmount = exportRows.reduce((s, r) => s + r.amount, 0);
-        return {
-          plate,
-          tour: tours[plate] || '',
-          dateRange: range?.from || range?.to ? `${range.from || '...'} – ${range.to || '...'}` : undefined,
-          rows: exportRows.map(r => ({
-            plate: r.plate,
-            date: r.date,
-            time: r.time,
-            route: r.route,
-            bookingNr: r.bookingNr,
-            bookingType: r.bookingType,
-            type: r.type,
-            axleClass: r.axleClass,
-            weightClass: r.weightClass,
-            emissionClass: r.emissionClass,
-            co2Class: r.co2Class,
-            km: r.km,
-            amount: r.amount,
-            statementNr: r.statementNr,
-            raw: r.raw,
-          })),
-          totalKm,
-          totalAmount,
+        const buildGroup = (label: string, tourName: string, rows: TollRow[], rangeLabel?: string): TollVehicleGroup => {
+          let exportRows = rows;
+          if (excluded && excluded.size > 0) {
+            exportRows = exportRows.filter(r => !excluded.has(r.date.slice(0, 7)));
+          }
+          if (exDays && exDays.size > 0) {
+            exportRows = exportRows.filter(r => !exDays.has(r.date));
+          }
+          return {
+            plate: label,
+            tour: tourName,
+            dateRange: rangeLabel,
+            rows: exportRows.map(r => ({
+              plate: r.plate,
+              date: r.date,
+              time: r.time,
+              route: r.route,
+              bookingNr: r.bookingNr,
+              bookingType: r.bookingType,
+              type: r.type,
+              axleClass: r.axleClass,
+              weightClass: r.weightClass,
+              emissionClass: r.emissionClass,
+              co2Class: r.co2Class,
+              km: r.km,
+              amount: r.amount,
+              statementNr: r.statementNr,
+              raw: r.raw,
+            })),
+            totalKm: exportRows.reduce((s, r) => s + r.km, 0),
+            totalAmount: exportRows.reduce((s, r) => s + r.amount, 0),
+          };
         };
+
+        // Tour 1: the existing per-vehicle range (or globally filtered rows).
+        const range = vehicleDateRanges[plate];
+        const baseRows = range?.from || range?.to
+          ? allVehicleRows.filter(r => (!range.from || r.date >= range.from) && (!range.to || r.date <= range.to))
+          : data.rows;
+        const groups = [buildGroup(
+          plate,
+          tours[plate] || '',
+          baseRows,
+          range?.from || range?.to ? `${range.from || '...'} – ${range.to || '...'}` : undefined,
+        )];
+
+        // Extra tours: one export position per tour, sliced to its days.
+        (extraTours[plate] || []).forEach((et, i) => {
+          if (!et.from && !et.to) return; // no days picked — nothing to slice
+          const rows = allVehicleRows.filter(r => (!et.from || r.date >= et.from) && (!et.to || r.date <= et.to));
+          groups.push(buildGroup(
+            `${plate} (Tour ${i + 2})`,
+            et.tour || `Tour ${i + 2}`,
+            rows,
+            `${et.from || '...'} – ${et.to || '...'}`,
+          ));
+        });
+        return groups;
       });
 
     if (selected.length === 0) return;
@@ -708,7 +727,7 @@ export function TollCollectPage() {
                 {t('tollLoadedMonths')} ({months.length} {t('tollMonths')})
               </h3>
               <button
-                onClick={() => { setMonths([]); setError(''); setTours({}); setSelectedPlates(new Set()); setExpandedPlates(new Set()); setDbxSavedPeriods(new Set()); }}
+                onClick={() => { setMonths([]); setError(''); setTours({}); setExtraTours({}); setVehicleDateRanges({}); setSelectedPlates(new Set()); setExpandedPlates(new Set()); setDbxSavedPeriods(new Set()); }}
                 className="text-xs text-muted hover:text-red-500 transition-colors"
               >
                 {t('clear')}
@@ -1229,6 +1248,63 @@ export function TollCollectPage() {
                                   <span className="text-xs text-muted italic">{t('tollExportRangeHint')}</span>
                                 )}
                               </div>
+
+                              {/* Extra tours: same vehicle, several tours, each with its own days */}
+                              {(extraTours[plate] || []).map((et, i) => (
+                                <div key={i} className="mt-2 flex items-center gap-2 flex-wrap">
+                                  <span className="text-xs font-semibold text-indigo-500 dark:text-indigo-400 w-14">
+                                    {locale === 'de' ? `Tour ${i + 2}` : `Tura ${i + 2}`}:
+                                  </span>
+                                  <input
+                                    type="text"
+                                    value={et.tour}
+                                    onChange={e => setExtraTours(prev => ({
+                                      ...prev,
+                                      [plate]: prev[plate].map((x, j) => j === i ? { ...x, tour: e.target.value } : x),
+                                    }))}
+                                    placeholder={t('tollTourPlaceholder')}
+                                    className="w-36 rounded border border-indigo-200 dark:border-indigo-700 bg-white dark:bg-gray-700 px-2 py-1 text-xs text-gray-900 dark:text-white placeholder-gray-400 focus:border-indigo-400 focus:outline-none"
+                                  />
+                                  <input
+                                    type="date"
+                                    value={et.from}
+                                    onChange={e => setExtraTours(prev => ({
+                                      ...prev,
+                                      [plate]: prev[plate].map((x, j) => j === i ? { ...x, from: e.target.value } : x),
+                                    }))}
+                                    className="rounded border border-indigo-200 dark:border-indigo-700 bg-white dark:bg-gray-700 px-2 py-1 text-xs text-gray-900 dark:text-white focus:border-indigo-400 focus:outline-none"
+                                  />
+                                  <span className="text-xs text-muted">–</span>
+                                  <input
+                                    type="date"
+                                    value={et.to}
+                                    onChange={e => setExtraTours(prev => ({
+                                      ...prev,
+                                      [plate]: prev[plate].map((x, j) => j === i ? { ...x, to: e.target.value } : x),
+                                    }))}
+                                    className="rounded border border-indigo-200 dark:border-indigo-700 bg-white dark:bg-gray-700 px-2 py-1 text-xs text-gray-900 dark:text-white focus:border-indigo-400 focus:outline-none"
+                                  />
+                                  <button
+                                    onClick={() => setExtraTours(prev => ({
+                                      ...prev,
+                                      [plate]: prev[plate].filter((_, j) => j !== i),
+                                    }))}
+                                    className="text-xs text-muted hover:text-red-500"
+                                    title={locale === 'de' ? 'Tour entfernen' : 'Usuń turę'}
+                                  >
+                                    <X className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              ))}
+                              <button
+                                onClick={() => setExtraTours(prev => ({
+                                  ...prev,
+                                  [plate]: [...(prev[plate] || []), { tour: '', from: '', to: '' }],
+                                }))}
+                                className="mt-2 text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline"
+                              >
+                                + {locale === 'de' ? 'Weitere Tour (Fahrzeug fuhr mehrere Touren)' : 'Dodaj turę (auto jeździło kilka tur)'}
+                              </button>
                             </td>
                           </tr>
                         )}
