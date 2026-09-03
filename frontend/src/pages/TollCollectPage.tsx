@@ -458,6 +458,20 @@ export function TollCollectPage() {
     return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]));
   }, [filtered, excludedDays]);
 
+  // Auto-select vehicles that appear in the uploaded tour plan — also when
+  // toll CSVs get loaded after the plan. Only adds, never unticks.
+  useEffect(() => {
+    if (!tourPlanInfo) return;
+    const planPlates = new Set(Object.keys(tourPlan).map(k => k.split('|')[0]));
+    setSelectedPlates(prev => {
+      const next = new Set(prev);
+      for (const [plate] of byVehicle) {
+        if (planPlates.has(normPlate(plate))) next.add(plate);
+      }
+      return next.size === prev.size ? prev : next;
+    });
+  }, [tourPlan, tourPlanInfo, byVehicle]);
+
   const grandTotalKm = useMemo(
     () => filtered.reduce((s, r) => s + (excludedDays[r.plate]?.has(r.date) ? 0 : r.km), 0),
     [filtered, excludedDays],
