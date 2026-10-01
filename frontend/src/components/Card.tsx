@@ -58,7 +58,7 @@ export function StatCard({
   const c: Tone = color !== 'primary' ? color : (variant || 'primary');
 
   return (
-    <div className={clsx('card kpi p-4', STRIPE[c])}>
+    <div className={clsx('card kpi p-4', STRIPE[c])} data-animate>
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
           <p className="truncate text-xs font-semibold text-muted">{label}</p>

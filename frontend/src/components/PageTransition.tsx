@@ -1,45 +1,40 @@
 import { useRef, useEffect, useState, type ReactNode } from 'react';
 import { useLocation } from 'react-router-dom';
+import { pageSwap, staggerIn } from '../lib/motion';
 
 /**
- * Wraps page content and plays a fade+slide-up animation on every route change.
- * Uses a key swap approach: old content fades out, new content fades in.
+ * Wraps page content. On every route change the old page fades out, the new
+ * page fades in and its cards lift into place one after another (GSAP).
  */
 export function PageTransition({ children }: { children: ReactNode }) {
   const location = useLocation();
   const [displayChildren, setDisplayChildren] = useState(children);
-  const [transitionStage, setTransitionStage] = useState<'enter' | 'exit'>('enter');
   const prevPath = useRef(location.pathname);
+  const pendingChildren = useRef(children);
+  const el = useRef<HTMLDivElement>(null);
+  const swapping = useRef(false);
+
+  pendingChildren.current = children;
 
   useEffect(() => {
-    if (location.pathname !== prevPath.current) {
-      // Route changed — start exit
-      setTransitionStage('exit');
-    }
+    if (location.pathname === prevPath.current || !el.current) return;
+    swapping.current = true;
+    const target = location.pathname;
+    pageSwap(el.current, () => {
+      prevPath.current = target;
+      setDisplayChildren(pendingChildren.current);
+      swapping.current = false;
+      // Cards get a frame to mount before the stagger starts.
+      requestAnimationFrame(() => staggerIn(el.current?.querySelectorAll('[data-animate], .card') ?? null, { y: 8, stagger: 0.035 }));
+    });
   }, [location.pathname]);
 
-  const handleAnimationEnd = () => {
-    if (transitionStage === 'exit') {
-      // Exit done — swap content, start enter
-      prevPath.current = location.pathname;
-      setDisplayChildren(children);
-      setTransitionStage('enter');
-    }
-  };
-
-  // Keep children in sync when content updates on the same route
+  // Same route, new content (data arrived, state changed): render it directly.
   useEffect(() => {
-    if (location.pathname === prevPath.current && transitionStage === 'enter') {
+    if (location.pathname === prevPath.current && !swapping.current) {
       setDisplayChildren(children);
     }
-  }, [children, location.pathname, transitionStage]);
+  }, [children, location.pathname]);
 
-  return (
-    <div
-      className={transitionStage === 'enter' ? 'page-enter' : 'page-exit'}
-      onAnimationEnd={handleAnimationEnd}
-    >
-      {displayChildren}
-    </div>
-  );
+  return <div ref={el}>{displayChildren}</div>;
 }

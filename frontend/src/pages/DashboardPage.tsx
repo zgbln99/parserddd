@@ -16,6 +16,7 @@ import { StatCard, Card } from '../components/Card';
 import { Badge } from '../components/Badge';
 import { Spinner } from '../components/Spinner';
 import { DashboardSkeleton } from '../components/Skeleton';
+import { useStaggerIn } from '../hooks/useStaggerIn';
 
 const REFRESH_INTERVAL = 60_000; // 60 seconds
 
@@ -112,6 +113,8 @@ export function DashboardPage() {
   const [fleetShowAll, setFleetShowAll] = useState(false);
 
   const refreshRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Tiles and panels lift into place once the first payload is rendered.
+  const pageRef = useStaggerIn([data === null, fleet.length > 0, liveDrivers.length > 0], { y: 10, stagger: 0.05 });
 
   const loadDashboard = () => {
     fetchDashboard()
@@ -249,7 +252,7 @@ export function DashboardPage() {
   const toneDot: Record<Todo['tone'], string> = { crit: 'bg-danger', warn: 'bg-warning', ok: 'bg-success' };
 
   return (
-    <div className="animate-slide-up">
+    <div ref={pageRef}>
       {(() => {
         const { greeting } = getTimeOfDay(t);
         const roleName = t(`role${role.charAt(0).toUpperCase()}${role.slice(1)}` as any);
@@ -308,7 +311,7 @@ export function DashboardPage() {
       </div>
 
       {/* To-do: the day starts with decisions, not with statistics */}
-      <Card className="mb-5 overflow-hidden p-0">
+      <Card className="mb-5 overflow-hidden p-0" data-animate>
         <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
           <h3 className="text-sm font-bold text-ink">{t('dashTodo')}</h3>
           <span className="text-xs text-muted tabular-nums">{todos.length}</span>
@@ -321,7 +324,7 @@ export function DashboardPage() {
         ) : (
           <ul className="divide-y divide-border">
             {todos.map((item) => (
-              <li key={item.id} className="flex items-center gap-3 px-4 py-3">
+              <li key={item.id} className="flex items-center gap-3 px-4 py-3" data-animate>
                 <span className={`h-2 w-2 shrink-0 rounded-full ${toneDot[item.tone]}`} />
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-semibold text-ink">
@@ -381,7 +384,7 @@ export function DashboardPage() {
       <div className="grid gap-6 lg:grid-cols-2">
 
         {/* Stale drivers */}
-        <Card className="p-0 overflow-hidden">
+        <Card className="p-0 overflow-hidden" data-animate>
           <div className="flex items-center gap-3 border-b border-border px-5 py-4">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-warning/10 text-warning">
               <Clock size={16} />
@@ -443,7 +446,7 @@ export function DashboardPage() {
         </Card>
 
         {/* Expiring cards */}
-        <Card className="p-0 overflow-hidden">
+        <Card className="p-0 overflow-hidden" data-animate>
           <div className="flex items-center gap-2 border-b border-border px-5 py-4">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-danger/10 text-danger">
               <CreditCard size={16} />
@@ -686,7 +689,7 @@ export function DashboardPage() {
       {/* Bottom row: sync */}
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
         {/* Sync info */}
-        <Card className="p-4 sm:p-6">
+        <Card className="p-4 sm:p-6" data-animate>
           <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-muted">
             {t('dashSyncStatus')}
           </h3>
@@ -725,7 +728,7 @@ export function DashboardPage() {
         </Card>
 
         {/* Payroll overview */}
-        <Card className="p-4 sm:p-6">
+        <Card className="p-4 sm:p-6" data-animate>
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-semibold uppercase tracking-wider text-muted">
               {locale === 'de' ? 'Lohnabrechnung' : 'Wypłaty'} — {currentPeriod}
