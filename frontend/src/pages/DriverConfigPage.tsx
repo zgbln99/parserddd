@@ -168,7 +168,7 @@ export function DriverConfigPage() {
     <div className="animate-slide-up space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#30d158] text-white">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-success text-white">
           <Users size={20} />
         </div>
         <div>
@@ -288,7 +288,7 @@ export function DriverConfigPage() {
                   <input type="text" value={editNotes} onChange={(e) => setEditNotes(e.target.value)} placeholder={t('driverNotesPlaceholder')} className={`block w-full ${inputCls}`} />
                 </div>
                 <div className="flex items-center gap-3">
-                  <button onClick={() => handleSave(d)} disabled={saving} className="flex items-center gap-1.5 rounded-lg bg-[#30d158] px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50">
+                  <button onClick={() => handleSave(d)} disabled={saving} className="flex items-center gap-1.5 rounded-lg bg-success px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50">
                     <Save size={14} />
                     {saving ? '...' : t('save')}
                   </button>
@@ -381,7 +381,7 @@ export function DriverConfigPage() {
                   {/* Inline editor */}
                   {expandedCard === d.card_number && (
                     <tr>
-                      <td colSpan={8} className="bg-[#f7f9fc] px-6 py-4 dark:bg-[#1f2a37]">
+                      <td colSpan={8} className="bg-surface-2 px-6 py-4 dark:bg-surface-2">
                         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                           <div>
                             <label className="mb-1 block text-xs font-semibold text-muted">{t('driverPersonalNr')}</label>
@@ -430,7 +430,7 @@ export function DriverConfigPage() {
                           <button
                             onClick={() => handleSave(d)}
                             disabled={saving}
-                            className="flex items-center gap-1.5 rounded-lg bg-[#30d158] px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
+                            className="flex items-center gap-1.5 rounded-lg bg-success px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
                           >
                             <Save size={14} />
                             {saving ? '...' : t('save')}

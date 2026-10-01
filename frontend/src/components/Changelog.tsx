@@ -2,25 +2,18 @@ import { useState, useEffect } from 'react';
 import { X, Sparkles } from 'lucide-react';
 import { createPortal } from 'react-dom';
 
-const CHANGELOG_VERSION = '2026-04-14';
+const CHANGELOG_VERSION = '2026-10-01';
 
 const ENTRIES = [
   {
-    version: '2026-04-14',
+    version: '2026-10-01',
     items: [
-      'Nowy wygląd — modern blue design, glassmorphism',
-      'QR kody dla kierowców — skanuj telefonem',
-      'Siatka zbiorcza — masowe obliczanie kierowców',
-      'Dodatki nocne z przerwami — nowe ustawienie',
-      'Diety weekendowe — od 01.04',
-      'Max 45 min pauzy — globalne ustawienie',
-      'Nadpisywanie godzin nocnych i AZ per kierowca',
-      'Quick preview karty podczas analizy',
-      'Auto-analiza po sync z Samsara',
-      'Ukrywanie funkcji dla zwykłych użytkowników',
-      'Wpisy manualne w osobnej sekcji',
-      'Przycisk Stundenzettel z analizy',
-      'Optymalizacja szybkości analizy',
+      'Nowy wygląd: ciemny pasek nawigacji, jeden kolor akcentu, kolory tylko dla stanu',
+      'Pulpit zaczyna od listy spraw do załatwienia z przyciskiem akcji',
+      'Logowanie nazwą użytkownika i hasłem; hasło zmieniasz w panelu admina',
+      'Liczby, godziny i tablice w czcionce o stałej szerokości cyfr',
+      'Maut: podział pojazdu na 2 tury wg zakresu godzin',
+      'Usunięte moduły: km kierowców, diagnostyka, wykroczenia jazdy, siatka zbiorcza, terminy pojazdów, karty paliwowe, km dzień/noc',
     ],
   },
 ];
@@ -47,7 +40,7 @@ export function Changelog() {
       className="fixed inset-0 z-[60] flex items-center justify-center bg-black/30 p-4 animate-fade-in"
       onClick={(e) => { if (e.target === e.currentTarget) handleClose(); }}
     >
-      <div className="relative w-full max-w-md rounded-3xl bg-white p-6 animate-scale-in dark:bg-gray-900">
+      <div className="card relative w-full max-w-md rounded-2xl p-6 animate-scale-in">
         <button
           onClick={handleClose}
           className="absolute right-4 top-4 rounded-lg p-1.5 text-muted transition hover:bg-surface hover:text-ink"
@@ -56,7 +49,7 @@ export function Changelog() {
         </button>
 
         <div className="mb-5 flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#5750f1] text-white">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent text-white">
             <Sparkles size={20} />
           </div>
           <div>
@@ -80,7 +73,7 @@ export function Changelog() {
 
         <button
           onClick={handleClose}
-          className="btn-press mt-5 w-full rounded-xl bg-[#5750f1] py-3 text-sm font-semibold text-white transition hover:opacity-90"
+          className="btn-press mt-5 w-full rounded-xl bg-accent py-3 text-sm font-semibold text-white transition hover:opacity-90"
         >
           Super, rozumiem!
         </button>

@@ -247,7 +247,7 @@ export function FuelCardsPage() {
   return (
     <div className="animate-slide-up space-y-6">
       <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#fbbf24] to-[#f59e0b] text-white">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-warning to-warning text-white">
           <Fuel size={20} />
         </div>
         <div>

@@ -243,7 +243,7 @@ export function DriverProfilesTab() {
               )}
             </div>
             {pickerOpen && pickerResults.length > 0 && (
-              <ul className="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-lg border border-border bg-white shadow-lg dark:bg-[#1f2a37]">
+              <ul className="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-lg border border-border bg-white shadow-lg dark:bg-surface-2">
                 {pickerResults.slice(0, 50).map((d) => (
                   <li key={d.card_number}>
                     <button

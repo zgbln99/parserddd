@@ -29,12 +29,10 @@ export function LoginPage() {
   };
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center p-4 bg-gradient-to-br from-primary-900 via-primary-800 to-indigo-900">
-      {/* Animated background orbs */}
+    <div className="relative flex min-h-screen items-center justify-center bg-rail p-4">
+      {/* Quiet depth: one soft accent glow behind the form */}
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
-        <div className="absolute -right-32 -top-32 h-[500px] w-[500px] rounded-full bg-primary-500/20 blur-[100px] animate-pulse" />
-        <div className="absolute -bottom-32 -left-32 h-[400px] w-[400px] rounded-full bg-indigo-500/20 blur-[100px] animate-pulse [animation-delay:1s]" />
-        <div className="absolute left-1/2 top-1/3 h-[300px] w-[300px] -translate-x-1/2 rounded-full bg-blue-400/10 blur-[80px] animate-pulse [animation-delay:2s]" />
+        <div className="absolute left-1/2 top-1/2 h-[520px] w-[520px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary-500/15 blur-[120px]" />
       </div>
 
       {/* Controls */}
@@ -56,7 +54,7 @@ export function LoginPage() {
 
       <form
         onSubmit={handleSubmit}
-        className="relative w-[calc(100%-1rem)] sm:w-full max-w-sm rounded-3xl border border-white/10 bg-white/10 p-5 sm:p-8 backdrop-blur-xl animate-scale-in"
+        className="relative w-[calc(100%-1rem)] sm:w-full max-w-sm rounded-2xl border border-white/10 bg-white/[0.06] p-5 sm:p-8 backdrop-blur-xl animate-scale-in"
       >
         <div className="mb-8 text-center">
           <img src="/logo.png" alt="LTS" className="mx-auto mb-4 h-14" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
@@ -93,7 +91,7 @@ export function LoginPage() {
         <button
           type="submit"
           disabled={loading}
-          className="btn-press flex w-full items-center justify-center gap-2 rounded-xl bg-white px-4 py-3.5 text-sm font-semibold text-primary-700 transition-all duration-200 hover:bg-white/90 disabled:opacity-50"
+          className="btn-press flex w-full items-center justify-center gap-2 rounded-xl bg-primary-500 px-4 py-3.5 text-sm font-bold text-white transition-all duration-200 hover:bg-primary-400 disabled:opacity-50"
         >
           {loading ? <Spinner size="sm" /> : t('login')}
         </button>

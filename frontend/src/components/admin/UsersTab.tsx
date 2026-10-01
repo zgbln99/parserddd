@@ -149,7 +149,7 @@ export function UsersTab() {
   if (loading) return <Spinner />;
 
   const editForm = (
-    <div className="space-y-3 rounded-lg bg-[#f7f9fc] p-4 dark:bg-[#1f2a37]">
+    <div className="space-y-3 rounded-lg bg-surface-2 p-4 dark:bg-surface-2">
       <div className="flex flex-wrap items-end gap-3">
         <div>
           <label className="mb-1 block text-xs font-semibold text-muted">{t('adminRole')}</label>
@@ -239,7 +239,7 @@ export function UsersTab() {
       {error && <p className="mb-3 text-sm text-danger">{error}</p>}
 
       {showForm && (
-        <div className="mb-4 flex flex-wrap items-end gap-3 rounded-lg bg-[#f7f9fc] p-4 dark:bg-[#1f2a37]">
+        <div className="mb-4 flex flex-wrap items-end gap-3 rounded-lg bg-surface-2 p-4 dark:bg-surface-2">
           <div>
             <label className="mb-1 block text-xs font-semibold text-muted">{t('adminUserName')}</label>
             <input
@@ -275,7 +275,7 @@ export function UsersTab() {
           <button
             onClick={handleCreate}
             disabled={saving}
-            className="rounded-lg bg-[#30d158] px-4 py-1.5 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
+            className="rounded-lg bg-success px-4 py-1.5 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
           >
             {saving ? '...' : t('save')}
           </button>

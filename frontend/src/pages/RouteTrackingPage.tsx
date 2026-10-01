@@ -134,7 +134,7 @@ export function RouteTrackingPage() {
     <div className="animate-slide-up space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#8b5cf6] to-[#6366f1] text-white">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#8b5cf6] to-accent text-white">
             <RouteIcon size={20} />
           </div>
           <div>
@@ -150,7 +150,7 @@ export function RouteTrackingPage() {
           <button onClick={load} className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium hover:bg-gray-50">
             <RefreshCw size={15} /> {de ? 'Aktualisieren' : 'Odśwież'}
           </button>
-          <button onClick={openCreate} className="inline-flex items-center gap-1.5 rounded-lg bg-[#6366f1] px-3 py-2 text-sm font-semibold text-white hover:bg-[#4f46e5]">
+          <button onClick={openCreate} className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-2 text-sm font-semibold text-white hover:bg-accent">
             <Plus size={16} /> {de ? 'Neuer Link' : 'Nowy link'}
           </button>
         </div>
@@ -312,7 +312,7 @@ export function RouteTrackingPage() {
             </div>
             <div className="flex justify-end gap-2 border-t px-5 py-4">
               <button onClick={() => setShowCreate(false)} className="rounded-lg px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100">{de ? 'Abbrechen' : 'Anuluj'}</button>
-              <button onClick={submit} disabled={saving} className="rounded-lg bg-[#6366f1] px-4 py-2 text-sm font-semibold text-white hover:bg-[#4f46e5] disabled:opacity-60">
+              <button onClick={submit} disabled={saving} className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent disabled:opacity-60">
                 {saving ? '…' : (de ? 'Erstellen' : 'Utwórz')}
               </button>
             </div>

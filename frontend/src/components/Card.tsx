@@ -11,64 +11,67 @@ export function Card({ children, className, ...props }: React.HTMLAttributes<HTM
 
 export function CardHeader({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={clsx('border-b border-[#e6ebf1] px-4 py-4 font-medium text-[#111928] dark:border-[#374151] dark:text-white sm:px-6', className)}>
+    <div className={clsx('border-b border-border px-4 py-3.5 font-semibold text-ink sm:px-5', className)}>
       {children}
     </div>
   );
 }
 
 export function CardBody({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <div className={clsx('p-4 sm:p-6', className)}>{children}</div>;
+  return <div className={clsx('p-4 sm:p-5', className)}>{children}</div>;
 }
 
-const ICON_GRAD: Record<string, string> = {
-  primary: 'from-[#6e68f3] to-[#4a44d4]',
-  green: 'from-[#34d399] to-[#16a34a]',
-  orange: 'from-[#fbbf24] to-[#f59e0b]',
-  red: 'from-[#fb7185] to-[#ef4444]',
-  blue: 'from-[#60a5fa] to-[#3b82f6]',
+type Tone = 'primary' | 'green' | 'orange' | 'red' | 'blue';
+
+const STRIPE: Record<Tone, string> = {
+  primary: 'kpi-accent',
+  blue: 'kpi-accent',
+  green: 'kpi-ok',
+  orange: 'kpi-warn',
+  red: 'kpi-crit',
 };
 
+const ICON_TONE: Record<Tone, string> = {
+  primary: 'bg-accent-light text-accent',
+  blue: 'bg-accent-light text-accent',
+  green: 'bg-success-soft text-success',
+  orange: 'bg-warning-soft text-warning',
+  red: 'bg-danger-soft text-danger',
+};
+
+/** KPI tile: the stripe on the left carries the state, the number carries the value. */
 export function StatCard({
   label,
   value,
   icon,
   color = 'primary',
   variant,
+  detail,
 }: {
   label: string;
   value: string | number;
   icon?: React.ReactNode;
-  color?: 'primary' | 'green' | 'orange' | 'red' | 'blue';
-  variant?: 'green' | 'orange' | 'red' | 'blue';
+  color?: Tone;
+  variant?: Exclude<Tone, 'primary'>;
+  detail?: string;
 }) {
-  const c = color !== 'primary' ? color : (variant || 'primary');
+  const c: Tone = color !== 'primary' ? color : (variant || 'primary');
 
   return (
-    <div className="card relative overflow-hidden p-5 transition-transform duration-200 hover:-translate-y-0.5">
-      <div
-        className={clsx(
-          'pointer-events-none absolute -right-7 -top-7 h-24 w-24 rounded-full bg-gradient-to-br opacity-[0.08] blur-2xl',
-          ICON_GRAD[c],
-        )}
-      />
-      <div className="relative flex items-center gap-4">
+    <div className={clsx('card kpi p-4', STRIPE[c])}>
+      <div className="flex items-start gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-xs font-semibold text-muted">{label}</p>
+          <p className="mt-1 text-[26px] font-extrabold leading-none tracking-tight text-ink tabular-nums">
+            {typeof value === 'number' ? <AnimatedNumber value={value} /> : value}
+          </p>
+          {detail && <p className="mt-1.5 truncate text-xs text-muted">{detail}</p>}
+        </div>
         {icon && (
-          <div
-            className={clsx(
-              'flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br text-white shadow-sm',
-              ICON_GRAD[c],
-            )}
-          >
+          <div className={clsx('flex h-9 w-9 shrink-0 items-center justify-center rounded-lg', ICON_TONE[c])}>
             {icon}
           </div>
         )}
-        <div className="min-w-0">
-          <p className="truncate text-sm font-medium text-[#6b7280] dark:text-[#9ca3af]">{label}</p>
-          <p className="mt-1 text-[28px] font-extrabold leading-none tracking-tight text-[#111928] tabular-nums dark:text-white">
-            {typeof value === 'number' ? <AnimatedNumber value={value} /> : value}
-          </p>
-        </div>
       </div>
     </div>
   );

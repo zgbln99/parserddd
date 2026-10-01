@@ -80,7 +80,7 @@ export function VehicleUsageTable({ vehicles, dateFrom, dateTo }: VehicleUsageTa
     <div className="space-y-0">
       <button
         onClick={() => setShowVehicleKm(!showVehicleKm)}
-        className="flex w-full items-center gap-2 rounded-[10px] bg-white shadow-1 dark:bg-[#122031] dark:shadow-card px-4 py-3 text-left transition hover:opacity-80"
+        className="flex w-full items-center gap-2 rounded-[10px] bg-white shadow-1 dark:bg-card dark:shadow-card px-4 py-3 text-left transition hover:opacity-80"
       >
         <span className={`text-muted transition-transform ${showVehicleKm ? 'rotate-90' : ''}`}>▶</span>
         <span className="text-sm font-semibold uppercase tracking-wider text-muted">
@@ -93,7 +93,7 @@ export function VehicleUsageTable({ vehicles, dateFrom, dateTo }: VehicleUsageTa
       {showVehicleKm && <div className="rounded-xl border border-border overflow-x-auto mt-2">
         <table className="w-full min-w-[900px] text-sm">
           <thead>
-            <tr className="border-b border-border bg-[#f7f9fc] dark:bg-[#1f2a37]">
+            <tr className="border-b border-border bg-surface-2 dark:bg-surface-2">
               <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold text-muted">KW</th>
               <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold text-muted">{locale === 'de' ? 'Datum' : 'Data'}</th>
               <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold text-muted">{locale === 'de' ? 'Zeitraum' : 'Godziny'}</th>
@@ -128,7 +128,7 @@ export function VehicleUsageTable({ vehicles, dateFrom, dateTo }: VehicleUsageTa
             })}
           </tbody>
           <tfoot>
-            <tr className="border-t-2 border-border bg-[#f7f9fc] dark:bg-[#1f2a37]">
+            <tr className="border-t-2 border-border bg-surface-2 dark:bg-surface-2">
               <td colSpan={7} className="px-3 py-2.5 text-right text-sm font-bold text-ink">
                 {locale === 'de' ? 'Gesamt' : 'Suma'}:
               </td>

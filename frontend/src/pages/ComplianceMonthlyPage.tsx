@@ -590,7 +590,7 @@ function DriverPicker({
       {open && filtered.length > 0 && (
         <div
           role="listbox"
-          className="absolute z-30 mt-1 w-full max-h-72 overflow-y-auto rounded-lg border border-black/10 bg-white shadow-lg dark:border-white/10 dark:bg-[#1f2a37]"
+          className="absolute z-30 mt-1 w-full max-h-72 overflow-y-auto rounded-lg border border-black/10 bg-white shadow-lg dark:border-white/10 dark:bg-surface-2"
         >
           {filtered.map((d) => {
             const isSelected = selected?.card_number === d.card_number;
@@ -626,7 +626,7 @@ function DriverPicker({
         </div>
       )}
       {open && !loading && filtered.length === 0 && (
-        <div className="absolute z-30 mt-1 w-full rounded-lg border border-black/10 bg-white px-3 py-3 text-sm text-muted shadow-lg dark:border-white/10 dark:bg-[#1f2a37]">
+        <div className="absolute z-30 mt-1 w-full rounded-lg border border-black/10 bg-white px-3 py-3 text-sm text-muted shadow-lg dark:border-white/10 dark:bg-surface-2">
           —
         </div>
       )}

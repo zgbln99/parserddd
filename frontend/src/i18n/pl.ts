@@ -35,6 +35,18 @@ export const pl = {
   navMore: 'Więcej',
 
   // Dashboard
+  dashTodo: 'Do zrobienia dziś',
+  dashTodoEmpty: 'Wszystko ogarnięte. Nic nie czeka na decyzję.',
+  dashTodoDownload: 'kierowców bez pobrania karty od ponad 28 dni',
+  dashTodoExpiring: 'kart kierowcy traci ważność w ciągu 90 dni',
+  dashTodoPayroll: 'kierowców do policzenia w tym miesiącu',
+  dashTodoSync: 'błędów w ostatniej synchronizacji',
+  dashTodoStopped: 'pojazdów stoi ponad 3 h w godzinach pracy',
+  dashOpen: 'Otwórz',
+  dashKpiOverdue: 'Bez pobrania karty',
+  dashKpiExpiring: 'Karty tracą ważność',
+  dashKpiFleet: 'Pojazdów w ruchu',
+  dashKpiPayroll: 'Do rozliczenia',
   dashTitle: 'Pulpit',
   greetMorning: 'Dzień dobry',
   greetAfternoon: 'Dzień dobry',
@@ -76,7 +88,7 @@ export const pl = {
   driversLastDownload: 'Ostatnio pobrane',
   driversDaysSince: 'Od ostatniego pobrania',
   driversFileCount: 'Pliki',
-  driversNoData: 'Brak danych. Upewnij się, że synchronizacja Samsara-Dropbox działa poprawnie.',
+  driversNoData: 'Brak danych. Upewnij się, że synchronizacja Samsara → storage działa poprawnie.',
   driversAddDriver: 'Dodaj kierowcę',
   driversAddNamePlaceholder: 'Imię i nazwisko kierowcy...',
 
@@ -209,10 +221,10 @@ export const pl = {
   qrHint: 'Zeskanuj telefonem aby otworzyć analizę tego kierowcy',
   qrDownload: 'Pobierz QR',
   readerSelectFile: 'lub kliknij, aby wybrać z dysku',
-  readerSaveToDropbox: 'Zapisz do Dropbox',
+  readerSaveToDropbox: 'Zapisz w chmurze',
   readerSelectDriver: 'Wybierz kierowcę, do którego zapisać plik:',
   readerSaveConfirm: 'Zapisz',
-  readerSaved: 'Zapisano w Dropbox',
+  readerSaved: 'Zapisano w chmurze',
 
   // Sync monitor
   syncTitle: 'Monitor synchronizacji',
@@ -247,8 +259,8 @@ export const pl = {
   driversOverdueCount: 'kierowców z przeterminowanym pobraniem',
 
   // Connections
-  dropboxConnected: 'Dropbox połączony',
-  dropboxDisconnected: 'Dropbox rozłączony',
+  dropboxConnected: 'Storage połączony',
+  dropboxDisconnected: 'Storage rozłączony',
   samsaraConnected: 'Samsara połączona',
   samsaraDisconnected: 'Samsara rozłączona',
 
@@ -373,13 +385,13 @@ export const pl = {
   tollMaut: 'Maut',
   tollTripsCount: 'przejazdów',
   tollVehiclesCount: 'pojazdów',
-  tollDbxFiles: 'Dropbox',
-  tollDbxTitle: 'Pliki w Dropbox',
+  tollDbxFiles: 'Pliki w chmurze',
+  tollDbxTitle: 'Pliki w chmurze',
   tollDbxRefresh: 'Odśwież',
   tollDbxEmpty: 'Brak zapisanych plików',
-  tollDbxSave: 'Zapisz do Dropbox',
+  tollDbxSave: 'Zapisz w chmurze',
   tollDbxDelete: 'Usuń',
-  tollDbxDeleteConfirm: 'Usunąć ten plik z Dropbox?',
+  tollDbxDeleteConfirm: 'Usunąć ten plik z chmury?',
   tollSelectAll: 'Zaznacz wszystkie',
   tollSelected: 'zaznaczonych',
   tollExportExcel: 'Eksport do Excel',
@@ -475,6 +487,8 @@ export const pl = {
   dddPreviewEventType: 'Typ zdarzenia',
 
   // Roles & Permissions
+  roleAdmin: 'Administrator',
+  roleUser: 'Użytkownik',
   roleDispatcher: 'Dyspozytor',
   roleDriver: 'Kierowca',
 

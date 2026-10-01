@@ -303,7 +303,7 @@ export function DriversPage() {
                   >
                     <td className="whitespace-nowrap px-4 py-3 font-semibold text-ink">
                       <div className="flex items-center gap-3">
-                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#6e68f3] to-[#4a44d4] text-xs font-bold text-white shadow-sm">
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-accent to-accent-dark text-xs font-bold text-white shadow-sm">
                           {d.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
                         </div>
                         {d.name}

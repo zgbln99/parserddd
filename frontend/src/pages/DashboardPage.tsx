@@ -1,9 +1,9 @@
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
-  Users, FileText, RefreshCw, AlertCircle, ArrowRight, Upload,
+  RefreshCw, AlertCircle, ArrowRight,
   Cloud, Truck, Clock, CreditCard, AlertTriangle,
-  Sun, Moon, Sunrise, Sunset, ClipboardCheck, CheckCircle, Coins, Gauge,
+  Sun, Moon, Sunrise, Sunset, CheckCircle, Gauge,
   MapPin, ExternalLink,
 } from 'lucide-react';
 import { useI18n } from '../i18n';
@@ -198,87 +198,174 @@ export function DashboardPage() {
   const overdueCount = staleDrivers.filter(d => d.days_since === null || d.days_since > 28).length;
   const expiringCritical = expiringCards.filter(c => c.days_left <= 90).length;
 
+  // Payroll progress for the current month — shared by the KPI strip, the
+  // to-do list and the payroll card below.
+  const payroll = (() => {
+    const [y, m] = currentPeriod.split('-').map(Number);
+    const next = m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`;
+    const sinceDate = `${next}-01`;
+    const withNewFiles = drivers.filter(d => d.files.some(f => f.modified >= sinceDate));
+    const total = withNewFiles.length;
+    const done = withNewFiles.filter(d => payrollStatuses[d.card_number || d.name] === 'policzony').length;
+    const stz = withNewFiles.filter(d => payrollStatuses[d.card_number || d.name] === 'stundenzettel').length;
+    return { total, done, stz, remaining: total - done - stz };
+  })();
+
+  const movingCount = fleet.filter(v => v.speed_kmh > 5).length;
+  const stoppedLong = (() => {
+    const now = new Date();
+    const working = now.getDay() >= 1 && now.getDay() <= 5 && now.getHours() >= 6 && now.getHours() < 20;
+    if (!working) return [] as VehicleLocation[];
+    return fleet.filter(v => v.speed_kmh <= 5 && v.stopped_minutes != null && v.stopped_minutes >= 180);
+  })();
+  const longestOverdue = staleDrivers.reduce((max, d) => Math.max(max, d.days_since ?? 0), 0);
+  const nextExpiry = expiringCards.filter(c => c.days_left >= 0).sort((a, b) => a.days_left - b.days_left)[0];
+
+  // Everything that needs a decision today, most urgent first. Each row
+  // links to the page where the work happens.
+  type Todo = { id: string; tone: 'crit' | 'warn' | 'ok'; count: number; text: string; detail: string; to: string };
+  const todos: Todo[] = [];
+  if (overdueCount > 0) {
+    const names = staleDrivers.filter(d => d.days_since === null || d.days_since > 28).map(d => d.name);
+    todos.push({ id: 'download', tone: 'crit', count: overdueCount, text: t('dashTodoDownload'),
+      detail: names.slice(0, 3).join(', ') + (names.length > 3 ? ` +${names.length - 3}` : ''), to: '/drivers' });
+  }
+  if (data.last_sync_errors > 0) {
+    todos.push({ id: 'sync', tone: 'crit', count: data.last_sync_errors, text: t('dashTodoSync'),
+      detail: formatDateTime(data.last_sync, locale), to: '/sync' });
+  }
+  if (expiringCritical > 0) {
+    todos.push({ id: 'expiring', tone: expiringCards.some(c => c.days_left <= 30) ? 'crit' : 'warn', count: expiringCritical, text: t('dashTodoExpiring'),
+      detail: nextExpiry ? `${nextExpiry.driver_name || nextExpiry.card_number} · ${formatDate(nextExpiry.card_expiry_date, locale)}` : '', to: '/config' });
+  }
+  if (payroll.remaining > 0) {
+    todos.push({ id: 'payroll', tone: 'warn', count: payroll.remaining, text: t('dashTodoPayroll'),
+      detail: `${payroll.done + payroll.stz}/${payroll.total} · ${currentPeriod}`, to: '/payroll' });
+  }
+  if (stoppedLong.length > 0) {
+    todos.push({ id: 'stopped', tone: 'warn', count: stoppedLong.length, text: t('dashTodoStopped'),
+      detail: stoppedLong.slice(0, 3).map(v => v.vehicle_name).join(', '), to: '/map' });
+  }
+  const toneDot: Record<Todo['tone'], string> = { crit: 'bg-danger', warn: 'bg-warning', ok: 'bg-success' };
+
   return (
     <div className="animate-slide-up">
       {(() => {
-        const { greeting, Icon, color } = getTimeOfDay(t);
+        const { greeting } = getTimeOfDay(t);
         const roleName = t(`role${role.charAt(0).toUpperCase()}${role.slice(1)}` as any);
         const todayStr = new Date().toLocaleDateString(locale === 'de' ? 'de-DE' : 'pl-PL', {
           weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
         });
         return (
-          <div className="relative mb-6 overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-[rgba(87,80,241,0.10)] via-[rgba(87,80,241,0.04)] to-transparent p-5 sm:p-6">
-            <div className="pointer-events-none absolute -right-10 -top-12 h-40 w-40 rounded-full bg-primary-500/10 blur-3xl" />
-            <div className="relative flex items-center gap-4">
-              <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white shadow-sm dark:bg-white/10 ${color}`}>
-                <Icon size={24} />
-              </div>
-              <div className="min-w-0 flex-1">
-                <h1 className="text-2xl font-bold tracking-tight text-ink">
-                  {greeting}, {roleName}
-                </h1>
-                <p className="text-sm text-muted">{t('dashTitle')}</p>
-              </div>
-              <div className="hidden text-right sm:block">
-                <p className="text-sm font-semibold capitalize text-ink">{todayStr}</p>
-                <p className="text-xs text-muted">{t('dashDrivers')}: {data.driver_count} · {t('dashFiles')}: {data.total_files}</p>
-              </div>
-            </div>
+          <div className="mb-5 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+            <h1 className="text-[22px] font-extrabold tracking-tight text-ink">
+              {greeting}, {roleName}
+            </h1>
+            <p className="text-sm text-muted">
+              <span className="capitalize">{todayStr}</span>
+              <span className="hidden sm:inline"> · {t('dashDrivers')}: <span className="tabular-nums">{data.driver_count}</span> · {t('dashFiles')}: <span className="tabular-nums">{data.total_files}</span></span>
+            </p>
           </div>
         );
       })()}
 
-      {/* Stats */}
-      <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {/* KPI strip — the stripe says the state, the number says how much */}
+      <div className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
-          label={t('dashDrivers')}
-          value={data.driver_count}
-          icon={<Users size={20} />}
-          color="primary"
+          label={t('dashKpiOverdue')}
+          value={overdueCount}
+          color={overdueCount > 0 ? 'red' : 'green'}
+          detail={overdueCount > 0
+            ? (locale === 'de' ? `am längsten ${longestOverdue} Tage` : `najdłużej ${longestOverdue} dni`)
+            : (locale === 'de' ? `${staleDrivers.length} Fahrer aktuell` : `${staleDrivers.length} kierowców aktualnych`)}
         />
         <StatCard
-          label={t('dashFiles')}
-          value={data.total_files}
-          icon={<FileText size={20} />}
-          color="green"
+          label={t('dashKpiExpiring')}
+          value={expiringCritical}
+          color={expiringCritical > 0 ? 'orange' : 'green'}
+          detail={nextExpiry
+            ? (locale === 'de' ? `nächste ${formatDate(nextExpiry.card_expiry_date, locale)}` : `najbliższa ${formatDate(nextExpiry.card_expiry_date, locale)}`)
+            : (locale === 'de' ? 'in 90 Tagen keine' : 'w 90 dni żadna')}
         />
+        {fleet.length > 0 ? (
+          <StatCard
+            label={t('dashKpiFleet')}
+            value={`${movingCount} / ${fleet.length}`}
+            color={stoppedLong.length > 0 ? 'orange' : 'green'}
+            detail={stoppedLong.length > 0
+              ? (locale === 'de' ? `${stoppedLong.length} steht > 3 Std.` : `${stoppedLong.length} stoi > 3 h`)
+              : (locale === 'de' ? 'keine Stillstände > 3 Std.' : 'brak postojów > 3 h')}
+          />
+        ) : (
+          <StatCard label={t('dashNewFiles')} value={data.last_sync_uploaded} color="blue" detail={formatDateTime(data.last_sync, locale)} />
+        )}
         <StatCard
-          label={t('dashNewFiles')}
-          value={data.last_sync_uploaded}
-          icon={<Upload size={20} />}
-          color="orange"
-        />
-        <StatCard
-          label={t('dashSyncErrors')}
-          value={data.last_sync_errors}
-          icon={<AlertCircle size={20} />}
-          color={data.last_sync_errors > 0 ? 'red' : 'green'}
+          label={t('dashKpiPayroll')}
+          value={payroll.remaining}
+          color={payroll.remaining > 0 ? 'orange' : 'green'}
+          detail={`${payroll.done + payroll.stz} / ${payroll.total} · ${currentPeriod}`}
         />
       </div>
 
-      {/* Distribution chart */}
+      {/* To-do: the day starts with decisions, not with statistics */}
+      <Card className="mb-5 overflow-hidden p-0">
+        <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+          <h3 className="text-sm font-bold text-ink">{t('dashTodo')}</h3>
+          <span className="text-xs text-muted tabular-nums">{todos.length}</span>
+        </div>
+        {todos.length === 0 ? (
+          <div className="flex items-center gap-3 px-4 py-5 text-sm text-muted">
+            <CheckCircle size={16} className="text-success" />
+            {t('dashTodoEmpty')}
+          </div>
+        ) : (
+          <ul className="divide-y divide-border">
+            {todos.map((item) => (
+              <li key={item.id} className="flex items-center gap-3 px-4 py-3">
+                <span className={`h-2 w-2 shrink-0 rounded-full ${toneDot[item.tone]}`} />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-ink">
+                    <span className="tabular-nums">{item.count}</span> {item.text}
+                  </p>
+                  {item.detail && <p className="truncate text-xs text-muted">{item.detail}</p>}
+                </div>
+                <Link
+                  to={item.to}
+                  className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-bold transition ${
+                    item.tone === 'crit' ? 'btn-primary' : 'btn-secondary'
+                  }`}
+                >
+                  {t('dashOpen')}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+
+      {/* Distribution: days since the last card download */}
       {staleDrivers.length > 0 && (() => {
         const buckets = [
-          { label: locale === 'de' ? '≤ 7 Tage' : '≤ 7 dni', color: '#22ad5c', count: staleDrivers.filter(d => d.days_since != null && d.days_since <= 7).length },
-          { label: '8–14', color: '#f59e0b', count: staleDrivers.filter(d => d.days_since != null && d.days_since > 7 && d.days_since <= 14).length },
-          { label: '15–28', color: '#fb923c', count: staleDrivers.filter(d => d.days_since != null && d.days_since > 14 && d.days_since <= 28).length },
-          { label: locale === 'de' ? '> 28 / keine' : '> 28 / brak', color: '#f23030', count: staleDrivers.filter(d => d.days_since == null || d.days_since > 28).length },
+          { label: locale === 'de' ? '≤ 7 Tage' : '≤ 7 dni', color: 'var(--color-success)', count: staleDrivers.filter(d => d.days_since != null && d.days_since <= 7).length },
+          { label: '8–14', color: 'var(--color-primary-400)', count: staleDrivers.filter(d => d.days_since != null && d.days_since > 7 && d.days_since <= 14).length },
+          { label: '15–28', color: 'var(--color-warning)', count: staleDrivers.filter(d => d.days_since != null && d.days_since > 14 && d.days_since <= 28).length },
+          { label: locale === 'de' ? '> 28 / keine' : '> 28 / brak', color: 'var(--color-danger)', count: staleDrivers.filter(d => d.days_since == null || d.days_since > 28).length },
         ];
         const max = Math.max(1, ...buckets.map(b => b.count));
         return (
-          <div className="mb-6">
-            <Card className="p-4 sm:p-6">
-              <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-muted">
+          <div className="mb-5">
+            <Card className="p-4">
+              <h3 className="mb-3 text-xs font-bold uppercase tracking-[0.06em] text-muted">
                 {locale === 'de' ? 'Fahrer nach Tagen seit Download' : 'Kierowcy wg dni od pobrania'}
               </h3>
-              <div className="space-y-2.5">
+              <div className="space-y-2">
                 {buckets.map((b) => (
                   <div key={b.label} className="flex items-center gap-3">
-                    <span className="w-24 shrink-0 text-xs font-medium text-muted sm:w-28">{b.label}</span>
-                    <div className="h-6 flex-1 overflow-hidden rounded-full bg-surface">
+                    <span className="w-24 shrink-0 text-xs font-semibold text-muted sm:w-28">{b.label}</span>
+                    <div className="h-2.5 flex-1 overflow-hidden rounded-sm bg-surface-2">
                       <div
-                        className="h-full rounded-full transition-all duration-500"
-                        style={{ width: `${(b.count / max) * 100}%`, background: b.color, minWidth: b.count > 0 ? '1.5rem' : 0 }}
+                        className="h-full rounded-sm transition-all duration-500"
+                        style={{ width: `${(b.count / max) * 100}%`, background: b.color, minWidth: b.count > 0 ? '0.5rem' : 0 }}
                       />
                     </div>
                     <span className="w-7 shrink-0 text-right text-sm font-bold tabular-nums text-ink">{b.count}</span>
@@ -439,58 +526,58 @@ export function DashboardPage() {
       {liveDrivers.length > 0 && (
         <div className="mt-6">
           <Card className="p-0 overflow-hidden">
-            <div className="flex items-center gap-3 border-b border-[#e6ebf1] dark:border-[#374151] px-5 py-4">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[rgba(87,80,241,0.08)] text-[#5750f1]">
+            <div className="flex items-center gap-3 border-b border-border px-5 py-4">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent-light text-accent">
                 <Gauge size={16} />
               </div>
-              <h3 className="text-sm font-semibold uppercase tracking-wider text-[#6b7280]">
+              <h3 className="text-sm font-semibold uppercase tracking-wider text-muted">
                 {locale === 'de' ? 'Live Fahrerstatus' : 'Status kierowców na żywo'}
               </h3>
-              <span className="ml-auto flex items-center gap-1.5 text-xs text-[#22ad5c]">
-                <span className="h-2 w-2 rounded-full bg-[#22ad5c] animate-pulse" />
+              <span className="ml-auto flex items-center gap-1.5 text-xs text-success">
+                <span className="h-2 w-2 rounded-full bg-success animate-pulse" />
                 Live
               </span>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-[#f7f9fc] dark:bg-[#1f2a37] text-left">
-                    <th className="px-5 py-3 font-medium text-[#6b7280]">{locale === 'de' ? 'Fahrer' : 'Kierowca'}</th>
-                    <th className="px-3 py-3 font-medium text-[#6b7280]">Status</th>
-                    <th className="px-3 py-3 font-medium text-[#6b7280]">{locale === 'de' ? 'Fahrzeug' : 'Pojazd'}</th>
-                    <th className="px-3 py-3 font-medium text-[#6b7280] text-right">{locale === 'de' ? 'Fahrzeit übrig' : 'Jazda pozostała'}</th>
-                    <th className="px-3 py-3 font-medium text-[#6b7280] text-right">{locale === 'de' ? 'Schicht übrig' : 'Zmiana pozostała'}</th>
-                    <th className="px-3 py-3 font-medium text-[#6b7280] text-right">{locale === 'de' ? 'Bis Pause' : 'Do przerwy'}</th>
+                  <tr className="bg-surface-2 dark:bg-surface-2 text-left">
+                    <th className="px-5 py-3 font-medium text-muted">{locale === 'de' ? 'Fahrer' : 'Kierowca'}</th>
+                    <th className="px-3 py-3 font-medium text-muted">Status</th>
+                    <th className="px-3 py-3 font-medium text-muted">{locale === 'de' ? 'Fahrzeug' : 'Pojazd'}</th>
+                    <th className="px-3 py-3 font-medium text-muted text-right">{locale === 'de' ? 'Fahrzeit übrig' : 'Jazda pozostała'}</th>
+                    <th className="px-3 py-3 font-medium text-muted text-right">{locale === 'de' ? 'Schicht übrig' : 'Zmiana pozostała'}</th>
+                    <th className="px-3 py-3 font-medium text-muted text-right">{locale === 'de' ? 'Bis Pause' : 'Do przerwy'}</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#e6ebf1] dark:divide-[#374151]">
+                <tbody className="divide-y divide-border dark:divide-border">
                   {liveDrivers.filter(d => d.status !== 'unknown').map(d => {
                     const fmtMin = (m: number) => m > 0 ? `${Math.floor(m / 60)}h ${m % 60}m` : '—';
                     const statusCfg: Record<string, { label: string; bg: string; text: string }> = {
-                      driving: { label: locale === 'de' ? 'Fährt' : 'Jazda', bg: 'bg-[#21965314]', text: 'text-[#219653]' },
-                      work: { label: locale === 'de' ? 'Arbeit' : 'Praca', bg: 'bg-[#FFA70B14]', text: 'text-[#FFA70B]' },
-                      rest: { label: locale === 'de' ? 'Ruhe' : 'Odpoczynek', bg: 'bg-[#3c50e014]', text: 'text-[#3c50e0]' },
+                      driving: { label: locale === 'de' ? 'Fährt' : 'Jazda', bg: 'bg-success-soft', text: 'text-success' },
+                      work: { label: locale === 'de' ? 'Arbeit' : 'Praca', bg: 'bg-warning-soft', text: 'text-warning' },
+                      rest: { label: locale === 'de' ? 'Ruhe' : 'Odpoczynek', bg: 'bg-info-soft', text: 'text-accent' },
                     };
-                    const st = statusCfg[d.status] || { label: d.status, bg: 'bg-[#f3f4f6]', text: 'text-[#6b7280]' };
+                    const st = statusCfg[d.status] || { label: d.status, bg: 'bg-surface-2', text: 'text-muted' };
                     const driveWarn = d.drive_remaining_min > 0 && d.drive_remaining_min <= 60;
                     const breakWarn = d.break_in_min > 0 && d.break_in_min <= 30;
                     return (
-                      <tr key={d.id} className="hover:bg-[rgba(87,80,241,0.02)]">
-                        <td className="px-5 py-3 font-medium text-[#111928] dark:text-white">{d.name}</td>
+                      <tr key={d.id} className="hover:bg-surface-2">
+                        <td className="px-5 py-3 font-medium text-ink dark:text-white">{d.name}</td>
                         <td className="px-3 py-3">
                           <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${st.bg} ${st.text}`}>
-                            <span className={`h-1.5 w-1.5 rounded-full ${d.status === 'driving' ? 'bg-[#219653]' : d.status === 'work' ? 'bg-[#FFA70B]' : 'bg-[#3c50e0]'}`} />
+                            <span className={`h-1.5 w-1.5 rounded-full ${d.status === 'driving' ? 'bg-success' : d.status === 'work' ? 'bg-warning' : 'bg-accent'}`} />
                             {st.label}
                           </span>
                         </td>
-                        <td className="px-3 py-3 text-[#6b7280]">{d.vehicle || '—'}</td>
-                        <td className={`px-3 py-3 text-right tabular-nums font-medium ${driveWarn ? 'text-[#f23030]' : 'text-[#111928] dark:text-white'}`}>
+                        <td className="px-3 py-3 text-muted">{d.vehicle || '—'}</td>
+                        <td className={`px-3 py-3 text-right tabular-nums font-medium ${driveWarn ? 'text-danger' : 'text-ink dark:text-white'}`}>
                           {fmtMin(d.drive_remaining_min)}
                         </td>
-                        <td className="px-3 py-3 text-right tabular-nums text-[#6b7280]">
+                        <td className="px-3 py-3 text-right tabular-nums text-muted">
                           {fmtMin(d.shift_remaining_min)}
                         </td>
-                        <td className={`px-3 py-3 text-right tabular-nums font-medium ${breakWarn ? 'text-[#f23030]' : 'text-[#6b7280]'}`}>
+                        <td className={`px-3 py-3 text-right tabular-nums font-medium ${breakWarn ? 'text-danger' : 'text-muted'}`}>
                           {fmtMin(d.break_in_min)}
                         </td>
                       </tr>
@@ -517,21 +604,20 @@ export function DashboardPage() {
           return `${Math.floor(mins / 60)} h ${mins % 60} min`;
         };
         const sorted = [...fleet].sort((a, b) => (b.speed_kmh - a.speed_kmh) || a.vehicle_name.localeCompare(b.vehicle_name));
-        const movingCount = fleet.filter(v => v.speed_kmh > 5).length;
         const visible = fleetShowAll ? sorted : sorted.slice(0, 8);
         return (
           <div className="mt-6">
             <Card className="p-0 overflow-hidden">
               <div className="flex items-center gap-3 border-b border-border px-5 py-4">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-[#34d399] to-[#16a34a] text-white">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-success-soft text-success">
                   <MapPin size={16} />
                 </div>
                 <h3 className="text-sm font-semibold uppercase tracking-wider text-muted">
                   {locale === 'de' ? 'Live-Flotte' : 'Flota na żywo'}
                 </h3>
                 <Badge variant="green">{movingCount} {locale === 'de' ? 'fährt' : 'w trasie'}</Badge>
-                <span className="ml-auto flex items-center gap-1.5 text-xs text-[#22ad5c]">
-                  <span className="h-2 w-2 rounded-full bg-[#22ad5c] animate-pulse" />
+                <span className="ml-auto flex items-center gap-1.5 text-xs text-success">
+                  <span className="h-2 w-2 rounded-full bg-success animate-pulse" />
                   Live
                 </span>
               </div>
@@ -551,13 +637,13 @@ export function DashboardPage() {
                     : '';
                   return (
                     <div key={v.vehicle_id} className="flex items-center gap-3 px-5 py-2.5">
-                      <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${moving ? 'bg-[#22ad5c] animate-pulse' : 'bg-gray-300 dark:bg-gray-600'}`} />
+                      <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${moving ? 'bg-success animate-pulse' : 'bg-gray-300 dark:bg-gray-600'}`} />
                       <div className="w-28 shrink-0 sm:w-36">
                         <p className="truncate font-mono text-sm font-semibold text-ink">{v.vehicle_name}</p>
                         {driver && <p className="truncate text-[11px] text-muted">{driver}</p>}
                       </div>
                       <span
-                        className={`hidden w-24 shrink-0 text-right font-mono text-xs sm:block ${moving ? 'font-bold text-[#22ad5c]' : 'text-muted'}`}
+                        className={`hidden w-24 shrink-0 text-right font-mono text-xs sm:block ${moving ? 'font-bold text-success' : 'text-muted'}`}
                         title={moving ? undefined : (locale === 'de' ? 'Steht seit' : 'Czas postoju')}
                       >
                         {stopLabel}
@@ -644,53 +730,36 @@ export function DashboardPage() {
             <h3 className="text-sm font-semibold uppercase tracking-wider text-muted">
               {locale === 'de' ? 'Lohnabrechnung' : 'Wypłaty'} — {currentPeriod}
             </h3>
-            <Link to="/payroll" className="text-xs font-medium text-[#5750f1] hover:underline">
+            <Link to="/payroll" className="text-xs font-medium text-accent hover:underline">
               {locale === 'de' ? 'Öffnen' : 'Otwórz'} →
             </Link>
           </div>
           {(() => {
-            const sinceDate = (() => {
-              const [y, m] = currentPeriod.split('-').map(Number);
-              const next = m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`;
-              return `${next}-01`;
-            })();
-            const driversWithNewFiles = drivers.filter(d =>
-              d.files.some(f => f.modified >= sinceDate)
-            );
-            const totalToProcess = driversWithNewFiles.length;
-            const done = driversWithNewFiles.filter(d => {
-              const key = d.card_number || d.name;
-              return payrollStatuses[key] === 'policzony';
-            }).length;
-            const stz = driversWithNewFiles.filter(d => {
-              const key = d.card_number || d.name;
-              return payrollStatuses[key] === 'stundenzettel';
-            }).length;
-            const remaining = totalToProcess - done - stz;
+            const { total: totalToProcess, done, stz, remaining } = payroll;
 
             return (
               <div className="space-y-3">
                 <div className="grid grid-cols-3 gap-3">
-                  <div className="rounded-lg bg-[rgba(34,173,92,0.06)] p-3 text-center">
-                    <p className="text-2xl font-bold text-[#22ad5c]">{done}</p>
-                    <p className="text-[11px] text-[#6b7280]">{locale === 'de' ? 'Geprüft' : 'Policzony'}</p>
+                  <div className="rounded-lg bg-success-soft p-3 text-center">
+                    <p className="text-2xl font-bold text-success">{done}</p>
+                    <p className="text-[11px] text-muted">{locale === 'de' ? 'Geprüft' : 'Policzony'}</p>
                   </div>
-                  <div className="rounded-lg bg-[rgba(60,80,224,0.06)] p-3 text-center">
-                    <p className="text-2xl font-bold text-[#3c50e0]">{stz}</p>
-                    <p className="text-[11px] text-[#6b7280]">Stundenzettel</p>
+                  <div className="rounded-lg bg-accent-light p-3 text-center">
+                    <p className="text-2xl font-bold text-accent">{stz}</p>
+                    <p className="text-[11px] text-muted">Stundenzettel</p>
                   </div>
-                  <div className="rounded-lg bg-[rgba(245,158,11,0.06)] p-3 text-center">
-                    <p className="text-2xl font-bold text-[#f59e0b]">{remaining}</p>
-                    <p className="text-[11px] text-[#6b7280]">{locale === 'de' ? 'Offen' : 'Do zrobienia'}</p>
+                  <div className="rounded-lg bg-warning-soft p-3 text-center">
+                    <p className="text-2xl font-bold text-warning">{remaining}</p>
+                    <p className="text-[11px] text-muted">{locale === 'de' ? 'Offen' : 'Do zrobienia'}</p>
                   </div>
                 </div>
                 {totalToProcess > 0 && (
                   <div>
-                    <div className="flex h-2 w-full overflow-hidden rounded-full bg-[#f3f4f6] dark:bg-[#1f2a37]">
-                      {done > 0 && <div className="bg-[#22ad5c] transition-all" style={{ width: `${(done / totalToProcess) * 100}%` }} />}
-                      {stz > 0 && <div className="bg-[#3c50e0] transition-all" style={{ width: `${(stz / totalToProcess) * 100}%` }} />}
+                    <div className="flex h-2 w-full overflow-hidden rounded-full bg-surface-2 dark:bg-surface-2">
+                      {done > 0 && <div className="bg-success transition-all" style={{ width: `${(done / totalToProcess) * 100}%` }} />}
+                      {stz > 0 && <div className="bg-accent transition-all" style={{ width: `${(stz / totalToProcess) * 100}%` }} />}
                     </div>
-                    <p className="mt-1.5 text-xs text-[#6b7280]">
+                    <p className="mt-1.5 text-xs text-muted">
                       {done + stz}/{totalToProcess} ({Math.round(((done + stz) / totalToProcess) * 100)}%)
                     </p>
                   </div>
@@ -698,7 +767,7 @@ export function DashboardPage() {
                 {remaining > 0 && (
                   <button
                     onClick={() => navigate('/payroll')}
-                    className="w-full rounded-lg bg-[#5750f1] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-[#4a44d4]"
+                    className="w-full rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-white transition hover:bg-accent-dark"
                   >
                     {locale === 'de' ? `${remaining} Fahrer offen — jetzt prüfen` : `${remaining} kierowców do policzenia`}
                   </button>

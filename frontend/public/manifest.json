@@ -4,8 +4,8 @@
   "description": "Analiza kart kierowców DDD - tachograf cyfrowy",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#f9fafb",
-  "theme_color": "#1e40af",
+  "background_color": "#eef1f5",
+  "theme_color": "#0f172a",
   "orientation": "any",
   "icons": [
     {

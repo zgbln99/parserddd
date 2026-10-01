@@ -285,7 +285,7 @@ export default function CompliancePage() {
         Wykrywanie naruszeń EU 561 na karcie kierowcy. Wybierz kierowcę i zakres dat, kliknij „Sprawdź wykroczenia".
       </p>
 
-      <div className="rounded-[10px] bg-white shadow-1 dark:bg-[#122031] dark:shadow-card p-4">
+      <div className="rounded-[10px] bg-white shadow-1 dark:bg-card dark:shadow-card p-4">
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
           {/* Driver picker */}
           <div className="sm:col-span-2">
@@ -388,7 +388,7 @@ export default function CompliancePage() {
       </div>
 
       {result && (
-        <div className="mt-4 rounded-[10px] bg-white shadow-1 dark:bg-[#122031] dark:shadow-card p-4">
+        <div className="mt-4 rounded-[10px] bg-white shadow-1 dark:bg-card dark:shadow-card p-4">
           <div className="flex flex-wrap items-center gap-3 mb-3">
             <div className="text-sm">
               <span className="text-muted">Okres:</span>{' '}

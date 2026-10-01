@@ -59,7 +59,7 @@ export function SecurityTab() {
         <button
           onClick={handleSubmit}
           disabled={saving || !current || !pw}
-          className="rounded-lg bg-[#ff9f0a] px-4 py-1.5 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
+          className="rounded-lg bg-warning px-4 py-1.5 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
         >
           {saving ? '...' : t('save')}
         </button>

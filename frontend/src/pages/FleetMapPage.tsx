@@ -484,13 +484,13 @@ export function FleetMapPage() {
 
       {/* Floating title / stats chip (top-left) */}
       <div className="pointer-events-none absolute left-3 top-3 z-[500] flex items-center gap-2.5 rounded-2xl border border-border bg-card/90 px-3 py-2 shadow-lg backdrop-blur-md">
-        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-[#34d399] to-[#16a34a] text-white">
+        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-success to-success text-white">
           <MapIcon size={16} />
         </div>
         <div className="min-w-0 leading-tight">
           <h1 className="text-sm font-bold tracking-tight text-ink">{de ? 'Flottenkarte' : 'Mapa floty'}</h1>
           <p className="text-[11px] text-muted">
-            {vehicles.length} {de ? 'Fzg.' : 'poj.'} · <span className="font-semibold text-[#22ad5c]">{movingCount} {de ? 'fährt' : 'w trasie'}</span>
+            {vehicles.length} {de ? 'Fzg.' : 'poj.'} · <span className="font-semibold text-success">{movingCount} {de ? 'fährt' : 'w trasie'}</span>
             {updatedAt && ` · ${updatedAt.toLocaleTimeString(de ? 'de-DE' : 'pl-PL', { hour: '2-digit', minute: '2-digit' })}`}
           </p>
         </div>
@@ -589,9 +589,9 @@ export function FleetMapPage() {
                     }`}
                   >
                     <div className="flex items-center gap-2">
-                      <span className={`h-2 w-2 shrink-0 rounded-full ${moving ? 'bg-[#22ad5c] animate-pulse' : 'bg-gray-300 dark:bg-gray-600'}`} />
+                      <span className={`h-2 w-2 shrink-0 rounded-full ${moving ? 'bg-success animate-pulse' : 'bg-gray-300 dark:bg-gray-600'}`} />
                       <span className="truncate font-mono text-sm font-bold text-ink">{v.vehicle_name}</span>
-                      <span className={`ml-auto shrink-0 font-mono text-[11px] ${moving ? 'font-bold text-[#22ad5c]' : 'text-muted'}`}>
+                      <span className={`ml-auto shrink-0 font-mono text-[11px] ${moving ? 'font-bold text-success' : 'text-muted'}`}>
                         {moving
                           ? `${v.speed_kmh} km/h`
                           : fmtStop(v.stopped_minutes, de)

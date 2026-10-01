@@ -94,7 +94,7 @@ export function ComplianceSection({
   return (
     <div
       data-testid="compliance-section"
-      className="mt-6 rounded-[10px] bg-white shadow-1 dark:bg-[#122031] dark:shadow-card p-4"
+      className="mt-6 rounded-[10px] bg-white shadow-1 dark:bg-card dark:shadow-card p-4"
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>

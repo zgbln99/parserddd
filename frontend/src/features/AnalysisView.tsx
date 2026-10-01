@@ -652,7 +652,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
 
       {/* Date filter */}
       {(hasDateFilter || filePath) && (
-        <div className="flex flex-wrap items-center gap-3 rounded-[10px] bg-white shadow-1 dark:bg-[#122031] dark:shadow-card px-4 py-3">
+        <div className="flex flex-wrap items-center gap-3 rounded-[10px] bg-white shadow-1 dark:bg-card dark:shadow-card px-4 py-3">
           {hasDateFilter && <>
           <span className="text-xs font-semibold uppercase tracking-wider text-muted">{t('analysisDateFilter')}:</span>
           <label className="text-xs text-muted">{t('detailFrom')}:</label>
@@ -713,7 +713,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
 
       {/* Monthly grid copy block (hidden on mobile - 31-col table) */}
       {fv('monthly_grid') && workingShifts.length > 0 && hasDateFilter && dateFrom && (
-        <div className="hidden sm:block rounded-[10px] bg-white shadow-1 dark:bg-[#122031] dark:shadow-card p-4 ">
+        <div className="hidden sm:block rounded-[10px] bg-white shadow-1 dark:bg-card dark:shadow-card p-4 ">
           <MonthlyGridCopy
             shifts={workingShifts.map((sh, i) => applyOverride(sh, i))}
             summary={s as unknown as Record<string, unknown>}
@@ -828,7 +828,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
 
       {/* Monthly days (vacation/sick) */}
       {di.card_number && period && monthlyDays && (
-        <div className="rounded-[10px] bg-white shadow-1 dark:bg-[#122031] dark:shadow-card p-4 ">
+        <div className="rounded-[10px] bg-white shadow-1 dark:bg-card dark:shadow-card p-4 ">
           <div className="mb-3 flex items-center gap-2">
             <CalendarDays size={14} className="text-muted" />
             <span className="text-xs font-semibold uppercase tracking-wider text-muted">
@@ -963,7 +963,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
                     ? 'border-rose-200 bg-rose-50/40 dark:border-rose-900/40 dark:bg-rose-900/10'
                     : isSat
                     ? 'border-amber-200 bg-amber-50/40 dark:border-amber-900/40 dark:bg-amber-900/10'
-                    : 'border-border bg-white dark:bg-[#122031]'
+                    : 'border-border bg-white dark:bg-card'
                 }`}
               >
                 {/* Top row: weekday + date + duration */}
@@ -1080,7 +1080,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
 
         {/* Desktop shifts table */}
         <div className="hidden sm:block -mx-6 overflow-x-auto px-6">
-          <div className="rounded-2xl border border-border bg-white shadow-sm overflow-hidden dark:bg-[#122031]">
+          <div className="rounded-2xl border border-border bg-white shadow-sm overflow-hidden dark:bg-card">
           <table className="w-full min-w-[1100px] text-sm" style={{ fontVariantNumeric: 'tabular-nums' }}>
             <thead>
               <tr className="border-b border-border bg-gray-50/80 dark:bg-[#0f1a29]/80 backdrop-blur sticky top-0 z-10">
@@ -1123,7 +1123,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
                   onClick={() => { if (!isEditing) setSelectedShiftReport(selectedShiftReport === i ? null : i); }}
                   className={`cursor-pointer transition-colors ${
                     isAddedShift
-                      ? 'bg-emerald-50/60 dark:bg-emerald-900/10 border-l-2 border-l-[#22ad5c] hover:bg-emerald-100/60'
+                      ? 'bg-emerald-50/60 dark:bg-emerald-900/10 border-l-2 border-l-success hover:bg-emerald-100/60'
                       : hasOverride
                       ? 'bg-amber-50/60 dark:bg-amber-900/10 hover:bg-amber-100/60'
                       : selectedShiftReport === i
@@ -1131,17 +1131,17 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
                       : isWeekend
                       ? 'bg-rose-50/40 dark:bg-rose-900/10 hover:bg-rose-100/60'
                       : i % 2 === 0
-                      ? 'bg-white dark:bg-[#122031] hover:bg-gray-50 dark:hover:bg-[#0f1a29]'
+                      ? 'bg-white dark:bg-card hover:bg-gray-50 dark:hover:bg-[#0f1a29]'
                       : 'bg-gray-50/40 dark:bg-[#0f1a29]/40 hover:bg-gray-100/60 dark:hover:bg-[#0d1726]'
                   }`}
                 >
                   <td className={`whitespace-nowrap px-3 py-2 font-bold ${isWeekend ? 'text-danger' : ''}`}>
                     <div className="flex items-center gap-1">
                       <span>{wd}</span>
-                      {isAddedShift && <span className="text-[10px] font-normal text-[#22ad5c]">{sh.shift_date?.slice(5)}</span>}
+                      {isAddedShift && <span className="text-[10px] font-normal text-success">{sh.shift_date?.slice(5)}</span>}
                       <button
                         onClick={(e) => { e.stopPropagation(); setEditingShift(isEditing ? null : i); }}
-                        className={`ml-1 rounded p-0.5 transition ${isEditing ? 'text-[#5750f1]' : 'text-[#d1d5db] hover:text-[#6b7280]'}`}
+                        className={`ml-1 rounded p-0.5 transition ${isEditing ? 'text-accent' : 'text-border hover:text-muted'}`}
                         title={locale === 'de' ? 'Bearbeiten' : 'Edytuj'}
                       >
                         <Pencil size={12} />
@@ -1149,7 +1149,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
                       {hasOverride && (
                         <button
                           onClick={(e) => { e.stopPropagation(); setShiftOverrides(prev => { const n = { ...prev }; delete n[i]; return n; }); }}
-                          className="rounded p-0.5 text-[#D34053] hover:text-[#f23030] transition"
+                          className="rounded p-0.5 text-danger hover:text-danger transition"
                           title={locale === 'de' ? 'Zurücksetzen' : 'Resetuj'}
                         >
                           <RotateCcw size={11} />
@@ -1202,7 +1202,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
                           setAddedShifts(prev => [...prev, sh1, sh2]);
                           // Auto-open edit on both (next render will show them)
                         }}
-                        className="rounded p-0.5 text-[#d1d5db] hover:text-[#5750f1] transition"
+                        className="rounded p-0.5 text-border hover:text-accent transition"
                         title={locale === 'de' ? 'In 2 Tage teilen' : 'Rozdziel na 2 dni'}
                       >
                         <Scissors size={11} />
@@ -1219,7 +1219,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
                             setAddedShifts(prev => prev.filter(s => s !== rawSh));
                           }
                         }}
-                        className="rounded p-0.5 text-[#d1d5db] hover:text-[#D34053] transition"
+                        className="rounded p-0.5 text-border hover:text-danger transition"
                         title={locale === 'de' ? 'Löschen' : 'Usuń'}
                       >
                         <Trash2 size={11} />
@@ -1260,10 +1260,10 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
                 </tr>
                 {isEditing && (
                   <tr key={`edit-${i}`} onClick={e => e.stopPropagation()}>
-                    <td colSpan={16} className="px-4 py-3 bg-[#f7f9fc] dark:bg-[#1f2a37]">
+                    <td colSpan={16} className="px-4 py-3 bg-surface-2 dark:bg-surface-2">
                       <div className="flex flex-wrap items-end gap-3">
                         <div className="w-28">
-                          <label className="block text-[10px] font-medium text-[#6b7280] mb-0.5">{locale === 'de' ? 'Datum' : 'Data'}</label>
+                          <label className="block text-[10px] font-medium text-muted mb-0.5">{locale === 'de' ? 'Datum' : 'Data'}</label>
                           <input
                             type="date"
                             value={sh.shift_date}
@@ -1297,7 +1297,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
                           const mVal = mins % 60;
                           return (
                           <div key={field} className="w-[80px]">
-                            <label className="block text-[10px] font-medium text-[#6b7280] mb-0.5">{label}</label>
+                            <label className="block text-[10px] font-medium text-muted mb-0.5">{label}</label>
                             <div className="flex items-center gap-0.5">
                               <input
                                 type="number"
@@ -1313,7 +1313,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
                                 className="input w-9 px-1 py-1 text-xs text-center font-mono"
                                 title={`${label} h`}
                               />
-                              <span className="text-[10px] text-[#9ca3af]">:</span>
+                              <span className="text-[10px] text-muted">:</span>
                               <input
                                 type="number"
                                 min={0} max={59}
@@ -1333,7 +1333,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
                           );
                         })}
                         <div className="w-16">
-                          <label className="block text-[10px] font-medium text-[#6b7280] mb-0.5">{locale === 'de' ? 'Diät' : 'Dieta'}</label>
+                          <label className="block text-[10px] font-medium text-muted mb-0.5">{locale === 'de' ? 'Diät' : 'Dieta'}</label>
                           <select
                             value={shiftOverrides[i]?.has_diet !== undefined ? (shiftOverrides[i]!.has_diet ? '1' : '0') : (sh.has_diet ? '1' : '0')}
                             onChange={(e) => setShiftOverrides(prev => ({ ...prev, [i]: { ...prev[i], has_diet: e.target.value === '1' } }))}
@@ -1345,12 +1345,12 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
                         </div>
                         <button
                           onClick={() => setEditingShift(null)}
-                          className="rounded-lg bg-[#5750f1] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#4a44d4]"
+                          className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white hover:bg-accent-dark"
                         >
                           OK
                         </button>
                       </div>
-                      <p className="mt-1.5 text-[10px] text-[#9ca3af]">
+                      <p className="mt-1.5 text-[10px] text-muted">
                         {locale === 'de' ? 'Format HH:MM — Änderungen wirken sich auf die Zusammenfassung aus.' : 'Format GG:MM — zmiany wpływają na podsumowanie.'}
                       </p>
                     </td>
@@ -1373,7 +1373,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
           <div className="mt-2 flex items-center gap-2">
             <button
               onClick={() => setShowAddShift(!showAddShift)}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-[#d1d5db] px-3 py-2 text-xs font-medium text-[#6b7280] transition hover:border-[#5750f1] hover:text-[#5750f1] dark:border-[#374151]"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-border px-3 py-2 text-xs font-medium text-muted transition hover:border-accent hover:text-accent dark:border-border"
             >
               <Plus size={13} />
               {locale === 'de' ? 'Tag hinzufügen' : 'Dodaj dzień'}
@@ -1381,7 +1381,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
             {(addedShifts.length > 0 || deletedShifts.size > 0) && (
               <button
                 onClick={() => { setAddedShifts([]); setDeletedShifts(new Set()); setShiftOverrides({}); }}
-                className="inline-flex items-center gap-1 text-xs text-[#D34053] hover:underline"
+                className="inline-flex items-center gap-1 text-xs text-danger hover:underline"
               >
                 <RotateCcw size={11} />
                 {locale === 'de' ? 'Alle Änderungen zurücksetzen' : 'Resetuj wszystkie zmiany'}
@@ -1389,10 +1389,10 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
             )}
           </div>
           {showAddShift && (
-            <div className="mt-2 rounded-lg bg-[#f7f9fc] dark:bg-[#1f2a37] p-4">
+            <div className="mt-2 rounded-lg bg-surface-2 dark:bg-surface-2 p-4">
               <div className="flex flex-wrap items-end gap-3">
                 <div className="w-36">
-                  <label className="block text-[10px] font-medium text-[#6b7280] mb-0.5">{locale === 'de' ? 'Datum' : 'Data'}</label>
+                  <label className="block text-[10px] font-medium text-muted mb-0.5">{locale === 'de' ? 'Datum' : 'Data'}</label>
                   <input
                     id="add-shift-date"
                     type="date"
@@ -1406,7 +1406,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
                   ['break', locale === 'de' ? 'Pausen' : 'Przerwy'],
                 ] as const).map(([key, label]) => (
                   <div key={key} className="w-[80px]">
-                    <label className="block text-[10px] font-medium text-[#6b7280] mb-0.5">{label}</label>
+                    <label className="block text-[10px] font-medium text-muted mb-0.5">{label}</label>
                     <div className="flex items-center gap-0.5">
                       <input
                         id={`add-shift-${key}-h`}
@@ -1415,7 +1415,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
                         defaultValue={key === 'work' ? 8 : 0}
                         className="input w-9 px-1 py-1 text-xs text-center font-mono"
                       />
-                      <span className="text-[10px] text-[#9ca3af]">:</span>
+                      <span className="text-[10px] text-muted">:</span>
                       <input
                         id={`add-shift-${key}-m`}
                         type="number"
@@ -1427,7 +1427,7 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
                   </div>
                 ))}
                 <div className="w-16">
-                  <label className="block text-[10px] font-medium text-[#6b7280] mb-0.5">{locale === 'de' ? 'Diät' : 'Dieta'}</label>
+                  <label className="block text-[10px] font-medium text-muted mb-0.5">{locale === 'de' ? 'Diät' : 'Dieta'}</label>
                   <select id="add-shift-diet" defaultValue="0" className="input w-full px-1 py-1 text-xs">
                     <option value="1">{t('yes')}</option>
                     <option value="0">{t('no')}</option>
@@ -1461,11 +1461,11 @@ export function AnalysisView({ data, dateFrom, dateTo, onDateFromChange, onDateT
                     setAddedShifts(prev => [...prev, newSh]);
                     setShowAddShift(false);
                   }}
-                  className="rounded-lg bg-[#5750f1] px-4 py-1.5 text-xs font-medium text-white hover:bg-[#4a44d4]"
+                  className="rounded-lg bg-accent px-4 py-1.5 text-xs font-medium text-white hover:bg-accent-dark"
                 >
                   {locale === 'de' ? 'Hinzufügen' : 'Dodaj'}
                 </button>
-                <button onClick={() => setShowAddShift(false)} className="text-xs text-[#6b7280] hover:text-[#111928]">
+                <button onClick={() => setShowAddShift(false)} className="text-xs text-muted hover:text-ink">
                   {t('cancel')}
                 </button>
               </div>

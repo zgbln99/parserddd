@@ -1,58 +1,70 @@
 @import "tailwindcss";
 
 /* ==========================================================================
-   NextAdmin Dashboard — exact design tokens from their style.css
+   FleetView design tokens — "konsola dyspozytora"
+   One accent (interactive blue), three state colours (ok / warning / critical)
+   that never decorate, a dark navigation rail in both themes, and a
+   fixed-width digit face for everything that gets compared by eye.
    ========================================================================== */
 
 @theme {
-  /* Font */
-  --font-sans: 'Satoshi', 'Inter', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+  /* Type */
+  --font-sans: 'Manrope', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
 
   /* Breakpoints */
   --breakpoint-2xsm: 375px;
   --breakpoint-xsm: 425px;
   --breakpoint-3xl: 2000px;
 
-  /* Primary */
-  --color-primary-50: rgba(87, 80, 241, 0.07);
-  --color-primary-100: #d5d3fd;
-  --color-primary-200: #b3b0fa;
-  --color-primary-300: #8a85f5;
-  --color-primary-400: #6e68f3;
-  --color-primary-500: #5750f1;
-  --color-primary-600: #4a44d4;
-  --color-primary-700: #3c37b0;
-  --color-primary-800: #2e2a8c;
-  --color-primary-900: #201e68;
+  /* Accent scale (the accent picker overrides these at runtime) */
+  --color-primary-50: #eef4fd;
+  --color-primary-100: #dbe7fb;
+  --color-primary-200: #b9cff7;
+  --color-primary-300: #8fb1f0;
+  --color-primary-400: #5f8fe6;
+  --color-primary-500: #2f6fd8;
+  --color-primary-600: #1d5fd1;
+  --color-primary-700: #174cab;
+  --color-primary-800: #143f8a;
+  --color-primary-900: #12346d;
 
-  /* NextAdmin exact neutrals */
-  --color-surface: #f3f4f6;
-  --color-surface-dark: #020d1a;
+  /* Semantic aliases used by components (bg-accent, text-ink, border-border …) */
+  --color-accent: var(--color-primary-600);
+  --color-accent-dark: var(--color-primary-700);
+  --color-accent-light: var(--color-primary-50);
+
+  /* Neutrals — cool slate, slightly biased toward the accent */
+  --color-surface: #eef1f5;
+  --color-surface-2: #f6f8fb;
   --color-card: #ffffff;
-  --color-card-dark: #122031;
-  --color-ink: #111928;
-  --color-ink-dark: #ffffff;
-  --color-muted: #6b7280;
-  --color-muted-dark: #9ca3af;
-  --color-border: #e6ebf1;
-  --color-border-dark: #27303e;
+  --color-ink: #0f172a;
+  --color-ink-2: #334155;
+  --color-muted: #64748b;
+  --color-border: #dde3ea;
 
-  --color-accent: #5750f1;
-  --color-accent-light: rgba(87, 80, 241, 0.07);
-  --color-accent-dark: #4a44d4;
+  /* Navigation rail (dark in both themes) */
+  --color-rail: #0f172a;
+  --color-rail-2: #1e293b;
+  --color-rail-fg: #cbd5e1;
+  --color-rail-muted: #64748b;
 
-  /* NextAdmin exact status colors */
-  --color-success: #22ad5c;
-  --color-warning: #f59e0b;
-  --color-danger: #f23030;
-  --color-info: #3c50e0;
+  /* State colours */
+  --color-success: #1a7f4b;
+  --color-success-soft: #e1f3e8;
+  --color-warning: #b45309;
+  --color-warning-soft: #fdecd3;
+  --color-danger: #b91c1c;
+  --color-danger-soft: #fde2e2;
+  --color-info: var(--color-primary-600);
+  --color-info-soft: var(--color-primary-50);
 
-  /* NextAdmin exact shadows */
-  --shadow-1: 0px 1px 2px 0px rgba(84, 87, 118, 0.12);
-  --shadow-2: 0px 2px 3px 0px rgba(84, 87, 118, 0.15);
-  --shadow-3: 0px 8px 8.466px 0px rgba(113, 116, 152, 0.05), 0px 8px 16.224px 0px rgba(113, 116, 152, 0.07), 0px 18px 31px 0px rgba(113, 116, 152, 0.1);
-  --shadow-card: 0px 1px 2px 0px rgba(0, 0, 0, 0.12);
-  --shadow-card-2: 0px 8px 13px -3px rgba(0, 0, 0, 0.07);
+  /* Shadows — one soft level; depth comes from hairlines, not shadows */
+  --shadow-1: 0px 1px 2px 0px rgba(15, 23, 42, 0.06);
+  --shadow-2: 0px 2px 6px 0px rgba(15, 23, 42, 0.08);
+  --shadow-3: 0px 12px 32px -12px rgba(15, 23, 42, 0.22);
+  --shadow-card: 0px 1px 2px 0px rgba(15, 23, 42, 0.05);
+  --shadow-card-2: 0px 8px 24px -12px rgba(15, 23, 42, 0.18);
 
   /* Animations */
   --animate-fade-in: fade-in 0.3s ease-out;
@@ -78,24 +90,28 @@
 .page-enter { animation: page-enter 0.2s cubic-bezier(0.16, 1, 0.3, 1) both; }
 .page-exit { animation: page-exit 0.12s cubic-bezier(0.4, 0, 1, 1) both; pointer-events: none; }
 
-/* === BASE — NextAdmin uses #f3f4f6 bg, #111928 text, Satoshi font === */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+}
+
+/* === BASE === */
 html, body { overflow-x: hidden; max-width: 100vw; }
 
 body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: #f3f4f6;
-  color: #111928;
+  background: var(--color-surface);
+  color: var(--color-ink);
   font-size: 14px;
-  font-weight: 400;
-  line-height: 22px;
+  font-weight: 500;
+  line-height: 1.5;
 }
 
-/* Mobile overflow guard: grid/flex items default to min-width:auto, so one
-   wide table/chart/number silently stretches the whole page past the
-   viewport. Letting them shrink keeps pages viewport-wide; anything truly
-   wide scrolls inside its own overflow-x-auto wrapper instead. */
+h1, h2, h3, h4 { text-wrap: balance; letter-spacing: -0.01em; }
+
+/* Grid/flex items default to min-width:auto; one wide table would push the
+   page past the viewport. Anything truly wide scrolls in its own wrapper. */
 .grid > *,
 .flex > * {
   min-width: 0;
@@ -103,117 +119,118 @@ body {
 
 .dark {
   color-scheme: dark;
-  --color-surface: #020d1a;
-  --color-card: #122031;
-  --color-ink: #ffffff;
-  --color-muted: #9ca3af;
-  --color-border: #27303e;
-  --color-accent-light: rgba(255, 255, 255, 0.1);
-  --color-primary-50: rgba(87, 80, 241, 0.12);
-  --color-success: #2cd673;
-  --color-warning: #fcd34d;
-  --color-danger: #f56060;
-  --color-info: #5475e5;
+  --color-surface: #0b1220;
+  --color-surface-2: #182338;
+  --color-card: #121b2d;
+  --color-ink: #e6ecf5;
+  --color-ink-2: #c3cddc;
+  --color-muted: #8b97ad;
+  --color-border: #243149;
+  --color-rail: #070d19;
+  --color-rail-2: #16213a;
+  --color-rail-fg: #a9b6c9;
+  --color-rail-muted: #5b6a82;
+  --color-accent: var(--color-primary-400);
+  --color-accent-dark: var(--color-primary-500);
+  --color-accent-light: rgba(95, 143, 230, 0.16);
+  --color-success: #4fcf87;
+  --color-success-soft: #10311f;
+  --color-warning: #f3b25a;
+  --color-warning-soft: #3a2a0d;
+  --color-danger: #ff7b7b;
+  --color-danger-soft: #40171a;
+  --color-info: var(--color-primary-400);
+  --color-info-soft: rgba(95, 143, 230, 0.16);
+  --shadow-card: 0px 1px 2px 0px rgba(0, 0, 0, 0.3);
+  --shadow-card-2: 0px 12px 28px -12px rgba(0, 0, 0, 0.5);
 }
 
-.dark body { background: #020d1a; color: #ffffff; }
-
-::selection { background: rgba(87, 80, 241, 0.15); }
-.dark ::selection { background: rgba(87, 80, 241, 0.3); }
+::selection { background: var(--color-accent-light); }
 
 /* === GLOBAL POLISH === */
 
-/* Keyboard focus ring — consistent, premium, only for keyboard users */
 :focus-visible {
-  outline: 2px solid rgba(87, 80, 241, 0.55);
+  outline: 2px solid var(--color-accent);
   outline-offset: 2px;
   border-radius: 6px;
 }
 
-/* Numbers line up in every table (dates, km, hours, counts) */
-table { font-variant-numeric: tabular-nums; }
+/* Digits line up wherever they are compared: tables, KPI tiles, time columns */
+table, .tabular, .font-mono { font-variant-numeric: tabular-nums; }
 
-/* Buttons feel responsive without per-page classes */
 button { transition: background-color 0.15s, color 0.15s, border-color 0.15s, opacity 0.15s, box-shadow 0.15s; }
 button:not(:disabled):active { transform: translateY(0.5px); }
-
-/* Crisper table headers everywhere */
 thead th { user-select: none; }
 
-/* === CARD — crisp hairline + soft layered shadow + gentle hover === */
-.card {
-  background: #ffffff;
-  border: 1px solid #eceff3;
-  border-radius: 14px;
-  box-shadow: 0px 1px 2px 0px rgba(84, 87, 118, 0.06), 0px 1px 3px 0px rgba(84, 87, 118, 0.07);
-  transition: box-shadow 0.22s ease, border-color 0.22s ease;
+/* === CARD — hairline + flat fill; a card marks a separate object, nothing more === */
+.card,
+.glass-card {
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-card);
 }
 
-.card:hover {
-  box-shadow: 0px 2px 4px 0px rgba(84, 87, 118, 0.05), 0px 12px 24px -8px rgba(113, 116, 152, 0.16);
-}
-
-.dark .card {
-  background: #122031;
-  border-color: #233143;
-  box-shadow: 0px 1px 2px 0px rgba(0, 0, 0, 0.2);
-}
-
-.dark .card:hover {
-  box-shadow: 0px 14px 30px -10px rgba(0, 0, 0, 0.45);
-}
-
-/* === INPUT — NextAdmin: rounded-lg border-[1.5px] border-stroke bg-transparent === */
+/* === INPUT === */
 .input {
-  background: transparent;
-  border: 1.5px solid #e6ebf1;
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
   border-radius: 8px;
-  transition: border-color 0.2s;
+  transition: border-color 0.2s, box-shadow 0.2s;
   font-family: inherit;
   font-size: 14px;
   color: var(--color-ink);
 }
 
+.input::placeholder { color: var(--color-muted); }
+
 .input:focus {
-  border-color: #5750f1;
-  box-shadow: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px var(--color-accent-light);
   outline: none;
 }
 
-.dark .input {
-  background: #1f2a37;
-  border-color: #374151;
-}
-
-.dark .input:focus {
-  border-color: #5750f1;
-}
-
-/* === SIDEBAR — NextAdmin: bg-white border-r border-gray-200 dark:bg-gray-dark === */
+/* === SIDEBAR — dark rail in both themes, so orientation never changes === */
 .sidebar {
-  background: #ffffff;
-  border-right: 1px solid #e5e7eb;
+  background: var(--color-rail);
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  color: var(--color-rail-fg);
 }
 
-.dark .sidebar {
-  background: #122031;
-  border-right-color: #374151;
+.sidebar .nav-link {
+  color: var(--color-rail-fg);
 }
+.sidebar .nav-link:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #ffffff;
+}
+.sidebar .nav-link.is-active {
+  background: var(--color-rail-2);
+  color: #ffffff;
+}
+.sidebar .nav-link.is-active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  height: 18px;
+  width: 3px;
+  transform: translateY(-50%);
+  border-radius: 0 3px 3px 0;
+  background: var(--color-primary-400);
+}
+.sidebar .rail-muted { color: var(--color-rail-muted); }
+.sidebar .rail-btn { color: var(--color-rail-fg); }
+.sidebar .rail-btn:hover { background: rgba(255, 255, 255, 0.08); color: #ffffff; }
+.sidebar .rail-divider { background: rgba(255, 255, 255, 0.08); }
 
-/* === TOPBAR — NextAdmin: bg-white shadow-1 border-b border-stroke sticky === */
+/* === TOPBAR === */
 .topbar {
-  background: #ffffff;
-  border-bottom: 1px solid #e6ebf1;
-  box-shadow: 0px 1px 2px 0px rgba(84, 87, 118, 0.12);
+  background: var(--color-card);
+  border-bottom: 1px solid var(--color-border);
 }
 
-.dark .topbar {
-  background: #122031;
-  border-bottom-color: #27303e;
-  box-shadow: none;
-}
-
-/* === TABLE — NextAdmin style === */
+/* === TABLE === */
 .clean-table {
   border-collapse: separate;
   border-spacing: 0;
@@ -221,91 +238,69 @@ thead th { user-select: none; }
 }
 
 .clean-table thead th {
-  background: #f7f9fc;
-  border-bottom: 1px solid #e6ebf1;
+  background: var(--color-surface-2);
+  border-bottom: 1px solid var(--color-border);
   position: sticky;
   top: 0;
   z-index: 10;
-  font-weight: 500;
-  font-size: 14px;
-  color: #111928;
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-muted);
 }
 
-.dark .clean-table thead th {
-  background: #1f2a37;
-  border-bottom-color: #374151;
-  color: #ffffff;
-}
+.clean-table tbody tr { transition: background-color 0.15s; }
+.clean-table tbody tr:hover { background: var(--color-surface-2); }
+.clean-table td { border-bottom: 1px solid var(--color-border); }
 
-.clean-table tbody tr {
-  transition: background-color 0.15s;
-}
-
-.clean-table tbody tr:hover {
-  background: rgba(87, 80, 241, 0.04);
-}
-
-.clean-table td {
-  border-bottom: 1px solid #eeeeee;
-}
-
-.dark .clean-table td {
-  border-bottom-color: #374151;
-}
-
-/* === BUTTONS — NextAdmin: primary #5750f1, rounded-[5px] === */
-.btn-press {
-  transition: background-color 0.2s, color 0.2s, opacity 0.2s;
-}
-
-.btn-press:active { opacity: 0.8; }
+/* === BUTTONS === */
+.btn-press { transition: background-color 0.2s, color 0.2s, opacity 0.2s; }
+.btn-press:active { opacity: 0.85; }
 
 .btn-primary {
-  background: #5750f1;
+  background: var(--color-accent);
   color: #ffffff;
-  font-weight: 500;
-  border: none;
-  border-radius: 10px;
-  box-shadow: 0 1px 2px rgba(87, 80, 241, 0.25), 0 4px 12px -4px rgba(87, 80, 241, 0.35);
+  font-weight: 700;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  box-shadow: var(--shadow-1);
   transition: background-color 0.2s, box-shadow 0.2s;
 }
-
-.btn-primary:hover {
-  background: #4a44d4;
-  box-shadow: 0 1px 2px rgba(87, 80, 241, 0.25), 0 6px 16px -4px rgba(87, 80, 241, 0.45);
-}
+.btn-primary:hover { background: var(--color-accent-dark); }
 
 .btn-secondary {
-  background: transparent;
+  background: var(--color-card);
   color: var(--color-ink);
-  font-weight: 500;
-  border: 1.5px solid #e6ebf1;
-  border-radius: 10px;
+  font-weight: 600;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
   transition: border-color 0.2s, background-color 0.2s, color 0.2s;
 }
-
 .btn-secondary:hover {
-  border-color: #5750f1;
-  color: #5750f1;
-  background: rgba(87, 80, 241, 0.04);
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+  background: var(--color-accent-light);
 }
 
-.dark .btn-secondary {
-  border-color: #374151;
-  color: #ffffff;
-}
+/* === KPI TILE — a status stripe on the left tells the state before the number === */
+.kpi { border-left: 3px solid var(--color-border); }
+.kpi-ok { border-left-color: var(--color-success); }
+.kpi-warn { border-left-color: var(--color-warning); }
+.kpi-crit { border-left-color: var(--color-danger); }
+.kpi-accent { border-left-color: var(--color-accent); }
 
 /* === SCROLLBAR === */
-* { scrollbar-width: thin; scrollbar-color: rgba(0, 0, 0, 0.1) transparent; }
-.dark * { scrollbar-color: rgba(255, 255, 255, 0.08) transparent; }
+* { scrollbar-width: thin; scrollbar-color: rgba(15, 23, 42, 0.14) transparent; }
+.dark * { scrollbar-color: rgba(255, 255, 255, 0.1) transparent; }
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.1); border-radius: 100px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(0, 0, 0, 0.18); }
-.dark ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.08); }
-.dark ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.15); }
+::-webkit-scrollbar-thumb { background: rgba(15, 23, 42, 0.14); border-radius: 100px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(15, 23, 42, 0.24); }
+.dark ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); }
+.dark ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.18); }
 
-/* === FLEET MAP PINS (Leaflet divIcon) === */
+/* === FLEET MAP PINS (Leaflet divIcon) — always on a map tile, so fixed colours === */
 .fleet-pin {
   display: inline-flex;
   align-items: center;
@@ -313,20 +308,14 @@ thead th { user-select: none; }
   padding: 3px 8px 3px 6px;
   border-radius: 999px;
   background: #ffffff;
-  border: 1px solid #d1d5db;
+  border: 1px solid #cbd5e1;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
-  font: 600 11px/1 var(--font-sans);
-  color: #111928;
+  font: 600 11px/1 var(--font-mono);
+  color: #0f172a;
   white-space: nowrap;
 }
-.fleet-pin__dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 999px;
-  background: #9ca3af;
-  flex-shrink: 0;
-}
-.fleet-pin--moving { border-color: #22ad5c; }
+.fleet-pin__dot { width: 8px; height: 8px; border-radius: 999px; background: #94a3b8; flex-shrink: 0; }
+.fleet-pin--moving { border-color: #1a7f4b; }
 .poi-pin {
   display: flex;
   align-items: center;
@@ -341,23 +330,24 @@ thead th { user-select: none; }
   box-shadow: 0 1px 4px rgba(15, 23, 42, 0.25);
 }
 .fleet-pin--selected {
-  border-color: #5750f1;
-  box-shadow: 0 0 0 3px rgba(87, 80, 241, 0.35), 0 2px 6px rgba(0, 0, 0, 0.18);
+  border-color: #1d5fd1;
+  box-shadow: 0 0 0 3px rgba(29, 95, 209, 0.35), 0 2px 6px rgba(0, 0, 0, 0.18);
 }
-.fleet-pin--moving .fleet-pin__dot {
-  background: #22ad5c;
-  animation: fleet-pulse 1.6s ease-in-out infinite;
-}
+.fleet-pin--moving .fleet-pin__dot { background: #1a7f4b; animation: fleet-pulse 1.6s ease-in-out infinite; }
 @keyframes fleet-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(34, 173, 92, 0.5); }
-  50% { box-shadow: 0 0 0 5px rgba(34, 173, 92, 0); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(26, 127, 75, 0.5); }
+  50% { box-shadow: 0 0 0 5px rgba(26, 127, 75, 0); }
 }
 
 /* === SKELETON === */
 .skeleton-shimmer {
-  background: linear-gradient(90deg, rgba(0,0,0,0.04) 25%, rgba(0,0,0,0.08) 50%, rgba(0,0,0,0.04) 75%);
+  background: linear-gradient(90deg, rgba(15,23,42,0.05) 25%, rgba(15,23,42,0.1) 50%, rgba(15,23,42,0.05) 75%);
   background-size: 200% 100%;
   animation: shimmer 2s linear infinite;
+}
+.dark .skeleton-shimmer {
+  background: linear-gradient(90deg, rgba(255,255,255,0.05) 25%, rgba(255,255,255,0.1) 50%, rgba(255,255,255,0.05) 75%);
+  background-size: 200% 100%;
 }
 
 /* === SAFE AREA === */
@@ -367,11 +357,7 @@ thead th { user-select: none; }
 
 /* === TABLET === */
 @media (min-width: 768px) and (max-width: 1023px) {
-  button, a, .btn-press, [role="button"] { min-height: 48px; }
+  button, a, .btn-press, [role="button"] { min-height: 44px; }
   td, th { padding-top: 0.75rem !important; padding-bottom: 0.75rem !important; }
-  .sidebar { width: 320px !important; }
-}
-
-@media (hover: none) {
-  .card:hover { box-shadow: 0px 1px 2px 0px rgba(84, 87, 118, 0.06), 0px 1px 3px 0px rgba(84, 87, 118, 0.07); }
+  .sidebar { width: 300px !important; }
 }

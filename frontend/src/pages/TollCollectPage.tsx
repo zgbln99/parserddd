@@ -1148,7 +1148,7 @@ export function TollCollectPage() {
                 checked={showMonthDiff && months.length >= 2}
                 disabled={months.length < 2}
                 onChange={(e) => setShowMonthDiff(e.target.checked)}
-                className="h-3.5 w-3.5 accent-[#5750f1]"
+                className="h-3.5 w-3.5 accent-accent"
               />
               {locale === 'de' ? 'Differenz zum Vormonat' : 'Różnica vs. poprzedni miesiąc'}
             </label>
@@ -1157,7 +1157,7 @@ export function TollCollectPage() {
                 type="checkbox"
                 checked={addExtras}
                 onChange={(e) => setAddExtras(e.target.checked)}
-                className="h-3.5 w-3.5 accent-[#5750f1]"
+                className="h-3.5 w-3.5 accent-accent"
               />
               {locale === 'de' ? 'Zusatzgebühren' : 'Dodatkowe opłaty'}
             </label>
@@ -1191,7 +1191,7 @@ export function TollCollectPage() {
                 type="checkbox"
                 checked={splitDayNight}
                 onChange={(e) => setSplitDayNight(e.target.checked)}
-                className="h-3.5 w-3.5 accent-[#5750f1]"
+                className="h-3.5 w-3.5 accent-accent"
               />
               {locale === 'de' ? 'Tag/Nacht trennen' : 'Rozdziel dzień/noc'}
             </label>
@@ -1318,7 +1318,7 @@ export function TollCollectPage() {
                                     title={locale === 'de' ? 'Tag/Nacht trennen' : 'Rozdziel dzień/noc'}
                                     className={`text-[10px] font-semibold rounded-md px-2 py-0.5 transition-colors ${
                                       splitPlates.has(plate)
-                                        ? 'bg-[#5750f1] text-white'
+                                        ? 'bg-accent text-white'
                                         : 'bg-gray-200 text-muted hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600'
                                     }`}
                                   >

@@ -37,6 +37,18 @@ export const de: Record<TranslationKey, string> = {
   navMore: 'Mehr',
 
   // Dashboard
+  dashTodo: 'Heute zu erledigen',
+  dashTodoEmpty: 'Alles erledigt. Nichts wartet auf eine Entscheidung.',
+  dashTodoDownload: 'Fahrer seit über 28 Tagen ohne Kartendownload',
+  dashTodoExpiring: 'Fahrerkarten laufen innerhalb von 90 Tagen ab',
+  dashTodoPayroll: 'Fahrer in diesem Monat noch abzurechnen',
+  dashTodoSync: 'Fehler bei der letzten Synchronisation',
+  dashTodoStopped: 'Fahrzeuge stehen über 3 Std. in der Arbeitszeit',
+  dashOpen: 'Öffnen',
+  dashKpiOverdue: 'Ohne Kartendownload',
+  dashKpiExpiring: 'Karten laufen ab',
+  dashKpiFleet: 'Fahrzeuge in Fahrt',
+  dashKpiPayroll: 'Offen in der Abrechnung',
   dashTitle: 'Übersicht',
   greetMorning: 'Guten Morgen',
   greetAfternoon: 'Guten Tag',
@@ -78,7 +90,7 @@ export const de: Record<TranslationKey, string> = {
   driversLastDownload: 'Zuletzt heruntergeladen',
   driversDaysSince: 'Seit letztem Download',
   driversFileCount: 'Dateien',
-  driversNoData: 'Keine Daten. Stellen Sie sicher, dass die Samsara-Dropbox-Synchronisierung funktioniert.',
+  driversNoData: 'Keine Daten. Stellen Sie sicher, dass die Samsara → Storage-Synchronisierung funktioniert.',
   driversAddDriver: 'Fahrer hinzufügen',
   driversAddNamePlaceholder: 'Vor- und Nachname des Fahrers...',
 
@@ -211,10 +223,10 @@ export const de: Record<TranslationKey, string> = {
   qrHint: 'Mit dem Handy scannen um die Analyse dieses Fahrers zu öffnen',
   qrDownload: 'QR herunterladen',
   readerSelectFile: 'oder klicken, um eine Datei auszuwählen',
-  readerSaveToDropbox: 'In Dropbox speichern',
+  readerSaveToDropbox: 'In der Cloud speichern',
   readerSelectDriver: 'Fahrer auswählen, um die Datei zu speichern:',
   readerSaveConfirm: 'Speichern',
-  readerSaved: 'In Dropbox gespeichert',
+  readerSaved: 'In der Cloud gespeichert',
 
   // Sync monitor
   syncTitle: 'Synchronisierungsmonitor',
@@ -249,8 +261,8 @@ export const de: Record<TranslationKey, string> = {
   driversOverdueCount: 'Fahrer mit überfälligem Download',
 
   // Connections
-  dropboxConnected: 'Dropbox verbunden',
-  dropboxDisconnected: 'Dropbox getrennt',
+  dropboxConnected: 'Storage verbunden',
+  dropboxDisconnected: 'Storage getrennt',
   samsaraConnected: 'Samsara verbunden',
   samsaraDisconnected: 'Samsara getrennt',
 
@@ -375,13 +387,13 @@ export const de: Record<TranslationKey, string> = {
   tollMaut: 'Maut',
   tollTripsCount: 'Fahrten',
   tollVehiclesCount: 'Fahrzeuge',
-  tollDbxFiles: 'Dropbox',
-  tollDbxTitle: 'Dateien in Dropbox',
+  tollDbxFiles: 'Cloud-Dateien',
+  tollDbxTitle: 'Dateien in der Cloud',
   tollDbxRefresh: 'Aktualisieren',
   tollDbxEmpty: 'Keine gespeicherten Dateien',
-  tollDbxSave: 'In Dropbox speichern',
+  tollDbxSave: 'In der Cloud speichern',
   tollDbxDelete: 'Löschen',
-  tollDbxDeleteConfirm: 'Diese Datei aus Dropbox löschen?',
+  tollDbxDeleteConfirm: 'Diese Datei aus der Cloud löschen?',
   tollSelectAll: 'Alle auswählen',
   tollSelected: 'ausgewählt',
   tollExportExcel: 'Excel exportieren',
@@ -477,6 +489,8 @@ export const de: Record<TranslationKey, string> = {
   dddPreviewEventType: 'Ereignistyp',
 
   // Roles & Permissions
+  roleAdmin: 'Administrator',
+  roleUser: 'Benutzer',
   roleDispatcher: 'Disponent',
   roleDriver: 'Fahrer',
 

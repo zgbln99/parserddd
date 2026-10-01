@@ -85,7 +85,7 @@ export function SafetyEventsPage() {
   return (
     <div className="animate-slide-up space-y-6">
       <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#fb7185] to-[#ef4444] text-white">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-danger to-danger text-white">
           <ShieldAlert size={20} />
         </div>
         <div>

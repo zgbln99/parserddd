@@ -347,7 +347,7 @@ export function VerstossePage() {
             <button
               onClick={handleGenerate}
               disabled={loading || selected.size === 0}
-              className="flex items-center gap-2 rounded-xl bg-[#ff3b30] px-6 py-2.5 text-sm font-bold text-white transition hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center gap-2 rounded-xl bg-danger px-6 py-2.5 text-sm font-bold text-white transition hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? <Spinner size="sm" /> : <Play size={16} />}
               {t('verstosseGenerate')}
@@ -383,11 +383,11 @@ export function VerstossePage() {
                 {totalViolations}
               </p>
             </div>
-            <div className="rounded-xl border border-orange-200 bg-[#ff9f0a]/5 px-5 py-5 dark:border-orange-500/20">
+            <div className="rounded-xl border border-orange-200 bg-warning/5 px-5 py-5 dark:border-orange-500/20">
               <span className="text-[11px] font-medium uppercase tracking-wider text-orange-500">{t('verstosseFahrerFines')}</span>
               <p className="mt-3 text-3xl font-bold tabular-nums text-orange-600 dark:text-orange-400">{fmtAmount(totalFahrer)}</p>
             </div>
-            <div className="rounded-xl border border-red-200 bg-[#ff3b30]/5 px-5 py-5 dark:border-red-500/20">
+            <div className="rounded-xl border border-red-200 bg-danger/5 px-5 py-5 dark:border-red-500/20">
               <span className="text-[11px] font-medium uppercase tracking-wider text-red-500">{t('verstosseUnternehmenFines')}</span>
               <p className="mt-3 text-3xl font-bold tabular-nums text-red-700 dark:text-red-300">{fmtAmount(totalUnternehmen)}</p>
             </div>
@@ -406,7 +406,7 @@ export function VerstossePage() {
               </p>
               <button
                 onClick={handleGenerateAllPdfs}
-                className="flex items-center gap-2 rounded-xl bg-[#ff3b30] px-5 py-2.5 text-sm font-bold text-white transition hover:opacity-90"
+                className="flex items-center gap-2 rounded-xl bg-danger px-5 py-2.5 text-sm font-bold text-white transition hover:opacity-90"
               >
                 <ShieldAlert size={16} />
                 {t('verstosseExportAll')}

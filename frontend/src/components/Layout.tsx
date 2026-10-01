@@ -141,21 +141,21 @@ export function Layout({ children }: { children: ReactNode }) {
               </div>
               {(!collapsed || sidebarOpen) && (
                 <div className="min-w-0 flex-1">
-                  <span className="block text-sm font-bold leading-tight text-ink">Tachoprüfung</span>
-                  <span className="text-[11px] font-medium text-muted">{companyName}</span>
+                  <span className="block text-sm font-extrabold leading-tight text-white">Tachoprüfung</span>
+                  <span className="rail-muted text-[11px] font-medium">{companyName}</span>
                 </div>
               )}
               <button
                 onClick={() => setSidebarOpen(false)}
-                className="rounded-lg p-1.5 text-muted hover:bg-surface hover:text-ink lg:hidden"
+                className="rail-btn rounded-lg p-1.5 lg:hidden"
               >
                 <ChevronLeft size={18} />
               </button>
             </div>
             {(!collapsed || sidebarOpen) && (role === 'admin' || role === 'dispatcher') && (
-              <div className="mt-3 flex items-center gap-2 rounded-lg px-3 py-1.5 bg-[rgba(87,80,241,0.07)] dark:bg-[rgba(87,80,241,0.12)]">
-                <Shield size={12} className="text-primary-500" />
-                <span className="text-[11px] font-medium text-primary-500">
+              <div className="mt-3 flex items-center gap-2 rounded-lg bg-white/10 px-3 py-1.5">
+                <Shield size={12} className="text-primary-300" />
+                <span className="text-[11px] font-semibold text-primary-200">
                   {role === 'admin' ? 'Administrator' : t('roleDispatcher')}
                 </span>
               </div>
@@ -163,19 +163,19 @@ export function Layout({ children }: { children: ReactNode }) {
           </div>
 
           {/* Divider */}
-          <div className="mx-4 h-px bg-border" />
+          <div className="rail-divider mx-4 h-px" />
 
           {/* Navigation — grouped sections like NextAdmin */}
           <nav className="flex-1 overflow-y-auto px-3 py-4">
             {navSections.map((section, si) => (
               <div key={section.label} className={si > 0 ? 'mt-4' : ''}>
                 {(!collapsed || sidebarOpen) && (
-                  <p className="mb-2 px-3.5 text-[11px] font-semibold uppercase tracking-wider text-[#9ca3af] dark:text-[#6b7280]">
+                  <p className="rail-muted mb-2 px-3.5 text-[10px] font-bold uppercase tracking-[0.08em]">
                     {section.label}
                   </p>
                 )}
                 {collapsed && !sidebarOpen && si > 0 && (
-                  <div className="mx-3 mb-2 h-px bg-[#e5e7eb] dark:bg-[#374151]" />
+                  <div className="rail-divider mx-3 mb-2 h-px" />
                 )}
                 <div className="space-y-0.5">
                   {section.items.map(({ to, icon: Icon, labelKey }) => (
@@ -189,19 +189,17 @@ export function Layout({ children }: { children: ReactNode }) {
                       title={collapsed && !sidebarOpen ? t(labelKey) : undefined}
                       className={({ isActive }) =>
                         clsx(
-                          'group relative flex items-center rounded-lg font-medium text-[#4b5563] transition-all duration-200 dark:text-[#9ca3af]',
+                          'nav-link group relative flex items-center rounded-lg text-[13px] font-semibold transition-colors duration-150',
                           collapsed && !sidebarOpen
                             ? 'justify-center px-2 py-2.5'
-                            : 'gap-3 px-3.5 py-2',
-                          isActive
-                            ? 'bg-[rgba(87,80,241,0.07)] font-semibold !text-[#5750f1] dark:bg-[#FFFFFF1A] dark:!text-white before:absolute before:left-0 before:top-1/2 before:h-5 before:w-[3px] before:-translate-y-1/2 before:rounded-r-full before:bg-[#5750f1]'
-                            : 'hover:bg-[#f3f4f6] hover:text-[#111928] dark:hover:bg-[#FFFFFF1A] dark:hover:text-white',
+                            : 'gap-3 px-3 py-2',
+                          isActive && 'is-active',
                         )
                       }
                     >
-                      <Icon size={18} />
+                      <Icon size={17} className="shrink-0 opacity-80 group-hover:opacity-100" />
                       {(!collapsed || sidebarOpen) && (
-                        <span className="text-[14px]">{t(labelKey)}</span>
+                        <span className="truncate">{t(labelKey)}</span>
                       )}
                     </NavLink>
                   ))}
@@ -216,15 +214,15 @@ export function Layout({ children }: { children: ReactNode }) {
               const recent = JSON.parse(localStorage.getItem('recent-analyses') || '[]') as { name: string; url: string }[];
               if (recent.length === 0) return null;
               return (
-                <div className="border-t border-border px-3 py-3">
-                  <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-widest text-muted">{t('recentAnalyses')}</p>
+                <div className="border-t border-white/10 px-3 py-3">
+                  <p className="rail-muted mb-2 px-3 text-[10px] font-bold uppercase tracking-[0.08em]">{t('recentAnalyses')}</p>
                   <div className="space-y-0.5">
                     {recent.slice(0, 5).map((r, i) => (
                       <NavLink
                         key={i}
                         to={r.url}
                         onClick={() => setSidebarOpen(false)}
-                        className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-[12px] text-[#6b7280] transition-colors duration-200 hover:bg-gray-100 hover:text-ink dark:text-[#9ca3af] dark:hover:bg-[rgba(255,255,255,0.1)]"
+                        className="rail-btn flex items-center gap-2 rounded-lg px-3 py-1.5 text-[12px] transition-colors duration-200"
                       >
                         <Clock size={12} />
                         <span className="truncate">{r.name}</span>
@@ -237,27 +235,27 @@ export function Layout({ children }: { children: ReactNode }) {
           })()}
 
           {/* Bottom controls */}
-          <div className="border-t border-border p-3">
+          <div className="border-t border-white/10 p-3">
             {collapsed && !sidebarOpen ? (
               /* Collapsed: vertical icon buttons */
               <div className="flex flex-col items-center gap-1">
                 <button
                   onClick={toggle}
-                  className="rounded-lg p-2 text-muted transition hover:bg-surface hover:text-ink"
+                  className="rail-btn rounded-lg p-2 transition"
                   title={theme === 'dark' ? t('lightMode') : t('darkMode')}
                 >
                   {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
                 </button>
                 <button
                   onClick={() => setAccentOpen(true)}
-                  className="rounded-lg p-2 text-muted transition hover:bg-surface hover:text-ink"
+                  className="rail-btn rounded-lg p-2 transition"
                   title="Accent color"
                 >
                   <Palette size={16} />
                 </button>
                 <button
                   onClick={handleLogout}
-                  className="rounded-lg p-2 text-muted transition hover:bg-danger/5 hover:text-danger"
+                  className="rail-btn rounded-lg p-2 transition hover:!text-danger"
                   title={t('logout')}
                 >
                   <LogOut size={14} />
@@ -268,7 +266,7 @@ export function Layout({ children }: { children: ReactNode }) {
               <div className="flex items-center gap-0.5">
                 <button
                   onClick={() => setLocale(locale === 'pl' ? 'de' : 'pl' as Locale)}
-                  className="flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-medium text-muted transition hover:bg-surface hover:text-ink"
+                  className="rail-btn flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-semibold transition"
                   title={locale === 'pl' ? 'Deutsch' : 'Polski'}
                 >
                   <Globe size={14} />
@@ -276,14 +274,14 @@ export function Layout({ children }: { children: ReactNode }) {
                 </button>
                 <button
                   onClick={toggle}
-                  className="rounded-lg p-2 text-muted transition hover:bg-surface hover:text-ink"
+                  className="rail-btn rounded-lg p-2 transition"
                   title={theme === 'dark' ? t('lightMode') : t('darkMode')}
                 >
                   {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
                 </button>
                 <button
                   onClick={() => setAccentOpen(true)}
-                  className="rounded-lg p-2 text-muted transition hover:bg-surface hover:text-ink"
+                  className="rail-btn rounded-lg p-2 transition"
                   title="Accent color"
                 >
                   <Palette size={16} />
@@ -291,7 +289,7 @@ export function Layout({ children }: { children: ReactNode }) {
                 <div className="flex-1" />
                 <button
                   onClick={handleLogout}
-                  className="flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-medium text-muted transition hover:bg-danger/5 hover:text-danger dark:hover:text-danger"
+                  className="rail-btn flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-semibold transition hover:!text-danger"
                 >
                   <LogOut size={14} />
                   <span className="hidden sm:inline">{t('logout')}</span>
@@ -302,7 +300,7 @@ export function Layout({ children }: { children: ReactNode }) {
             {/* Collapse toggle (desktop only) */}
             <button
               onClick={toggleCollapse}
-              className="mt-2 hidden w-full items-center justify-center gap-2 rounded-lg py-1.5 text-xs font-medium text-muted transition hover:bg-surface hover:text-ink lg:flex"
+              className="rail-btn mt-2 hidden w-full items-center justify-center gap-2 rounded-lg py-1.5 text-xs font-semibold transition lg:flex"
             >
               {collapsed ? <PanelLeftOpen size={14} /> : <PanelLeftClose size={14} />}
               {!collapsed && <span>Zwiń</span>}
@@ -342,7 +340,7 @@ export function Layout({ children }: { children: ReactNode }) {
                 <button
                   key={label}
                   onClick={fn}
-                  className="rounded-lg border border-border px-2.5 py-1 text-xs font-medium text-muted transition hover:border-primary-300 hover:text-ink"
+                  className="hidden rounded-lg border border-border px-2.5 py-1 text-xs font-semibold text-muted transition hover:border-accent hover:text-accent lg:block"
                 >
                   {label}
                 </button>
@@ -351,14 +349,14 @@ export function Layout({ children }: { children: ReactNode }) {
                 type="date"
                 value={dateFrom}
                 onChange={(e) => setDateFrom(e.target.value)}
-                className="input rounded-lg px-2 py-1 text-xs dark:[color-scheme:dark]"
+                className="input hidden rounded-lg px-2 py-1 text-xs dark:[color-scheme:dark] 2xl:block"
               />
-              <span className="text-xs text-muted">—</span>
+              <span className="hidden text-xs text-muted 2xl:inline">—</span>
               <input
                 type="date"
                 value={dateTo}
                 onChange={(e) => setDateTo(e.target.value)}
-                className="input rounded-lg px-2 py-1 text-xs dark:[color-scheme:dark]"
+                className="input hidden rounded-lg px-2 py-1 text-xs dark:[color-scheme:dark] 2xl:block"
               />
               {(dateFrom || dateTo) && (
                 <button
@@ -493,7 +491,7 @@ export function Layout({ children }: { children: ReactNode }) {
                   clsx(
                     'relative flex flex-1 flex-col items-center gap-1 py-3 text-[11px] font-medium transition-colors min-h-[56px] justify-center',
                     isActive
-                      ? 'font-semibold text-primary-600 before:absolute before:top-0 before:left-1/2 before:h-[3px] before:w-8 before:-translate-x-1/2 before:rounded-full before:bg-primary-600'
+                      ? 'font-bold text-accent before:absolute before:top-0 before:left-1/2 before:h-[3px] before:w-8 before:-translate-x-1/2 before:rounded-full before:bg-accent'
                       : 'text-muted',
                   )
                 }

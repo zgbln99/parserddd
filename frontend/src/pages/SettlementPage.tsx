@@ -241,7 +241,7 @@ export function SettlementPage() {
             <>
               <button
                 onClick={handleExportPdf}
-                className="flex min-h-[44px] items-center gap-2 rounded-xl bg-[#5750f1] px-5 py-2 text-sm font-semibold text-white transition hover:opacity-90"
+                className="flex min-h-[44px] items-center gap-2 rounded-xl bg-accent px-5 py-2 text-sm font-semibold text-white transition hover:opacity-90"
               >
                 <FileText size={14} />
                 {t('analysisExportPdf')}
@@ -249,7 +249,7 @@ export function SettlementPage() {
               <button
                 onClick={handleExportDatev}
                 disabled={exporting}
-                className="flex min-h-[44px] items-center gap-2 rounded-xl bg-[#30d158] px-5 py-2 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
+                className="flex min-h-[44px] items-center gap-2 rounded-xl bg-success px-5 py-2 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
               >
                 <Download size={14} />
                 {exporting ? t('loading') : t('settlementExportDatev')}
@@ -377,7 +377,7 @@ export function SettlementPage() {
                 </div>
               ))}
               {/* Mobile totals */}
-              <div className="p-4 bg-[#f7f9fc] dark:bg-[#1f2a37] space-y-1.5">
+              <div className="p-4 bg-surface-2 dark:bg-surface-2 space-y-1.5">
                 <p className="text-sm font-bold mb-2">{t('settlementTotal')}</p>
                 <CardField label={t('analysisShifts')} value={<span className="font-bold">{totals.shifts}</span>} />
                 <CardField label={t('analysisWorkTime')} value={<span className="font-mono font-bold">{fmtH(totals.work)}</span>} />
@@ -433,7 +433,7 @@ export function SettlementPage() {
                   ))}
                 </tbody>
                 <tfoot>
-                  <tr className="border-t-2 border-border bg-[#f7f9fc] font-semibold dark:bg-[#1f2a37]">
+                  <tr className="border-t-2 border-border bg-surface-2 font-semibold dark:bg-surface-2">
                     <td className="px-4 py-3" colSpan={3}>{t('settlementTotal')}</td>
                     <td className="whitespace-nowrap px-4 py-3 text-right">{totals.shifts}</td>
                     <td className="whitespace-nowrap px-4 py-3 text-right font-mono">{fmtH(totals.work)}</td>

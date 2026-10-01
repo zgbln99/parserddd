@@ -1,29 +1,29 @@
 // Centralized color tokens for the application.
-// NextAdmin design-system palette + Samsara activity-timeline colors.
+// FleetView palette (see styles/globals.css) + Samsara activity-timeline colors.
 
 export const COLORS = {
-  primary: '#5750f1',
-  primaryBg: 'rgba(87,80,241,0.07)',
-  dark: '#111928',
-  dark2: '#1f2a37',
-  dark3: '#374151',
-  dark4: '#4b5563',
-  dark5: '#6b7280',
-  dark6: '#9ca3af',
-  gray1: '#f9fafb',
-  gray2: '#f3f4f6',
-  stroke: '#e6ebf1',
-  strokeDark: '#27303e',
-  cardDark: '#122031',
-  pageDark: '#020d1a',
-  green: '#22ad5c',
-  red: '#f23030',
-  blue: '#3c50e0',
-  yellow: '#f59e0b',
-  // Status badge colors (from NextAdmin)
-  statusGreen: '#219653',
-  statusRed: '#D34053',
-  statusOrange: '#FFA70B',
+  primary: '#1d5fd1',
+  primaryBg: '#eef4fd',
+  dark: '#0f172a',
+  dark2: '#182338',
+  dark3: '#243149',
+  dark4: '#334155',
+  dark5: '#64748b',
+  dark6: '#8b97ad',
+  gray1: '#f6f8fb',
+  gray2: '#eef1f5',
+  stroke: '#dde3ea',
+  strokeDark: '#243149',
+  cardDark: '#121b2d',
+  pageDark: '#0b1220',
+  green: '#1a7f4b',
+  red: '#b91c1c',
+  blue: '#1d5fd1',
+  yellow: '#b45309',
+  // Status badge colors
+  statusGreen: '#1a7f4b',
+  statusRed: '#b91c1c',
+  statusOrange: '#b45309',
 } as const;
 
 export const ACTIVITY_COLORS = {
