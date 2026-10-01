@@ -1,4 +1,5 @@
-import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+import { staggerIn } from '../lib/motion';
 import { useNavigate } from 'react-router-dom';
 import { Search, RefreshCw, ChevronUp, ChevronDown, FileText, AlertCircle, AlertTriangle, UserPlus, QrCode, FileDown, Users } from 'lucide-react';
 import { useI18n } from '../i18n';
@@ -29,6 +30,14 @@ export function DriversPage() {
 
   // Driver files modal
   const [selectedDriver, setSelectedDriver] = useState<Driver | null>(null);
+  // The driver modal renders in a portal (outside the page observer), so its
+  // file rows are animated here when the modal opens.
+  const fileRows = useRef<Set<HTMLElement>>(new Set());
+  useEffect(() => {
+    if (!selectedDriver) { fileRows.current.clear(); return; }
+    const rows = Array.from(fileRows.current).filter((n) => n.isConnected);
+    staggerIn(rows, { y: 6, stagger: 0.025 });
+  }, [selectedDriver]);
 
   // QR code
   const [qrDriver, setQrDriver] = useState<Driver | null>(null);
@@ -256,6 +265,7 @@ export function DriversPage() {
             {pageData.map((d) => (
               <div
                 key={d.name}
+                data-animate
                 onClick={() => openDriver(d)}
                 className={`cursor-pointer p-4 transition active:bg-primary-50 ${d.days_since !== null && d.days_since > 28 ? 'bg-danger/[0.03]' : ''}`}
               >
@@ -298,6 +308,7 @@ export function DriversPage() {
                 {pageData.map((d) => (
                   <tr
                     key={d.name}
+                    data-animate
                     onClick={() => openDriver(d)}
                     className={`cursor-pointer transition hover:bg-primary-50 ${d.days_since !== null && d.days_since > 28 ? 'bg-danger/[0.03]' : ''}`}
                   >
@@ -406,6 +417,7 @@ export function DriversPage() {
               selectedDriver.files.map((f) => (
                 <div
                   key={f.path}
+                  ref={(node) => { if (node) fileRows.current.add(node); }}
                   className="cursor-pointer px-4 py-3 text-sm transition hover:bg-primary-50"
                   onClick={() => analyzeFile(f)}
                 >

@@ -11,6 +11,8 @@ import {
 } from '../lib/api';
 import type { TollVehicleGroup } from '../lib/xlsx-export';
 import { exportDachserMaut, exportDachserLkw } from '../lib/dachser-export';
+import { pulse } from '../lib/motion';
+import { TickNumber } from '../components/TickNumber';
 
 interface TollRow {
   plate: string;
@@ -177,6 +179,8 @@ export function TollCollectPage() {
   // Multi-month state
   const [months, setMonths] = useState<LoadedMonth[]>([]);
   const [error, setError] = useState('');
+  const [dragOver, setDragOver] = useState(false);
+  const dropZoneRef = useRef<HTMLDivElement>(null);
 
   // Tours per vehicle
   const [tours, setTours] = useState<Record<string, string>>({});
@@ -369,6 +373,8 @@ export function TollCollectPage() {
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
+    setDragOver(false);
+    pulse(dropZoneRef.current);
     setError('');
     const files = e.dataTransfer.files;
     for (let i = 0; i < files.length; i++) {
@@ -867,12 +873,16 @@ export function TollCollectPage() {
       {/* Upload area — always visible */}
       <Card>
         <div
-          className={`flex flex-col items-center justify-center ${months.length === 0 ? 'py-16' : 'py-6'} px-4 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:border-blue-400 dark:hover:border-blue-500 transition-colors`}
+          ref={dropZoneRef}
+          className={`flex flex-col items-center justify-center ${months.length === 0 ? 'py-16' : 'py-6'} px-4 border-2 border-dashed rounded-lg cursor-pointer transition-[border-color,background-color,transform] duration-200 ${
+            dragOver ? 'border-accent bg-accent-light scale-[1.01]' : 'border-border hover:border-accent'
+          }`}
           onClick={() => fileInputRef.current?.click()}
-          onDragOver={e => e.preventDefault()}
+          onDragOver={e => { e.preventDefault(); if (!dragOver) setDragOver(true); }}
+          onDragLeave={() => setDragOver(false)}
           onDrop={handleDrop}
         >
-          <Upload className={`${months.length === 0 ? 'w-12 h-12 mb-4' : 'w-8 h-8 mb-2'} text-muted`} />
+          <Upload className={`${months.length === 0 ? 'w-12 h-12 mb-4' : 'w-8 h-8 mb-2'} transition-transform duration-200 ${dragOver ? 'text-accent -translate-y-1' : 'text-muted'}`} />
           <p className="text-sm font-medium text-muted">
             {t('tollMultiUpload')}
           </p>
@@ -960,7 +970,8 @@ export function TollCollectPage() {
               {months.map(m => (
                 <div
                   key={m.period}
-                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800"
+                  data-animate
+                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-accent-light border border-accent/30"
                 >
                   <Calendar className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
                   <span className="text-sm font-mono font-medium text-blue-700 dark:text-blue-300">{m.period}</span>
@@ -1102,25 +1113,25 @@ export function TollCollectPage() {
             <Card>
               <div className="p-3 text-center">
                 <div className="text-xs text-muted">{t('tollVehicles')}</div>
-                <div className="text-xl font-bold text-gray-900 dark:text-white mt-1">{byVehicle.length}</div>
+                <div className="text-xl font-bold text-ink mt-1 tabular-nums"><TickNumber value={byVehicle.length} /></div>
               </div>
             </Card>
             <Card>
               <div className="p-3 text-center">
                 <div className="text-xs text-muted">{t('tollTrips')}</div>
-                <div className="text-xl font-bold text-gray-900 dark:text-white mt-1">{filtered.length}</div>
+                <div className="text-xl font-bold text-ink mt-1 tabular-nums"><TickNumber value={filtered.length} /></div>
               </div>
             </Card>
             <Card>
               <div className="p-3 text-center">
                 <div className="text-xs text-muted">{t('tollTotalKm')}</div>
-                <div className="text-xl font-bold text-blue-600 dark:text-blue-400 mt-1">{fmtKm(grandTotalKm)}</div>
+                <div className="text-xl font-bold text-accent mt-1 tabular-nums"><TickNumber value={grandTotalKm} format={fmtKm} /></div>
               </div>
             </Card>
             <Card>
               <div className="p-3 text-center">
                 <div className="text-xs text-muted">{t('tollTotalMaut')}</div>
-                <div className="text-xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">{fmtEur(grandTotalAmount)}</div>
+                <div className="text-xl font-bold text-success mt-1 tabular-nums"><TickNumber value={grandTotalAmount} format={fmtEur} /></div>
               </div>
             </Card>
           </div>
@@ -1289,7 +1300,8 @@ export function TollCollectPage() {
                         {/* Vehicle summary row */}
                         <tr
                           key={`v-${plate}`}
-                          className={`border-b border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/30 font-medium ${selectedPlates.has(plate) ? 'bg-emerald-50/50 dark:bg-emerald-900/10' : ''}`}
+                          data-animate
+                          className={`border-b border-border cursor-pointer hover:bg-surface-2 font-medium transition-colors ${selectedPlates.has(plate) ? 'bg-success-soft/50' : ''}`}
                           onClick={() => togglePlate(plate)}
                         >
                           <td className="px-3 py-3 text-muted">
@@ -1623,7 +1635,8 @@ export function TollCollectPage() {
                           return (
                           <tr
                             key={`${plate}-${idx}`}
-                            className={`border-b border-gray-50 dark:border-gray-800 text-xs ${dayExcluded ? 'bg-rose-50/60 dark:bg-rose-900/15 text-rose-400 line-through' : 'bg-gray-50/50 dark:bg-gray-800/20'}`}
+                            data-animate
+                            className={`border-b border-border/60 text-xs ${dayExcluded ? 'bg-rose-50/60 dark:bg-rose-900/15 text-rose-400 line-through' : 'bg-gray-50/50 dark:bg-gray-800/20'}`}
                           >
                             <td className="px-3 py-2" />
                             <td className="px-1 py-2" />

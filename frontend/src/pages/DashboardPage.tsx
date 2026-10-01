@@ -16,7 +16,6 @@ import { StatCard, Card } from '../components/Card';
 import { Badge } from '../components/Badge';
 import { Spinner } from '../components/Spinner';
 import { DashboardSkeleton } from '../components/Skeleton';
-import { useStaggerIn } from '../hooks/useStaggerIn';
 
 const REFRESH_INTERVAL = 60_000; // 60 seconds
 
@@ -113,8 +112,6 @@ export function DashboardPage() {
   const [fleetShowAll, setFleetShowAll] = useState(false);
 
   const refreshRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  // Tiles and panels lift into place once the first payload is rendered.
-  const pageRef = useStaggerIn([data === null, fleet.length > 0, liveDrivers.length > 0], { y: 10, stagger: 0.05 });
 
   const loadDashboard = () => {
     fetchDashboard()
@@ -252,7 +249,7 @@ export function DashboardPage() {
   const toneDot: Record<Todo['tone'], string> = { crit: 'bg-danger', warn: 'bg-warning', ok: 'bg-success' };
 
   return (
-    <div ref={pageRef}>
+    <div>
       {(() => {
         const { greeting } = getTimeOfDay(t);
         const roleName = t(`role${role.charAt(0).toUpperCase()}${role.slice(1)}` as any);

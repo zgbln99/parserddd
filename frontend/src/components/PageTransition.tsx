@@ -2,9 +2,13 @@ import { useRef, useEffect, useState, type ReactNode } from 'react';
 import { useLocation } from 'react-router-dom';
 import { pageSwap, staggerIn } from '../lib/motion';
 
+const ENTER_SELECTOR = '.card, [data-animate]';
+
 /**
- * Wraps page content. On every route change the old page fades out, the new
- * page fades in and its cards lift into place one after another (GSAP).
+ * Wraps page content. On every route change the old page fades out and the
+ * new one fades in. Independently of routes, a MutationObserver watches the
+ * page: any card or `[data-animate]` element that appears (after a fetch,
+ * a filter, an expanded row) lifts into place once, in a short stagger.
  */
 export function PageTransition({ children }: { children: ReactNode }) {
   const location = useLocation();
@@ -24,8 +28,6 @@ export function PageTransition({ children }: { children: ReactNode }) {
       prevPath.current = target;
       setDisplayChildren(pendingChildren.current);
       swapping.current = false;
-      // Cards get a frame to mount before the stagger starts.
-      requestAnimationFrame(() => staggerIn(el.current?.querySelectorAll('[data-animate], .card') ?? null, { y: 8, stagger: 0.035 }));
     });
   }, [location.pathname]);
 
@@ -35,6 +37,38 @@ export function PageTransition({ children }: { children: ReactNode }) {
       setDisplayChildren(children);
     }
   }, [children, location.pathname]);
+
+  // Appearance animation for anything that mounts inside the page.
+  useEffect(() => {
+    const root = el.current;
+    if (!root) return;
+    const seen = new WeakSet<Element>();
+    let queue: Element[] = [];
+    let raf = 0;
+    const flush = () => {
+      raf = 0;
+      const batch = queue.filter((n) => n.isConnected);
+      queue = [];
+      if (batch.length) staggerIn(batch, { y: 8, stagger: 0.035 });
+    };
+    const collect = (node: Node) => {
+      if (!(node instanceof Element)) return;
+      const found: Element[] = node.matches(ENTER_SELECTOR) ? [node] : [];
+      found.push(...Array.from(node.querySelectorAll(ENTER_SELECTOR)));
+      for (const n of found) {
+        if (seen.has(n)) continue;
+        seen.add(n);
+        queue.push(n);
+      }
+      if (queue.length && !raf) raf = requestAnimationFrame(flush);
+    };
+    collect(root);
+    const mo = new MutationObserver((muts) => {
+      for (const m of muts) m.addedNodes.forEach(collect);
+    });
+    mo.observe(root, { childList: true, subtree: true });
+    return () => { mo.disconnect(); if (raf) cancelAnimationFrame(raf); };
+  }, []);
 
   return <div ref={el}>{displayChildren}</div>;
 }

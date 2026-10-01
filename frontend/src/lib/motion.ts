@@ -12,7 +12,7 @@ export function reducedMotion(): boolean {
 }
 
 /** Fade + lift a group of elements in, one after another. */
-export function staggerIn(targets: Element[] | NodeListOf<Element> | Element | null, opts: { delay?: number; y?: number; stagger?: number } = {}) {
+export function staggerIn(targets: Element[] | NodeListOf<Element> | Element | null, opts: { delay?: number; y?: number; stagger?: number; max?: number } = {}) {
   if (!targets) return;
   const list = targets instanceof Element ? [targets] : Array.from(targets);
   if (list.length === 0) return;
@@ -20,12 +20,20 @@ export function staggerIn(targets: Element[] | NodeListOf<Element> | Element | n
     gsap.set(list, { opacity: 1, y: 0, clearProps: 'transform' });
     return;
   }
-  gsap.killTweensOf(list);
+  // Long lists: animate the first screenful, show the rest at once.
+  const animated = list.slice(0, opts.max ?? 28);
+  gsap.killTweensOf(animated);
   gsap.fromTo(
-    list,
+    animated,
     { opacity: 0, y: opts.y ?? 10 },
     { opacity: 1, y: 0, duration: 0.42, ease: EASE, stagger: opts.stagger ?? 0.045, delay: opts.delay ?? 0, overwrite: true, clearProps: 'transform' },
   );
+}
+
+/** A quick "got it" squeeze — used when a file lands on a drop zone. */
+export function pulse(el: Element | null) {
+  if (!el || reducedMotion()) return;
+  gsap.fromTo(el, { scale: 0.985 }, { scale: 1, duration: 0.35, ease: 'back.out(2.5)', clearProps: 'transform' });
 }
 
 /** Popover / menu opening: a short scale-up from its anchor edge. */
