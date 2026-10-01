@@ -19,7 +19,7 @@ from core.extractors import (
 )
 from core.timeline import build_timeline
 from core.analysis import analyze_card
-from services.dropbox_service import get_server_dropbox_client
+from services.drivers_index import get_storage_client
 
 bp = Blueprint('analysis', __name__)
 
@@ -173,7 +173,7 @@ def api_analyze_merge_dropbox():
 
     Body: {"paths": ["/folder/old.ddd", "/folder/new.ddd", ...]} — 2..6 paths.
     """
-    dbx = get_server_dropbox_client()
+    dbx = get_storage_client()
     if not dbx:
         return jsonify({'error': 'Brak polaczenia z Dropbox'}), 500
     data = request.get_json(silent=True) or {}
@@ -389,7 +389,7 @@ def api_preview_ddd():
 def api_download_dropbox():
     """Download a raw DDD file from Dropbox for local use (e.g. GloboFleet)."""
     from io import BytesIO
-    dbx = get_server_dropbox_client()
+    dbx = get_storage_client()
     if not dbx:
         return jsonify({'error': 'Brak polaczenia z Dropbox'}), 500
     file_path = request.args.get('path')
@@ -412,7 +412,7 @@ def api_download_dropbox():
 @login_required
 def api_analyze_dropbox():
     """Download a DDD file from Dropbox and return analysis."""
-    dbx = get_server_dropbox_client()
+    dbx = get_storage_client()
     if not dbx:
         return jsonify({'error': 'Brak polaczenia z Dropbox'}), 500
     file_path = request.args.get('path')
@@ -471,7 +471,7 @@ def api_compare_drivers():
     if len(files) > 20:
         return jsonify({'error': 'Max 20 drivers'}), 400
 
-    dbx = get_server_dropbox_client()
+    dbx = get_storage_client()
     if not dbx:
         return jsonify({'error': 'Brak polaczenia z Dropbox'}), 500
 

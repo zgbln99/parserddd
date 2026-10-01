@@ -7,6 +7,8 @@ without importing the app object.
 
 from flask_cors import CORS
 
+from config import RATELIMIT_STORAGE_URI
+
 try:
     from flask_limiter import Limiter
     from flask_limiter.util import get_remote_address
@@ -44,13 +46,14 @@ def init_extensions(app):
         'https://dd.ltslog.de',
     ])
 
-    # Rate limiter
+    # Rate limiter — storage is per-process unless RATELIMIT_STORAGE_URI
+    # points at Redis (see config.py).
     if _HAS_LIMITER:
         limiter = Limiter(
             get_remote_address,
             app=app,
             default_limits=["60 per minute"],
-            storage_uri="memory://",
+            storage_uri=RATELIMIT_STORAGE_URI,
         )
         auth_limit = limiter.limit("10 per minute")
         data_limit = limiter.limit("120 per minute")

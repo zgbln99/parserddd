@@ -9,7 +9,7 @@ from flask import Blueprint, request, jsonify
 from auth.decorators import login_required
 from auth.helpers import _log_activity
 from config import TOLLCOLLECT_FOLDER
-from services.dropbox_service import get_server_dropbox_client
+from services.drivers_index import get_storage_client
 
 bp = Blueprint('tollcollect', __name__)
 
@@ -18,7 +18,7 @@ bp = Blueprint('tollcollect', __name__)
 @login_required
 def api_tollcollect_files():
     """List CSV files stored in the TollCollect Dropbox folder."""
-    dbx = get_server_dropbox_client()
+    dbx = get_storage_client()
     if not dbx:
         return jsonify({'error': 'Brak polaczenia z Dropbox'}), 500
 
@@ -66,7 +66,7 @@ def api_tollcollect_upload():
         fname = file.filename or 'tollcollect.csv'
         safe_name = "".join(c for c in fname if c.isalnum() or c in '._- ').strip() or 'tollcollect.csv'
 
-    dbx = get_server_dropbox_client()
+    dbx = get_storage_client()
     if not dbx:
         return jsonify({'error': 'Brak polaczenia z Dropbox'}), 500
 
@@ -89,7 +89,7 @@ def api_tollcollect_download():
     if not path:
         return jsonify({'error': 'Brak parametru path'}), 400
 
-    dbx = get_server_dropbox_client()
+    dbx = get_storage_client()
     if not dbx:
         return jsonify({'error': 'Brak polaczenia z Dropbox'}), 500
 
@@ -115,7 +115,7 @@ def api_tollcollect_delete():
     if not path:
         return jsonify({'error': 'Brak parametru path'}), 400
 
-    dbx = get_server_dropbox_client()
+    dbx = get_storage_client()
     if not dbx:
         return jsonify({'error': 'Brak polaczenia z Dropbox'}), 500
 

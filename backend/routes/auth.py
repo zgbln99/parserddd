@@ -1,110 +1,113 @@
 """
-Auth Blueprint — login, logout, status.
+Auth Blueprint — login (username + password), logout, status, own password.
 """
 
 from flask import Blueprint, request, jsonify, session
 
-from auth.decorators import has_permission
+from auth.decorators import login_required
 from auth.helpers import (
     _check_rate_limit, _record_failed_login, _clear_rate_limit,
-    _record_login, _verify_password, _load_users,
+    _record_login, _verify_password, _log_activity,
+    get_user_by_name, get_user_by_id, update_user,
 )
 from auth.helpers import _load_config as _load_global_config
-from config import ADMIN_PASSWORD, PORTAL_PASSWORD, ROLE_PERMISSIONS
+from config import ROLE_PERMISSIONS
 
 bp = Blueprint('auth', __name__)
+
+MIN_PASSWORD_LENGTH = 8
+
+
+def _client_ip() -> str:
+    return request.remote_addr or '0.0.0.0'
+
+
+def _session_for(user: dict):
+    session['logged_in'] = True
+    session['user_id'] = user['id']
+    session['role'] = user['role']
+    session['username'] = user['name']
+    session['permissions'] = user['permissions']
 
 
 @bp.route('/api/auth/login', methods=['POST'])
 def api_login():
-    ip = request.remote_addr or '0.0.0.0'
+    ip = _client_ip()
     if _check_rate_limit(ip):
         return jsonify({'error': 'Too many login attempts. Try again in 5 minutes.'}), 429
 
     data = request.get_json(silent=True) or {}
-    password = data.get('password', '')
-
-    if not password or len(password) > 200:
+    username = str(data.get('username', '')).strip()
+    password = str(data.get('password', ''))
+    if not username or not password or len(username) > 100 or len(password) > 200:
         _record_failed_login(ip)
-        return jsonify({'error': 'Nieprawidlowe haslo'}), 401
+        return jsonify({'error': 'Nieprawidlowy login lub haslo'}), 401
 
-    if password == ADMIN_PASSWORD:
-        session['logged_in'] = True
-        session['role'] = 'admin'
-        session['username'] = 'admin'
-        session['permissions'] = []
-        _record_login('admin', 'admin')
-        _clear_rate_limit(ip)
-        return jsonify({'ok': True, 'role': 'admin', 'username': 'admin', 'permissions': ROLE_PERMISSIONS['admin']})
+    user = get_user_by_name(username)
+    if not user or not user['is_active'] or not _verify_password(password, user['password_hash']):
+        _record_failed_login(ip)
+        return jsonify({'error': 'Nieprawidlowy login lub haslo'}), 401
 
-    if password == PORTAL_PASSWORD:
-        session['logged_in'] = True
-        session['role'] = 'user'
-        session['username'] = 'user'
-        session['permissions'] = []
-        _record_login('user', 'user')
-        _clear_rate_limit(ip)
-        return jsonify({'ok': True, 'role': 'user', 'username': 'user', 'permissions': ROLE_PERMISSIONS['user']})
-
-    for u in _load_users():
-        if _verify_password(password, u.get('password_hash', '')):
-            role = u.get('role', 'user')
-            if role not in ROLE_PERMISSIONS:
-                role = 'user'
-            session['logged_in'] = True
-            session['role'] = role
-            session['username'] = u.get('name', '')
-            custom_perms = u.get('permissions', [])
-            session['permissions'] = custom_perms
-            _record_login(role, u.get('name', ''))
-            _clear_rate_limit(ip)
-            perms = list(set(ROLE_PERMISSIONS.get(role, []) + custom_perms))
-            return jsonify({'ok': True, 'role': role, 'username': u.get('name', ''), 'permissions': perms})
-
-    _record_failed_login(ip)
-    return jsonify({'error': 'Nieprawidlowe haslo'}), 401
+    _session_for(user)
+    _record_login(user['role'], user['name'])
+    _clear_rate_limit(ip)
+    perms = sorted(set(ROLE_PERMISSIONS.get(user['role'], []) + user['permissions']))
+    return jsonify({'ok': True, 'role': user['role'], 'username': user['name'], 'permissions': perms})
 
 
 @bp.route('/api/auth/logout', methods=['POST'])
 def api_logout():
-    session.pop('logged_in', None)
-    session.pop('role', None)
-    session.pop('username', None)
+    session.clear()
     return jsonify({'ok': True})
 
 
 @bp.route('/api/auth/status')
 def api_auth_status():
+    logged_in = bool(session.get('logged_in'))
     role = session.get('role', 'user')
     username = session.get('username', '')
-    custom_perms = session.get('permissions', [])
+    custom_perms = session.get('permissions', []) or []
 
-    # Refresh role + permissions from the user record for real (non-portal)
-    # logins so admin-side changes take effect on the next status poll —
-    # otherwise the user has to log out + back in to see new features.
-    # The portal/admin magic logins have no DB row; we keep the session
-    # values for those.
-    if username and username not in ('user', 'admin'):
-        try:
-            for u in _load_users():
-                if u.get('name') == username:
-                    db_role = u.get('role') or role
-                    if db_role in ROLE_PERMISSIONS:
-                        role = db_role
-                    custom_perms = u.get('permissions', []) or []
-                    session['role'] = role
-                    session['permissions'] = custom_perms
-                    break
-        except Exception:
-            pass
+    # Refresh role + permissions from the account so admin-side changes
+    # apply on the next status poll; a deleted or disabled account is
+    # logged out here.
+    if logged_in and session.get('user_id'):
+        user = get_user_by_id(int(session['user_id']))
+        if not user or not user['is_active']:
+            session.clear()
+            logged_in, role, username, custom_perms = False, 'user', '', []
+        else:
+            role, username, custom_perms = user['role'], user['name'], user['permissions']
+            session['role'] = role
+            session['username'] = username
+            session['permissions'] = custom_perms
 
-    perms = list(set(ROLE_PERMISSIONS.get(role, []) + custom_perms))
+    perms = sorted(set(ROLE_PERMISSIONS.get(role, []) + list(custom_perms)))
     cfg = _load_global_config()
     return jsonify({
-        'logged_in': bool(session.get('logged_in')),
+        'logged_in': logged_in,
         'role': role,
         'username': username,
         'permissions': perms,
         'hidden_features': cfg.get('hidden_features', []) if role != 'admin' else [],
         'company_name': cfg.get('company_name', 'LTS Logistik GmbH'),
     })
+
+
+@bp.route('/api/auth/change-password', methods=['POST'])
+@login_required
+def api_change_own_password():
+    """Change the password of the logged-in account (current password required)."""
+    data = request.get_json(silent=True) or {}
+    current = str(data.get('current_password', ''))
+    new = str(data.get('new_password', ''))
+    user = get_user_by_id(int(session.get('user_id') or 0))
+    if not user:
+        return jsonify({'error': 'Unauthorized'}), 401
+    if not _verify_password(current, user['password_hash']):
+        return jsonify({'error': 'Current password is wrong'}), 400
+    if len(new) < MIN_PASSWORD_LENGTH:
+        return jsonify({'error': f'Password must have at least {MIN_PASSWORD_LENGTH} characters'}), 400
+    update_user(user['id'], password=new)
+    _log_activity('change_password', 'own account')
+    return jsonify({'ok': True})

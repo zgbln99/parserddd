@@ -15,7 +15,7 @@ from flask import Blueprint, request, jsonify, Response
 from auth.decorators import login_required
 from auth.helpers import _log_activity
 from config import logger, STUNDENZETTEL_FOLDER
-from services.dropbox_service import get_server_dropbox_client
+from services.drivers_index import get_storage_client
 from services.openai_service import _parse_stundenzettel_with_openai, _calculate_stundenzettel
 from services.stz_pdf_clean import clean_pdf
 from services.stz_xlsx_clean import clean_xlsx
@@ -135,7 +135,7 @@ def api_stundenzettel_save_to_dropbox():
     base = _safe_stz_name(period, name, file.filename or '')
     root = f"{STUNDENZETTEL_FOLDER}/{folder}"
 
-    dbx = get_server_dropbox_client()
+    dbx = get_storage_client()
     if not dbx:
         return jsonify({'error': 'Brak polaczenia z Dropbox'}), 500
 
@@ -162,7 +162,7 @@ def api_stundenzettel_save_to_dropbox():
 @login_required
 def api_stundenzettel_list_pdfs():
     """List every stored Stundenzettel PDF under the Stundenzettel folder."""
-    dbx = get_server_dropbox_client()
+    dbx = get_storage_client()
     if not dbx:
         return jsonify({'error': 'Brak polaczenia z Dropbox'}), 500
     try:
@@ -193,7 +193,7 @@ def api_stundenzettel_clean_pdf():
     if not path.startswith(STUNDENZETTEL_FOLDER + '/') or '..' in path:
         return jsonify({'error': 'path out of scope'}), 400
 
-    dbx = get_server_dropbox_client()
+    dbx = get_storage_client()
     if not dbx:
         return jsonify({'error': 'Brak polaczenia z Dropbox'}), 500
     try:
@@ -229,7 +229,7 @@ def api_stundenzettel_clean_xlsx():
     if not path.startswith(STUNDENZETTEL_FOLDER + '/') or '..' in path:
         return jsonify({'error': 'path out of scope'}), 400
 
-    dbx = get_server_dropbox_client()
+    dbx = get_storage_client()
     if not dbx:
         return jsonify({'error': 'Brak polaczenia z Dropbox'}), 500
     try:

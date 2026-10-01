@@ -7,18 +7,15 @@ export type UserRole = 'admin' | 'dispatcher' | 'user' | 'driver';
 // Used as fallback when backend doesn't return permissions
 const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
   admin: [
-    'dashboard', 'drivers', 'reader', 'analysis', 'compare', 'settlement',
-    'vehicles', 'driver_km', 'toll', 'samsara_km', 'config', 'night_sim',
-    'admin', 'sync', 'verstosse', 'export', 'ddd_preview',
+    'dashboard', 'drivers', 'reader', 'analysis', 'settlement',
+    'vehicles', 'toll', 'config', 'admin', 'sync', 'export', 'ddd_preview',
   ],
   dispatcher: [
-    'dashboard', 'drivers', 'reader', 'analysis', 'compare', 'settlement',
-    'vehicles', 'driver_km', 'toll', 'samsara_km', 'verstosse', 'export',
-    'ddd_preview', 'sync',
+    'dashboard', 'drivers', 'reader', 'analysis', 'settlement',
+    'vehicles', 'toll', 'export', 'ddd_preview', 'sync',
   ],
   user: [
-    'dashboard', 'drivers', 'reader', 'analysis', 'sync', 'verstosse',
-    'ddd_preview',
+    'dashboard', 'drivers', 'reader', 'analysis', 'sync', 'ddd_preview',
   ],
   driver: [
     'dashboard', 'reader', 'ddd_preview',
@@ -36,7 +33,7 @@ interface AuthContextValue {
   hiddenFeatures: string[];
   isFeatureVisible: (feature: string) => boolean;
   companyName: string;
-  login: (password: string) => Promise<void>;
+  login: (username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -81,8 +78,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .catch(() => setLoggedIn(false));
   }, []);
 
-  const login = useCallback(async (password: string) => {
-    const result = await authLogin(password);
+  const login = useCallback(async (username: string, password: string) => {
+    const result = await authLogin(username, password);
     setLoggedIn(true);
     setRole(parseRole((result as any).role));
     setServerPermissions((result as any).permissions || []);

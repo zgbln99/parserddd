@@ -22,24 +22,15 @@ const AdminPage = lazy(() => import('./pages/AdminPage').then(m => ({ default: m
 const DriverConfigPage = lazy(() => import('./pages/DriverConfigPage').then(m => ({ default: m.DriverConfigPage })));
 const VehiclesPage = lazy(() => import('./pages/VehiclesPage').then(m => ({ default: m.VehiclesPage })));
 const AnalysisPage = lazy(() => import('./pages/AnalysisPage').then(m => ({ default: m.AnalysisPage })));
-const DriverKmPage = lazy(() => import('./pages/DriverKmPage').then(m => ({ default: m.DriverKmPage })));
 const TollCollectPage = lazy(() => import('./pages/TollCollectPage').then(m => ({ default: m.TollCollectPage })));
-const SamsaraKmPage = lazy(() => import('./pages/SamsaraKmPage').then(m => ({ default: m.SamsaraKmPage })));
 const OdometerPage = lazy(() => import('./pages/OdometerPage').then(m => ({ default: m.OdometerPage })));
 const FleetMapPage = lazy(() => import('./pages/FleetMapPage').then(m => ({ default: m.FleetMapPage })));
 const RouteTrackingPage = lazy(() => import('./pages/RouteTrackingPage').then(m => ({ default: m.RouteTrackingPage })));
 const RouteSharePage = lazy(() => import('./pages/RouteSharePage').then(m => ({ default: m.RouteSharePage })));
-const FuelCardsPage = lazy(() => import('./pages/FuelCardsPage').then(m => ({ default: m.FuelCardsPage })));
-const SafetyEventsPage = lazy(() => import('./pages/SafetyEventsPage').then(m => ({ default: m.SafetyEventsPage })));
-const DiagnosticsPage = lazy(() => import('./pages/DiagnosticsPage').then(m => ({ default: m.DiagnosticsPage })));
-const DeadlinesPage = lazy(() => import('./pages/DeadlinesPage').then(m => ({ default: m.DeadlinesPage })));
 const PayrollPage = lazy(() => import('./pages/PayrollPage').then(m => ({ default: m.PayrollPage })));
 const PayrollAnalysisPage = lazy(() => import('./pages/PayrollAnalysisPage').then(m => ({ default: m.PayrollAnalysisPage })));
 const StundenzettelPage = lazy(() => import('./pages/StundenzettelPage').then(m => ({ default: m.StundenzettelPage })));
-const BulkGridPage = lazy(() => import('./pages/BulkGridPage').then(m => ({ default: m.BulkGridPage })));
 const ArbeitszeitberichtPage = lazy(() => import('./pages/ArbeitszeitberichtPage').then(m => ({ default: m.ArbeitszeitberichtPage })));
-const ComplianceMonthlyPage = lazy(() => import('./pages/ComplianceMonthlyPage').then(m => ({ default: m.ComplianceMonthlyPage })));
-const CompliancePage = lazy(() => import('./pages/CompliancePage'));
 
 
 function PageFallback() {
@@ -151,22 +142,13 @@ export function App() {
           <Route path="/payroll" element={<PermissionRoute permission="settlement"><PayrollPage /></PermissionRoute>} />
           <Route path="/payroll/:card" element={<PermissionRoute permission="settlement"><PayrollAnalysisPage /></PermissionRoute>} />
           <Route path="/stundenzettel" element={<PermissionRoute permission="settlement"><StundenzettelPage /></PermissionRoute>} />
-          <Route path="/bulk-grid" element={<PermissionRoute permission="settlement"><BulkGridPage /></PermissionRoute>} />
           <Route path="/vehicles" element={<PermissionRoute permission="vehicles"><VehiclesPage /></PermissionRoute>} />
-          <Route path="/driver-km" element={<PermissionRoute permission="driver_km"><DriverKmPage /></PermissionRoute>} />
           <Route path="/toll" element={<PermissionRoute permission="toll"><TollCollectPage /></PermissionRoute>} />
-          <Route path="/samsara-km" element={<PermissionRoute permission="samsara_km"><SamsaraKmPage /></PermissionRoute>} />
           <Route path="/odometer" element={<PermissionRoute permission="vehicles"><OdometerPage /></PermissionRoute>} />
           <Route path="/map" element={<PermissionRoute permission="vehicles"><FleetMapPage /></PermissionRoute>} />
           <Route path="/route-tracking" element={<PermissionRoute permission="vehicles"><RouteTrackingPage /></PermissionRoute>} />
-          <Route path="/fuel-cards" element={<PermissionRoute permission="vehicles"><FuelCardsPage /></PermissionRoute>} />
-          <Route path="/safety" element={<PermissionRoute permission="vehicles"><SafetyEventsPage /></PermissionRoute>} />
-          <Route path="/diagnostics" element={<PermissionRoute permission="vehicles"><DiagnosticsPage /></PermissionRoute>} />
-          <Route path="/deadlines" element={<PermissionRoute permission="vehicles"><DeadlinesPage /></PermissionRoute>} />
           <Route path="/analysis" element={<ProtectedRoute><AnalysisPage /></ProtectedRoute>} />
           <Route path="/arbeitszeitbericht" element={<PermissionRoute permission="settlement"><ArbeitszeitberichtPage /></PermissionRoute>} />
-          <Route path="/compliance" element={<PermissionRoute permission="settlement"><CompliancePage /></PermissionRoute>} />
-          <Route path="/compliance-monthly" element={<PermissionRoute permission="settlement"><ComplianceMonthlyPage /></PermissionRoute>} />
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

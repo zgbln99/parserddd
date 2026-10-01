@@ -10,6 +10,7 @@ export function LoginPage() {
   const { login } = useAuth();
   const { t, locale, setLocale } = useI18n();
   const { theme, toggle } = useTheme();
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -19,7 +20,7 @@ export function LoginPage() {
     setError('');
     setLoading(true);
     try {
-      await login(password);
+      await login(username.trim(), password);
     } catch {
       setError(t('loginError'));
     } finally {
@@ -70,11 +71,21 @@ export function LoginPage() {
         )}
 
         <input
+          type="text"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          placeholder={t('loginUsernamePlaceholder')}
+          autoComplete="username"
+          autoFocus
+          required
+          className="mb-3 w-full rounded-xl border border-white/20 bg-white/10 px-4 py-3.5 text-sm text-white placeholder-white/40 backdrop-blur-sm outline-none transition focus:border-white/40 focus:bg-white/15 focus:ring-2 focus:ring-white/10"
+        />
+        <input
           type="password"
+          autoComplete="current-password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           placeholder={t('loginPlaceholder')}
-          autoFocus
           required
           className="mb-4 w-full rounded-xl border border-white/20 bg-white/10 px-4 py-3.5 text-sm text-white placeholder-white/40 backdrop-blur-sm outline-none transition focus:border-white/40 focus:bg-white/15 focus:ring-2 focus:ring-white/10"
         />

@@ -144,8 +144,8 @@ ExecStart=/opt/ddd-reader/venv/bin/gunicorn --bind 127.0.0.1:8000 --workers 2 --
 Environment=DDDPARSER_PATH=/usr/local/bin/dddparser
 Environment=FLASK_SECRET_KEY=$FLASK_SECRET
 Environment=SAMSARA_API_TOKEN=$SAMSARA_TOKEN
-Environment=DROPBOX_REFRESH_TOKEN=$DROPBOX_REFRESH_TOKEN
-Environment=PORTAL_PASSWORD=$PORTAL_PASSWORD
+Environment=ADMIN_USERNAME=admin
+Environment=ADMIN_PASSWORD=$ADMIN_PASSWORD
 Environment=FRONTEND_DIR=/opt/ddd-reader/static
 Restart=always
 RestartSec=5

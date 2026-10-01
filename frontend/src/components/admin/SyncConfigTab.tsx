@@ -17,7 +17,6 @@ function SyncConfigSection() {
   const [config, setConfig] = useState<SyncConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [samsaraToken, setSamsaraToken] = useState('');
-  const [dropboxToken, setDropboxToken] = useState('');
   const [syncFolder, setSyncFolder] = useState('');
   const [nightStartHour, setNightStartHour] = useState(22);
   const [parserEngine, setParserEngine] = useState('tachoparser');
@@ -56,7 +55,6 @@ function SyncConfigSection() {
     try {
       const data: Record<string, string | number | string[]> = {};
       if (samsaraToken) data.samsara_api_token = samsaraToken;
-      if (dropboxToken) data.dropbox_refresh_token = dropboxToken;
       if (syncFolder) data.sync_dest_folder = syncFolder;
       data.night_start_hour = nightStartHour;
       data.parser_engine = parserEngine;
@@ -70,7 +68,6 @@ function SyncConfigSection() {
       await updateConfig(data);
       setMsg('OK!');
       setSamsaraToken('');
-      setDropboxToken('');
       setTimeout(() => setMsg(''), 3000);
     } catch (e: unknown) {
       setMsg((e as Error).message);
@@ -98,21 +95,6 @@ function SyncConfigSection() {
               type="password"
               value={samsaraToken}
               onChange={(e) => setSamsaraToken(e.target.value)}
-              placeholder={t('adminNewToken')}
-              className="input w-full rounded-xl px-3 py-1.5 text-sm outline-none"
-            />
-          </div>
-        </div>
-        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
-          <label className="text-xs font-semibold text-muted sm:w-40 shrink-0">Dropbox Refresh Token</label>
-          <div className="flex items-center gap-2">
-            {config?.dropbox_refresh_token_set
-              ? <Badge variant="green" dot>{t('adminConfigSet')}</Badge>
-              : <Badge variant="red" dot>{t('adminConfigNotSet')}</Badge>}
-            <input
-              type="password"
-              value={dropboxToken}
-              onChange={(e) => setDropboxToken(e.target.value)}
               placeholder={t('adminNewToken')}
               className="input w-full rounded-xl px-3 py-1.5 text-sm outline-none"
             />

@@ -7,7 +7,7 @@ from flask import Blueprint, jsonify
 
 from auth.decorators import login_required
 from config import SAMSARA_API_TOKEN, SAMSARA_API_BASE
-from services.dropbox_service import get_server_dropbox_client
+from services.drivers_index import get_storage_client
 
 bp = Blueprint('status', __name__)
 
@@ -18,7 +18,7 @@ def api_connection_status():
     """Check Dropbox and Samsara connectivity."""
     result = {'dropbox': False, 'samsara': False}
 
-    dbx = get_server_dropbox_client()
+    dbx = get_storage_client()
     if dbx:
         try:
             dbx.users_get_current_account()

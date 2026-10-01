@@ -3,8 +3,8 @@ import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Users, FileText, RefreshCw, Sun, Moon, Globe, LogOut,
   Calendar, X, Shield, UserCog, Truck, Gauge, Coins, ClipboardCheck,
-  Menu, ChevronLeft, ChevronRight, Route, PanelLeftClose, PanelLeftOpen,
-  Palette, Clock, ShieldCheck, Search, MapPin, Fuel, ShieldAlert, Wrench, CalendarClock, Share2,
+  Menu, ChevronLeft, ChevronRight, PanelLeftClose, PanelLeftOpen,
+  Palette, Clock, Search, MapPin, Share2,
 } from 'lucide-react';
 import { NotificationCenter } from './NotificationCenter';
 import { prefetchRoute } from '../lib/prefetch';
@@ -68,20 +68,12 @@ export function Layout({ children }: { children: ReactNode }) {
     ...baseNavItems,
     { to: '/payroll', icon: ClipboardCheck, labelKey: 'navPayroll' as const, permission: 'settlement' },
     { to: '/stundenzettel', icon: FileText, labelKey: 'navStundenzettel' as const, permission: 'settlement' },
-    { to: '/bulk-grid', icon: Users, labelKey: 'navBulkGrid' as const, permission: 'settlement' },
     { to: '/arbeitszeitbericht', icon: Clock, labelKey: 'navArbeitszeitbericht' as const, permission: 'settlement' },
-    { to: '/compliance', icon: ShieldCheck, labelKey: 'navCompliance' as const, permission: 'settlement' },
     { to: '/vehicles', icon: Truck, labelKey: 'navVehicles' as const, permission: 'vehicles' },
     { to: '/map', icon: MapPin, labelKey: 'navFleetMap' as const, permission: 'vehicles' },
     { to: '/route-tracking', icon: Share2, labelKey: 'navRouteTracking' as const, permission: 'vehicles' },
-    { to: '/safety', icon: ShieldAlert, labelKey: 'navSafety' as const, permission: 'vehicles' },
-    { to: '/diagnostics', icon: Wrench, labelKey: 'navDiagnostics' as const, permission: 'vehicles' },
     { to: '/odometer', icon: Gauge, labelKey: 'navOdometer' as const, permission: 'vehicles' },
-    { to: '/driver-km', icon: Gauge, labelKey: 'navDriverKm' as const, permission: 'driver_km' },
-    { to: '/fuel-cards', icon: Fuel, labelKey: 'navFuelCards' as const, permission: 'vehicles' },
-    { to: '/deadlines', icon: CalendarClock, labelKey: 'navDeadlines' as const, permission: 'vehicles' },
     { to: '/toll', icon: Coins, labelKey: 'navTollCollect' as const, permission: 'toll' },
-    { to: '/samsara-km', icon: Route, labelKey: 'navSamsaraKm' as const, permission: 'samsara_km' },
     { to: '/sync', icon: RefreshCw, labelKey: 'navSync' as const, permission: 'sync' },
     { to: '/config', icon: UserCog, labelKey: 'navDriverConfig' as const, permission: 'config' },
     { to: '/admin', icon: Shield, labelKey: 'navAdmin' as const, permission: 'admin' },
@@ -98,11 +90,11 @@ export function Layout({ children }: { children: ReactNode }) {
   const mainItems = navItems.filter(i => mainKeys.has(i.to));
   if (mainItems.length > 0) navSections.push({ label: 'Menu', items: mainItems });
 
-  const payrollKeys = new Set(['/payroll', '/stundenzettel', '/bulk-grid', '/arbeitszeitbericht', '/compliance']);
+  const payrollKeys = new Set(['/payroll', '/stundenzettel', '/arbeitszeitbericht']);
   const payrollItems = navItems.filter(i => payrollKeys.has(i.to));
   if (payrollItems.length > 0) navSections.push({ label: locale === 'de' ? 'Abrechnung' : 'Rozliczenia', items: payrollItems });
 
-  const vehicleKeys = new Set(['/vehicles', '/map', '/route-tracking', '/safety', '/diagnostics', '/odometer', '/driver-km', '/fuel-cards', '/deadlines', '/toll', '/samsara-km']);
+  const vehicleKeys = new Set(['/vehicles', '/map', '/route-tracking', '/odometer', '/toll']);
   const vehicleItems = navItems.filter(i => vehicleKeys.has(i.to));
   if (vehicleItems.length > 0) navSections.push({ label: locale === 'de' ? 'Fahrzeuge & Maut' : 'Pojazdy i maut', items: vehicleItems });
 

@@ -8,6 +8,7 @@ Gunicorn entry point:  gunicorn app:app
 """
 
 import os
+import secrets
 from datetime import datetime
 
 from flask import Flask, jsonify, send_from_directory
@@ -18,10 +19,11 @@ try:
 except ImportError:
     pass
 
-from config import FlaskConfig, FRONTEND_DIR, DATABASE_FILE, logger
+from config import FlaskConfig, FRONTEND_DIR, IS_PRODUCTION, logger
 from extensions import init_extensions
 from core.constants import UTC
-from auth.helpers import apply_persisted_config
+from auth.helpers import apply_persisted_config, import_legacy_json_stores, bootstrap_admin
+import database
 
 
 def create_app() -> Flask:
@@ -30,18 +32,31 @@ def create_app() -> Flask:
     application.config.from_object(FlaskConfig)
 
     # ---------------------------------------------------------------------------
+    # Session secret — never a built-in default
+    # ---------------------------------------------------------------------------
+    if not application.config.get('SECRET_KEY'):
+        if IS_PRODUCTION:
+            raise RuntimeError(
+                'FLASK_SECRET_KEY is not set. Generate one with `openssl rand -hex 32` '
+                'and put it in .env before running in production.'
+            )
+        application.config['SECRET_KEY'] = secrets.token_hex(32)
+        logger.warning('FLASK_SECRET_KEY not set — using a random per-process key; '
+                       'sessions will not survive a restart.')
+
+    # ---------------------------------------------------------------------------
     # Extensions (CORS, rate limiter)
     # ---------------------------------------------------------------------------
     init_extensions(application)
 
     # ---------------------------------------------------------------------------
-    # Database init
+    # Database: schema + migrations, then one-time import of the old JSON
+    # stores and the first admin account.
     # ---------------------------------------------------------------------------
-    _init_db()
-
-    # ---------------------------------------------------------------------------
-    # Load persisted config overrides (passwords, tokens from config.json)
-    # ---------------------------------------------------------------------------
+    database.init_db()
+    logger.info('Database ready (%s)', database.get_engine())
+    import_legacy_json_stores()
+    bootstrap_admin()
     apply_persisted_config()
 
     # ---------------------------------------------------------------------------
@@ -57,20 +72,19 @@ def create_app() -> Flask:
 
     @application.route('/api/health')
     def health():
-        import sqlite3
         uptime = (datetime.now(UTC) - _app_start_time).total_seconds()
         db_ok = False
         try:
-            conn = sqlite3.connect(DATABASE_FILE)
-            conn.execute('SELECT 1')
-            conn.close()
+            with database.get_db() as db:
+                db.query_one('SELECT 1 AS ok')
             db_ok = True
         except Exception:
-            pass
+            logger.exception('health check: database unavailable')
         return jsonify({
             'status': 'ok' if db_ok else 'degraded',
             'uptime_seconds': int(uptime),
             'database': db_ok,
+            'engine': database.get_engine(),
         })
 
     # ---------------------------------------------------------------------------
@@ -81,28 +95,18 @@ def create_app() -> Flask:
     def serve_frontend(path):
         """Serve React static build. Falls back to index.html for SPA routing.
 
-        Critical guard: never serve `index.html` for `/api/*` requests. If a
-        blueprint silently failed to register (import error, etc.) the SPA
-        fallback used to mask the bug by returning HTML to JSON callers,
-        producing the classic "Unexpected token '<'" parse error on the
-        frontend. We now return a JSON 404 for any unhandled `/api/*` path.
+        Never serve `index.html` for `/api/*` requests: an unregistered
+        blueprint must surface as a JSON 404, not as HTML the frontend then
+        tries to JSON.parse.
         """
         if path.startswith('api/'):
-            return jsonify({
-                'error': 'Endpoint not found',
-                'path': '/' + path,
-                'hint': 'Check that the relevant Flask blueprint is registered '
-                        'and that the backend has been restarted after changes.',
-            }), 404
+            return jsonify({'error': 'Endpoint not found', 'path': '/' + path}), 404
 
         abs_frontend = os.path.abspath(FRONTEND_DIR)
-        # Primary: serve the file from the production build directory.
         if path and os.path.isfile(os.path.join(abs_frontend, path)):
             return send_from_directory(abs_frontend, path)
-        # Fallback: also serve files dropped into `frontend/public/` even
-        # without running `npm run build`. This is intentional — drop a JPG
-        # into public/ and it serves immediately, no rebuild step. Vite's
-        # build copies public/ into dist/ anyway, so prod stays correct.
+        # Files dropped into `frontend/public/` serve without a rebuild; Vite
+        # copies public/ into dist/ anyway, so prod stays correct.
         public_dir = os.path.abspath(
             os.path.join(os.path.dirname(__file__), '..', 'frontend', 'public'),
         )
@@ -114,12 +118,8 @@ def create_app() -> Flask:
         return jsonify({'error': 'Frontend not built. Run: cd frontend && npm run build'}), 404
 
     # ---------------------------------------------------------------------------
-    # JSON error handlers for /api/*
+    # JSON error handlers for /api/* — never leak exception details
     # ---------------------------------------------------------------------------
-    # Keeps the contract: any /api/* response is JSON, never HTML. Handlers
-    # below only fire when nothing else caught the exception — they are the
-    # safety net for things like uncaught Dropbox SDK errors, subprocess
-    # failures, or schema typos in route bodies.
     from werkzeug.exceptions import HTTPException
     from flask import request as _request
 
@@ -136,273 +136,13 @@ def create_app() -> Flask:
     @application.errorhandler(Exception)
     def _json_uncaught(exc):
         if _request.path.startswith('/api/'):
+            # Full traceback goes to the server log; the client only learns
+            # that something failed.
             logger.exception('Unhandled error in %s', _request.path)
-            return jsonify({
-                'error': 'Internal server error',
-                'detail': str(exc),
-            }), 500
-        # Re-raise so non-API requests fall through to Flask's default page.
+            return jsonify({'error': 'Internal server error'}), 500
         raise exc
 
     return application
-
-
-def _init_db():
-    """Create database tables if they don't exist (SQLite)."""
-    import sqlite3
-    os.makedirs(os.path.dirname(DATABASE_FILE), exist_ok=True)
-    conn = sqlite3.connect(DATABASE_FILE)
-    conn.row_factory = sqlite3.Row
-    conn.execute('PRAGMA journal_mode=WAL')
-    conn.execute('PRAGMA foreign_keys=ON')
-
-    conn.executescript('''
-        CREATE TABLE IF NOT EXISTS driver_config (
-            id            INTEGER PRIMARY KEY AUTOINCREMENT,
-            card_number   TEXT UNIQUE NOT NULL,
-            driver_name   TEXT NOT NULL DEFAULT '',
-            personal_nr   TEXT NOT NULL DEFAULT '',
-            double_diet   INTEGER NOT NULL DEFAULT 0,
-            diet_rate     REAL NOT NULL DEFAULT 14.0,
-            notes         TEXT NOT NULL DEFAULT '',
-            created_at    TEXT NOT NULL,
-            updated_at    TEXT NOT NULL
-        );
-    ''')
-    try:
-        conn.execute("SELECT card_expiry_date FROM driver_config LIMIT 1")
-    except Exception:
-        conn.execute("ALTER TABLE driver_config ADD COLUMN card_expiry_date TEXT NOT NULL DEFAULT ''")
-        conn.commit()
-    try:
-        conn.execute("SELECT night_40_enabled FROM driver_config LIMIT 1")
-    except Exception:
-        conn.execute("ALTER TABLE driver_config ADD COLUMN night_40_enabled INTEGER NOT NULL DEFAULT 1")
-        conn.commit()
-    try:
-        conn.execute("SELECT pause_cap_enabled FROM driver_config LIMIT 1")
-    except Exception:
-        conn.execute("ALTER TABLE driver_config ADD COLUMN pause_cap_enabled INTEGER NOT NULL DEFAULT 0")
-        conn.commit()
-    # monthly_gross_eur on driver_config — per-driver override of the
-    # company-wide assumed monthly gross used by the MiLoG check (0 = use
-    # the global default from admin config).
-    try:
-        conn.execute("SELECT monthly_gross_eur FROM driver_config LIMIT 1")
-    except Exception:
-        conn.execute("ALTER TABLE driver_config ADD COLUMN monthly_gross_eur REAL NOT NULL DEFAULT 0")
-        conn.commit()
-    # charter_enabled on driver_config — drivers on charter trips get the
-    # Mon/Fri 2× diet + Tue–Thu 2× diet + 8 € Übernachtung pattern.
-    try:
-        conn.execute("SELECT charter_enabled FROM driver_config LIMIT 1")
-    except Exception:
-        conn.execute("ALTER TABLE driver_config ADD COLUMN charter_enabled INTEGER NOT NULL DEFAULT 0")
-        conn.commit()
-
-    conn.executescript('''
-        CREATE TABLE IF NOT EXISTS driver_monthly_days (
-            id            INTEGER PRIMARY KEY AUTOINCREMENT,
-            card_number   TEXT NOT NULL,
-            period        TEXT NOT NULL,
-            vacation_days REAL NOT NULL DEFAULT 0,
-            sick_days     REAL NOT NULL DEFAULT 0,
-            overtime_hm   TEXT NOT NULL DEFAULT '',
-            notes         TEXT NOT NULL DEFAULT '',
-            absence_days  TEXT NOT NULL DEFAULT '{}',
-            updated_at    TEXT NOT NULL,
-            UNIQUE(card_number, period)
-        );
-    ''')
-    try:
-        conn.execute("SELECT absence_days FROM driver_monthly_days LIMIT 1")
-    except Exception:
-        conn.execute("ALTER TABLE driver_monthly_days ADD COLUMN absence_days TEXT NOT NULL DEFAULT '{}'")
-        conn.commit()
-    try:
-        conn.execute("SELECT override_n25 FROM driver_monthly_days LIMIT 1")
-    except Exception:
-        conn.execute("ALTER TABLE driver_monthly_days ADD COLUMN override_n25 TEXT NOT NULL DEFAULT ''")
-        conn.execute("ALTER TABLE driver_monthly_days ADD COLUMN override_n40 TEXT NOT NULL DEFAULT ''")
-        conn.commit()
-    try:
-        conn.execute("SELECT override_work_hm FROM driver_monthly_days LIMIT 1")
-    except Exception:
-        conn.execute("ALTER TABLE driver_monthly_days ADD COLUMN override_work_hm TEXT NOT NULL DEFAULT ''")
-        conn.commit()
-
-    conn.executescript('''
-        CREATE TABLE IF NOT EXISTS config_audit_log (
-            id            INTEGER PRIMARY KEY AUTOINCREMENT,
-            card_number   TEXT NOT NULL DEFAULT '',
-            driver_name   TEXT NOT NULL DEFAULT '',
-            action        TEXT NOT NULL,
-            field_name    TEXT NOT NULL DEFAULT '',
-            old_value     TEXT NOT NULL DEFAULT '',
-            new_value     TEXT NOT NULL DEFAULT '',
-            changed_by    TEXT NOT NULL DEFAULT 'admin',
-            changed_at    TEXT NOT NULL
-        );
-    ''')
-
-    # Activity-based compliance per-violation status. Keyed by the
-    # content-addressable violation_id from backend/compliance — same
-    # input -> same id across evaluations, so a status sticks even
-    # when the dispatcher re-runs the engine.
-    conn.executescript('''
-        CREATE TABLE IF NOT EXISTS violation_statuses (
-            id            INTEGER PRIMARY KEY AUTOINCREMENT,
-            violation_id  TEXT NOT NULL UNIQUE,
-            rule_code     TEXT NOT NULL DEFAULT '',
-            driver_card   TEXT NOT NULL DEFAULT '',
-            status        TEXT NOT NULL DEFAULT 'NEW',
-            note          TEXT NOT NULL DEFAULT '',
-            signed_token  TEXT NOT NULL DEFAULT '',
-            updated_at    TEXT NOT NULL,
-            updated_by    TEXT NOT NULL DEFAULT ''
-        );
-    ''')
-
-    # Driver-signing tokens (one-time public links sent via WhatsApp).
-    # Required by /api/admin/sign-links and /api/sign/<token>. CREATE IF
-    # NOT EXISTS so the migration is idempotent across restarts.
-    conn.executescript('''
-        CREATE TABLE IF NOT EXISTS signing_tokens (
-            id                INTEGER PRIMARY KEY AUTOINCREMENT,
-            token             TEXT NOT NULL UNIQUE,
-            driver_card       TEXT NOT NULL,
-            driver_name       TEXT NOT NULL DEFAULT '',
-            payload_json      TEXT NOT NULL,
-            payload_hash      TEXT NOT NULL,
-            locale            TEXT NOT NULL DEFAULT 'de',
-            created_by        TEXT NOT NULL DEFAULT 'admin',
-            created_at        TEXT NOT NULL,
-            expires_at        TEXT NOT NULL,
-            used_at           TEXT,
-            used_ip           TEXT,
-            used_ua           TEXT,
-            signature_png     TEXT,
-            signer_name       TEXT,
-            driver_remark     TEXT,
-            pdf_dropbox_path  TEXT,
-            status            TEXT NOT NULL DEFAULT 'pending'
-        );
-    ''')
-
-    conn.executescript('''
-        CREATE TABLE IF NOT EXISTS payroll_status (
-            id            INTEGER PRIMARY KEY AUTOINCREMENT,
-            card_number   TEXT NOT NULL,
-            period        TEXT NOT NULL,
-            status        TEXT NOT NULL DEFAULT '',
-            updated_at    TEXT NOT NULL,
-            UNIQUE(card_number, period)
-        );
-    ''')
-
-    # Public, password-gated driver profiles (stable link + password).
-    conn.executescript('''
-        CREATE TABLE IF NOT EXISTS driver_profiles (
-            id            INTEGER PRIMARY KEY AUTOINCREMENT,
-            card_number   TEXT NOT NULL UNIQUE,
-            driver_name   TEXT NOT NULL DEFAULT '',
-            token         TEXT NOT NULL UNIQUE,
-            password_hash TEXT NOT NULL DEFAULT '',
-            enabled       INTEGER NOT NULL DEFAULT 1,
-            avatar_key    TEXT NOT NULL DEFAULT '',
-            created_at    TEXT NOT NULL,
-            updated_at    TEXT NOT NULL,
-            last_access   TEXT NOT NULL DEFAULT ''
-        );
-    ''')
-    # Migration: add avatar_key to driver_profiles created before avatars.
-    try:
-        conn.execute("SELECT avatar_key FROM driver_profiles LIMIT 1")
-    except Exception:
-        conn.execute("ALTER TABLE driver_profiles ADD COLUMN avatar_key TEXT NOT NULL DEFAULT ''")
-        conn.commit()
-
-    # Last-seen-moving per vehicle — lets the live-fleet view compute how
-    # long a truck has been standing (stop alerts).
-    conn.executescript('''
-        CREATE TABLE IF NOT EXISTS vehicle_movement (
-            vehicle_id     TEXT PRIMARY KEY,
-            vehicle_name   TEXT NOT NULL DEFAULT '',
-            last_moving_at TEXT NOT NULL DEFAULT '',
-            idle_since     TEXT NOT NULL DEFAULT '',
-            updated_at     TEXT NOT NULL DEFAULT ''
-        );
-    ''')
-    try:
-        conn.execute("SELECT idle_since FROM vehicle_movement LIMIT 1")
-    except Exception:
-        conn.execute("ALTER TABLE vehicle_movement ADD COLUMN idle_since TEXT NOT NULL DEFAULT ''")
-        conn.commit()
-
-    # Fuel cards (DKV/UTA/...) — number, limit, assigned vehicle, expiry.
-    conn.executescript('''
-        CREATE TABLE IF NOT EXISTS fuel_cards (
-            id                INTEGER PRIMARY KEY AUTOINCREMENT,
-            card_number       TEXT NOT NULL UNIQUE,
-            provider          TEXT NOT NULL DEFAULT '',
-            vehicle_name      TEXT NOT NULL DEFAULT '',
-            driver_name       TEXT NOT NULL DEFAULT '',
-            monthly_limit_eur REAL NOT NULL DEFAULT 0,
-            expiry_date       TEXT NOT NULL DEFAULT '',
-            status            TEXT NOT NULL DEFAULT 'active',
-            notes             TEXT NOT NULL DEFAULT '',
-            created_at        TEXT NOT NULL,
-            updated_at        TEXT NOT NULL
-        );
-    ''')
-
-    # Vehicle deadlines — TÜV/HU, insurance, ADR, tacho calibration, etc.
-    conn.executescript('''
-        CREATE TABLE IF NOT EXISTS vehicle_deadlines (
-            id            INTEGER PRIMARY KEY AUTOINCREMENT,
-            vehicle_name  TEXT NOT NULL DEFAULT '',
-            kind          TEXT NOT NULL DEFAULT '',
-            due_date      TEXT NOT NULL DEFAULT '',
-            notes         TEXT NOT NULL DEFAULT '',
-            created_at    TEXT NOT NULL,
-            updated_at    TEXT NOT NULL
-        );
-    ''')
-
-    # route_shares — public, no-login links to follow a vehicle's route on a
-    # map with history + reverse-geocoded addresses (see services/route_share).
-    conn.executescript('''
-        CREATE TABLE IF NOT EXISTS route_shares (
-            id            INTEGER PRIMARY KEY AUTOINCREMENT,
-            token         TEXT NOT NULL UNIQUE,
-            vehicle_id    TEXT NOT NULL,
-            vehicle_name  TEXT NOT NULL DEFAULT '',
-            driver_name   TEXT NOT NULL DEFAULT '',
-            label         TEXT NOT NULL DEFAULT '',
-            hours         INTEGER NOT NULL DEFAULT 24,
-            day           TEXT NOT NULL DEFAULT '',
-            from_time     TEXT NOT NULL DEFAULT '',
-            to_time       TEXT NOT NULL DEFAULT '',
-            vehicles_json TEXT NOT NULL DEFAULT '',
-            enabled       INTEGER NOT NULL DEFAULT 1,
-            created_by    TEXT NOT NULL DEFAULT 'admin',
-            created_at    TEXT NOT NULL,
-            expires_at    TEXT NOT NULL DEFAULT '',
-            last_access   TEXT NOT NULL DEFAULT '',
-            access_count  INTEGER NOT NULL DEFAULT 0
-        );
-    ''')
-    # Migrate older route_shares tables that predate these columns.
-    for _col in ('from_time', 'to_time', 'vehicles_json'):
-        try:
-            conn.execute(f"SELECT {_col} FROM route_shares LIMIT 1")
-        except Exception:
-            conn.execute(f"ALTER TABLE route_shares ADD COLUMN {_col} TEXT NOT NULL DEFAULT ''")
-            conn.commit()
-
-    conn.commit()
-    conn.close()
-    logger.info('Database initialized: %s', DATABASE_FILE)
 
 
 # ---------------------------------------------------------------------------
@@ -450,7 +190,7 @@ from auth.decorators import has_permission, permission_required  # noqa: E402, F
 
 # Auth helpers
 from auth.helpers import (  # noqa: E402, F401
-    _hash_password, _verify_password, _load_users, _save_users,
+    _hash_password, _verify_password, _load_users,
     _check_rate_limit, _record_failed_login, _clear_rate_limit,
     _record_login, _log_activity, _log_config_change,
     _load_config, _save_config, apply_persisted_config,

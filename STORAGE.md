@@ -28,9 +28,9 @@ addressing), SigV4, and credentials from the env. See
   mirror the old Dropbox SDK (`files_download`, `files_upload`,
   `files_list_folder`, `files_delete_v2`, `files_get_metadata`,
   `files_create_folder_v2`) so business code didn't have to change.
-- `backend/services/dropbox_service.py` — kept for compatibility;
-  `get_server_dropbox_client()` now returns the storage client and
-  `build_drivers_data()` reads the bucket.
+- `backend/services/drivers_index.py` — `get_storage_client()` returns the
+  storage client and `build_drivers_data()` builds the driver list from the
+  bucket keys (plus the short-lived portal cache).
 - `backend/samsara_sync.py` — the Samsara → storage ingestion cron uploads
   via boto3 directly.
 

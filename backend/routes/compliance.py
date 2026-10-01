@@ -57,7 +57,7 @@ from services.compliance_adapter import (
     month_range_utc,
 )
 from services.compliance_engine import ComplianceEngine, ComplianceEngineError
-from services.dropbox_service import build_drivers_data, get_server_dropbox_client
+from services.drivers_index import build_drivers_data, get_storage_client
 
 
 _log = logging.getLogger(__name__)
@@ -187,7 +187,7 @@ def _api_list_months_impl():
     if not driver_name:
         return jsonify({"error": "driver is required"}), 400
 
-    dbx = get_server_dropbox_client()
+    dbx = get_storage_client()
     if not dbx:
         return jsonify({"error": "Dropbox client not configured"}), 503
 
@@ -297,7 +297,7 @@ def _api_evaluate_monthly_impl():
     if locale not in ("de", "en", "pl"):
         return jsonify({"error": f"unsupported locale: {locale}"}), 400
 
-    dbx = get_server_dropbox_client()
+    dbx = get_storage_client()
     if not dbx:
         return jsonify({"error": "Dropbox client not configured"}), 503
 
@@ -686,7 +686,7 @@ def _api_violations_evaluate_impl():
     except ValueError:
         return jsonify({"error": "invalid date format (use YYYY-MM-DD)"}), 400
 
-    dbx = get_server_dropbox_client()
+    dbx = get_storage_client()
     if not dbx:
         return jsonify({"error": "Dropbox client not configured"}), 503
 

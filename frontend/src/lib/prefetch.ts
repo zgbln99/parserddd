@@ -15,20 +15,12 @@ const importers: Record<string, () => Promise<unknown>> = {
   '/config': () => import('../pages/DriverConfigPage'),
   '/vehicles': () => import('../pages/VehiclesPage'),
   '/analysis': () => import('../pages/AnalysisPage'),
-  '/driver-km': () => import('../pages/DriverKmPage'),
   '/toll': () => import('../pages/TollCollectPage'),
-  '/samsara-km': () => import('../pages/SamsaraKmPage'),
   '/odometer': () => import('../pages/OdometerPage'),
   '/map': () => import('../pages/FleetMapPage'),
-  '/fuel-cards': () => import('../pages/FuelCardsPage'),
-  '/safety': () => import('../pages/SafetyEventsPage'),
-  '/diagnostics': () => import('../pages/DiagnosticsPage'),
-  '/deadlines': () => import('../pages/DeadlinesPage'),
   '/payroll': () => import('../pages/PayrollPage'),
   '/stundenzettel': () => import('../pages/StundenzettelPage'),
-  '/bulk-grid': () => import('../pages/BulkGridPage'),
   '/arbeitszeitbericht': () => import('../pages/ArbeitszeitberichtPage'),
-  '/compliance': () => import('../pages/CompliancePage'),
 };
 
 const warmed = new Set<string>();

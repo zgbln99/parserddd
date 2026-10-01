@@ -16,8 +16,8 @@ from auth.decorators import login_required
 from auth.helpers import _log_activity
 from config import PORTAL_CACHE_FILE
 from core.constants import UTC
-from services.dropbox_service import (
-    get_server_dropbox_client,
+from services.drivers_index import (
+    get_storage_client,
     build_drivers_data,
     load_portal_cache,
     save_portal_cache,
@@ -45,7 +45,7 @@ def api_drivers():
                         pass
             return jsonify({'drivers': cached, 'cached': True})
 
-    dbx = get_server_dropbox_client()
+    dbx = get_storage_client()
     if not dbx:
         return jsonify({'error': 'Storage nie skonfigurowany (brak MEGA_S4_* w env)'}), 500
 
@@ -67,7 +67,7 @@ def api_add_driver():
     if not driver_name:
         return jsonify({'error': 'Brak nazwy kierowcy'}), 400
 
-    dbx = get_server_dropbox_client()
+    dbx = get_storage_client()
     if not dbx:
         return jsonify({'error': 'Brak polaczenia z Dropbox'}), 500
 
@@ -106,7 +106,7 @@ def api_reader_save_to_dropbox():
     if not driver_name:
         return jsonify({'error': 'Brak nazwy kierowcy'}), 400
 
-    dbx = get_server_dropbox_client()
+    dbx = get_storage_client()
     if not dbx:
         return jsonify({'error': 'Brak polaczenia z Dropbox'}), 500
 

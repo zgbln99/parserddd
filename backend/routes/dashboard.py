@@ -15,8 +15,8 @@ from core.constants import UTC
 from core.parsers import parse_ddd_auto
 from core.extractors import get_driver_info
 from auth.helpers import _load_config
-from services.dropbox_service import (
-    get_server_dropbox_client, load_portal_cache,
+from services.drivers_index import (
+    get_storage_client, load_portal_cache,
 )
 
 bp = Blueprint('dashboard', __name__)
@@ -150,7 +150,7 @@ def api_dashboard():
 @login_required
 def api_scan_card_expiry():
     """Bulk scan all drivers' latest DDD files to cache card expiry dates."""
-    dbx = get_server_dropbox_client()
+    dbx = get_storage_client()
     if not dbx:
         return jsonify({'error': 'Brak polaczenia z Dropbox'}), 500
 

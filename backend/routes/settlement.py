@@ -19,8 +19,8 @@ from core.utils import minutes_to_hm
 from core.parsers import parse_ddd_auto
 from core.extractors import get_driver_info, get_vehicle_records
 from core.analysis import analyze_card
-from services.dropbox_service import (
-    get_server_dropbox_client, build_drivers_data, load_portal_cache,
+from services.drivers_index import (
+    get_storage_client, build_drivers_data, load_portal_cache,
 )
 
 bp = Blueprint('settlement', __name__)
@@ -40,7 +40,7 @@ def api_settlement():
         if cached:
             drivers_data = cached
         else:
-            dbx = get_server_dropbox_client()
+            dbx = get_storage_client()
             if not dbx:
                 return jsonify({'error': 'Brak polaczenia z Dropbox'}), 500
             sync_folder = os.environ.get('SYNC_DEST_FOLDER', '/Samsara-DDD')
@@ -67,7 +67,7 @@ def api_settlement():
             })
 
         def process_driver(task):
-            dbx_thread = get_server_dropbox_client()
+            dbx_thread = get_storage_client()
             if not dbx_thread:
                 return None
             driver_name = task['driver_name']
@@ -159,114 +159,6 @@ def api_settlement():
         return jsonify({'period': period, 'drivers': results})
     except Exception as exc:
         return jsonify({'error': f'Settlement error: {str(exc)}'}), 500
-
-
-@bp.route('/api/driver-km', methods=['POST'])
-@login_required
-def api_driver_km():
-    """Extract km (odometer) data from selected drivers' DDD files."""
-    try:
-        payload = request.get_json(force=True)
-        date_from = payload.get('date_from', '')
-        date_to = payload.get('date_to', '')
-        selected_drivers = payload.get('driver_names', [])
-
-        if not date_from or not date_to:
-            return jsonify({'error': 'date_from and date_to required (YYYY-MM-DD)'}), 400
-
-        dbx = get_server_dropbox_client()
-        if not dbx:
-            return jsonify({'error': 'Brak polaczenia z Dropbox'}), 500
-
-        cached = load_portal_cache()
-        if cached:
-            drivers_data = cached
-        else:
-            sync_folder = os.environ.get('SYNC_DEST_FOLDER', '/Samsara-DDD')
-            drivers_data = build_drivers_data(dbx, sync_folder)
-
-        selected_set = set(selected_drivers) if selected_drivers else None
-        tasks = []
-        for driver in drivers_data:
-            name = driver.get('name', '')
-            if selected_set and name not in selected_set:
-                continue
-            files = driver.get('files', [])
-            if not files:
-                continue
-            file_path = files[0].get('path', '')
-            if not file_path:
-                continue
-            tasks.append({
-                'driver_name': name,
-                'card_number': driver.get('card_number', ''),
-                'file_path': file_path,
-            })
-
-        def process_driver_km(task):
-            dbx_thread = get_server_dropbox_client()
-            if not dbx_thread:
-                return None
-            try:
-                _meta, response = dbx_thread.files_download(task['file_path'])
-                with tempfile.NamedTemporaryFile(suffix='.ddd', delete=False) as tmp:
-                    tmp.write(response.content)
-                    tmp_path = tmp.name
-                data = parse_ddd_auto(tmp_path, config_loader=_load_config)
-                os.unlink(tmp_path)
-
-                vehicles = get_vehicle_records(data)
-                driver_info = get_driver_info(data)
-
-                period_records = []
-                total_km = 0
-                for v in vehicles:
-                    first_use = v.get('first_use', '')[:10]
-                    last_use = v.get('last_use', '')[:10]
-                    if not first_use:
-                        continue
-                    v_end = last_use or first_use
-                    if v_end < date_from or first_use > date_to:
-                        continue
-                    odo_begin = v.get('odometer_begin_km', 0)
-                    odo_end = v.get('odometer_end_km', 0)
-                    km = max(0, odo_end - odo_begin)
-                    total_km += km
-                    period_records.append({
-                        'plate': v.get('plate', ''),
-                        'first_use': first_use,
-                        'last_use': last_use,
-                        'odometer_begin_km': odo_begin,
-                        'odometer_end_km': odo_end,
-                        'distance_km': km,
-                    })
-
-                if not period_records:
-                    return None
-
-                return {
-                    'driver_name': task['driver_name'],
-                    'card_number': driver_info.get('card_number', ''),
-                    'vehicles': period_records,
-                    'total_km': total_km,
-                }
-            except Exception as exc:
-                logger.warning('Driver km error for %s: %s', task['driver_name'], exc)
-                return None
-
-        results = []
-        with ThreadPoolExecutor(max_workers=8) as executor:
-            futures = {executor.submit(process_driver_km, t): t for t in tasks}
-            for future in as_completed(futures):
-                result = future.result()
-                if result:
-                    results.append(result)
-
-        results.sort(key=lambda r: r['driver_name'])
-        _log_activity('driver_km', f"{date_from}-{date_to} - {len(results)} drivers")
-        return jsonify({'date_from': date_from, 'date_to': date_to, 'drivers': results})
-    except Exception as exc:
-        return jsonify({'error': f'Driver km error: {str(exc)}'}), 500
 
 
 @bp.route('/api/driver-monthly/<card_number>/<period>')

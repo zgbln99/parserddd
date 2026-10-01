@@ -1083,7 +1083,7 @@ def upload_signed_pdf_to_dropbox(
     signed_at: datetime,
     token: str,
 ) -> str:
-    from services.dropbox_service import get_server_dropbox_client
+    from services.drivers_index import get_storage_client
 
     safe_driver = _safe_path_component(driver_name or driver_card)
     date = signed_at.astimezone(timezone.utc).strftime("%Y-%m-%d")
@@ -1091,7 +1091,7 @@ def upload_signed_pdf_to_dropbox(
     filename = f"{date}_{token[:8]}.pdf"
     path = f"{folder}/{safe_driver}/{filename}"
 
-    dbx = get_server_dropbox_client()
+    dbx = get_storage_client()
     if dbx is None:
         raise RuntimeError("Storage client not configured (missing MEGA S4 credentials)")
     dbx.files_upload(pdf_bytes, path)

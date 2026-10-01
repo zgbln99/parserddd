@@ -40,11 +40,19 @@ async function request<T>(url: string, opts?: RequestInit): Promise<T> {
 }
 
 // Auth
-export const authLogin = (password: string) =>
+export const authLogin = (username: string, password: string) =>
   request<{ ok: boolean; role: string }>('/api/auth/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ password }),
+    body: JSON.stringify({ username, password }),
+  });
+
+// Change the password of the logged-in account.
+export const changeOwnPassword = (currentPassword: string, newPassword: string) =>
+  request<{ ok: boolean }>('/api/auth/change-password', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
   });
 
 export const authLogout = () =>
@@ -266,113 +274,6 @@ export async function fetchPublicRoute(token: string, day?: string): Promise<Pub
   return data as PublicRoute;
 }
 
-export interface SafetyEvent {
-  time: string;
-  vehicle_name: string;
-  driver_name: string;
-  labels: string[];
-  max_speed_kmh: number | null;
-  posted_speed_kmh: number | null;
-  location: string;
-  download_url: string;
-}
-
-export const fetchSafetyEvents = (days = 7) =>
-  request<{ events: SafetyEvent[]; days?: number; unavailable?: boolean; message?: string }>(
-    `/api/vehicles/safety-events?days=${days}`,
-  );
-
-// Fuel cards
-export interface FuelCard {
-  id: number;
-  card_number: string;
-  provider: string;
-  vehicle_name: string;
-  driver_name: string;
-  monthly_limit_eur: number;
-  expiry_date: string;
-  status: 'active' | 'ordered' | 'blocked';
-  notes: string;
-  created_at: string;
-  updated_at: string;
-}
-
-export type FuelCardPayload = Omit<FuelCard, 'id' | 'created_at' | 'updated_at'>;
-
-export const fetchFuelCards = () =>
-  request<{ cards: FuelCard[] }>('/api/fuel-cards');
-
-export const createFuelCard = (payload: FuelCardPayload) =>
-  request<FuelCard>('/api/fuel-cards', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-
-export const updateFuelCard = (id: number, payload: FuelCardPayload) =>
-  request<FuelCard>(`/api/fuel-cards/${id}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-
-export const deleteFuelCard = (id: number) =>
-  request<{ ok: boolean }>(`/api/fuel-cards/${id}`, { method: 'DELETE' });
-
-export interface BulkFuelCardInput {
-  provider: string;
-  driver_name: string;
-  vehicle_name: string;
-  monthly_limit_eur: number;
-  expiry_date: string;
-  status: 'active' | 'ordered' | 'blocked';
-  notes: string;
-  cards: string[];
-}
-
-export interface BulkFuelCardResult {
-  inserted: number;
-  skipped_duplicates: number;
-  skipped_blank: number;
-  total: number;
-}
-
-export const bulkCreateFuelCards = (payload: BulkFuelCardInput) =>
-  request<BulkFuelCardResult>('/api/fuel-cards/bulk', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-
-// Vehicle deadlines (TÜV/HU, insurance, ADR, tacho calibration…)
-export interface VehicleDeadline {
-  id: number;
-  vehicle_name: string;
-  kind: string;
-  due_date: string;
-  notes: string;
-  created_at: string;
-  updated_at: string;
-}
-
-export type VehicleDeadlinePayload = Pick<VehicleDeadline, 'vehicle_name' | 'kind' | 'due_date' | 'notes'>;
-
-export const fetchVehicleDeadlines = () =>
-  request<{ deadlines: VehicleDeadline[] }>('/api/vehicle-deadlines');
-
-export const createVehicleDeadline = (p: VehicleDeadlinePayload) =>
-  request<VehicleDeadline>('/api/vehicle-deadlines', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p),
-  });
-
-export const updateVehicleDeadline = (id: number, p: VehicleDeadlinePayload) =>
-  request<VehicleDeadline>(`/api/vehicle-deadlines/${id}`, {
-    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p),
-  });
-
-export const deleteVehicleDeadline = (id: number) =>
-  request<{ ok: boolean }>(`/api/vehicle-deadlines/${id}`, { method: 'DELETE' });
-
 // Drivers
 export const fetchDrivers = (refresh = false) =>
   request<{ drivers: import('../types').Driver[]; cached?: boolean }>(
@@ -555,156 +456,6 @@ export const fahrerlisteFill = (payload: FahrerlisteFillPayload) =>
 
 export const fahrerlisteDownloadUrl = (period: string) =>
   `/api/fahrerliste/download?period=${encodeURIComponent(period)}`;
-
-// ---------------------------------------------------------------------------
-// Compliance (activity-based violation detection on the current analysis
-// result). The endpoint never re-parses the file — it consumes whatever
-// the frontend already has in memory.
-// ---------------------------------------------------------------------------
-
-export type ComplianceSeverity = 'INFO' | 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
-
-export interface ComplianceViolation {
-  id?: string;
-  driverId: string;
-  vehicleId?: string | null;
-  countryProfile: string;
-  ruleCode: string;
-  title: string;
-  titlePl?: string | null;
-  titleDe?: string | null;
-  description: string;
-  legalBasis: string;
-  severity: ComplianceSeverity;
-  start: string;
-  end: string;
-  actualMinutes?: number | null;
-  limitMinutes?: number | null;
-  excessMinutes?: number | null;
-  evidence?: unknown[];
-  recommendedAction?: string | null;
-  status?: string;
-  extra?: Record<string, unknown>;
-}
-
-export interface ComplianceWebhookEvent {
-  event: string;
-  driverId: string;
-  vehicleId?: string | null;
-  countryProfile: string;
-  ruleCode: string;
-  severity: ComplianceSeverity;
-  start: string;
-  end: string;
-  violation: ComplianceViolation;
-}
-
-export interface ComplianceResponse {
-  countryProfile: string;
-  violations: ComplianceViolation[];
-  events: ComplianceWebhookEvent[];
-}
-
-export const evaluateParserAnalysis = (
-  parserAnalysis: unknown,
-  countryProfile: string = 'DE',
-) =>
-  request<ComplianceResponse>(
-    '/api/compliance/evaluate-parser-analysis',
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ countryProfile, parserAnalysis }),
-    },
-  );
-
-// ---------------------------------------------------------------------------
-// Range-based compliance — server-side: fetches Dropbox DDD files for the
-// requested driver + range, parses them, runs the activity-based engine,
-// merges per-violation status from violation_statuses.
-// ---------------------------------------------------------------------------
-
-export interface ComplianceRangeViolation extends ComplianceViolation {
-  statusNote?: string;
-  signedToken?: string;
-  statusUpdatedAt?: string;
-}
-
-export interface ComplianceRangeResponse {
-  driver_card: string;
-  driver_name: string;
-  vehicle: string | null;
-  period: { from: string; to: string };
-  countryProfile: string;
-  violations: ComplianceRangeViolation[];
-  summary: {
-    count: number;
-    bySeverity: Record<string, number>;
-    byRule: Record<string, number>;
-  };
-}
-
-export const evaluateComplianceRange = (body: {
-  driver_card: string;
-  driver_name?: string;
-  date_from: string;
-  date_to: string;
-  file_paths: string[];
-  locale?: 'de' | 'en' | 'pl';
-  country_profile?: string;
-}) =>
-  request<ComplianceRangeResponse>(
-    '/api/compliance/violations/evaluate',
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    },
-  );
-
-export type ViolationStatus =
-  | 'NEW' | 'REVIEWED' | 'EXPLAINED' | 'DRIVER_NOTIFIED'
-  | 'TRAINING_REQUIRED' | 'DISMISSED_FALSE_POSITIVE' | 'SIGNED';
-
-export const setViolationStatus = (body: {
-  violation_id: string;
-  status: ViolationStatus;
-  note?: string;
-  rule_code?: string;
-  driver_card?: string;
-}) =>
-  request<{ ok: boolean; violation_id: string; status: string }>(
-    '/api/compliance/violations/status',
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    },
-  );
-
-export interface ComplianceSignLinkResponse {
-  token: string;
-  url: string;
-  expires_at: string;
-  payload_hash: string;
-}
-
-export const createComplianceSignLink = (body: {
-  driver_card: string;
-  driver_name?: string;
-  locale?: 'de' | 'en' | 'pl';
-  period_label?: string;
-  violations: ComplianceViolation[];
-}) =>
-  request<ComplianceSignLinkResponse>(
-    '/api/compliance/violations/sign-link',
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    },
-  );
-
 
 // Stundenzettel OCR parsing
 export interface StundenzettelDay {
@@ -918,18 +669,10 @@ export const fetchRoles = () =>
   request<{ roles: Record<string, string[]> }>('/api/admin/roles');
 
 // Password change
-export const changePassword = (target: 'portal' | 'admin', newPassword: string) =>
-  request<{ ok: boolean }>('/api/admin/change-password', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ target, new_password: newPassword }),
-  });
-
 // Sync config
 export interface SyncConfig {
   samsara_api_token: string;
   samsara_api_token_set: boolean;
-  dropbox_refresh_token_set: boolean;
   sync_dest_folder: string;
   night_start_hour: number;
   parser_engine: string;
@@ -1194,30 +937,6 @@ export const fetchVehicleActivity = (period: string, vehicleIds?: string[], date
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ period, vehicle_ids: vehicleIds || [], date_from: dateFrom || '', date_to: dateTo || '' }),
-  });
-
-// Driver KM from tachograph card (odometer readings)
-export interface DriverKmVehicle {
-  plate: string;
-  first_use: string;
-  last_use: string;
-  odometer_begin_km: number;
-  odometer_end_km: number;
-  distance_km: number;
-}
-
-export interface DriverKmEntry {
-  driver_name: string;
-  card_number: string;
-  vehicles: DriverKmVehicle[];
-  total_km: number;
-}
-
-export const fetchDriverKm = (dateFrom: string, dateTo: string, driverNames?: string[]) =>
-  request<{ date_from: string; date_to: string; drivers: DriverKmEntry[] }>('/api/driver-km', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ date_from: dateFrom, date_to: dateTo, driver_names: driverNames || [] }),
   });
 
 // PDF export (returns blob)

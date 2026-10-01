@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, Clock, CreditCard, AlertTriangle, MapPin, Fuel, Wrench, CalendarClock } from 'lucide-react';
+import { Bell, Clock, CreditCard, AlertTriangle, MapPin, Fuel, Wrench } from 'lucide-react';
 import { useI18n } from '../i18n';
-import { fetchDashboard, fetchVehicleLocations, fetchFuelCards, fetchVehicleDeadlines } from '../lib/api';
+import { fetchDashboard, fetchVehicleLocations } from '../lib/api';
 
 // A truck standing this long during working hours is worth a look.
 const STOP_ALERT_MIN = 180;
@@ -34,60 +34,10 @@ export function NotificationCenter() {
   const [stopAlert, setStopAlert] = useState<Alert | null>(null);
   const [lowFuelAlert, setLowFuelAlert] = useState<Alert | null>(null);
   const [faultAlert, setFaultAlert] = useState<Alert | null>(null);
-  const [fuelAlert, setFuelAlert] = useState<Alert | null>(null);
-  const [deadlineAlert, setDeadlineAlert] = useState<Alert | null>(null);
 
   useEffect(() => {
     let timer: ReturnType<typeof setInterval>;
     const load = () => {
-      // Fuel cards expiring soon (active cards only).
-      fetchFuelCards()
-        .then((r) => {
-          const soon = (r.cards || []).filter((c) => {
-            if (c.status !== 'active' || !c.expiry_date) return false;
-            const d = Math.floor((new Date(c.expiry_date + 'T23:59:59').getTime() - Date.now()) / 86_400_000);
-            return d <= 45;
-          });
-          setFuelAlert(
-            soon.length
-              ? {
-                  id: 'fuel',
-                  icon: Fuel,
-                  tone: 'amber',
-                  text:
-                    locale === 'de'
-                      ? `${soon.length} Tankkarten laufen bald ab`
-                      : `${soon.length} kart paliwowych wkrótce wygasa`,
-                  to: '/fuel-cards',
-                }
-              : null,
-          );
-        })
-        .catch(() => setFuelAlert(null));
-
-      // Vehicle deadlines (TÜV/HU, insurance…) due ≤30 days or overdue.
-      fetchVehicleDeadlines()
-        .then((r) => {
-          const soon = (r.deadlines || []).filter((d) => {
-            if (!d.due_date) return false;
-            const days = Math.floor((new Date(d.due_date + 'T23:59:59').getTime() - Date.now()) / 86_400_000);
-            return days <= 30;
-          });
-          setDeadlineAlert(
-            soon.length
-              ? {
-                  id: 'deadlines',
-                  icon: CalendarClock,
-                  tone: 'red',
-                  text: locale === 'de'
-                    ? `${soon.length} Fahrzeug-Termine bald fällig`
-                    : `${soon.length} terminów pojazdów wkrótce`,
-                  to: '/deadlines',
-                }
-              : null,
-          );
-        })
-        .catch(() => setDeadlineAlert(null));
       // Fleet snapshot → stop alert (working hours) + low-fuel alert.
       fetchVehicleLocations()
         .then((r) => {
@@ -140,7 +90,7 @@ export function NotificationCenter() {
               text: locale === 'de'
                 ? `Fehlercode: ${names}${faulty.length > 3 ? ` +${faulty.length - 3}` : ''}`
                 : `Kod usterki: ${names}${faulty.length > 3 ? ` +${faulty.length - 3}` : ''}`,
-              to: '/diagnostics',
+              to: '/map',
             });
           } else {
             setFaultAlert(null);
@@ -210,10 +160,8 @@ export function NotificationCenter() {
 
   const allAlerts = [
     ...(faultAlert ? [faultAlert] : []),
-    ...(deadlineAlert ? [deadlineAlert] : []),
     ...(stopAlert ? [stopAlert] : []),
     ...(lowFuelAlert ? [lowFuelAlert] : []),
-    ...(fuelAlert ? [fuelAlert] : []),
     ...alerts,
   ];
   const count = allAlerts.length;

@@ -2,7 +2,11 @@
   "compilerOptions": {
     "target": "ES2020",
     "useDefineForClassFields": true,
-    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "lib": [
+      "ES2020",
+      "DOM",
+      "DOM.Iterable"
+    ],
     "module": "ESNext",
     "skipLibCheck": true,
     "moduleResolution": "bundler",
@@ -18,8 +22,29 @@
     "forceConsistentCasingInFileNames": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": [
+        "src/*"
+      ]
     }
   },
-  "include": ["src"]
+  "include": [
+    "src"
+  ],
+  "exclude": [
+    "src/pages/NightSimulatorPage.tsx",
+    "src/pages/CompareDriversPage.tsx",
+    "src/pages/VerstossePage.tsx",
+    "src/pages/SettlementPage.tsx",
+    "src/pages/LiveStatusPage.tsx",
+    "src/pages/CompliancePage.tsx",
+    "src/pages/ComplianceMonthlyPage.tsx",
+    "src/features/analysis/ComplianceSection.tsx",
+    "src/pages/DriverKmPage.tsx",
+    "src/pages/DiagnosticsPage.tsx",
+    "src/pages/SafetyEventsPage.tsx",
+    "src/pages/BulkGridPage.tsx",
+    "src/pages/DeadlinesPage.tsx",
+    "src/pages/FuelCardsPage.tsx",
+    "src/pages/SamsaraKmPage.tsx"
+  ]
 }

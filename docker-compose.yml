@@ -26,31 +26,32 @@ services:
     volumes:
       # Persistent data: SQLite DB, users.json, activity log, caches.
       - ddd-data:/opt/ddd-reader
-    # Uncomment if you switch to Postgres below.
-    # depends_on:
-    #   db:
-    #     condition: service_healthy
 
   # ---------------------------------------------------------------------------
-  # Optional PostgreSQL. To use it: uncomment this service, set
-  # DATABASE_URL=postgresql://ddd:CHANGE_ME@db:5432/ddd in .env, then
-  # `docker compose up -d`. Without it the app uses the embedded SQLite file.
+  # PostgreSQL (recommended for production). Start it with:
+  #     docker compose --profile postgres up -d --build
+  # and set DATABASE_URL=postgresql://ddd:${POSTGRES_PASSWORD}@db:5432/ddd in
+  # .env. Without the profile the app uses the embedded SQLite file. To move
+  # existing SQLite data over once:
+  #     docker compose exec app python -c \
+  #       "from database import migrate_sqlite_to_postgresql as m; m()"
   # ---------------------------------------------------------------------------
-  # db:
-  #   image: postgres:16-alpine
-  #   restart: unless-stopped
-  #   environment:
-  #     POSTGRES_USER: ddd
-  #     POSTGRES_PASSWORD: CHANGE_ME
-  #     POSTGRES_DB: ddd
-  #   volumes:
-  #     - ddd-pg:/var/lib/postgresql/data
-  #   healthcheck:
-  #     test: ["CMD-SHELL", "pg_isready -U ddd"]
-  #     interval: 10s
-  #     timeout: 5s
-  #     retries: 5
+  db:
+    image: postgres:16-alpine
+    profiles: ["postgres"]
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ddd
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-CHANGE_ME}
+      POSTGRES_DB: ddd
+    volumes:
+      - ddd-pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ddd"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 volumes:
   ddd-data:
-  # ddd-pg:
+  ddd-pg:

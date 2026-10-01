@@ -323,6 +323,7 @@ function FooterBar() {
 function LoginModal({ onClose }: { onClose: () => void }) {
   const { login } = useAuth();
   const navigate = useNavigate();
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -332,11 +333,11 @@ function LoginModal({ onClose }: { onClose: () => void }) {
     setError('');
     setLoading(true);
     try {
-      await login(password);
+      await login(username.trim(), password);
       onClose();
       navigate('/', { replace: true });
     } catch {
-      setError('Falsches Passwort');
+      setError('Falscher Benutzername oder Passwort');
     } finally {
       setLoading(false);
     }
@@ -365,10 +366,23 @@ function LoginModal({ onClose }: { onClose: () => void }) {
         </div>
         <form className="mt-6 grid gap-4" onSubmit={onSubmit}>
           <label className="text-sm">
-            <span className="mb-1.5 block text-xs font-medium text-white/60">Passwort</span>
+            <span className="mb-1.5 block text-xs font-medium text-white/60">Benutzername</span>
             <input
               autoFocus
               required
+              type="text"
+              autoComplete="username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              className="h-11 w-full rounded-xl border border-white/15 bg-white/8 px-4 text-sm text-white placeholder-white/40 focus:border-[#7eb6ff] focus:outline-none focus:ring-1 focus:ring-[#7eb6ff]"
+              placeholder="name"
+            />
+          </label>
+          <label className="text-sm">
+            <span className="mb-1.5 block text-xs font-medium text-white/60">Passwort</span>
+            <input
+              required
+              autoComplete="current-password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}

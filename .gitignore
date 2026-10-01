@@ -8,3 +8,10 @@ backend/tachoparser.json
 src/compliance/node_modules/
 src/compliance/coverage/
 *.tsbuildinfo
+
+# Tachograph downloads and payroll sheets contain personal data — never commit them.
+*.DDD
+*.ddd
+/fahrerliste*.xlsx
+/*.xlsx
+frontend/node_modules/

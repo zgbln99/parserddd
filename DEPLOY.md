@@ -33,7 +33,7 @@ When it finishes, the app is on `http://<server-ip>:8000`.
 
 ```bash
 cp .env.example .env
-# edit .env — set PORTAL_PASSWORD, ADMIN_PASSWORD, SAMSARA_API_TOKEN, …
+# edit .env — set FLASK_SECRET_KEY, ADMIN_USERNAME/ADMIN_PASSWORD, SAMSARA_API_TOKEN, …
 # generate a secret:  openssl rand -hex 32   → FLASK_SECRET_KEY
 docker compose up -d --build
 ```
@@ -54,7 +54,8 @@ docker compose logs -f app
 | `APP_PORT` | Host port (container always listens on 8000). |
 | `GUNICORN_WORKERS` | Worker processes (≈ 2 × CPU cores + 1). |
 | `FLASK_SECRET_KEY` | Signs sessions — **must** be random. |
-| `PORTAL_PASSWORD` / `ADMIN_PASSWORD` | Login passwords. |
+| `ADMIN_USERNAME` / `ADMIN_PASSWORD` | First admin account, created only when no accounts exist. All other users are managed in the admin panel; every login needs a user name **and** a password. |
+| `RATELIMIT_STORAGE_URI` | `memory://` (default) or `redis://host:6379` so request limits are shared between Gunicorn workers. |
 | `SAMSARA_API_TOKEN` | Fleet GPS / vehicles (EU token). Empty = disabled. |
 | `VITE_HERE_API_KEY` | HERE map layers (build-time — rebuild after change). |
 | `MEGA_S4_*` | S3-compatible storage for DDD files. |
@@ -68,7 +69,7 @@ docker compose logs -f app
 
 ## 4. Data & backups
 
-All persistent data (SQLite DB, `users.json`, activity log, caches) lives in the
+All persistent data (SQLite DB with users, settings, logs; caches) lives in the
 `ddd-data` Docker volume mounted at `/opt/ddd-reader`. It survives
 `docker compose down` and image rebuilds.
 
@@ -103,10 +104,10 @@ APP_PORT=4009 bash deploy/migrate.sh root@srv15.mikr.us 12345
 ```
 
 It will, over SSH:
-1. pull the data files from the old `/opt/ddd-reader` (SQLite DB, `users.json`,
+1. pull the data files from the old `/opt/ddd-reader` (SQLite DB, legacy `users.json`,
    logs, `config.json`, caches),
 2. read the old systemd unit + `.flask_secret` and write the tokens/passwords
-   (`SAMSARA_API_TOKEN`, `PORTAL_PASSWORD`, `FLASK_SECRET_KEY`, MEGA S4, …) into
+   (`SAMSARA_API_TOKEN`, `ADMIN_PASSWORD`, `FLASK_SECRET_KEY`, MEGA S4, …) into
    `.env`,
 3. build the image, load the data into the Docker volume, and start the stack.
 

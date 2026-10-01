@@ -48,7 +48,7 @@ if [ ! -f .env ]; then
     sed -i "s|^FLASK_SECRET_KEY=.*|FLASK_SECRET_KEY=${SECRET}|" .env
     say "Generated a random FLASK_SECRET_KEY"
   fi
-  warn "Edit .env now and set PORTAL_PASSWORD / ADMIN_PASSWORD / SAMSARA_API_TOKEN etc."
+  warn "Edit .env now and set ADMIN_USERNAME / ADMIN_PASSWORD (first admin account) / SAMSARA_API_TOKEN etc."
   warn "Then re-run this script (or: docker compose up -d --build)."
   read -rp "Open .env in an editor now? [y/N] " ans
   if [[ "${ans:-N}" =~ ^[Yy]$ ]]; then

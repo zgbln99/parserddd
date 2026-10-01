@@ -3,26 +3,25 @@ import os
 import re
 from datetime import datetime
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, session
 
 from auth.decorators import login_required, admin_required
 from auth.helpers import (
     _log_activity,
     _log_config_change,
     _get_db,
-    _hash_password,
     _load_users,
-    _save_users,
     _load_config,
     _save_config,
+    get_login_history,
+    get_activity_log,
+    get_user_by_name,
+    get_user_by_id,
+    create_user,
+    update_user,
+    delete_user,
 )
-from config import (
-    LOGIN_HISTORY_FILE,
-    ACTIVITY_LOG_FILE,
-    SAMSARA_API_TOKEN,
-    DROPBOX_REFRESH_TOKEN,
-    ROLE_PERMISSIONS,
-)
+from config import SAMSARA_API_TOKEN, ROLE_PERMISSIONS, VALID_ROLES
 from core.constants import UTC
 from core.utils import _sanitize_text
 import config as cfg_mod
@@ -36,31 +35,40 @@ bp = Blueprint('admin', __name__)
 @bp.route('/api/admin/login-history')
 @admin_required
 def api_login_history():
-    """Return login history (admin only)."""
-    try:
-        if os.path.exists(LOGIN_HISTORY_FILE):
-            with open(LOGIN_HISTORY_FILE) as f:
-                history = json.load(f)
-            history.reverse()
-            return jsonify({'history': history})
-        return jsonify({'history': []})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    """Return login history, newest first (admin only)."""
+    return jsonify({'history': get_login_history(500)})
 
 
 @bp.route('/api/admin/activity-log')
 @admin_required
 def api_activity_log():
-    """Return API activity log."""
+    """Return the API activity log, newest first."""
+    return jsonify({'log': get_activity_log(1000)})
+
+
+@bp.route('/api/mindestlohn/settings', methods=['GET'])
+@login_required
+def api_mindestlohn_settings():
+    """Company-wide MiLoG parameters (login-only, not admin-only).
+
+    The analysis view reads this to flag drivers whose effective €/h falls
+    below the floor. The per-driver override lives on
+    ``driver_config.monthly_gross_eur`` and is returned with the driver
+    configs, not here.
+    """
+    cfg = _load_config()
     try:
-        if os.path.exists(ACTIVITY_LOG_FILE):
-            with open(ACTIVITY_LOG_FILE) as f:
-                log = json.load(f)
-            log.reverse()
-            return jsonify({'log': log})
-        return jsonify({'log': []})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        default_gross = float(cfg.get('mindestlohn_default_monthly_gross_eur', 2750.0) or 0.0)
+    except (TypeError, ValueError):
+        default_gross = 2750.0
+    try:
+        min_hourly = float(cfg.get('mindestlohn_min_hourly_eur', 14.0) or 14.0)
+    except (TypeError, ValueError):
+        min_hourly = 14.0
+    return jsonify({
+        'default_monthly_gross_eur': default_gross,
+        'min_hourly_eur': min_hourly,
+    })
 
 
 # --- Driver config ---
@@ -315,10 +323,9 @@ def api_list_roles():
 @admin_required
 def api_list_users():
     users = _load_users()
-    # Strip password hashes
-    safe = [{'id': u.get('id'), 'name': u.get('name'), 'role': u.get('role', 'user'),
-             'permissions': u.get('permissions', []),
-             'created': u.get('created', '')} for u in users]
+    safe = [{'id': u['id'], 'name': u['name'], 'role': u['role'],
+             'permissions': u['permissions'], 'is_active': u['is_active'],
+             'created': u['created']} for u in users]
     return jsonify({'users': safe})
 
 
@@ -326,27 +333,23 @@ def api_list_users():
 @admin_required
 def api_create_user():
     data = request.get_json(silent=True) or {}
-    name = data.get('name', '').strip()
-    password = data.get('password', '')
+    name = str(data.get('name', '')).strip()
+    password = str(data.get('password', ''))
     role = data.get('role', 'user')
     if not name or not password:
         return jsonify({'error': 'Name and password required'}), 400
-    if role not in ('user', 'admin', 'dispatcher', 'driver'):
+    if len(name) > 100 or not re.match(r'^[\w.@+\- ]+$', name):
+        return jsonify({'error': 'Invalid user name'}), 400
+    if len(password) < 8:
+        return jsonify({'error': 'Password must have at least 8 characters'}), 400
+    if role not in VALID_ROLES:
         role = 'user'
     permissions = data.get('permissions', [])
     if not isinstance(permissions, list):
         permissions = []
-    users = _load_users()
-    new_id = max((u.get('id', 0) for u in users), default=0) + 1
-    users.append({
-        'id': new_id,
-        'name': name,
-        'password_hash': _hash_password(password),
-        'role': role,
-        'permissions': permissions,
-        'created': datetime.now(UTC).isoformat(),
-    })
-    _save_users(users)
+    if get_user_by_name(name):
+        return jsonify({'error': 'User name already taken'}), 409
+    new_id = create_user(name, password, role, permissions)
     _log_activity('create_user', f"{name} ({role})")
     return jsonify({'ok': True, 'id': new_id})
 
@@ -354,12 +357,10 @@ def api_create_user():
 @bp.route('/api/admin/users/<int:user_id>', methods=['DELETE'])
 @admin_required
 def api_delete_user(user_id):
-    users = _load_users()
-    before = len(users)
-    users = [u for u in users if u.get('id') != user_id]
-    if len(users) == before:
+    if session.get('user_id') == user_id:
+        return jsonify({'error': 'You cannot delete your own account'}), 400
+    if not delete_user(user_id):
         return jsonify({'error': 'User not found'}), 404
-    _save_users(users)
     _log_activity('delete_user', f"id={user_id}")
     return jsonify({'ok': True})
 
@@ -367,76 +368,50 @@ def api_delete_user(user_id):
 @bp.route('/api/admin/users/<int:user_id>', methods=['PATCH'])
 @admin_required
 def api_update_user(user_id):
-    """Update a user's role / permissions / password (any subset).
+    """Update a user's name / role / permissions / password / active flag.
 
     ``permissions`` is the user's *extra* feature grants on top of the role
-    defaults — see :data:`ROLE_PERMISSIONS`. The set is validated against the
-    universe of known feature keys (everything any role currently exposes)
-    so the UI can only grant real features.
+    defaults — see :data:`ROLE_PERMISSIONS`. Unknown feature keys are dropped.
     """
     data = request.get_json(silent=True) or {}
-    users = _load_users()
-    target = next((u for u in users if u.get('id') == user_id), None)
+    target = get_user_by_id(user_id)
     if not target:
         return jsonify({'error': 'User not found'}), 404
 
-    changed = []
+    fields = {}
     if 'role' in data:
         role = data.get('role') or 'user'
-        if role not in ('user', 'admin', 'dispatcher', 'driver'):
+        if role not in VALID_ROLES:
             return jsonify({'error': f'invalid role: {role}'}), 400
-        if target.get('role') != role:
-            target['role'] = role
-            changed.append('role')
+        if session.get('user_id') == user_id and role != 'admin':
+            return jsonify({'error': 'You cannot remove your own admin role'}), 400
+        if target['role'] != role:
+            fields['role'] = role
     if 'permissions' in data:
         perms_in = data.get('permissions') or []
         if not isinstance(perms_in, list):
             return jsonify({'error': 'permissions must be a list'}), 400
-        known = {p for plist in ROLE_PERMISSIONS.values() for p in plist}
-        perms = [str(p) for p in perms_in if str(p) in known]
-        if sorted(target.get('permissions', []) or []) != sorted(perms):
-            target['permissions'] = perms
-            changed.append('permissions')
-    if 'password' in data and data.get('password'):
-        target['password_hash'] = _hash_password(str(data['password']))
-        changed.append('password')
+        fields['permissions'] = perms_in
+    if data.get('password'):
+        if len(str(data['password'])) < 8:
+            return jsonify({'error': 'Password must have at least 8 characters'}), 400
+        fields['password'] = str(data['password'])
     if 'name' in data:
         new_name = str(data['name']).strip()
-        if new_name and new_name != target.get('name'):
-            target['name'] = new_name
-            changed.append('name')
+        if new_name and new_name != target['name']:
+            other = get_user_by_name(new_name)
+            if other and other['id'] != user_id:
+                return jsonify({'error': 'User name already taken'}), 409
+            fields['name'] = new_name
+    if 'is_active' in data:
+        if session.get('user_id') == user_id and not data['is_active']:
+            return jsonify({'error': 'You cannot deactivate your own account'}), 400
+        fields['is_active'] = bool(data['is_active'])
 
-    if not changed:
-        return jsonify({'ok': True, 'changed': []})
-
-    _save_users(users)
-    _log_activity('update_user', f"id={user_id} ({', '.join(changed)})")
+    changed = update_user(user_id, **fields) if fields else []
+    if changed:
+        _log_activity('update_user', f"id={user_id} ({', '.join(changed)})")
     return jsonify({'ok': True, 'changed': changed})
-
-
-# --- Password change ---
-
-
-@bp.route('/api/admin/change-password', methods=['POST'])
-@admin_required
-def api_change_password():
-    """Change portal or admin password (writes to config file, not env)."""
-    data = request.get_json(silent=True) or {}
-    target = data.get('target', '')  # 'portal' or 'admin'
-    new_password = data.get('new_password', '')
-    if target not in ('portal', 'admin') or not new_password:
-        return jsonify({'error': 'Invalid target or empty password'}), 400
-    cfg = _load_config()
-    cfg[f'{target}_password'] = new_password
-    _save_config(cfg)
-    # Update in-memory variable
-    if target == 'portal':
-        cfg_mod.PORTAL_PASSWORD = new_password
-    else:
-        cfg_mod.ADMIN_PASSWORD = new_password
-    _log_activity('change_password', target)
-    _log_config_change('change_password', f"{target} password changed")
-    return jsonify({'ok': True})
 
 
 # --- Sync config ---
@@ -449,7 +424,6 @@ def api_get_config():
     return jsonify({
         'samsara_api_token': cfg.get('samsara_api_token', SAMSARA_API_TOKEN[:8] + '...' if SAMSARA_API_TOKEN else ''),
         'samsara_api_token_set': bool(SAMSARA_API_TOKEN or cfg.get('samsara_api_token')),
-        'dropbox_refresh_token_set': bool(DROPBOX_REFRESH_TOKEN or cfg.get('dropbox_refresh_token')),
         'sync_dest_folder': cfg.get('sync_dest_folder', os.environ.get('SYNC_DEST_FOLDER', '/Samsara-DDD')),
         'night_start_hour': int(cfg.get('night_start_hour', 22)),
         'parser_engine': cfg.get('parser_engine', 'tachoparser'),
@@ -468,7 +442,7 @@ def api_get_config():
 def api_update_config():
     data = request.get_json(silent=True) or {}
     cfg = _load_config()
-    for key in ('samsara_api_token', 'dropbox_refresh_token', 'sync_dest_folder'):
+    for key in ('samsara_api_token', 'sync_dest_folder'):
         if key in data and data[key]:
             cfg[key] = data[key]
     if 'night_start_hour' in data:
@@ -511,8 +485,6 @@ def api_update_config():
     # Update in-memory
     if 'samsara_api_token' in data and data['samsara_api_token']:
         cfg_mod.SAMSARA_API_TOKEN = data['samsara_api_token']
-    if 'dropbox_refresh_token' in data and data['dropbox_refresh_token']:
-        cfg_mod.DROPBOX_REFRESH_TOKEN = data['dropbox_refresh_token']
     _log_activity('update_config', ', '.join(data.keys()))
     _log_config_change('update_config', ', '.join(data.keys()))
     return jsonify({'ok': True})

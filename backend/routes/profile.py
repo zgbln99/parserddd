@@ -40,9 +40,9 @@ from routes.analysis import _build_merged_ddd, _get_driver_analysis_flags
 from services import driver_profile_service as svc
 from services import storage_service
 from services.driver_profile_service import ProfileError
-from services.dropbox_service import (
+from services.drivers_index import (
     build_drivers_data,
-    get_server_dropbox_client,
+    get_storage_client,
     load_portal_cache,
 )
 
@@ -77,7 +77,7 @@ def _find_driver_files(card_number: str) -> tuple[str, list[dict]]:
     """
     drivers = load_portal_cache()
     if not drivers:
-        dbx = get_server_dropbox_client()
+        dbx = get_storage_client()
         if not dbx:
             raise ProfileError("storage not configured", status=503)
         sync_folder = os.environ.get("SYNC_DEST_FOLDER", "/Samsara-DDD")
@@ -156,7 +156,7 @@ def _analyze_month(card_number: str, files: list[dict], ym: str) -> dict:
     if not month_files:
         raise ProfileError("no data for this month", status=404)
 
-    dbx = get_server_dropbox_client()
+    dbx = get_storage_client()
     if not dbx:
         raise ProfileError("storage not configured", status=503)
 

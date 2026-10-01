@@ -18,9 +18,9 @@ from flask import Blueprint, jsonify, request
 
 from core.analysis import analyze_card
 from core.parsers import parse_ddd_auto
-from services.dropbox_service import (
+from services.drivers_index import (
     build_drivers_data,
-    get_server_dropbox_client,
+    get_storage_client,
     load_portal_cache,
     save_portal_cache,
 )
@@ -61,7 +61,7 @@ def _driver_list():
     cached = load_portal_cache()
     if cached is not None:
         return cached
-    dbx = get_server_dropbox_client()
+    dbx = get_storage_client()
     if not dbx:
         return None
     sync_folder = os.environ.get('SYNC_DEST_FOLDER', '/Samsara-DDD')
@@ -125,7 +125,7 @@ def _analyze_latest(driver):
     files.sort(key=lambda f: (f.get('file_date') or '', f.get('modified') or ''), reverse=True)
     latest = files[0]
 
-    dbx = get_server_dropbox_client()
+    dbx = get_storage_client()
     if not dbx:
         raise RuntimeError('storage_not_configured')
     metadata, response = dbx.files_download(latest['path'])
@@ -260,7 +260,7 @@ def integration_health():
         return _unauthorized()
     return jsonify({
         'ok': True,
-        'storageConfigured': get_server_dropbox_client() is not None,
+        'storageConfigured': get_storage_client() is not None,
     })
 
 
