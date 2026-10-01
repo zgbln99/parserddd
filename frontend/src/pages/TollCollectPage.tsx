@@ -135,6 +135,20 @@ function normPlate(p: string): string {
   return p.toUpperCase().replace(/[^A-Z0-9]/g, '');
 }
 
+// Whether a booking time ("HH:MM" or "HH:MM:SS") falls into [from, to).
+// A range whose start is later than its end wraps midnight (22:00–06:00).
+function inTimeRange(time: string, from: string, to: string): boolean {
+  if (!time || !from || !to) return false;
+  const t = time.slice(0, 5);
+  if (from > to) return t >= from || t < to;
+  return t >= from && t < to;
+}
+
+// Per-vehicle hour split: the same vehicle ran two tours a day (e.g. a day
+// and a night shift). Tour 1 gets the bookings inside its hour range, tour
+// 2 everything else — so no booking is lost between the two.
+interface HourSplit { tour1: string; from: string; to: string; tour2: string }
+
 function fmtEur(n: number) {
   return n.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' \u20AC';
 }
@@ -172,6 +186,9 @@ export function TollCollectPage() {
   // Extra tours: the same vehicle ran several tours — each gets its own
   // name + days and becomes a separate position in the export.
   const [extraTours, setExtraTours] = useState<Record<string, { tour: string; from: string; to: string }[]>>({});
+  // Hour split per vehicle — see HourSplit. Applied on top of every export
+  // position of that vehicle (date ranges, extra tours, tour plan).
+  const [hourSplits, setHourSplits] = useState<Record<string, HourSplit>>({});
   // Tour plan from the monthly Excel (Monatsbericht Details):
   // "NORMPLATE|YYYY-MM-DD" -> tour number/name. Day-accurate — the export
   // splits a vehicle's toll by the tour it actually drove each day.
@@ -537,9 +554,10 @@ export function TollCollectPage() {
   };
 
   const handleExportExcel = async () => {
-    const selected = byVehicle
-      .filter(([plate]) => selectedPlates.has(plate))
-      .flatMap(([plate, data]): TollVehicleGroup[] => {
+    // All export positions of one vehicle: date range / extra tours, or the
+    // day-accurate tour plan when one is loaded. `filteredRows` are the
+    // vehicle's rows after the global filters.
+    const buildVehicleGroups = (plate: string, filteredRows: TollRow[]): TollVehicleGroup[] => {
         // Use ALL rows for this plate from allRows (bypass global date filter)
         const allVehicleRows = allRows.filter(r => r.plate === plate);
         const excluded = excludedMonths[plate];
@@ -582,7 +600,7 @@ export function TollCollectPage() {
         const range = vehicleDateRanges[plate];
         const baseRows = range?.from || range?.to
           ? allVehicleRows.filter(r => (!range.from || r.date >= range.from) && (!range.to || r.date <= range.to))
-          : data.rows;
+          : filteredRows;
 
         // Tour plan from the Monatsbericht Excel takes precedence: split the
         // vehicle's toll by the tour it actually drove each day.
@@ -637,6 +655,31 @@ export function TollCollectPage() {
           ));
         });
         return groups;
+    };
+
+    const selected = byVehicle
+      .filter(([plate]) => selectedPlates.has(plate))
+      .flatMap(([plate, data]): TollVehicleGroup[] => {
+        const hs = hourSplits[plate];
+        if (!hs || !hs.from || !hs.to) return buildVehicleGroups(plate, data.rows);
+        // Hour split: every position of this vehicle becomes two — the
+        // bookings inside the tour-1 hours and the rest (tour 2).
+        return buildVehicleGroups(plate, data.rows).flatMap(g => {
+          const rows1 = g.rows.filter(r => inTimeRange(r.time, hs.from, hs.to));
+          const rows2 = g.rows.filter(r => !inTimeRange(r.time, hs.from, hs.to));
+          const part = (rows: typeof g.rows, tourName: string, hours: string): TollVehicleGroup => ({
+            ...g,
+            plate: `${g.plate} (${hours})`,
+            tour: tourName || g.tour,
+            rows,
+            totalKm: rows.reduce((sum, r) => sum + r.km, 0),
+            totalAmount: rows.reduce((sum, r) => sum + r.amount, 0),
+          });
+          const out: TollVehicleGroup[] = [];
+          if (rows1.length > 0) out.push(part(rows1, hs.tour1, `${hs.from}–${hs.to}`));
+          if (rows2.length > 0) out.push(part(rows2, hs.tour2, `${hs.to}–${hs.from}`));
+          return out.length > 0 ? out : [g];
+        });
       });
 
     if (selected.length === 0) return;
@@ -1485,6 +1528,90 @@ export function TollCollectPage() {
                               >
                                 + {locale === 'de' ? 'Weitere Tour (Fahrzeug fuhr mehrere Touren)' : 'Dodaj turę (auto jeździło kilka tur)'}
                               </button>
+
+                              {/* Hour split: the vehicle ran two tours a day
+                                  (day + night) — split by booking time. */}
+                              {(() => {
+                                const hs = hourSplits[plate];
+                                if (!hs) {
+                                  return (
+                                    <button
+                                      onClick={() => setHourSplits(prev => ({
+                                        ...prev,
+                                        [plate]: { tour1: '', from: '06:00', to: '18:00', tour2: '' },
+                                      }))}
+                                      className="mt-2 ml-4 text-xs font-semibold text-amber-600 dark:text-amber-400 hover:underline"
+                                    >
+                                      + {locale === 'de' ? 'Nach Uhrzeit in 2 Touren teilen (Fahrzeug fuhr Tag und Nacht)' : 'Rozdziel na 2 tury wg godzin (auto jeździło dzień i noc)'}
+                                    </button>
+                                  );
+                                }
+                                const activeRows = data.rows.filter(r => !excludedDays[plate]?.has(r.date));
+                                const rows1 = activeRows.filter(r => inTimeRange(r.time, hs.from, hs.to));
+                                const rows2 = activeRows.filter(r => !inTimeRange(r.time, hs.from, hs.to));
+                                const sum = (rows: TollRow[]) =>
+                                  `${rows.length} ${t('tollTripsCount')} · ${fmtKm(rows.reduce((a, r) => a + r.km, 0))} km · ${fmtEur(rows.reduce((a, r) => a + r.amount, 0))}`;
+                                const upd = (patch: Partial<HourSplit>) =>
+                                  setHourSplits(prev => ({ ...prev, [plate]: { ...prev[plate], ...patch } }));
+                                const inputCls = 'rounded border border-amber-200 dark:border-amber-700 bg-white dark:bg-gray-700 px-2 py-1 text-xs text-gray-900 dark:text-white placeholder-gray-400 focus:border-amber-400 focus:outline-none';
+                                return (
+                                  <div className="mt-2 rounded-lg border border-amber-200 dark:border-amber-800/60 bg-amber-50/60 dark:bg-amber-900/10 px-3 py-2 space-y-1.5">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <span className="text-xs font-semibold text-amber-700 dark:text-amber-300">
+                                        {locale === 'de' ? '2 Touren nach Uhrzeit' : '2 tury wg godzin'}
+                                      </span>
+                                      <span className="text-[11px] text-muted">
+                                        {locale === 'de'
+                                          ? 'Tour 1 bekommt die Buchungen im Zeitfenster, Tour 2 den Rest.'
+                                          : 'Tura 1 dostaje przejazdy z przedziału godzin, tura 2 całą resztę.'}
+                                      </span>
+                                      <button
+                                        onClick={() => setHourSplits(prev => {
+                                          const next = { ...prev };
+                                          delete next[plate];
+                                          return next;
+                                        })}
+                                        className="ml-auto text-xs text-muted hover:text-red-500"
+                                        title={locale === 'de' ? 'Teilung entfernen' : 'Usuń podział'}
+                                      >
+                                        <X className="w-3 h-3" />
+                                      </button>
+                                    </div>
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <span className="text-xs font-semibold text-amber-600 dark:text-amber-400 w-14">
+                                        {locale === 'de' ? 'Tour 1' : 'Tura 1'}:
+                                      </span>
+                                      <input
+                                        type="text"
+                                        value={hs.tour1}
+                                        onChange={e => upd({ tour1: e.target.value })}
+                                        placeholder={t('tollTourPlaceholder')}
+                                        className={`w-36 ${inputCls}`}
+                                      />
+                                      <input type="time" value={hs.from} onChange={e => upd({ from: e.target.value })} className={inputCls} />
+                                      <span className="text-xs text-muted">–</span>
+                                      <input type="time" value={hs.to} onChange={e => upd({ to: e.target.value })} className={inputCls} />
+                                      <span className="text-[11px] text-muted font-mono">{sum(rows1)}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <span className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 w-14">
+                                        {locale === 'de' ? 'Tour 2' : 'Tura 2'}:
+                                      </span>
+                                      <input
+                                        type="text"
+                                        value={hs.tour2}
+                                        onChange={e => upd({ tour2: e.target.value })}
+                                        placeholder={t('tollTourPlaceholder')}
+                                        className={`w-36 ${inputCls}`}
+                                      />
+                                      <span className="text-xs text-muted">
+                                        {hs.from && hs.to ? `${hs.to} – ${hs.from}` : '…'} ({locale === 'de' ? 'Rest' : 'reszta'})
+                                      </span>
+                                      <span className="text-[11px] text-muted font-mono">{sum(rows2)}</span>
+                                    </div>
+                                  </div>
+                                );
+                              })()}
                             </td>
                           </tr>
                         )}
