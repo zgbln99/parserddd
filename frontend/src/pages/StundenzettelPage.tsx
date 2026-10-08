@@ -865,7 +865,7 @@ export function StundenzettelPage() {
         <summary className="stz-disclosure-summary">
           <span className="stz-disclosure-icon"><ChevronDown size={16} /></span>
           <span className="font-bold text-ink">{locale === 'de' ? 'Schnelles Ausfüllen und Abgleichen' : 'Szybkie wypełnianie i dopasowanie'}</span>
-          <span className="ml-auto text-xs text-muted">{locale === 'de' ? 'Öffnen' : 'Rozwiń'}</span>
+          
         </summary>
         <div className="stz-disclosure-content">
       {/* Bulk fill */}
@@ -877,7 +877,7 @@ export function StundenzettelPage() {
           <input type="time" value={bulkEnd} onChange={e => setBulkEnd(e.target.value)}
             placeholder={t('stzEnd')} className="input rounded px-2 py-1 text-xs font-mono w-24" />
           <div className="flex items-center gap-1">
-            <span className="text-xs text-muted">{t('stzPause')}</span>
+            <span className="text-xs text-muted">{t('stzPause')} (h)</span>
             <input type="number" min={0} max={2} step={0.25} value={bulkPause ? Number((bulkPause / 60).toFixed(2)) : ''} placeholder="0"
               onChange={e => setBulkPause(Math.round((parseFloat(e.target.value) || 0) * 60))}
               className="input rounded px-2 py-1 text-xs font-mono w-14 text-center" />
@@ -1105,7 +1105,7 @@ export function StundenzettelPage() {
         <summary className="stz-disclosure-summary">
           <span className="stz-disclosure-icon"><ChevronDown size={16} /></span>
           <span className="font-bold text-ink">{locale === 'de' ? 'Mehrere Monate erstellen' : 'Generowanie wielu miesięcy'}</span>
-          <span className="ml-auto text-xs text-muted">{locale === 'de' ? 'Öffnen' : 'Rozwiń'}</span>
+          
         </summary>
         <div className="stz-disclosure-content">
       {/* Mass generation — one sheet per employee, saved into per-name folders */}
@@ -1161,7 +1161,7 @@ export function StundenzettelPage() {
             <input type="time" value={massEnd} onChange={e => { setMassEnd(e.target.value); resetPrepared(); }}
               className="input rounded px-2 py-1 text-xs font-mono w-24" />
             <div className="flex items-center gap-1">
-              <span className="text-xs text-muted">{t('stzPause')}</span>
+              <span className="text-xs text-muted">{t('stzPause')} (h)</span>
               <input type="number" min={0} max={3} step={0.25} value={massPause ? Number((massPause / 60).toFixed(2)) : ''} placeholder="0"
                 onChange={e => { setMassPause(Math.round((parseFloat(e.target.value) || 0) * 60)); resetPrepared(); }}
                 className="input rounded px-2 py-1 text-xs font-mono w-14 text-center" />
@@ -1214,7 +1214,7 @@ export function StundenzettelPage() {
         <summary className="stz-disclosure-summary">
           <span className="stz-disclosure-icon"><ChevronDown size={16} /></span>
           <span className="font-bold text-ink">{locale === 'de' ? 'Dokumentenwerkzeuge' : 'Narzędzia dokumentów'}</span>
-          <span className="ml-auto text-xs text-muted">{locale === 'de' ? 'Öffnen' : 'Rozwiń'}</span>
+          
         </summary>
         <div className="stz-disclosure-content">
       {/* Batch-clean stored PDFs: strip Vorlage title / DATEV logo / signatures */}
