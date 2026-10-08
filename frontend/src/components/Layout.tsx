@@ -301,7 +301,7 @@ export function Layout({ children }: { children: ReactNode }) {
               >
                 <Search size={16} />
                 <span className="hidden md:inline">{t('search')}</span>
-                <kbd className="hidden rounded border border-border px-1 py-0.5 text-[10px] lg:inline">⌘K</kbd>
+                <kbd className="hidden rounded border border-border px-1 py-0.5 text-[10px] lg:inline">Ctrl K</kbd>
               </button>
               <NotificationCenter />
             </div>
