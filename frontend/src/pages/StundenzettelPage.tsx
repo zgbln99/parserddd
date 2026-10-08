@@ -2,7 +2,7 @@ import { useState, useCallback, useRef, useMemo, useEffect, Component, type Reac
 import {
   Upload, FileText, AlertCircle, Clock, Moon, UtensilsCrossed,
   CalendarDays, Thermometer, Palmtree, Star, ClipboardCopy, Check,
-  Plus, Trash2, FileDown, CloudUpload, Users, Shuffle,
+  Plus, Trash2, FileDown, CloudUpload, Users, Shuffle, ChevronDown,
 } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { parseStundenzettel, parseLohnAns, listStundenzettelFiles, cleanStundenzettelPdf, cleanStundenzettelXlsx, fetchConfig, type StundenzettelDay, type LohnEmployee, type LohnMonth } from '../lib/api';
@@ -806,30 +806,27 @@ export function StundenzettelPage() {
   const hasAnyData = days.some(d => d.start || d.end || d.code);
 
   return (
-    <div className="space-y-5 animate-slide-up">
-      {/* Header with period picker */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-ink">{t('stzTitle')}</h1>
-          <p className="text-sm text-muted mt-1">{t('stzSubtitle')}</p>
+    <div className="stz-page space-y-6">
+      <div className="stz-page-header flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div className="min-w-0">
+          <div className="stz-eyebrow">{locale === 'de' ? 'ABRECHNUNG / ZEITERFASSUNG' : 'ROZLICZENIA / CZAS PRACY'}</div>
+          <h1 className="mt-2 text-[28px] font-extrabold tracking-[-0.035em] text-ink sm:text-[34px]">{t('stzTitle')}</h1>
+          <p className="mt-1 text-sm text-muted">{t('stzSubtitle')}</p>
         </div>
-        <div className="flex items-center gap-2">
-          <MonthSelect
-            value={period}
-            onChange={handlePeriodChange}
-            className="input rounded-lg px-3 py-2 text-sm"
-          />
+        <div className="stz-period flex shrink-0 items-center gap-3">
+          <span className="text-xs font-semibold text-muted">{locale === 'de' ? 'Zeitraum' : 'Okres'}</span>
+          <MonthSelect value={period} onChange={handlePeriodChange} className="input rounded-xl px-3 py-2.5 text-sm font-bold" />
         </div>
       </div>
 
-      {/* Name + actions */}
-      <div className="flex items-center gap-3 flex-wrap">
+      {/* Employee and export actions */}
+      <div className="stz-actionbar flex items-center gap-2.5 flex-wrap">
         <input
           type="text"
           value={name}
           onChange={e => setName(e.target.value)}
           placeholder={t('stzNamePlaceholder')}
-          className="input rounded-lg px-3 py-2 text-sm flex-1 min-w-[200px] max-w-sm"
+          className="input stz-employee-input rounded-xl px-3.5 py-2.5 text-sm flex-1 min-w-[220px] max-w-sm"
         />
         <label className="btn-secondary inline-flex items-center gap-2 px-3 py-2 text-sm cursor-pointer rounded-lg">
           <Upload size={14} />
@@ -864,6 +861,13 @@ export function StundenzettelPage() {
         </div>
       )}
 
+      <details className="stz-disclosure">
+        <summary className="stz-disclosure-summary">
+          <span className="stz-disclosure-icon"><ChevronDown size={16} /></span>
+          <span className="font-bold text-ink">{locale === 'de' ? 'Schnelles Ausfüllen und Abgleichen' : 'Szybkie wypełnianie i dopasowanie'}</span>
+          
+        </summary>
+        <div className="stz-disclosure-content">
       {/* Bulk fill */}
       <Card className="p-3">
         <div className="flex items-center gap-2 flex-wrap">
@@ -873,9 +877,9 @@ export function StundenzettelPage() {
           <input type="time" value={bulkEnd} onChange={e => setBulkEnd(e.target.value)}
             placeholder={t('stzEnd')} className="input rounded px-2 py-1 text-xs font-mono w-24" />
           <div className="flex items-center gap-1">
-            <span className="text-xs text-muted">{t('stzPause')}</span>
-            <input type="number" min={0} max={120} value={bulkPause || ''} placeholder="0"
-              onChange={e => setBulkPause(parseInt(e.target.value) || 0)}
+            <span className="text-xs text-muted">{t('stzPause')} (h)</span>
+            <input type="number" min={0} max={2} step={0.25} value={bulkPause ? Number((bulkPause / 60).toFixed(2)) : ''} placeholder="0"
+              onChange={e => setBulkPause(Math.round((parseFloat(e.target.value) || 0) * 60))}
               className="input rounded px-2 py-1 text-xs font-mono w-14 text-center" />
           </div>
           <select value={bulkRange} onChange={e => setBulkRange(e.target.value as 'month' | 'week' | 'custom')}
@@ -980,6 +984,130 @@ export function StundenzettelPage() {
         )}
       </Card>
 
+
+        </div>
+      </details>
+
+      <ErrorBoundary>
+        {/* Stats - only show when there's data */}
+        {hasAnyData && (
+          <>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <StatCard icon={<Clock size={20} />} label={t('stzWorkHours')} value={hm(totals.workMin)} color="primary" />
+              <StatCard icon={<Moon size={20} />} label={t('stzNightHours')} value={hm(totals.n25 + totals.n40)} color="blue" />
+              <StatCard icon={<UtensilsCrossed size={20} />} label={t('stzDiets')} value={totals.diets} color="green" />
+              <StatCard icon={<CalendarDays size={20} />} label={t('stzWorkDays')} value={totals.workDays} color="primary" />
+            </div>
+            <details className="stz-extra-stats">
+              <summary>{locale === 'de' ? 'Weitere Kennzahlen' : 'Pozostałe statystyki'} <ChevronDown size={14} /></summary>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3">
+              <StatCard icon={<Thermometer size={20} />} label={t('stzSickDays')} value={totals.sick} color="red" />
+              <StatCard icon={<Palmtree size={20} />} label={t('stzVacationDays')} value={totals.vacation} color="green" />
+              <StatCard icon={<Star size={20} />} label={t('stzHolidays')} value={totals.holidays} color="blue" />
+              <StatCard icon={<Moon size={20} />} label="Nacht 25% / 40%" value={`${hm(totals.n25)} / ${hm(totals.n40)}`} color="blue" />
+              </div>
+            </details>
+
+
+          </>
+        )}
+
+        <div className="stz-section-heading">
+          <div><h2>{locale === 'de' ? 'Tagesübersicht' : 'Ewidencja dzienna'}</h2>
+          <p>{locale === 'de' ? 'Zeiten direkt in der Tabelle bearbeiten.' : 'Godziny edytujesz bezpośrednio w tabeli. Wyniki aktualizują się automatycznie.'}</p></div>
+          <span className="stz-day-count">{days.length} {locale === 'de' ? 'Tage' : 'dni'}</span>
+        </div>
+        <Card className="stz-table-card overflow-x-auto p-0">
+          <table className="stz-edit-table w-full">
+            <thead>
+              <tr className="border-b border-border bg-surface">
+                <th className="px-1 sm:px-2 py-2 text-left font-semibold text-muted w-8 sm:w-10">{t('stzDay')}</th>
+                <th className="px-1 py-2 text-left font-semibold text-muted w-6 sm:w-8"></th>
+                <th className="px-0.5 sm:px-1 py-2 text-center font-semibold text-muted w-16 sm:w-24">{t('stzStart')}</th>
+                <th className="px-0.5 sm:px-1 py-2 text-center font-semibold text-muted w-16 sm:w-24">{t('stzEnd')}</th>
+                <th className="px-0.5 sm:px-1 py-2 text-center font-semibold text-muted w-12 sm:w-16">{t('stzPause')} (h)</th>
+                <th className="px-0.5 sm:px-1 py-2 text-center font-semibold text-muted w-10 sm:w-16 ">{t('stzCode')}</th>
+                <th className="px-1 sm:px-2 py-2 text-center font-semibold text-muted w-14 sm:w-16">{t('stzWork')}</th>
+                <th className="px-2 py-2 text-center font-semibold text-muted hidden sm:table-cell">{t('stzNight')}</th>
+                <th className="px-2 py-2 text-center font-semibold text-muted hidden sm:table-cell">{t('stzDiet')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {days.map((day, idx) => {
+                const wd = getWeekday(year, month, day.day);
+                const weekend = isWeekend(year, month, day.day);
+                const c = calcDay(day, isSunday(year, month, day.day), weekendDiet);
+                const hasCode = !!day.code;
+                const rowColor = day.code ? (CODE_COLORS[day.code] || '') : weekend ? 'bg-gray-50/50 dark:bg-gray-800/20' : '';
+
+                return (
+                  <tr key={day.day} className={`border-b border-border ${rowColor}`}>
+                    <td className="px-2 py-1 font-medium text-ink">{day.day}</td>
+                    <td className={`px-2 py-1 text-xs ${weekend ? 'font-bold text-red-500' : 'text-muted'}`}>{wd}</td>
+                    <td className="px-1 py-1">
+                      <input type="time" value={day.start} onChange={e => updateDay(idx, 'start', e.target.value)}
+                        disabled={hasCode} className="input w-full text-xs text-center px-1 py-0.5 rounded font-mono disabled:opacity-30" />
+                    </td>
+                    <td className="px-1 py-1">
+                      <input type="time" value={day.end} onChange={e => updateDay(idx, 'end', e.target.value)}
+                        disabled={hasCode} className="input w-full text-xs text-center px-1 py-0.5 rounded font-mono disabled:opacity-30" />
+                    </td>
+                    <td className="px-1 py-1">
+                      <input type="number" min={0} max={2} step={0.25} value={day.pause ? Number((day.pause / 60).toFixed(2)) : ''} placeholder="0"
+                        title={locale === 'de' ? 'Pause in Stunden' : 'Przerwa w godzinach'}
+                        onChange={e => updateDay(idx, 'pause', Math.round((parseFloat(e.target.value) || 0) * 60))}
+                        disabled={hasCode} className="input w-full text-xs text-center px-1 py-0.5 rounded font-mono disabled:opacity-30" />
+                    </td>
+                    <td className="px-1 py-1">
+                      <select value={day.code} onChange={e => {
+                        updateDay(idx, 'code', e.target.value);
+                        if (e.target.value) { updateDay(idx, 'start', ''); updateDay(idx, 'end', ''); updateDay(idx, 'pause', 0); }
+                      }} className="input w-full text-xs px-1 py-0.5 rounded">
+                        {CODE_OPTIONS.map(c => <option key={c} value={c}>{c || '—'}</option>)}
+                      </select>
+                    </td>
+                    <td className="px-2 py-1 text-center font-mono text-xs font-medium">
+                      {c.work > 0 ? hm(c.work) : ''}
+                    </td>
+                    <td className="px-2 py-1 text-center text-xs hidden sm:table-cell">
+                      {(c.night25 + c.night40) > 0 && <span className="text-blue-600 dark:text-blue-400 font-medium">{hm(c.night25 + c.night40)}</span>}
+                    </td>
+                    <td className="px-2 py-1 text-center hidden sm:table-cell">
+                      {c.diet && <Badge variant="green">D</Badge>}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+            <tfoot>
+              <tr className="bg-surface font-semibold">
+                <td className="px-2 py-3" colSpan={2}>{t('stzTotal')}</td>
+                <td className="px-1 py-3" colSpan={4}></td>
+                <td className="px-2 py-3 text-center font-mono">{hm(totals.workMin)}</td>
+                <td className="px-2 py-3 text-center font-mono text-blue-600 hidden sm:table-cell">{hm(totals.n25 + totals.n40)}</td>
+                <td className="px-2 py-3 text-center hidden sm:table-cell"><Badge variant="green">{totals.diets}</Badge></td>
+              </tr>
+            </tfoot>
+          </table>
+        </Card>
+        {hasAnyData && <details className="stz-disclosure stz-copy-section">
+          <summary className="stz-disclosure-summary">
+            <span className="stz-disclosure-icon"><ChevronDown size={16} /></span>
+            <span className="font-bold text-ink">{locale === 'de' ? 'DATEV-Kopieransicht' : 'Widok do kopiowania DATEV'}</span>
+          </summary>
+          <div className="stz-disclosure-content">
+            <StzCopyGrid days={days} year={year} month={month} totals={totals} weekendDiet={weekendDiet} />
+          </div>
+        </details>}
+      </ErrorBoundary>
+
+      <details className="stz-disclosure">
+        <summary className="stz-disclosure-summary">
+          <span className="stz-disclosure-icon"><ChevronDown size={16} /></span>
+          <span className="font-bold text-ink">{locale === 'de' ? 'Mehrere Monate erstellen' : 'Generowanie wielu miesięcy'}</span>
+          
+        </summary>
+        <div className="stz-disclosure-content">
       {/* Mass generation — one sheet per employee, saved into per-name folders */}
       <Card className="p-3">
         <div className="flex flex-col gap-2">
@@ -1033,9 +1161,9 @@ export function StundenzettelPage() {
             <input type="time" value={massEnd} onChange={e => { setMassEnd(e.target.value); resetPrepared(); }}
               className="input rounded px-2 py-1 text-xs font-mono w-24" />
             <div className="flex items-center gap-1">
-              <span className="text-xs text-muted">{t('stzPause')}</span>
-              <input type="number" min={0} max={180} value={massPause || ''} placeholder="0"
-                onChange={e => { setMassPause(parseInt(e.target.value) || 0); resetPrepared(); }}
+              <span className="text-xs text-muted">{t('stzPause')} (h)</span>
+              <input type="number" min={0} max={3} step={0.25} value={massPause ? Number((massPause / 60).toFixed(2)) : ''} placeholder="0"
+                onChange={e => { setMassPause(Math.round((parseFloat(e.target.value) || 0) * 60)); resetPrepared(); }}
                 className="input rounded px-2 py-1 text-xs font-mono w-14 text-center" />
             </div>
             <label className="flex items-center gap-1 text-xs text-muted cursor-pointer">
@@ -1078,6 +1206,17 @@ export function StundenzettelPage() {
         </div>
       </Card>
 
+
+        </div>
+      </details>
+
+      <details className="stz-disclosure">
+        <summary className="stz-disclosure-summary">
+          <span className="stz-disclosure-icon"><ChevronDown size={16} /></span>
+          <span className="font-bold text-ink">{locale === 'de' ? 'Dokumentenwerkzeuge' : 'Narzędzia dokumentów'}</span>
+          
+        </summary>
+        <div className="stz-disclosure-content">
       {/* Batch-clean stored PDFs: strip Vorlage title / DATEV logo / signatures */}
       <Card className="p-3">
         <div className="flex items-center gap-3 flex-wrap">
@@ -1115,102 +1254,10 @@ export function StundenzettelPage() {
         </div>
       </Card>
 
-      <ErrorBoundary>
-        {/* Stats - only show when there's data */}
-        {hasAnyData && (
-          <>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <StatCard icon={<Clock size={20} />} label={t('stzWorkHours')} value={hm(totals.workMin)} color="primary" />
-              <StatCard icon={<Moon size={20} />} label={t('stzNightHours')} value={hm(totals.n25 + totals.n40)} color="blue" />
-              <StatCard icon={<UtensilsCrossed size={20} />} label={t('stzDiets')} value={totals.diets} color="green" />
-              <StatCard icon={<CalendarDays size={20} />} label={t('stzWorkDays')} value={totals.workDays} color="primary" />
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <StatCard icon={<Thermometer size={20} />} label={t('stzSickDays')} value={totals.sick} color="red" />
-              <StatCard icon={<Palmtree size={20} />} label={t('stzVacationDays')} value={totals.vacation} color="green" />
-              <StatCard icon={<Star size={20} />} label={t('stzHolidays')} value={totals.holidays} color="blue" />
-              <StatCard icon={<Moon size={20} />} label="Nacht 25% / 40%" value={`${hm(totals.n25)} / ${hm(totals.n40)}`} color="blue" />
-            </div>
 
-            {/* Copy grid */}
-            <StzCopyGrid days={days} year={year} month={month} totals={totals} weekendDiet={weekendDiet} />
-          </>
-        )}
+        </div>
+      </details>
 
-        {/* Editable table - always visible */}
-        <Card className="overflow-x-auto p-0">
-          <table className="w-full text-xs sm:text-sm">
-            <thead>
-              <tr className="border-b border-border bg-surface">
-                <th className="px-1 sm:px-2 py-2 text-left font-semibold text-muted w-8 sm:w-10">{t('stzDay')}</th>
-                <th className="px-1 py-2 text-left font-semibold text-muted w-6 sm:w-8"></th>
-                <th className="px-0.5 sm:px-1 py-2 text-center font-semibold text-muted w-16 sm:w-24">{t('stzStart')}</th>
-                <th className="px-0.5 sm:px-1 py-2 text-center font-semibold text-muted w-16 sm:w-24">{t('stzEnd')}</th>
-                <th className="px-0.5 sm:px-1 py-2 text-center font-semibold text-muted w-12 sm:w-16">{t('stzPause')}</th>
-                <th className="px-0.5 sm:px-1 py-2 text-center font-semibold text-muted w-10 sm:w-16 hidden xs:table-cell">{t('stzCode')}</th>
-                <th className="px-1 sm:px-2 py-2 text-center font-semibold text-muted w-14 sm:w-16">{t('stzWork')}</th>
-                <th className="px-2 py-2 text-center font-semibold text-muted hidden sm:table-cell">{t('stzNight')}</th>
-                <th className="px-2 py-2 text-center font-semibold text-muted hidden sm:table-cell">{t('stzDiet')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {days.map((day, idx) => {
-                const wd = getWeekday(year, month, day.day);
-                const weekend = isWeekend(year, month, day.day);
-                const c = calcDay(day, isSunday(year, month, day.day), weekendDiet);
-                const hasCode = !!day.code;
-                const rowColor = day.code ? (CODE_COLORS[day.code] || '') : weekend ? 'bg-gray-50/50 dark:bg-gray-800/20' : '';
-
-                return (
-                  <tr key={day.day} className={`border-b border-border ${rowColor}`}>
-                    <td className="px-2 py-1 font-medium text-ink">{day.day}</td>
-                    <td className={`px-2 py-1 text-xs ${weekend ? 'font-bold text-red-500' : 'text-muted'}`}>{wd}</td>
-                    <td className="px-1 py-1">
-                      <input type="time" value={day.start} onChange={e => updateDay(idx, 'start', e.target.value)}
-                        disabled={hasCode} className="input w-full text-xs text-center px-1 py-0.5 rounded font-mono disabled:opacity-30" />
-                    </td>
-                    <td className="px-1 py-1">
-                      <input type="time" value={day.end} onChange={e => updateDay(idx, 'end', e.target.value)}
-                        disabled={hasCode} className="input w-full text-xs text-center px-1 py-0.5 rounded font-mono disabled:opacity-30" />
-                    </td>
-                    <td className="px-1 py-1">
-                      <input type="number" min={0} max={120} value={day.pause || ''} placeholder="0"
-                        onChange={e => updateDay(idx, 'pause', parseInt(e.target.value) || 0)}
-                        disabled={hasCode} className="input w-full text-xs text-center px-1 py-0.5 rounded font-mono disabled:opacity-30" />
-                    </td>
-                    <td className="px-1 py-1">
-                      <select value={day.code} onChange={e => {
-                        updateDay(idx, 'code', e.target.value);
-                        if (e.target.value) { updateDay(idx, 'start', ''); updateDay(idx, 'end', ''); updateDay(idx, 'pause', 0); }
-                      }} className="input w-full text-xs px-1 py-0.5 rounded">
-                        {CODE_OPTIONS.map(c => <option key={c} value={c}>{c || '—'}</option>)}
-                      </select>
-                    </td>
-                    <td className="px-2 py-1 text-center font-mono text-xs font-medium">
-                      {c.work > 0 ? hm(c.work) : ''}
-                    </td>
-                    <td className="px-2 py-1 text-center text-xs hidden sm:table-cell">
-                      {(c.night25 + c.night40) > 0 && <span className="text-blue-600 dark:text-blue-400 font-medium">{hm(c.night25 + c.night40)}</span>}
-                    </td>
-                    <td className="px-2 py-1 text-center hidden sm:table-cell">
-                      {c.diet && <Badge variant="green">D</Badge>}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-            <tfoot>
-              <tr className="bg-surface font-semibold">
-                <td className="px-2 py-3" colSpan={2}>{t('stzTotal')}</td>
-                <td className="px-1 py-3" colSpan={4}></td>
-                <td className="px-2 py-3 text-center font-mono">{hm(totals.workMin)}</td>
-                <td className="px-2 py-3 text-center font-mono text-blue-600 hidden sm:table-cell">{hm(totals.n25 + totals.n40)}</td>
-                <td className="px-2 py-3 text-center hidden sm:table-cell"><Badge variant="green">{totals.diets}</Badge></td>
-              </tr>
-            </tfoot>
-          </table>
-        </Card>
-      </ErrorBoundary>
     </div>
   );
 }
