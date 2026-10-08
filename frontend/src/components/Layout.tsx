@@ -28,7 +28,8 @@ export function Layout({ children }: { children: ReactNode }) {
   const { theme, toggle } = useTheme();
   const { logout, role, hasPermission, companyName } = useAuth();
   const navigate = useNavigate();
-  const fullBleed = useLocation().pathname === '/map';
+  const location = useLocation();
+  const fullBleed = location.pathname === '/map';
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('ddd-sidebar') === 'collapsed');
   const [accentOpen, setAccentOpen] = useState(false);
@@ -69,7 +70,7 @@ export function Layout({ children }: { children: ReactNode }) {
 
   const mainKeys = new Set(['/', '/drivers', '/reader']);
   const mainItems = navItems.filter(i => mainKeys.has(i.to));
-  if (mainItems.length > 0) navSections.push({ label: 'Menu', items: mainItems });
+  if (mainItems.length > 0) navSections.push({ label: locale === 'de' ? 'Arbeitsbereich' : 'Przestrzeń robocza', items: mainItems });
 
   const payrollKeys = new Set(['/payroll', '/stundenzettel', '/arbeitszeitbericht']);
   const payrollItems = navItems.filter(i => payrollKeys.has(i.to));
@@ -88,7 +89,8 @@ export function Layout({ children }: { children: ReactNode }) {
     navigate('/login');
   };
 
-  const sidebarPx = collapsed ? 72 : 280;
+  const sidebarPx = collapsed ? 72 : 256;
+  const activeNavItem = [...navItems].sort((a, b) => b.to.length - a.to.length).find(item => item.to === '/' ? location.pathname === '/' : location.pathname.startsWith(item.to));
 
   return (
     <div className="flex min-h-screen bg-surface">
@@ -111,18 +113,18 @@ export function Layout({ children }: { children: ReactNode }) {
         {/* Use inline style for reliable width transition on desktop */}
         <div
           className="flex h-full flex-col transition-[width] duration-300 overflow-hidden"
-          style={{ width: sidebarOpen ? 280 : sidebarPx }}
+          style={{ width: sidebarOpen ? 256 : sidebarPx }}
         >
           {/* Brand */}
-          <div className={clsx('pb-4 pt-6', collapsed && !sidebarOpen ? 'px-3' : 'px-5')}>
+          <div className={clsx('pb-4 pt-5', collapsed && !sidebarOpen ? 'px-3' : 'px-4')}>
             <div className="flex items-center gap-3">
-              <img src="/logo.png" alt="LTS" className="h-10 w-10 shrink-0 rounded-lg object-contain" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).nextElementSibling!.classList.remove('hidden'); }} />
-              <div className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary-500 text-white">
+              <img src="/logo.png" alt="LTS" className="h-10 w-10 shrink-0 rounded-xl border border-border bg-surface-2 p-1 object-contain" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).nextElementSibling!.classList.remove('hidden'); }} />
+              <div className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent text-white">
                 <Truck size={20} />
               </div>
               {(!collapsed || sidebarOpen) && (
                 <div className="min-w-0 flex-1">
-                  <span className="block text-sm font-extrabold leading-tight text-white">Tachoprüfung</span>
+                  <span className="block text-sm font-extrabold leading-tight text-ink">FleetView</span>
                   <span className="rail-muted text-[11px] font-medium">{companyName}</span>
                 </div>
               )}
@@ -134,9 +136,9 @@ export function Layout({ children }: { children: ReactNode }) {
               </button>
             </div>
             {(!collapsed || sidebarOpen) && (role === 'admin' || role === 'dispatcher') && (
-              <div className="mt-3 flex items-center gap-2 rounded-lg bg-white/10 px-3 py-1.5">
-                <Shield size={12} className="text-primary-300" />
-                <span className="text-[11px] font-semibold text-primary-200">
+              <div className="mt-3 flex items-center gap-2 rounded-lg border border-border bg-surface-2 px-3 py-1.5">
+                <Shield size={12} className="text-accent" />
+                <span className="text-[11px] font-semibold text-ink-2">
                   {role === 'admin' ? 'Administrator' : t('roleDispatcher')}
                 </span>
               </div>
@@ -170,10 +172,10 @@ export function Layout({ children }: { children: ReactNode }) {
                       title={collapsed && !sidebarOpen ? t(labelKey) : undefined}
                       className={({ isActive }) =>
                         clsx(
-                          'nav-link group relative flex items-center rounded-lg text-[13px] font-semibold transition-colors duration-150',
+                          'nav-link group relative flex items-center rounded-xl text-[13px] font-semibold transition-colors duration-150',
                           collapsed && !sidebarOpen
                             ? 'justify-center px-2 py-2.5'
-                            : 'gap-3 px-3 py-2',
+                            : 'gap-3 px-3 py-2.5',
                           isActive && 'is-active',
                         )
                       }
@@ -189,34 +191,8 @@ export function Layout({ children }: { children: ReactNode }) {
             ))}
           </nav>
 
-          {/* Recent analyses */}
-          {(!collapsed || sidebarOpen) && (() => {
-            try {
-              const recent = JSON.parse(localStorage.getItem('recent-analyses') || '[]') as { name: string; url: string }[];
-              if (recent.length === 0) return null;
-              return (
-                <div className="border-t border-white/10 px-3 py-3">
-                  <p className="rail-muted mb-2 px-3 text-[10px] font-bold uppercase tracking-[0.08em]">{t('recentAnalyses')}</p>
-                  <div className="space-y-0.5">
-                    {recent.slice(0, 5).map((r, i) => (
-                      <NavLink
-                        key={i}
-                        to={r.url}
-                        onClick={() => setSidebarOpen(false)}
-                        className="rail-btn flex items-center gap-2 rounded-lg px-3 py-1.5 text-[12px] transition-colors duration-200"
-                      >
-                        <Clock size={12} />
-                        <span className="truncate">{r.name}</span>
-                      </NavLink>
-                    ))}
-                  </div>
-                </div>
-              );
-            } catch { return null; }
-          })()}
-
           {/* Bottom controls */}
-          <div className="border-t border-white/10 p-3">
+          <div className="border-t border-border p-3">
             {collapsed && !sidebarOpen ? (
               /* Collapsed: vertical icon buttons */
               <div className="flex flex-col items-center gap-1">
@@ -297,7 +273,7 @@ export function Layout({ children }: { children: ReactNode }) {
       <div className="sidebar-offset flex flex-1 flex-col transition-[padding-left] duration-300">
         {/* Top bar */}
         <header className="sticky top-0 z-30 topbar">
-          <div className="flex h-14 items-center gap-3 px-4 sm:px-6">
+          <div className="flex min-h-16 items-center gap-4 px-4 sm:px-6 lg:px-8">
             {/* Mobile menu button */}
             <button
               onClick={() => setSidebarOpen(true)}
@@ -306,8 +282,13 @@ export function Layout({ children }: { children: ReactNode }) {
               <Menu size={22} />
             </button>
 
-            {/* Global period filter — one button, panel below it */}
-            <div className="flex min-w-0 flex-1 items-center">
+            <div className="flex min-w-0 flex-1 items-center gap-4">
+              <div className="hidden min-w-0 items-center gap-2 text-[13px] sm:flex">
+                <span className="font-medium text-muted">{locale === 'de' ? 'Arbeitsbereich' : 'Panel'}</span>
+                <ChevronRight size={14} className="text-muted/60" />
+                <span className="truncate font-bold text-ink">{activeNavItem ? t(activeNavItem.labelKey) : 'FleetView'}</span>
+              </div>
+              <span className="hidden h-6 w-px bg-border lg:block" />
               <DateFilterPopover />
             </div>
 
@@ -315,7 +296,7 @@ export function Layout({ children }: { children: ReactNode }) {
             <div className="flex items-center gap-1">
               <button
                 onClick={() => window.dispatchEvent(new CustomEvent('app:open-search'))}
-                className="flex items-center gap-2 rounded-lg border border-border px-2.5 py-2 text-xs font-medium text-muted transition hover:border-primary-300 hover:text-ink"
+                className="flex items-center gap-2 rounded-xl border border-border bg-surface-2 px-3 py-2 text-xs font-medium text-muted transition hover:border-primary-300 hover:text-ink"
                 title={t('search')}
               >
                 <Search size={16} />
@@ -342,8 +323,8 @@ export function Layout({ children }: { children: ReactNode }) {
         {fullBleed ? (
           <main className="flex-1 overflow-hidden">{children}</main>
         ) : (
-          <main className="min-w-0 flex-1 overflow-x-hidden px-4 py-6 pb-24 sm:px-6 lg:px-8 lg:pb-6">
-            <div className="mx-auto min-w-0 max-w-[1800px]">
+          <main className="min-w-0 flex-1 overflow-x-hidden px-4 py-6 pb-24 sm:px-6 lg:px-10 lg:py-8 lg:pb-8">
+            <div className="mx-auto min-w-0 max-w-[1760px]">
               <PageTransition>{children}</PageTransition>
             </div>
           </main>
