@@ -1,4 +1,6 @@
 @import "tailwindcss";
+@font-face { font-family: 'Fleet Inter'; src: url('/fonts/Inter-Regular.ttf') format('truetype'); font-style: normal; font-weight: 400 599; font-display: swap; }
+@font-face { font-family: 'Fleet Inter'; src: url('/fonts/Inter-Bold.ttf') format('truetype'); font-style: normal; font-weight: 600 900; font-display: swap; }
 
 /* ==========================================================================
    FleetView design tokens — "konsola dyspozytora"
@@ -9,7 +11,7 @@
 
 @theme {
   /* Type */
-  --font-sans: 'Manrope', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+  --font-sans: 'Fleet Inter', Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
 
   /* Breakpoints */
@@ -506,8 +508,9 @@ thead th { user-select: none; }
   box-shadow: 1px 0 var(--color-border);
 }
 .stz-edit-table thead th:first-child { z-index: 4; }
-.stz-edit-table tbody tr { background: var(--color-card); transition: background .14s ease; }
-.stz-edit-table tbody tr:nth-child(even) { background: var(--color-surface-2); }
+.stz-edit-table tbody tr { transition: background .14s ease; }
+.stz-edit-table tbody tr:not([class*="bg-"]) { background: var(--color-card); }
+.stz-edit-table tbody tr:nth-child(even):not([class*="bg-"]) { background: var(--color-surface-2); }
 .stz-edit-table tbody tr:hover,
 .stz-edit-table tbody tr:focus-within { background: var(--color-accent-light); }
 .stz-edit-table tbody td { height: 46px; padding: 5px 8px; border-bottom: 1px solid var(--color-border); }
