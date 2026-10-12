@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { staggerIn } from '../lib/motion';
+import { matchesText } from '../lib/text';
 import { useNavigate } from 'react-router-dom';
 import { Search, RefreshCw, ChevronUp, ChevronDown, FileText, AlertCircle, AlertTriangle, UserPlus, QrCode, FileDown, Users } from 'lucide-react';
 import { useI18n } from '../i18n';
@@ -82,12 +83,10 @@ export function DriversPage() {
 
   // Filter + sort
   const filtered = useMemo(() => {
-    const q = search.toLowerCase().trim();
+    const q = search.trim();
     let list = drivers;
     if (q) {
-      list = list.filter(
-        (d) => d.name.toLowerCase().includes(q) || d.card_number.toLowerCase().includes(q),
-      );
+      list = list.filter((d) => matchesText(d.name, q) || matchesText(d.card_number, q));
     }
     const dir = sortDir === 'asc' ? 1 : -1;
     list = [...list].sort((a, b) => {

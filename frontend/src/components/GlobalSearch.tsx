@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { foldText } from '../lib/text';
 import { Search, LayoutDashboard, Users, FileText, RefreshCw, Shield, UserCog, Truck, Clock } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { useAuth } from '../hooks/useAuth';
@@ -49,14 +50,14 @@ export function GlobalSearch() {
     ] : []),
   ];
 
-  const q = query.toLowerCase().trim();
+  const q = foldText(query).trim();
   const pageResults = q
-    ? pages.filter((item) => item.label.toLowerCase().includes(q) || item.keywords.some((k) => k.includes(q)))
+    ? pages.filter((item) => foldText(item.label).includes(q) || item.keywords.some((k) => foldText(k).includes(q)))
     : pages;
 
   const driverResults: SearchItem[] = q
     ? drivers
-        .filter((d) => d.name.toLowerCase().includes(q) || (d.card_number || '').toLowerCase().includes(q))
+        .filter((d) => foldText(d.name).includes(q) || (d.card_number || '').toLowerCase().includes(q))
         .slice(0, 6)
         .map((d) => {
           const f = d.files?.[0];
@@ -69,7 +70,7 @@ export function GlobalSearch() {
 
   const vehicleResults: SearchItem[] = q
     ? vehicles
-        .filter((v) => v.name.toLowerCase().includes(q) || (v.license_plate || '').toLowerCase().includes(q))
+        .filter((v) => foldText(v.name).includes(q) || foldText(v.license_plate || '').includes(q))
         .slice(0, 6)
         .map((v) => {
           const loc = locations.get(v.id);
@@ -84,7 +85,7 @@ export function GlobalSearch() {
     : [];
 
   const recentResults: SearchItem[] = recent
-    .filter((r) => (q ? r.name.toLowerCase().includes(q) : true))
+    .filter((r) => (q ? foldText(r.name).includes(q) : true))
     .slice(0, 5)
     .map((r) => ({ label: r.name, sub: t('recentAnalyses'), to: r.url, icon: Clock, keywords: [] }));
 
