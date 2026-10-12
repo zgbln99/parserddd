@@ -11,7 +11,29 @@ sterownik), dlatego potrzebny jest mostek. Działa tylko lokalnie
 (`http://127.0.0.1:27182`) i odpowiada wyłącznie stronie
 `https://dd.ltslog.de` (plus localhost do developmentu).
 
-## Instalacja na Windows
+## Instalacja na Windows (zalecana: jeden plik .exe)
+
+1. Na stronie **Czytnik kart** kliknij „Pobierz LTS-CardBridge.exe”
+   (przycisk pojawia się, gdy administrator wgrał plik w Admin → Konfiguracja).
+2. Uruchom plik. W zasobniku (obok zegara) pojawi się niebieska ikona karty.
+   Program sam dodaje się do autostartu Windows (klucz Run w HKCU, bez
+   uprawnień administratora). Menu ikony: status czytnika, „Otwórz
+   FleetView”, „Pokaż log”, „Uruchamiaj z Windows”, „Zakończ”.
+3. Podłącz czytnik, włóż kartę i wróć na stronę Czytnik kart.
+
+Log działania: `%LOCALAPPDATA%\LTSCardBridge\bridge.log`.
+Windows SmartScreen może ostrzec przed niepodpisanym plikiem: „Więcej
+informacji” → „Uruchom mimo to”.
+
+### Skąd wziąć .exe
+
+Workflow GitHub Actions **Card Bridge EXE** (`.github/workflows/card-bridge.yml`)
+buduje plik na Windows przy każdej zmianie w tym katalogu, ręcznie
+(„Run workflow”) albo dla tagu `bridge-v*` (wtedy dodaje go do release).
+Pobierz artefakt `LTS-CardBridge` i wgraj plik w FleetView:
+Admin → Konfiguracja → „Mostek czytnika kart”. Lokalnie: `build-exe.ps1`.
+
+## Instalacja ze źródeł (Python)
 
 1. Zainstaluj Pythona 3.12 z <https://www.python.org/downloads/windows/>
    (zaznacz „Add python.exe to PATH”).
@@ -31,15 +53,9 @@ sterownik), dlatego potrzebny jest mostek. Działa tylko lokalnie
 Windows ma wbudowaną usługę kart inteligentnych; nie trzeba instalować
 nic więcej. Na Linuksie potrzebne są `pcscd` i `libccid`.
 
-### Jeden plik .exe (opcjonalnie)
-
-```powershell
-pip install pyscard pyinstaller
-pyinstaller --onefile --name LTS-CardBridge lts_card_bridge.py
-```
-
-Plik `dist\LTS-CardBridge.exe` można dodać do autostartu
-(`shell:startup`), żeby mostek działał po zalogowaniu do Windows.
+Tryb konsolowy nie dodaje się do autostartu; zrobi to
+`python lts_card_bridge.py --install-autostart` (`--uninstall-autostart`
+cofa wpis).
 
 ## Co robi podczas pobierania
 
@@ -68,5 +84,7 @@ pliku. Nie zastępuje testu na prawdziwej karcie.
 ## Parametry
 
 - `--port 27182` (lub zmienna `LTS_BRIDGE_PORT`)
+- `--tray` ikona w zasobniku (domyślne dla .exe), `--console` wymusza konsolę
+- `--install-autostart` / `--uninstall-autostart`
 - `--origin https://inna.domena` (powtarzalne) lub `LTS_BRIDGE_ORIGINS`
   z listą rozdzieloną spacjami, gdy aplikacja działa pod innym adresem.

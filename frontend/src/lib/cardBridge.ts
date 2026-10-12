@@ -7,6 +7,7 @@
 export const BRIDGE_URL = 'http://127.0.0.1:27182';
 export const BRIDGE_DOWNLOAD_URL = '/api/reader/card-bridge/lts_card_bridge.py';
 export const BRIDGE_README_URL = '/api/reader/card-bridge/README.md';
+export const BRIDGE_EXE_URL = '/api/reader/card-bridge/LTS-CardBridge.exe';
 
 export interface BridgeReader {
   name: string;

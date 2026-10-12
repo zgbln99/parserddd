@@ -5,9 +5,9 @@ import { Card } from '../components/Card';
 import { Badge } from '../components/Badge';
 import { Spinner } from '../components/Spinner';
 import { useToast } from '../components/Toast';
-import { fetchDrivers, saveReaderFileToDropbox } from '../lib/api';
+import { fetchDrivers, saveReaderFileToDropbox, fetchCardBridgeInfo, type CardBridgeInfo } from '../lib/api';
 import {
-  bridgeStatus, bridgeRead, bridgeResultToFile, BRIDGE_DOWNLOAD_URL, BRIDGE_README_URL,
+  bridgeStatus, bridgeRead, bridgeResultToFile, BRIDGE_DOWNLOAD_URL, BRIDGE_README_URL, BRIDGE_EXE_URL,
   type BridgeStatus, type BridgeReadResult,
 } from '../lib/cardBridge';
 import type { Driver } from '../types';
@@ -32,6 +32,7 @@ export function UsbCardReader({ onAnalyze }: { onAnalyze: (file: File) => void }
   const [driverName, setDriverName] = useState('');
   const [saving, setSaving] = useState(false);
   const [savedPath, setSavedPath] = useState('');
+  const [bridgeInfo, setBridgeInfo] = useState<CardBridgeInfo | null>(null);
   const phaseRef = useRef<Phase>('checking');
   phaseRef.current = phase;
 
@@ -54,6 +55,7 @@ export function UsbCardReader({ onAnalyze }: { onAnalyze: (file: File) => void }
 
   useEffect(() => {
     fetchDrivers().then((r) => setDrivers(r.drivers || [])).catch(() => {});
+    fetchCardBridgeInfo().then(setBridgeInfo).catch(() => {});
   }, []);
 
   const matchedDriver = useMemo(() => {
@@ -136,11 +138,19 @@ export function UsbCardReader({ onAnalyze }: { onAnalyze: (file: File) => void }
       <div className="p-4">
         {phase === 'offline' && (
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
-            <p className="min-w-0 flex-1 text-sm text-muted">{t('usbOfflineHint')}</p>
+            <p className="min-w-0 flex-1 text-sm text-muted">
+              {bridgeInfo?.exe_available ? t('usbOfflineHintExe') : t('usbOfflineHint')}
+            </p>
             <div className="flex shrink-0 flex-wrap gap-2">
-              <a href={BRIDGE_DOWNLOAD_URL} className="btn-primary btn-press inline-flex items-center gap-1.5 px-3 py-2 text-xs">
-                <Download size={14} /> {t('usbDownloadBridge')}
-              </a>
+              {bridgeInfo?.exe_available ? (
+                <a href={BRIDGE_EXE_URL} className="btn-primary btn-press inline-flex items-center gap-1.5 px-3 py-2 text-xs">
+                  <Download size={14} /> {t('usbDownloadExe')}
+                </a>
+              ) : (
+                <a href={BRIDGE_DOWNLOAD_URL} className="btn-primary btn-press inline-flex items-center gap-1.5 px-3 py-2 text-xs">
+                  <Download size={14} /> {t('usbDownloadBridge')}
+                </a>
+              )}
               <a href={BRIDGE_README_URL} className="btn-secondary btn-press inline-flex items-center gap-1.5 px-3 py-2 text-xs">
                 <ExternalLink size={14} /> {t('usbInstructions')}
               </a>

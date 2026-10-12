@@ -4,7 +4,7 @@ import {
   Clock, Settings,
 } from 'lucide-react';
 import { useI18n } from '../../i18n';
-import { fetchSyncLog, fetchConfig, updateConfig, type SyncConfig } from '../../lib/api';
+import { fetchSyncLog, fetchConfig, updateConfig, fetchCardBridgeInfo, uploadCardBridgeExe, type SyncConfig, type CardBridgeInfo } from '../../lib/api';
 import { formatDateTime, formatBytes } from '../../lib/format';
 import { Card, StatCard } from '../Card';
 import { Badge } from '../Badge';
@@ -407,6 +407,49 @@ function SystemStatsSection() {
   );
 }
 
+function CardBridgeSection() {
+  const { t, locale } = useI18n();
+  const [info, setInfo] = useState<CardBridgeInfo | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  const load = () => fetchCardBridgeInfo().then(setInfo).catch(() => setInfo(null));
+  useEffect(() => { load(); }, []);
+
+  const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    e.target.value = '';
+    if (!f) return;
+    setBusy(true); setMsg('');
+    try {
+      await uploadCardBridgeExe(f);
+      setMsg('OK!');
+      load();
+    } catch (err: unknown) {
+      setMsg((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Card className="p-4 sm:p-6">
+      <h3 className="mb-1 text-sm font-bold text-ink">{t('adminCardBridge')}</h3>
+      <p className="mb-3 text-xs text-muted">{t('adminCardBridgeHint')}</p>
+      <div className="flex flex-wrap items-center gap-3">
+        {info?.exe_available
+          ? <Badge variant="green" dot>{t('adminCardBridgeAvailable')} · {((info.size || 0) / 1024 / 1024).toFixed(1)} MB · {info.modified ? formatDateTime(info.modified, locale) : ''}</Badge>
+          : <Badge variant="orange" dot>{t('adminCardBridgeMissing')}</Badge>}
+        <label className="btn-secondary btn-press inline-flex cursor-pointer items-center gap-2 px-3 py-1.5 text-xs">
+          {busy ? <Spinner size="sm" /> : null}
+          {t('adminCardBridgeUpload')}
+          <input id="card-bridge-exe" type="file" accept=".exe" onChange={onFile} className="hidden" disabled={busy} />
+        </label>
+        {msg && <span className={`text-xs font-medium ${msg === 'OK!' ? 'text-success' : 'text-danger'}`}>{msg}</span>}
+      </div>
+    </Card>
+  );
+}
+
 export function SyncConfigTab() {
   const { t } = useI18n();
 
@@ -414,6 +457,7 @@ export function SyncConfigTab() {
     <div className="space-y-6">
       <SystemStatsSection />
       <SyncConfigSection />
+      <CardBridgeSection />
       <div>
         <h2 className="mb-4 flex items-center gap-2 text-lg font-bold">
           <Clock size={18} className="text-primary-500" />

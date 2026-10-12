@@ -688,6 +688,23 @@ export interface SyncConfig {
 export const fetchConfig = () =>
   request<SyncConfig>('/api/admin/config');
 
+// USB card reader bridge (.exe stored in the bucket by an admin)
+export interface CardBridgeInfo {
+  exe_available: boolean;
+  exe_name: string;
+  size?: number;
+  modified?: string;
+}
+
+export const fetchCardBridgeInfo = () =>
+  request<CardBridgeInfo>('/api/reader/card-bridge/info');
+
+export async function uploadCardBridgeExe(file: File) {
+  const form = new FormData();
+  form.append('file', file);
+  return request<{ ok: boolean; size: number }>('/api/admin/card-bridge', { method: 'POST', body: form });
+}
+
 // MiLoG minimum-wage parameters (login-only, not admin-only)
 export interface MindestlohnSettings {
   default_monthly_gross_eur: number;

@@ -10,12 +10,15 @@ Endpoints:
 import os
 from datetime import datetime
 
+from io import BytesIO
+
 from flask import Blueprint, request, jsonify, send_file
 
 from auth.decorators import login_required
 from auth.helpers import _log_activity
 from config import PORTAL_CACHE_FILE
 from core.constants import UTC
+from services import storage_service
 from services.drivers_index import (
     get_storage_client,
     build_drivers_data,
@@ -144,12 +147,44 @@ def api_reader_save_to_dropbox():
 # ---------------------------------------------------------------------------
 
 _BRIDGE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'tools', 'card_bridge')
+# The Windows build (LTS-CardBridge.exe, from the "Card Bridge EXE" workflow)
+# is uploaded once by an admin and kept in the bucket, so dispatchers can
+# fetch it from the Reader page without GitHub access.
+BRIDGE_EXE_NAME = 'LTS-CardBridge.exe'
+BRIDGE_EXE_PATH = f'/Tools/{BRIDGE_EXE_NAME}'
+
+
+@bp.route('/api/reader/card-bridge/info')
+@login_required
+def api_card_bridge_info():
+    """Is the .exe available for download, and how old is it?"""
+    info = {'exe_available': False, 'exe_name': BRIDGE_EXE_NAME}
+    try:
+        h = storage_service.head(BRIDGE_EXE_PATH)
+    except storage_service.StorageError:
+        h = None
+    if h:
+        info.update({
+            'exe_available': True,
+            'size': h.get('size', 0),
+            'modified': h['modified'].isoformat() if h.get('modified') else '',
+        })
+    return jsonify(info)
 
 
 @bp.route('/api/reader/card-bridge/<name>')
 @login_required
 def api_card_bridge_file(name):
-    """Serve the bridge script or its README for download."""
+    """Serve the bridge .exe (from storage) or its source/README for download."""
+    if name == BRIDGE_EXE_NAME:
+        try:
+            data = storage_service.download_bytes(BRIDGE_EXE_PATH)
+        except storage_service.StorageFileNotFound:
+            return jsonify({'error': 'Plik .exe nie został jeszcze wgrany przez administratora'}), 404
+        except storage_service.StorageError as exc:
+            return jsonify({'error': f'Storage: {exc}'}), 500
+        return send_file(BytesIO(data), mimetype='application/vnd.microsoft.portable-executable',
+                         as_attachment=True, download_name=BRIDGE_EXE_NAME)
     allowed = {'lts_card_bridge.py': 'text/x-python', 'README.md': 'text/markdown', 'requirements.txt': 'text/plain'}
     if name not in allowed:
         return jsonify({'error': 'not found'}), 404

@@ -1,0 +1,68 @@
+# =============================================================================
+#  LTS Card Bridge — Windows .exe build
+#
+#  Builds backend/tools/card_bridge/lts_card_bridge.py into a single
+#  LTS-CardBridge.exe (tray icon, Windows autostart) with PyInstaller.
+#
+#  Triggers: push touching the bridge, manual "Run workflow", or a tag
+#  bridge-v*. The .exe is a workflow artifact; on a tag it is also attached
+#  to a GitHub release. Then an admin uploads it once in FleetView
+#  (Admin → Konfiguracja → Mostek czytnika kart) so dispatchers download it
+#  from the Reader page.
+# =============================================================================
+name: Card Bridge EXE
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ['**']
+    paths: ['backend/tools/card_bridge/**', '.github/workflows/card-bridge.yml']
+    tags: ['bridge-v*']
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: backend/tools/card_bridge
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pyinstaller
+
+      - name: Self-test (simulated card)
+        run: python lts_card_bridge.py --selftest
+
+      - name: Build LTS-CardBridge.exe
+        shell: pwsh
+        run: |
+          python -c "from lts_card_bridge import _tray_icon_image; _tray_icon_image().save('bridge.ico', sizes=[(16,16),(32,32),(48,48),(64,64)])"
+          python -m PyInstaller --onefile --noconsole --name LTS-CardBridge --icon bridge.ico `
+            --hidden-import smartcard.scard --hidden-import pystray._win32 --hidden-import PIL.Image `
+            lts_card_bridge.py
+          Get-Item dist\LTS-CardBridge.exe | Format-List Name, Length
+
+      - name: Smoke-test the .exe (console mode, selftest)
+        shell: pwsh
+        run: |
+          .\dist\LTS-CardBridge.exe --console --selftest
+          if ($LASTEXITCODE -ne 0) { throw "selftest failed in the built exe" }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LTS-CardBridge
+          path: backend/tools/card_bridge/dist/LTS-CardBridge.exe
+          if-no-files-found: error
+
+      - name: Attach to release (tags only)
+        if: startsWith(github.ref, 'refs/tags/bridge-v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: backend/tools/card_bridge/dist/LTS-CardBridge.exe

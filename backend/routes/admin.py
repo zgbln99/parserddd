@@ -23,6 +23,7 @@ from auth.helpers import (
 )
 from config import SAMSARA_API_TOKEN, ROLE_PERMISSIONS, VALID_ROLES
 from core.constants import UTC
+from services import storage_service
 from core.utils import _sanitize_text
 import config as cfg_mod
 
@@ -527,3 +528,27 @@ def api_system_stats():
         'cache_entries': cache_size,
         'db_size_bytes': db_size,
     })
+
+
+# --- Card reader bridge (.exe built by the "Card Bridge EXE" workflow) ---
+
+
+@bp.route('/api/admin/card-bridge', methods=['POST'])
+@admin_required
+def api_admin_upload_card_bridge():
+    """Store LTS-CardBridge.exe in the bucket so the Reader page can serve it."""
+    if 'file' not in request.files:
+        return jsonify({'error': 'Brak pliku'}), 400
+    f = request.files['file']
+    if not (f.filename or '').lower().endswith('.exe'):
+        return jsonify({'error': 'Oczekiwany plik .exe'}), 400
+    data = f.read()
+    if len(data) < 1_000_000 or data[:2] != b'MZ':
+        return jsonify({'error': 'To nie wygląda na zbudowany LTS-CardBridge.exe'}), 400
+    try:
+        storage_service.upload_bytes('/Tools/LTS-CardBridge.exe', data,
+                                     content_type='application/vnd.microsoft.portable-executable')
+    except storage_service.StorageError as exc:
+        return jsonify({'error': f'Storage: {exc}'}), 500
+    _log_activity('upload_card_bridge', f'{len(data)} bytes')
+    return jsonify({'ok': True, 'size': len(data)})

@@ -23,6 +23,8 @@ Requirements: Python 3.9+, pyscard (pip install pyscard). On Windows the
 PC/SC service is built in; on Linux install pcscd + libccid.
 
 Run:   python lts_card_bridge.py            (console log, Ctrl+C to stop)
+       LTS-CardBridge.exe                   (tray icon; adds itself to Windows
+                                             autostart on first run)
 Test:  python lts_card_bridge.py --selftest (no reader needed)
 """
 
@@ -34,10 +36,15 @@ import struct
 import sys
 import threading
 import time
+import webbrowser
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-VERSION = "1.0.0"
+VERSION = "1.1.0"
+APP_NAME = "LTSCardBridge"
+FLEETVIEW_URL = "https://dd.ltslog.de/reader"
+IS_WINDOWS = sys.platform.startswith("win")
+IS_FROZEN = bool(getattr(sys, "frozen", False))  # running as the PyInstaller .exe
 DEFAULT_PORT = 27182
 DEFAULT_ORIGINS = [
     "https://dd.ltslog.de",
@@ -115,8 +122,32 @@ class CardError(Exception):
     pass
 
 
+_LOG_FILE = None
+
+
+def _log_path():
+    base = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
+    d = os.path.join(base, APP_NAME)
+    os.makedirs(d, exist_ok=True)
+    return os.path.join(d, "bridge.log")
+
+
 def log(msg: str):
-    print(f"{datetime.now().strftime('%H:%M:%S')}  {msg}", flush=True)
+    """Console when there is one; always the log file when running as .exe."""
+    global _LOG_FILE
+    line = f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}  {msg}"
+    try:
+        print(line, flush=True)
+    except Exception:
+        pass
+    if IS_FROZEN:
+        try:
+            if _LOG_FILE is None:
+                _LOG_FILE = open(_log_path(), "a", encoding="utf-8")
+            _LOG_FILE.write(line + "\n")
+            _LOG_FILE.flush()
+        except Exception:
+            pass
 
 
 # ---------------------------------------------------------------------------
@@ -462,9 +493,13 @@ def make_handler(bridge: Bridge):
     return Handler
 
 
-def serve(port, origins):
-    bridge = Bridge(origins)
-    httpd = ThreadingHTTPServer(("127.0.0.1", port), make_handler(bridge))
+def serve(port, origins, bridge=None, block=True):
+    bridge = bridge or Bridge(origins)
+    try:
+        httpd = ThreadingHTTPServer(("127.0.0.1", port), make_handler(bridge))
+    except OSError as exc:
+        log(f"Port {port} is busy — another LTS Card Bridge is probably running ({exc})")
+        return None
     log(f"LTS Card Bridge {VERSION} listening on http://127.0.0.1:{port}")
     log(f"Allowed origins: {', '.join(sorted(origins))}")
     try:
@@ -472,10 +507,117 @@ def serve(port, origins):
         log("Readers: " + (", ".join(r["name"] for r in readers) or "none found"))
     except Exception as exc:
         log(f"PC/SC not available yet: {exc}")
+    if not block:
+        threading.Thread(target=httpd.serve_forever, daemon=True).start()
+        return httpd
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
         log("Stopped")
+    return httpd
+
+
+# ---------------------------------------------------------------------------
+# Windows: autostart (HKCU Run key, no admin rights) and tray icon
+# ---------------------------------------------------------------------------
+
+_RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
+
+
+def _exe_command():
+    if IS_FROZEN:
+        return f'"{sys.executable}" --tray'
+    return f'"{sys.executable}" "{os.path.abspath(__file__)}" --tray'
+
+
+def autostart_enabled():
+    if not IS_WINDOWS:
+        return False
+    import winreg
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, _RUN_KEY) as k:
+            value, _ = winreg.QueryValueEx(k, APP_NAME)
+            return bool(value)
+    except OSError:
+        return False
+
+
+def set_autostart(enabled: bool):
+    if not IS_WINDOWS:
+        log("Autostart is only available on Windows")
+        return
+    import winreg
+    with winreg.OpenKey(winreg.HKEY_CURRENT_USER, _RUN_KEY, 0, winreg.KEY_SET_VALUE) as k:
+        if enabled:
+            winreg.SetValueEx(k, APP_NAME, 0, winreg.REG_SZ, _exe_command())
+            log(f"Autostart enabled: {_exe_command()}")
+        else:
+            try:
+                winreg.DeleteValue(k, APP_NAME)
+            except FileNotFoundError:
+                pass
+            log("Autostart disabled")
+
+
+def _tray_icon_image():
+    from PIL import Image, ImageDraw
+    img = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    d.rounded_rectangle((4, 4, 60, 60), radius=14, fill=(29, 95, 209, 255))
+    d.rounded_rectangle((16, 22, 48, 44), radius=4, fill=(255, 255, 255, 255))   # card
+    d.rectangle((20, 28, 30, 36), fill=(29, 95, 209, 255))                         # chip
+    return img
+
+
+def run_tray(port, origins):
+    """Tray mode (the .exe): server in the background, icon with a small menu."""
+    try:
+        import pystray
+    except ImportError:
+        log("pystray not installed — running in console mode instead")
+        serve(port, origins)
+        return
+
+    bridge = Bridge(origins)
+    httpd = serve(port, origins, bridge=bridge, block=False)
+    if httpd is None:
+        return  # another instance owns the port
+    if IS_FROZEN and not autostart_enabled():
+        try:
+            set_autostart(True)
+        except Exception as exc:
+            log(f"Could not enable autostart: {exc}")
+
+    def status_text(_item=None):
+        try:
+            readers = list_readers()
+        except Exception:
+            return "Czytnik: niedostępny (PC/SC)"
+        if not readers:
+            return "Czytnik: nie podłączony"
+        r = readers[0]
+        return f"{r['name']}: {'karta włożona' if r['card'] else 'brak karty'}"
+
+    def toggle_autostart(_icon, _item):
+        set_autostart(not autostart_enabled())
+
+    def quit_app(icon, _item):
+        log("Stopped from tray")
+        httpd.shutdown()
+        icon.stop()
+
+    menu = pystray.Menu(
+        pystray.MenuItem(f"LTS Card Bridge {VERSION} — port {port}", None, enabled=False),
+        pystray.MenuItem(status_text, None, enabled=False),
+        pystray.Menu.SEPARATOR,
+        pystray.MenuItem("Otwórz FleetView — Czytnik kart", lambda *_: webbrowser.open(FLEETVIEW_URL)),
+        pystray.MenuItem("Pokaż log", lambda *_: webbrowser.open(_log_path()) if IS_FROZEN else None),
+        pystray.MenuItem("Uruchamiaj z Windows", toggle_autostart, checked=lambda _i: autostart_enabled()),
+        pystray.Menu.SEPARATOR,
+        pystray.MenuItem("Zakończ", quit_app),
+    )
+    icon = pystray.Icon(APP_NAME, _tray_icon_image(), "LTS Card Bridge", menu)
+    icon.run()
 
 
 # ---------------------------------------------------------------------------
@@ -562,12 +704,24 @@ def main():
     ap.add_argument("--port", type=int, default=int(os.environ.get("LTS_BRIDGE_PORT", DEFAULT_PORT)))
     ap.add_argument("--origin", action="append", default=[], help="extra allowed web origin (repeatable)")
     ap.add_argument("--selftest", action="store_true", help="run the download logic against a simulated card")
+    ap.add_argument("--tray", action="store_true", help="tray icon mode (default for the .exe)")
+    ap.add_argument("--console", action="store_true", help="force console mode even for the .exe")
+    ap.add_argument("--install-autostart", action="store_true", help="add the bridge to Windows autostart and exit")
+    ap.add_argument("--uninstall-autostart", action="store_true", help="remove the bridge from Windows autostart and exit")
     args = ap.parse_args()
     if args.selftest:
         selftest()
         return
+    if args.install_autostart:
+        set_autostart(True); return
+    if args.uninstall_autostart:
+        set_autostart(False); return
     extra = [o for o in args.origin + os.environ.get("LTS_BRIDGE_ORIGINS", "").split() if o]
-    serve(args.port, DEFAULT_ORIGINS + extra)
+    origins = DEFAULT_ORIGINS + extra
+    if (args.tray or (IS_FROZEN and IS_WINDOWS)) and not args.console:
+        run_tray(args.port, origins)
+    else:
+        serve(args.port, origins)
 
 
 if __name__ == "__main__":
