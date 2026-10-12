@@ -10,7 +10,7 @@ Endpoints:
 import os
 from datetime import datetime
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, send_file
 
 from auth.decorators import login_required
 from auth.helpers import _log_activity
@@ -69,7 +69,7 @@ def api_add_driver():
 
     dbx = get_storage_client()
     if not dbx:
-        return jsonify({'error': 'Brak polaczenia z Dropbox'}), 500
+        return jsonify({'error': 'Storage nie skonfigurowany (brak MEGA_S4_* w env)'}), 500
 
     sync_folder = os.environ.get('SYNC_DEST_FOLDER', '/Samsara-DDD')
     folder_path = f"{sync_folder}/{driver_name}"
@@ -108,7 +108,7 @@ def api_reader_save_to_dropbox():
 
     dbx = get_storage_client()
     if not dbx:
-        return jsonify({'error': 'Brak polaczenia z Dropbox'}), 500
+        return jsonify({'error': 'Storage nie skonfigurowany (brak MEGA_S4_* w env)'}), 500
 
     sync_folder = os.environ.get('SYNC_DEST_FOLDER', '/Samsara-DDD')
     date_part = datetime.now().strftime('%Y-%m-%d')
@@ -136,3 +136,24 @@ def api_reader_save_to_dropbox():
 
     _log_activity('reader_save_to_dropbox', f"{driver_name} — {fname}")
     return jsonify({'ok': True, 'path': dbx_path, 'filename': fname})
+
+
+# ---------------------------------------------------------------------------
+# USB card reader bridge — the dispatcher downloads this script and runs it
+# on the PC with the smart-card reader (see tools/card_bridge/README.md).
+# ---------------------------------------------------------------------------
+
+_BRIDGE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'tools', 'card_bridge')
+
+
+@bp.route('/api/reader/card-bridge/<name>')
+@login_required
+def api_card_bridge_file(name):
+    """Serve the bridge script or its README for download."""
+    allowed = {'lts_card_bridge.py': 'text/x-python', 'README.md': 'text/markdown', 'requirements.txt': 'text/plain'}
+    if name not in allowed:
+        return jsonify({'error': 'not found'}), 404
+    path = os.path.join(_BRIDGE_DIR, name)
+    if not os.path.isfile(path):
+        return jsonify({'error': 'bridge files missing on server'}), 404
+    return send_file(path, mimetype=allowed[name], as_attachment=True, download_name=name)
