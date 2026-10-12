@@ -700,6 +700,11 @@ def selftest():
 
 
 def main():
+    # A --noconsole build has no stdout/stderr; keep print() from crashing.
+    if sys.stdout is None:
+        sys.stdout = open(os.devnull, "w")
+    if sys.stderr is None:
+        sys.stderr = open(os.devnull, "w")
     ap = argparse.ArgumentParser(description="LTS Card Bridge — tachograph card reader for FleetView")
     ap.add_argument("--port", type=int, default=int(os.environ.get("LTS_BRIDGE_PORT", DEFAULT_PORT)))
     ap.add_argument("--origin", action="append", default=[], help="extra allowed web origin (repeatable)")

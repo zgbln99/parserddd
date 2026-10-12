@@ -52,8 +52,11 @@ jobs:
       - name: Smoke-test the .exe (console mode, selftest)
         shell: pwsh
         run: |
-          .\dist\LTS-CardBridge.exe --console --selftest
-          if ($LASTEXITCODE -ne 0) { throw "selftest failed in the built exe" }
+          # A windowed (--noconsole) exe detaches from the shell at once, so
+          # wait for the process explicitly and read its real exit code.
+          $p = Start-Process -FilePath .\dist\LTS-CardBridge.exe -ArgumentList '--console','--selftest' -Wait -PassThru -NoNewWindow
+          if ($p.ExitCode -ne 0) { throw "selftest failed in the built exe (exit $($p.ExitCode))" }
+          Write-Host "exe selftest ok"
 
       - uses: actions/upload-artifact@v4
         with:
