@@ -59,11 +59,26 @@ async function fetchJson<T>(url: string, init: RequestInit, timeoutMs: number): 
   }
 }
 
-/** Resolves to null when the bridge is not running. */
+let lastBridgeError = '';
+
+/** Why the last `bridgeStatus()` probe failed ('' when it succeeded). */
+export function getLastBridgeError(): string {
+  return lastBridgeError;
+}
+
+/**
+ * Resolves to null when the bridge is not reachable. The timeout is generous:
+ * Chrome/Edge show a "local network access" permission prompt the first time
+ * an https page talks to 127.0.0.1, and `/status` powers the card up to read
+ * its ATR, which takes a moment on some readers.
+ */
 export async function bridgeStatus(): Promise<BridgeStatus | null> {
   try {
-    return await fetchJson<BridgeStatus>(`${BRIDGE_URL}/status`, { method: 'GET' }, 1500);
-  } catch {
+    const s = await fetchJson<BridgeStatus>(`${BRIDGE_URL}/status`, { method: 'GET' }, 8000);
+    lastBridgeError = '';
+    return s;
+  } catch (e) {
+    lastBridgeError = e instanceof DOMException && e.name === 'AbortError' ? 'timeout' : (e instanceof Error ? e.message : String(e));
     return null;
   }
 }

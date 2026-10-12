@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Usb, CreditCard, Download, CloudUpload, Play, CheckCircle, AlertCircle, ExternalLink, X } from 'lucide-react';
+import { Usb, CreditCard, Download, CloudUpload, Play, CheckCircle, AlertCircle, ExternalLink, X, RefreshCw } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useI18n } from '../i18n';
 import { Card } from '../components/Card';
@@ -8,7 +8,7 @@ import { Spinner } from '../components/Spinner';
 import { useToast } from '../components/Toast';
 import { fetchDrivers, saveReaderFileToDropbox, fetchCardBridgeInfo, type CardBridgeInfo } from '../lib/api';
 import {
-  bridgeStatus, bridgeRead, bridgeResultToFile, BRIDGE_DOWNLOAD_URL, BRIDGE_README_URL, BRIDGE_EXE_URL,
+  bridgeStatus, bridgeRead, bridgeResultToFile, getLastBridgeError, BRIDGE_URL, BRIDGE_DOWNLOAD_URL, BRIDGE_README_URL, BRIDGE_EXE_URL,
   type BridgeStatus, type BridgeReadResult,
 } from '../lib/cardBridge';
 import type { Driver } from '../types';
@@ -40,6 +40,8 @@ export function UsbCardReader({ onAnalyze }: { onAnalyze: (file: File) => void }
   const [helpOpen, setHelpOpen] = useState(false);
   const helpRef = useRef<HTMLDivElement>(null);
   const wasOnline = useRef<boolean | null>(null);
+  const [probeNonce, setProbeNonce] = useState(0);
+  const [probeError, setProbeError] = useState('');
   const phaseRef = useRef<Phase>('checking');
   phaseRef.current = phase;
 
@@ -53,6 +55,7 @@ export function UsbCardReader({ onAnalyze }: { onAnalyze: (file: File) => void }
         if (cancelled) return;
         setStatus(s);
         setPhase(s ? 'online' : 'offline');
+        setProbeError(s ? '' : getLastBridgeError());
         const online = Boolean(s);
         if (wasOnline.current !== null && wasOnline.current !== online) {
           toast(online ? t('usbConnectedToast') : t('usbDisconnectedToast'), online ? 'success' : 'error');
@@ -63,7 +66,7 @@ export function UsbCardReader({ onAnalyze }: { onAnalyze: (file: File) => void }
     };
     tick();
     return () => { cancelled = true; if (timer) clearTimeout(timer); };
-  }, []);
+  }, [probeNonce]);
 
   useEffect(() => {
     if (!helpOpen) return;
@@ -235,6 +238,20 @@ export function UsbCardReader({ onAnalyze }: { onAnalyze: (file: File) => void }
             ) : (
               <>
                 <p className="text-xs text-muted">{bridgeInfo?.exe_available ? t('usbOfflineHintExe') : t('usbOfflineHint')}</p>
+                <p className="mt-2 text-xs text-muted">{t('usbBrowserHint')}</p>
+                {probeError && (
+                  <p className="mt-1 font-mono text-[11px] text-muted">
+                    {probeError === 'timeout' ? t('usbProbeTimeout') : `${t('usbProbeFailed')}: ${probeError}`}
+                  </p>
+                )}
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <button type="button" onClick={() => { setPhase('checking'); setProbeNonce((n) => n + 1); }} className="btn-secondary btn-press inline-flex items-center gap-1.5 px-3 py-1.5 text-xs">
+                    <RefreshCw size={13} /> {t('usbRecheck')}
+                  </button>
+                  <a href={`${BRIDGE_URL}/status`} target="_blank" rel="noreferrer" className="btn-secondary btn-press inline-flex items-center gap-1.5 px-3 py-1.5 text-xs">
+                    <ExternalLink size={13} /> {t('usbTestLink')}
+                  </a>
+                </div>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {bridgeInfo?.exe_available ? (
                     <a href={BRIDGE_EXE_URL} className="btn-primary btn-press inline-flex items-center gap-1.5 px-3 py-1.5 text-xs">

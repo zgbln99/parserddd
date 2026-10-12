@@ -88,3 +88,20 @@ pliku. Nie zastępuje testu na prawdziwej karcie.
 - `--install-autostart` / `--uninstall-autostart`
 - `--origin https://inna.domena` (powtarzalne) lub `LTS_BRIDGE_ORIGINS`
   z listą rozdzieloną spacjami, gdy aplikacja działa pod innym adresem.
+
+## Mostek działa, a strona pokazuje „Czytnik USB: niepołączony”
+
+1. Otwórz w nowej karcie `http://127.0.0.1:27182/status`. Jeśli widać JSON
+   z nazwą czytnika, mostek działa i winna jest przeglądarka (punkt 2).
+   Jeśli nie, mostek nie działa: sprawdź ikonę w zasobniku i plik
+   `%LOCALAPPDATA%\LTSCardBridge\bridge.log`.
+2. Chrome i Edge (od wersji 142) pytają o zgodę, zanim strona https
+   połączy się z `127.0.0.1` („dostęp do sieci lokalnej”). Kliknij
+   „Zezwól”, gdy pojawi się pytanie. Jeśli zgoda została wcześniej
+   odrzucona: kliknij ikonę obok adresu strony → Uprawnienia → „Dostęp do
+   sieci lokalnej” (Local network access) → Zezwól i odśwież stronę.
+3. W `bridge.log` po otwarciu strony powinna pojawić się linia
+   `Connected from https://dd.ltslog.de`. Jej brak oznacza, że przeglądarka
+   nie wysyła żądań do mostka (punkt 2). Linia `Origin not allowed` oznacza,
+   że aplikacja działa pod innym adresem: uruchom mostek z
+   `--origin https://adres.aplikacji`.

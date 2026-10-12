@@ -40,7 +40,7 @@ import webbrowser
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-VERSION = "1.1.0"
+VERSION = "1.1.1"
 APP_NAME = "LTSCardBridge"
 FLEETVIEW_URL = "https://dd.ltslog.de/reader"
 IS_WINDOWS = sys.platform.startswith("win")
@@ -398,6 +398,7 @@ class Bridge:
         self.origins = set(origins)
         self.lock = threading.Lock()
         self.progress = {"step": "", "count": 0}
+        self.seen_origins = set()
 
 
 def make_handler(bridge: Bridge):
@@ -405,8 +406,15 @@ def make_handler(bridge: Bridge):
         server_version = f"LTSCardBridge/{VERSION}"
 
         def log_message(self, fmt, *args):  # quieter default log
-            if self.path != "/status":
+            if self.path != "/status" or self.command == "OPTIONS":
                 log(f"{self.command} {self.path} {args[1] if len(args) > 1 else ''}")
+
+        def _note_origin(self):
+            # One line per site so the log shows whether the browser reaches us at all.
+            origin = self.headers.get("Origin") or "(no Origin header)"
+            if origin not in bridge.seen_origins:
+                bridge.seen_origins.add(origin)
+                log(f"Connected from {origin}")
 
         def _origin_ok(self):
             origin = self.headers.get("Origin")
@@ -433,14 +441,18 @@ def make_handler(bridge: Bridge):
             self.wfile.write(body)
 
         def do_OPTIONS(self):
+            self._note_origin()
             if not self._origin_ok():
+                log(f"Origin not allowed: {self.headers.get('Origin')}")
                 self.send_response(403); self.end_headers(); return
             self.send_response(204)
             self._cors()
             self.end_headers()
 
         def do_GET(self):
+            self._note_origin()
             if not self._origin_ok():
+                log(f"Origin not allowed: {self.headers.get('Origin')}")
                 return self._json(403, {"error": "origin not allowed"})
             if self.path.startswith("/status"):
                 try:
