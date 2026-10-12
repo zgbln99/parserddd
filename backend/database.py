@@ -460,6 +460,20 @@ _SCHEMA = [
         updated_by   TEXT NOT NULL DEFAULT ''
     )''',
     '''
+    CREATE TABLE IF NOT EXISTS file_shares (
+        id             INTEGER PRIMARY KEY AUTOINCREMENT,
+        token          TEXT NOT NULL UNIQUE,
+        label          TEXT NOT NULL DEFAULT '',
+        password_hash  TEXT NOT NULL,
+        enabled        INTEGER NOT NULL DEFAULT 1,
+        created_by     TEXT NOT NULL DEFAULT 'admin',
+        created_at     TEXT NOT NULL,
+        expires_at     TEXT NOT NULL DEFAULT '',
+        last_access    TEXT NOT NULL DEFAULT '',
+        access_count   INTEGER NOT NULL DEFAULT 0,
+        download_count INTEGER NOT NULL DEFAULT 0
+    )''',
+    '''
     CREATE TABLE IF NOT EXISTS schema_migrations (
         version    INTEGER PRIMARY KEY,
         applied_at TEXT NOT NULL

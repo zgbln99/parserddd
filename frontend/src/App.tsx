@@ -27,6 +27,7 @@ const OdometerPage = lazy(() => import('./pages/OdometerPage').then(m => ({ defa
 const FleetMapPage = lazy(() => import('./pages/FleetMapPage').then(m => ({ default: m.FleetMapPage })));
 const RouteTrackingPage = lazy(() => import('./pages/RouteTrackingPage').then(m => ({ default: m.RouteTrackingPage })));
 const RouteSharePage = lazy(() => import('./pages/RouteSharePage').then(m => ({ default: m.RouteSharePage })));
+const FileSharePage = lazy(() => import('./pages/FileSharePage').then(m => ({ default: m.FileSharePage })));
 const PayrollPage = lazy(() => import('./pages/PayrollPage').then(m => ({ default: m.PayrollPage })));
 const PayrollAnalysisPage = lazy(() => import('./pages/PayrollAnalysisPage').then(m => ({ default: m.PayrollAnalysisPage })));
 const StundenzettelPage = lazy(() => import('./pages/StundenzettelPage').then(m => ({ default: m.StundenzettelPage })));
@@ -111,7 +112,8 @@ export function App() {
   const isPublicPage =
     location.pathname.startsWith('/profil/') ||
     location.pathname.startsWith('/sign/') ||
-    location.pathname.startsWith('/r/');
+    location.pathname.startsWith('/r/') ||
+    location.pathname.startsWith('/share/');
 
   return (
     <>
@@ -132,6 +134,8 @@ export function App() {
           <Route path="/profil/:token" element={<DriverProfilePage />} />
           {/* Public route tracking — no auth, token-bearer */}
           <Route path="/r/:token" element={<RouteSharePage />} />
+          {/* Public driver-card file archive — token + password (accounting) */}
+          <Route path="/share/:token" element={<FileSharePage />} />
           <Route path="/login" element={loggedIn ? <Navigate to="/" replace /> : <LoginPage />} />
           <Route path="/" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
           <Route path="/drivers" element={<PermissionRoute permission="drivers"><DriversPage /></PermissionRoute>} />

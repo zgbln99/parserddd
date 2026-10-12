@@ -1052,3 +1052,95 @@ export const fetchOdometerRange = (
 };
 
 
+
+// ---------------------------------------------------------------------------
+// File shares: password-protected links to the driver-card archive (/share/<token>)
+// ---------------------------------------------------------------------------
+export interface FileShare {
+  id: number;
+  token: string;
+  label: string;
+  enabled: boolean;
+  created_by: string;
+  created_at: string;
+  expires_at: string;
+  last_access: string;
+  access_count: number;
+  download_count: number;
+  url: string;
+  expired: boolean;
+}
+
+export const fetchFileShares = () => request<{ shares: FileShare[] }>('/api/file-shares');
+
+export const createFileShare = (input: { label: string; password: string; expires_in_days?: number }) =>
+  request<FileShare>('/api/file-shares', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+
+export const updateFileShare = (id: number, patch: { enabled?: boolean; password?: string; label?: string; expires_in_days?: number }) =>
+  request<FileShare>(`/api/file-shares/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  });
+
+export const deleteFileShare = (id: number) =>
+  request<{ ok: boolean }>(`/api/file-shares/${id}`, { method: 'DELETE' });
+
+// Public side: plain fetch with the session cookie, never a /login redirect.
+export interface SharedFile {
+  name: string;
+  path: string;
+  size: number;
+  file_date: string;
+  modified: string;
+}
+export interface SharedDriver {
+  name: string;
+  card_number: string;
+  file_count: number;
+  latest_date: string;
+  earliest_date: string;
+  files: SharedFile[];
+}
+
+async function publicJson<T>(url: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(url, { credentials: 'include', ...init });
+  const text = await res.text();
+  let data: any;
+  try { data = JSON.parse(text); } catch { throw new Error(`HTTP ${res.status}`); }
+  if (!res.ok) {
+    const err = new Error(data?.error || `HTTP ${res.status}`) as Error & { status?: number; locked?: boolean };
+    err.status = res.status;
+    err.locked = Boolean(data?.locked);
+    throw err;
+  }
+  return data as T;
+}
+
+export const fetchFileShareInfo = (token: string) =>
+  publicJson<{ label: string; unlocked: boolean }>(`/api/share/${encodeURIComponent(token)}`);
+
+export const unlockFileShare = (token: string, password: string) =>
+  publicJson<{ ok: boolean; label: string }>(`/api/share/${encodeURIComponent(token)}/unlock`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password }),
+  });
+
+export const lockFileShare = (token: string) =>
+  publicJson<{ ok: boolean }>(`/api/share/${encodeURIComponent(token)}/lock`, { method: 'POST' });
+
+export const fetchFileShareFiles = (token: string, refresh = false) =>
+  publicJson<{ label: string; folder: string; drivers: SharedDriver[] }>(
+    `/api/share/${encodeURIComponent(token)}/files${refresh ? '?refresh=1' : ''}`,
+  );
+
+export const fileShareDownloadUrl = (token: string, path: string) =>
+  `/api/share/${encodeURIComponent(token)}/download?path=${encodeURIComponent(path)}`;
+
+export const fileShareZipUrl = (token: string, driver: string, month?: string) =>
+  `/api/share/${encodeURIComponent(token)}/zip?driver=${encodeURIComponent(driver)}${month ? `&month=${encodeURIComponent(month)}` : ''}`;

@@ -95,6 +95,10 @@ def create_app() -> Flask:
     def serve_frontend(path):
         """Serve React static build. Falls back to index.html for SPA routing.
 
+        Exempt from the default rate limit (see below): one page load pulls
+        dozens of asset files, so the 60/min API default made a few quick
+        reloads fail with 429 on JS chunks.
+
         Never serve `index.html` for `/api/*` requests: an unregistered
         blueprint must surface as a JSON 404, not as HTML the frontend then
         tries to JSON.parse.
@@ -116,6 +120,10 @@ def create_app() -> Flask:
         if os.path.isfile(index_path):
             return send_from_directory(abs_frontend, 'index.html')
         return jsonify({'error': 'Frontend not built. Run: cd frontend && npm run build'}), 404
+
+    import extensions as _ext
+    if _ext.limiter is not None:
+        _ext.limiter.exempt(serve_frontend)
 
     # ---------------------------------------------------------------------------
     # JSON error handlers for /api/* — never leak exception details

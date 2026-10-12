@@ -2,9 +2,17 @@ import { useState, useEffect } from 'react';
 import { X, Sparkles } from 'lucide-react';
 import { createPortal } from 'react-dom';
 
-const CHANGELOG_VERSION = '2026-10-01';
+const CHANGELOG_VERSION = '2026-10-12';
 
 const ENTRIES = [
+  {
+    version: '2026-10-12',
+    items: [
+      'Admin → Linki do plików: link z hasłem do archiwum kart kierowców, np. dla księgowej (pobieranie pojedynczo lub ZIP za miesiąc)',
+      'Czytnik kart: czytnik USB przez LTS Card Bridge (.exe z autostartem); stan mostka jako mały znacznik obok tytułu',
+      'Pobieranie karty z czytnika zapisuje plik od razu w folderze kierowcy w chmurze',
+    ],
+  },
   {
     version: '2026-10-01',
     items: [

@@ -27,6 +27,7 @@ _BLUEPRINTS = [
     ("admin", "admin"),
     ("vehicles", "vehicles"),
     ("routeshare", "routeshare"),
+    ("fileshare", "fileshare"),
     ("tollcollect", "tollcollect"),
     ("sync", "sync"),
     ("dashboard", "dashboard"),

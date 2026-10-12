@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Shield, Users, Key, Settings, Activity, Send, IdCard } from 'lucide-react';
+import { Shield, Users, Key, Settings, Activity, Send, IdCard, FolderLock } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { UsersTab } from '../components/admin/UsersTab';
 import { SecurityTab } from '../components/admin/SecurityTab';
@@ -7,14 +7,16 @@ import { SyncConfigTab } from '../components/admin/SyncConfigTab';
 import { LogsTab } from '../components/admin/LogsTab';
 import { SignLinksTab } from '../components/admin/SignLinksTab';
 import { DriverProfilesTab } from '../components/admin/DriverProfilesTab';
+import { FileSharesTab } from '../components/admin/FileSharesTab';
 
-type AdminTab = 'users' | 'security' | 'sync' | 'sign' | 'profiles' | 'logs';
+type AdminTab = 'users' | 'security' | 'sync' | 'sign' | 'files' | 'profiles' | 'logs';
 
 const tabs: { key: AdminTab; icon: typeof Users; labelKey: string; color: string }[] = [
   { key: 'users', icon: Users, labelKey: 'adminUsers', color: 'text-blue-500' },
   { key: 'security', icon: Key, labelKey: 'adminChangePassword', color: 'text-amber-500' },
   { key: 'sync', icon: Settings, labelKey: 'adminSyncConfig', color: 'text-muted' },
   { key: 'sign', icon: Send, labelKey: 'adminSignLinks', color: 'text-emerald-500' },
+  { key: 'files', icon: FolderLock, labelKey: 'adminFileShares', color: 'text-sky-500' },
   { key: 'profiles', icon: IdCard, labelKey: 'adminDriverProfiles', color: 'text-purple-500' },
   { key: 'logs', icon: Activity, labelKey: 'adminActivityLog', color: 'text-violet-500' },
 ];
@@ -60,6 +62,7 @@ export function AdminPage() {
         {activeTab === 'security' && <SecurityTab />}
         {activeTab === 'sync' && <SyncConfigTab />}
         {activeTab === 'sign' && <SignLinksTab />}
+        {activeTab === 'files' && <FileSharesTab />}
         {activeTab === 'profiles' && <DriverProfilesTab />}
         {activeTab === 'logs' && <LogsTab />}
       </div>
