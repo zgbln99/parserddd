@@ -8,7 +8,7 @@ import { Card } from '../components/Card';
 import { Modal } from '../components/Modal';
 import { AnalysisView } from '../features/AnalysisView';
 import { DddPreview } from '../components/DddPreview';
-import { UsbCardReader } from '../components/UsbCardReader';
+import { UsbCardReader, USB_RESULT_SLOT_ID } from '../components/UsbCardReader';
 import { useDateFilter } from '../hooks/useDateFilter';
 import { useToast } from '../components/Toast';
 import type { AnalysisResult, Driver, DddPreviewData } from '../types';
@@ -252,12 +252,14 @@ export function ReaderPage() {
 
   return (
     <div className="animate-slide-up">
-      <h1 className="mb-6 text-2xl font-bold tracking-tight text-ink">{t('readerTitle')}</h1>
-
-      {/* USB card reader (local bridge) */}
-      {!result && !loading && multiResults.length === 0 && (
-        <UsbCardReader onAnalyze={handleFile} />
-      )}
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-bold tracking-tight text-ink">{t('readerTitle')}</h1>
+        {/* USB card reader: status chip + "read card" (local bridge) */}
+        {!result && !loading && multiResults.length === 0 && (
+          <UsbCardReader onAnalyze={handleFile} />
+        )}
+      </div>
+      <div id={USB_RESULT_SLOT_ID} />
 
       {/* Upload zone */}
       {!result && !loading && multiResults.length === 0 && (

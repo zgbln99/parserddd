@@ -210,6 +210,11 @@ export const pl = {
   // Reader
   readerTitle: 'Czytnik kart DDD',
   usbTitle: 'Czytnik kart USB',
+  usbConnected: 'Czytnik USB: połączony',
+  usbDisconnected: 'Czytnik USB: niepołączony',
+  usbOfflineShort: 'Mostek czytnika kart nie działa na tym komputerze. Kliknij, aby zobaczyć, jak go uruchomić.',
+  usbConnectedToast: 'Mostek czytnika kart połączony',
+  usbDisconnectedToast: 'Mostek czytnika kart rozłączony',
   usbOffline: 'Mostek nie działa',
   usbOnline: 'Mostek działa',
   usbOfflineHint: 'Żeby czytać karty z czytnika USB, na tym komputerze musi działać program LTS Card Bridge. Pobierz go, zainstaluj Pythona i pyscard według instrukcji, uruchom i wróć tutaj.',

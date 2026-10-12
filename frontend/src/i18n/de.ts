@@ -212,6 +212,11 @@ export const de: Record<TranslationKey, string> = {
   // Reader
   readerTitle: 'DDD-Kartenleser',
   usbTitle: 'USB-Kartenleser',
+  usbConnected: 'USB-Leser: verbunden',
+  usbDisconnected: 'USB-Leser: nicht verbunden',
+  usbOfflineShort: 'Die Kartenleser-Bridge läuft auf diesem PC nicht. Klicken, um zu sehen, wie man sie startet.',
+  usbConnectedToast: 'Kartenleser-Bridge verbunden',
+  usbDisconnectedToast: 'Kartenleser-Bridge getrennt',
   usbOffline: 'Bridge läuft nicht',
   usbOnline: 'Bridge läuft',
   usbOfflineHint: 'Um Karten vom USB-Leser zu lesen, muss auf diesem PC das Programm LTS Card Bridge laufen. Lade es herunter, installiere Python und pyscard laut Anleitung, starte es und komm hierher zurück.',
