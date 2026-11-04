@@ -12,9 +12,13 @@ Two tables:
                         the same window appears in every later download of
                         that card, so it is de-duplicated by the UNIQUE key.
 
-The scan walks the storage archive ({SYNC_DEST_FOLDER}/{driver}/*.ddd) in a
-background thread, skipping files already scanned with the same size, so
-re-runs only pick up new downloads. Files can also be uploaded directly.
+The scan walks two storage areas in a background thread: the drivers'
+folders ({SYNC_DEST_FOLDER}/{driver}/*.ddd, source "drivers") and a separate
+audit archive ({ODOMETER_AUDIT_FOLDER}/**, source "archive") where old card
+files are bulk-uploaded without being mixed into the driver folders. Files
+already scanned with the same size are skipped, so re-runs only pick up new
+downloads. Uploads (single files, folders, or ZIPs) are parsed right away
+and, by default, kept in the audit archive.
 """
 
 from __future__ import annotations
@@ -23,6 +27,8 @@ import logging
 import os
 import re
 import threading
+import zipfile
+import io
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
@@ -44,11 +50,25 @@ def _now_iso() -> str:
 
 def normalize_plate(plate: str) -> str:
     """'TF LS 2262', 'TF LS2262', 'tf-ls\\xa02262' -> 'TFLS2262'."""
-    return _PLATE_STRIP.sub('', (plate or '').upper().replace(' ', ' '))
+    return _PLATE_STRIP.sub('', (plate or '').upper().replace('\u00a0', ' '))
 
 
 def _sync_folder() -> str:
     return os.environ.get('SYNC_DEST_FOLDER', '/Samsara-DDD').rstrip('/')
+
+
+def audit_folder() -> str:
+    """Storage folder for the bulk-uploaded audit archive (kept apart from drivers)."""
+    return os.environ.get('ODOMETER_AUDIT_FOLDER', '/Archiv-Fahrerkarten').rstrip('/')
+
+
+_SAFE_NAME = re.compile(r'[^A-Za-z0-9._()\- ]+')
+
+
+def _safe_name(name: str) -> str:
+    name = (name or 'upload.ddd').replace('\\', '/').rsplit('/', 1)[-1]
+    name = _SAFE_NAME.sub('_', name).strip(' .') or 'upload.ddd'
+    return name[:120]
 
 
 # ---------------------------------------------------------------------------
@@ -115,6 +135,59 @@ def ingest_file(path: str, data: bytes, *, source: str = 'storage', driver: str 
     return {'path': path, 'card_number': card, 'holder': holder, 'records': len(records), 'new': inserted, 'error': error}
 
 
+def _already_scanned(path: str, size: int) -> bool:
+    with get_db() as db:
+        row = db.query_one('SELECT size, error FROM card_scan_files WHERE path = ?', (path,))
+    return bool(row) and int(row['size']) == size and not row['error']
+
+
+def ingest_upload(name: str, data: bytes, *, keep: bool = True) -> list[dict]:
+    """Parse an uploaded .ddd (or a .zip of them). With ``keep`` the raw file
+    is also stored in the audit archive folder, under the card number, so a
+    later scan or re-parse can find it. Files already in the database with
+    the same name and size are skipped. Returns one result per card file."""
+    name = _safe_name(name)
+    if name.lower().endswith('.zip'):
+        results = []
+        try:
+            with zipfile.ZipFile(io.BytesIO(data)) as zf:
+                for info in zf.infolist():
+                    if info.is_dir() or not info.filename.lower().endswith('.ddd'):
+                        continue
+                    if info.file_size > 4 * 1024 * 1024:
+                        results.append({'path': info.filename, 'status': 'error', 'error': 'file too large', 'records': 0, 'new': 0})
+                        continue
+                    results.extend(ingest_upload(info.filename, zf.read(info), keep=keep))
+        except zipfile.BadZipFile:
+            results.append({'path': name, 'status': 'error', 'error': 'bad zip', 'records': 0, 'new': 0})
+        return results
+
+    if not name.lower().endswith('.ddd'):
+        return [{'path': name, 'status': 'error', 'error': 'not a .ddd file', 'records': 0, 'new': 0}]
+    if not data:
+        return [{'path': name, 'status': 'error', 'error': 'empty file', 'records': 0, 'new': 0}]
+
+    # Identify the card first so the stored copy lands in its folder.
+    try:
+        parsed = parse_card_vehicles(data)
+        card = parsed.get('card_number') or ''
+    except Exception:
+        card = ''
+    folder = audit_folder()
+    stored = keep and storage_service.is_configured()
+    path = f"{folder}/{card or 'unbekannt'}/{name}" if stored else f'upload/{name}'
+    if _already_scanned(path, len(data)):
+        return [{'path': path, 'status': 'skipped', 'error': '', 'records': 0, 'new': 0, 'card_number': card}]
+    if stored:
+        try:
+            storage_service.upload_bytes(path, data, content_type='application/octet-stream')
+        except Exception as exc:
+            return [{'path': path, 'status': 'error', 'error': f'storage: {exc}', 'records': 0, 'new': 0, 'card_number': card}]
+    res = ingest_file(path, data, source='archive' if stored else 'upload')
+    res['status'] = 'error' if res.get('error') else 'new'
+    return [res]
+
+
 # ---------------------------------------------------------------------------
 # Background scan of the storage archive
 # ---------------------------------------------------------------------------
@@ -171,7 +244,15 @@ def _list_storage_files(refresh: bool) -> list[dict]:
     for d in drivers:
         for f in d.get('files') or []:
             if (f.get('name') or '').lower().endswith('.ddd'):
-                files.append({'path': f['path'], 'size': int(f.get('size') or 0), 'driver': d.get('name', '')})
+                files.append({'path': f['path'], 'size': int(f.get('size') or 0), 'driver': d.get('name', ''), 'source': 'drivers'})
+    # The separate audit archive (bulk-uploaded old card files).
+    if storage_service.is_configured():
+        try:
+            for obj in storage_service.list_prefix(audit_folder()):
+                if (obj.get('name') or '').lower().endswith('.ddd'):
+                    files.append({'path': obj['path_display'], 'size': int(obj.get('size') or 0), 'driver': '', 'source': 'archive'})
+        except Exception as exc:
+            logger.warning('odometer audit: cannot list %s: %s', audit_folder(), exc)
     return files
 
 
@@ -224,7 +305,7 @@ def _run_scan(force: bool, refresh_list: bool) -> None:
                         _scan.done += 1
                     continue
                 try:
-                    res = ingest_file(f['path'], data, source='storage', driver=f['driver'], size=f['size'])
+                    res = ingest_file(f['path'], data, source=f.get('source', 'drivers'), driver=f['driver'], size=f['size'])
                 except Exception as exc:
                     logger.exception('odometer audit: ingest failed for %s', f['path'])
                     res = {'error': str(exc), 'new': 0}
@@ -257,6 +338,7 @@ def summary() -> dict:
         usage = db.query_one('SELECT COUNT(*) AS n, COUNT(DISTINCT plate_norm) AS plates, COUNT(DISTINCT card_number) AS cards, '
                              'MIN(first_use) AS lo, MAX(last_use) AS hi FROM card_vehicle_usage')
         recent_errors = db.query('SELECT path, error, scanned_at FROM card_scan_files WHERE error <> ? ORDER BY scanned_at DESC LIMIT 20', ('',))
+        by_source = db.query('SELECT source, COUNT(*) AS n FROM card_scan_files GROUP BY source')
     lo, hi = (usage['lo'] or ''), (usage['hi'] or '')
     years = list(range(int(lo[:4]), int(hi[:4]) + 1)) if lo and hi else []
     return {
@@ -264,6 +346,9 @@ def summary() -> dict:
         'records': int(usage['n'] or 0), 'plates': int(usage['plates'] or 0), 'cards': int(usage['cards'] or 0),
         'first_record': lo, 'last_record': hi, 'years': years,
         'errors': [dict(r) for r in recent_errors],
+        'sources': {('drivers' if r['source'] == 'storage' else r['source']): int(r['n']) for r in by_source},
+        'audit_folder': audit_folder(),
+        'storage_configured': storage_service.is_configured(),
         'scan': scan_status(),
     }
 

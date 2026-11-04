@@ -4,7 +4,7 @@
     POST /api/odometer-audit/scan             {force?, refresh?} start background scan of the archive
     POST /api/odometer-audit/scan/cancel
     GET  /api/odometer-audit/scan/status
-    POST /api/odometer-audit/upload           multipart files[] (.ddd) parsed right away
+    POST /api/odometer-audit/upload           multipart files[] (.ddd or .zip), keep=1 stores copies in the audit archive
     GET  /api/odometer-audit/report?year=     per-vehicle km-stand on 31.12
     GET  /api/odometer-audit/vehicle?plate=&year=   records around the year end
     GET  /api/odometer-audit/files?errors=1
@@ -65,16 +65,17 @@ def api_upload():
     files = request.files.getlist('files') or request.files.getlist('file')
     if not files:
         return jsonify({'error': 'Brak plików / Keine Dateien'}), 400
+    keep = (request.form.get('keep') or '1') != '0'
     results = []
     for f in files[:500]:
-        name = (f.filename or 'upload.ddd').rsplit('/', 1)[-1].rsplit('\\', 1)[-1]
-        data = f.read()
-        if not data:
-            results.append({'path': name, 'error': 'empty file', 'records': 0, 'new': 0})
-            continue
-        results.append(svc.ingest_file(f'upload/{name}', data, source='upload'))
-    _log_activity('odometer_audit_upload', f'{len(results)} files')
-    return jsonify({'results': results, 'new_records': sum(r.get('new', 0) for r in results)})
+        results.extend(svc.ingest_upload(f.filename or 'upload.ddd', f.read(), keep=keep))
+    counts = {
+        'new': sum(1 for r in results if r.get('status') == 'new'),
+        'skipped': sum(1 for r in results if r.get('status') == 'skipped'),
+        'error': sum(1 for r in results if r.get('status') == 'error'),
+    }
+    _log_activity('odometer_audit_upload', f"{len(results)} files ({counts['new']} new, {counts['skipped']} skipped, {counts['error']} errors)")
+    return jsonify({'results': results, 'counts': counts, 'new_records': sum(r.get('new', 0) for r in results)})
 
 
 @bp.route('/api/odometer-audit/report')

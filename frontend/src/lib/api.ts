@@ -1172,6 +1172,9 @@ export interface AuditSummary {
   last_record: string;
   years: number[];
   errors: { path: string; error: string; scanned_at: string }[];
+  sources: Record<string, number>;
+  audit_folder: string;
+  storage_configured: boolean;
   scan: AuditScanStatus;
 }
 export interface AuditRow {
@@ -1240,10 +1243,14 @@ export const fetchAuditScanStatus = () => request<AuditScanStatus>('/api/odomete
 export const fetchAuditReport = (year: number) => request<AuditReport>(`/api/odometer-audit/report?year=${year}`);
 export const fetchAuditVehicle = (plate: string, year: number, days = 45) =>
   request<AuditTimeline>(`/api/odometer-audit/vehicle?plate=${encodeURIComponent(plate)}&year=${year}&days=${days}`);
-export async function uploadAuditFiles(files: File[]) {
+export interface AuditUploadResult {
+  results: { path: string; status: 'new' | 'skipped' | 'error'; records: number; new: number; error: string; card_number?: string }[];
+  counts: { new: number; skipped: number; error: number };
+  new_records: number;
+}
+export async function uploadAuditFiles(files: File[], keep = true) {
   const fd = new FormData();
+  fd.append('keep', keep ? '1' : '0');
   files.forEach((f) => fd.append('files', f, f.name));
-  return request<{ results: { path: string; records: number; new: number; error: string }[]; new_records: number }>(
-    '/api/odometer-audit/upload', { method: 'POST', body: fd },
-  );
+  return request<AuditUploadResult>('/api/odometer-audit/upload', { method: 'POST', body: fd });
 }

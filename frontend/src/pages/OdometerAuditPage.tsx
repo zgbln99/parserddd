@@ -13,6 +13,7 @@ import { matchesText } from '../lib/text';
 import {
   fetchAuditSummary, startAuditScan, cancelAuditScan, fetchAuditScanStatus, fetchAuditReport, fetchAuditVehicle,
   uploadAuditFiles, type AuditSummary, type AuditScanStatus, type AuditReport, type AuditRow, type AuditTimeline,
+  type AuditUploadResult,
 } from '../lib/api';
 
 /**
@@ -53,8 +54,11 @@ export function OdometerAuditPage() {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [timeline, setTimeline] = useState<Record<string, AuditTimeline | 'loading'>>({});
   const [uploading, setUploading] = useState(false);
+  const [uploadKeep, setUploadKeep] = useState(true);
+  const [uploadProg, setUploadProg] = useState<{ total: number; done: number; counts: AuditUploadResult['counts']; records: number; errors: { path: string; error: string }[] } | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
+  const folderInput = useRef<HTMLInputElement>(null);
 
   const loadSummary = useCallback(async () => {
     try {
@@ -117,18 +121,45 @@ export function OdometerAuditPage() {
     }
   };
 
+  // Thousands of files go up in batches (the server accepts 16 MB per
+  // request); already-uploaded files are skipped server-side.
   const upload = async (files: FileList | File[]) => {
-    const list = Array.from(files).filter((f) => /\.ddd$/i.test(f.name));
+    const list = Array.from(files).filter((f) => /\.(ddd|zip)$/i.test(f.name));
     if (!list.length) return;
+    const MAX_BYTES = 12 * 1024 * 1024;
+    const MAX_FILES = 150;
+    const batches: File[][] = [];
+    let cur: File[] = [];
+    let bytes = 0;
+    for (const f of list) {
+      if (cur.length && (cur.length >= MAX_FILES || bytes + f.size > MAX_BYTES)) { batches.push(cur); cur = []; bytes = 0; }
+      cur.push(f); bytes += f.size;
+    }
+    if (cur.length) batches.push(cur);
+    const prog = { total: list.length, done: 0, counts: { new: 0, skipped: 0, error: 0 }, records: 0, errors: [] as { path: string; error: string }[] };
     setUploading(true);
+    setUploadProg({ ...prog });
     try {
-      const r = await uploadAuditFiles(list);
-      const bad = r.results.filter((x) => x.error);
-      toast(`${t('oaUploaded')}: ${r.results.length} · ${r.new_records} ${t('oaNewRecords')}${bad.length ? ` · ${bad.length} ✗` : ''}`, bad.length ? 'info' : 'success');
+      for (const b of batches) {
+        let r: AuditUploadResult;
+        try {
+          r = await uploadAuditFiles(b, uploadKeep);
+        } catch (e) {
+          prog.counts.error += b.length;
+          prog.errors.push({ path: `${b[0].name} … (${b.length})`, error: e instanceof Error ? e.message : String(e) });
+          prog.done += b.length;
+          setUploadProg({ ...prog, counts: { ...prog.counts }, errors: [...prog.errors] });
+          continue;
+        }
+        prog.done += b.length;
+        prog.counts.new += r.counts.new; prog.counts.skipped += r.counts.skipped; prog.counts.error += r.counts.error;
+        prog.records += r.new_records;
+        for (const x of r.results) if (x.status === 'error') prog.errors.push({ path: x.path, error: x.error });
+        setUploadProg({ ...prog, counts: { ...prog.counts }, errors: [...prog.errors] });
+      }
+      toast(`${t('oaUploadDone')}: ${prog.counts.new} ${t('oaUploadNew')} · ${prog.counts.skipped} ${t('oaUploadSkipped')} · ${prog.counts.error} ${t('oaUploadErrors')} · ${prog.records} ${t('oaNewRecords')}`, prog.counts.error ? 'info' : 'success');
       await loadSummary();
       await loadReport(year);
-    } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), 'error');
     } finally {
       setUploading(false);
     }
@@ -219,7 +250,7 @@ export function OdometerAuditPage() {
 
       {/* Data source: scan + upload */}
       <Card className="p-4" data-animate>
-        <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
+        <div className="grid gap-4 lg:grid-cols-[1fr_400px]">
           <div>
             <p className="text-sm text-muted">{t('oaIntro')}</p>
             <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -260,22 +291,45 @@ export function OdometerAuditPage() {
             )}
           </div>
 
-          <button
-            type="button"
-            onClick={() => fileInput.current?.click()}
+          <div
             onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
             onDragLeave={() => setDragOver(false)}
             onDrop={(e) => { e.preventDefault(); setDragOver(false); void upload(e.dataTransfer.files); }}
             className={clsx(
-              'flex flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed p-4 text-center text-xs text-muted transition',
-              dragOver ? 'border-accent bg-accent-light' : 'border-border hover:border-accent/50 hover:bg-surface-2',
+              'flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed p-4 text-center text-xs text-muted transition',
+              dragOver ? 'border-accent bg-accent-light' : 'border-border',
             )}
           >
             {uploading ? <Spinner /> : <Upload size={20} className="text-accent" />}
             <span className="font-semibold text-ink">{t('oaUpload')}</span>
             <span>{t('oaUploadHint')}</span>
-            <input ref={fileInput} type="file" accept=".ddd,.DDD" multiple className="hidden" onChange={(e) => { if (e.target.files) void upload(e.target.files); e.target.value = ''; }} />
-          </button>
+            <div className="flex flex-wrap justify-center gap-1.5">
+              <button type="button" id="oa-upload-files" disabled={uploading} onClick={() => fileInput.current?.click()} className="btn-secondary btn-press px-3 py-1.5 text-xs disabled:opacity-50">{t('oaUploadFiles')}</button>
+              <button type="button" id="oa-upload-folder" disabled={uploading} onClick={() => folderInput.current?.click()} className="btn-secondary btn-press px-3 py-1.5 text-xs disabled:opacity-50">{t('oaUploadFolder')}</button>
+            </div>
+            <label className="inline-flex items-center gap-1.5 text-[11px]">
+              <input type="checkbox" checked={uploadKeep} onChange={(e) => setUploadKeep(e.target.checked)} disabled={summary ? !summary.storage_configured : false} className="h-3.5 w-3.5 accent-[var(--color-accent)]" />
+              {t('oaUploadKeep')}{summary?.audit_folder ? <span className="font-mono text-muted"> ({summary.audit_folder})</span> : null}
+            </label>
+            {uploadProg && (
+              <div className="w-full text-left">
+                <div className="flex items-center justify-between text-[11px]">
+                  <span>{uploading ? t('oaUploading') : t('oaUploadDone')} · {uploadProg.done}/{uploadProg.total}</span>
+                  <span className="font-mono tabular-nums">{uploadProg.counts.new} {t('oaUploadNew')} · {uploadProg.counts.skipped} {t('oaUploadSkipped')} · <span className={uploadProg.counts.error ? 'text-danger' : ''}>{uploadProg.counts.error} {t('oaUploadErrors')}</span></span>
+                </div>
+                <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-surface-2">
+                  <div className="h-full rounded-full bg-accent transition-all" style={{ width: `${uploadProg.total ? Math.round((uploadProg.done / uploadProg.total) * 100) : 0}%` }} />
+                </div>
+                {uploadProg.errors.length > 0 && (
+                  <ul className="mt-1 max-h-16 overflow-y-auto font-mono text-[10px] text-danger">
+                    {uploadProg.errors.slice(0, 50).map((e, i) => <li key={i} className="truncate">{e.path} — {e.error}</li>)}
+                  </ul>
+                )}
+              </div>
+            )}
+            <input ref={fileInput} type="file" accept=".ddd,.DDD,.zip" multiple className="hidden" onChange={(e) => { if (e.target.files) void upload(e.target.files); e.target.value = ''; }} />
+            <input ref={folderInput} type="file" multiple className="hidden" {...({ webkitdirectory: '', directory: '' } as Record<string, string>)} onChange={(e) => { if (e.target.files) void upload(e.target.files); e.target.value = ''; }} />
+          </div>
         </div>
       </Card>
 
@@ -283,7 +337,12 @@ export function OdometerAuditPage() {
       {summary && (
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-5" data-animate>
           {[
-            { icon: Files, label: t('oaFilesScanned'), value: summary.files, sub: summary.files_with_errors ? `${summary.files_with_errors} ✗` : '' },
+            { icon: Files, label: t('oaFilesScanned'), value: summary.files, sub: [
+              summary.sources?.drivers ? `${summary.sources.drivers} ${t('oaSourceDrivers')}` : '',
+              summary.sources?.archive ? `${summary.sources.archive} ${t('oaSourceArchive')}` : '',
+              summary.sources?.upload ? `${summary.sources.upload} ${t('oaSourceUpload')}` : '',
+              summary.files_with_errors ? `${summary.files_with_errors} ✗` : '',
+            ].filter(Boolean).join(' · ') },
             { icon: IdCard, label: t('oaCards'), value: summary.cards, sub: '' },
             { icon: Gauge, label: t('oaRecords'), value: summary.records, sub: '' },
             { icon: Truck, label: t('oaVehicles'), value: summary.plates, sub: '' },
