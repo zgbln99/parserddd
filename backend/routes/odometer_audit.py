@@ -25,6 +25,11 @@ from services import odometer_audit as svc
 bp = Blueprint('odometer_audit', __name__)
 
 
+def _source_arg(data=None):
+    src = ((data or {}).get('source') if data is not None else None) or request.args.get('source') or 'drivers'
+    return src if src in svc.SOURCES else 'drivers'
+
+
 def _year_arg():
     try:
         y = int(request.args.get('year') or datetime.now().year - 1)
@@ -43,9 +48,10 @@ def api_summary():
 @permission_required('vehicles')
 def api_scan():
     data = request.get_json(silent=True) or {}
-    started = svc.start_scan(force=bool(data.get('force')), refresh_list=data.get('refresh', True) is not False)
+    source = _source_arg(data)
+    started = svc.start_scan(source=source, force=bool(data.get('force')), refresh_list=data.get('refresh', True) is not False)
     if started:
-        _log_activity('odometer_audit_scan', 'force' if data.get('force') else '')
+        _log_activity('odometer_audit_scan', f"{source}{' force' if data.get('force') else ''}")
     return jsonify({'started': started, 'status': svc.scan_status()})
 
 
@@ -84,7 +90,7 @@ def api_upload():
 @bp.route('/api/odometer-audit/report')
 @permission_required('vehicles')
 def api_report():
-    return jsonify(svc.year_report(_year_arg()))
+    return jsonify(svc.year_report(_year_arg(), _source_arg()))
 
 
 @bp.route('/api/odometer-audit/vehicle')
@@ -97,7 +103,7 @@ def api_vehicle():
         days = max(7, min(400, int(request.args.get('days') or 45)))
     except ValueError:
         days = 45
-    return jsonify(svc.vehicle_timeline(plate, _year_arg(), days))
+    return jsonify(svc.vehicle_timeline(plate, _year_arg(), days, _source_arg()))
 
 
 @bp.route('/api/odometer-audit/files')

@@ -53,6 +53,8 @@ def create_app() -> Flask:
     # Database: schema + migrations, then one-time import of the old JSON
     # stores and the first admin account.
     # ---------------------------------------------------------------------------
+    from services.odometer_audit import ensure_schema as _audit_schema
+    _audit_schema()
     database.init_db()
     logger.info('Database ready (%s)', database.get_engine())
     import_legacy_json_stores()

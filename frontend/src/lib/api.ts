@@ -1160,6 +1160,7 @@ export interface AuditScanStatus {
   error_count: number;
   current: string;
   message: string;
+  source: string;
 }
 export interface AuditSummary {
   files: number;
@@ -1173,6 +1174,7 @@ export interface AuditSummary {
   years: number[];
   errors: { path: string; error: string; scanned_at: string }[];
   sources: Record<string, number>;
+  by_source: Record<string, { records: number; plates: number; cards: number; first_record: string; last_record: string; files: number }>;
   audit_folder: string;
   extra_folders: string[];
   storage_configured: boolean;
@@ -1211,6 +1213,7 @@ export interface AuditRow {
 export interface AuditReport {
   year: number;
   cutoff: string;
+  source: AuditSource;
   rows: AuditRow[];
   counts: { vehicles: number; active: number; exact: number; ok: number; gap: number };
 }
@@ -1235,15 +1238,16 @@ export interface AuditTimeline {
 }
 
 export const fetchAuditSummary = () => request<AuditSummary>('/api/odometer-audit/summary');
-export const startAuditScan = (force = false) =>
+export type AuditSource = 'drivers' | 'mega' | 'archive';
+export const startAuditScan = (source: AuditSource, force = false) =>
   request<{ started: boolean; status: AuditScanStatus }>('/api/odometer-audit/scan', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ force }),
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ source, force }),
   });
 export const cancelAuditScan = () => request<{ ok: boolean }>('/api/odometer-audit/scan/cancel', { method: 'POST' });
 export const fetchAuditScanStatus = () => request<AuditScanStatus>('/api/odometer-audit/scan/status');
-export const fetchAuditReport = (year: number) => request<AuditReport>(`/api/odometer-audit/report?year=${year}`);
-export const fetchAuditVehicle = (plate: string, year: number, days = 45) =>
-  request<AuditTimeline>(`/api/odometer-audit/vehicle?plate=${encodeURIComponent(plate)}&year=${year}&days=${days}`);
+export const fetchAuditReport = (year: number, source: AuditSource) => request<AuditReport>(`/api/odometer-audit/report?year=${year}&source=${source}`);
+export const fetchAuditVehicle = (plate: string, year: number, source: AuditSource, days = 45) =>
+  request<AuditTimeline>(`/api/odometer-audit/vehicle?plate=${encodeURIComponent(plate)}&year=${year}&days=${days}&source=${source}`);
 export interface AuditUploadResult {
   results: { path: string; status: 'new' | 'skipped' | 'error'; records: number; new: number; error: string; card_number?: string }[];
   counts: { new: number; skipped: number; error: number };

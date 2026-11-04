@@ -489,6 +489,7 @@ _SCHEMA = [
     '''
     CREATE TABLE IF NOT EXISTS card_vehicle_usage (
         id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        source      TEXT NOT NULL DEFAULT 'drivers',
         card_number TEXT NOT NULL DEFAULT '',
         driver      TEXT NOT NULL DEFAULT '',
         plate_norm  TEXT NOT NULL,
@@ -500,12 +501,12 @@ _SCHEMA = [
         first_use   TEXT NOT NULL,
         last_use    TEXT NOT NULL,
         file_id     INTEGER NOT NULL DEFAULT 0,
-        UNIQUE (card_number, plate_norm, first_use, last_use)
+        UNIQUE (source, card_number, plate_norm, first_use, last_use)
     )''',
     '''
-    CREATE INDEX IF NOT EXISTS idx_cvu_plate_last ON card_vehicle_usage (plate_norm, last_use)''',
+    CREATE INDEX IF NOT EXISTS idx_cvu_src_plate_last ON card_vehicle_usage (source, plate_norm, last_use)''',
     '''
-    CREATE INDEX IF NOT EXISTS idx_cvu_plate_first ON card_vehicle_usage (plate_norm, first_use)''',
+    CREATE INDEX IF NOT EXISTS idx_cvu_src_plate_first ON card_vehicle_usage (source, plate_norm, first_use)''',
     '''
     CREATE TABLE IF NOT EXISTS schema_migrations (
         version    INTEGER PRIMARY KEY,

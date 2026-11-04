@@ -1,7 +1,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   CalendarCheck, RefreshCw, Upload, FileDown, Search, ChevronDown, ChevronRight, AlertTriangle,
-  CheckCircle2, CircleDot, XCircle, Files, Gauge, Truck, IdCard, Clock, Info, FolderOpen, Folder, Plus, X, Cloud, FileText,
+  CheckCircle2, CircleDot, XCircle, Files, Gauge, Truck, IdCard, Clock, Info, FolderOpen, Folder, Plus, X, Cloud, FileText, Users,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useI18n } from '../i18n';
@@ -13,7 +13,7 @@ import { matchesText } from '../lib/text';
 import {
   fetchAuditSummary, startAuditScan, cancelAuditScan, fetchAuditScanStatus, fetchAuditReport, fetchAuditVehicle,
   uploadAuditFiles, type AuditSummary, type AuditScanStatus, type AuditReport, type AuditRow, type AuditTimeline,
-  type AuditUploadResult, browseAuditStorage, saveAuditFolders, type AuditBrowse,
+  type AuditUploadResult, browseAuditStorage, saveAuditFolders, type AuditBrowse, type AuditSource,
 } from '../lib/api';
 
 /**
@@ -46,6 +46,11 @@ export function OdometerAuditPage() {
   const [summary, setSummary] = useState<AuditSummary | null>(null);
   const [scan, setScan] = useState<AuditScanStatus | null>(null);
   const [year, setYear] = useState<number>(new Date().getFullYear() - 1);
+  // The audit runs on ONE source at a time: current driver files, folders picked in MEGA, or the upload archive.
+  const [source, setSourceState] = useState<AuditSource>(() => {
+    try { const v = localStorage.getItem('oa-source'); return v === 'mega' || v === 'archive' ? v : 'drivers'; } catch { return 'drivers'; }
+  });
+  const setSource = (v: AuditSource) => { setSourceState(v); try { localStorage.setItem('oa-source', v); } catch { /* ignore */ } };
   const [report, setReport] = useState<AuditReport | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -83,11 +88,11 @@ export function OdometerAuditPage() {
     }
   }, []);
 
-  const loadReport = useCallback(async (y: number) => {
+  const loadReport = useCallback(async (y: number, src: AuditSource) => {
     setLoading(true);
     setError('');
     try {
-      setReport(await fetchAuditReport(y));
+      setReport(await fetchAuditReport(y, src));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -103,7 +108,7 @@ export function OdometerAuditPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => { void loadReport(year); setExpanded(null); setTimeline({}); }, [year, loadReport]);
+  useEffect(() => { void loadReport(year, source); setExpanded(null); setTimeline({}); }, [year, source, loadReport]);
 
   // Poll the scan while it runs; refresh everything when it ends.
   useEffect(() => {
@@ -116,16 +121,16 @@ export function OdometerAuditPage() {
           clearInterval(id);
           toast(`${t('oaScanDone')}: ${st.done} · ${st.new_records} ${t('oaNewRecords')}`, st.error_count ? 'info' : 'success');
           await loadSummary();
-          await loadReport(year);
+          await loadReport(year, source);
         }
       } catch { /* keep polling */ }
     }, 2500);
     return () => clearInterval(id);
-  }, [scan?.running, loadSummary, loadReport, year, t, toast]);
+  }, [scan?.running, loadSummary, loadReport, year, source, t, toast]);
 
   const runScan = async (force = false) => {
     try {
-      const r = await startAuditScan(force);
+      const r = await startAuditScan(source, force);
       setScan(r.status);
       if (!r.started) toast(t('oaScanning'), 'info');
     } catch (e) {
@@ -171,7 +176,7 @@ export function OdometerAuditPage() {
       }
       toast(`${t('oaUploadDone')}: ${prog.counts.new} ${t('oaUploadNew')} · ${prog.counts.skipped} ${t('oaUploadSkipped')} · ${prog.counts.error} ${t('oaUploadErrors')} · ${prog.records} ${t('oaNewRecords')}`, prog.counts.error ? 'info' : 'success');
       await loadSummary();
-      await loadReport(year);
+      await loadReport(year, source);
     } finally {
       setUploading(false);
     }
@@ -184,7 +189,7 @@ export function OdometerAuditPage() {
     if (!timeline[key]) {
       setTimeline((m) => ({ ...m, [key]: 'loading' }));
       try {
-        const tl = await fetchAuditVehicle(key, year);
+        const tl = await fetchAuditVehicle(key, year, source);
         setTimeline((m) => ({ ...m, [key]: tl }));
       } catch (e) {
         toast(e instanceof Error ? e.message : String(e), 'error');
@@ -255,7 +260,35 @@ export function OdometerAuditPage() {
 
       {/* Data source: scan + upload */}
       <Card className="p-4" data-animate>
-        <div className="grid gap-4 lg:grid-cols-[1fr_400px]">
+        {/* ONE source at a time: the report never mixes them */}
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <span className="text-xs font-semibold uppercase tracking-wide text-muted">{t('oaSourceLabel')}</span>
+          <div className="inline-flex rounded-xl border border-border bg-surface-2 p-1" role="tablist">
+            {([
+              { key: 'drivers', icon: Users, label: t('oaSrcDrivers') },
+              { key: 'mega', icon: Cloud, label: t('oaSrcMega') },
+              { key: 'archive', icon: Upload, label: t('oaSrcArchive') },
+            ] as { key: AuditSource; icon: typeof Users; label: string }[]).map(({ key, icon: Icon, label }) => (
+              <button
+                key={key}
+                type="button"
+                id={`oa-src-${key}`}
+                role="tab"
+                aria-selected={source === key}
+                onClick={() => setSource(key)}
+                className={clsx(
+                  'inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition',
+                  source === key ? 'bg-card text-ink shadow-sm' : 'text-muted hover:text-ink',
+                )}
+              >
+                <Icon size={13} /> {label}
+                {summary?.by_source?.[key] ? <span className="rounded-md bg-surface-2 px-1.5 font-mono text-[10px] tabular-nums">{summary.by_source[key].files}</span> : null}
+              </button>
+            ))}
+          </div>
+          <span className="text-[11px] text-muted">{source === 'drivers' ? t('oaSrcDriversHint') : source === 'mega' ? t('oaSrcMegaHint') : t('oaSrcArchiveHint')}</span>
+        </div>
+        <div className={clsx('grid gap-4', source === 'archive' && 'lg:grid-cols-[1fr_400px]')}>
           <div>
             <p className="text-sm text-muted">{t('oaIntro')}</p>
             <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -265,8 +298,8 @@ export function OdometerAuditPage() {
                 </button>
               ) : (
                 <>
-                  <button type="button" id="oa-scan" onClick={() => runScan(false)} className="btn-primary btn-press inline-flex items-center gap-2 px-3.5 py-2 text-sm">
-                    <RefreshCw size={15} /> {t('oaScan')}
+                  <button type="button" id="oa-scan" onClick={() => runScan(false)} disabled={source === 'mega' && !(summary?.extra_folders || []).length} className="btn-primary btn-press inline-flex items-center gap-2 px-3.5 py-2 text-sm disabled:opacity-50">
+                    <RefreshCw size={15} /> {source === 'drivers' ? t('oaScanDrivers') : source === 'mega' ? t('oaScanMega') : t('oaScanArchive')}
                   </button>
                   <button type="button" onClick={() => runScan(true)} className="btn-secondary btn-press inline-flex items-center gap-2 px-3 py-2 text-sm">
                     {t('oaRescanAll')}
@@ -277,7 +310,7 @@ export function OdometerAuditPage() {
                 {summary?.last_scan ? `${t('oaLastScan')}: ${fmtTs(summary.last_scan)}` : ''}
               </span>
             </div>
-            {scan && (scan.running || scan.finished_at) && (
+            {scan && scan.source === source && (scan.running || scan.finished_at) && (
               <div className="mt-3">
                 <div className="flex items-center justify-between text-[11px] text-muted">
                   <span className={clsx('inline-flex items-center gap-1.5', scan.message.startsWith('failed') && 'text-danger')}>
@@ -296,7 +329,7 @@ export function OdometerAuditPage() {
             )}
           </div>
 
-          <div
+          {source === 'archive' && <div
             onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
             onDragLeave={() => setDragOver(false)}
             onDrop={(e) => { e.preventDefault(); setDragOver(false); void upload(e.dataTransfer.files); }}
@@ -334,12 +367,12 @@ export function OdometerAuditPage() {
             )}
             <input ref={fileInput} type="file" accept=".ddd,.DDD,.c1b,.C1B,.esm,.ESM,.tgd,.TGD,.dat,.DAT,.zip" multiple className="hidden" onChange={(e) => { if (e.target.files) void upload(e.target.files); e.target.value = ''; }} />
             <input ref={folderInput} type="file" multiple className="hidden" {...({ webkitdirectory: '', directory: '' } as Record<string, string>)} onChange={(e) => { if (e.target.files) void upload(e.target.files); e.target.value = ''; }} />
-          </div>
+          </div>}
         </div>
       </Card>
 
-      {/* Folders already in MEGA that the scan should include */}
-      {summary?.storage_configured && (
+      {/* Folders picked in MEGA: the whole "mega" source */}
+      {source === 'mega' && summary?.storage_configured && (
         <Card className="p-4" data-animate>
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0">
@@ -351,9 +384,6 @@ export function OdometerAuditPage() {
             </button>
           </div>
           <ul className="mt-3 flex flex-wrap gap-2">
-            <li className="inline-flex items-center gap-1.5 rounded-lg bg-surface-2 px-2.5 py-1.5 font-mono text-xs text-muted" title={t('oaSourceArchive')}>
-              <Folder size={13} /> {summary.audit_folder}
-            </li>
             {(summary.extra_folders || []).map((f) => (
               <li key={f} className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1.5 font-mono text-xs text-ink">
                 <FolderOpen size={13} className="text-accent" /> {f}
@@ -378,16 +408,14 @@ export function OdometerAuditPage() {
       {summary && (
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-5" data-animate>
           {[
-            { icon: Files, label: t('oaFilesScanned'), value: summary.files, sub: [
-              summary.sources?.drivers ? `${summary.sources.drivers} ${t('oaSourceDrivers')}` : '',
-              summary.sources?.archive ? `${summary.sources.archive} ${t('oaSourceArchive')}` : '',
-              summary.sources?.upload ? `${summary.sources.upload} ${t('oaSourceUpload')}` : '',
-              ...Object.entries(summary.sources || {}).filter(([k]) => k.startsWith('mega:')).map(([k, n]) => `${n} ${k.slice(5)}`),
+            { icon: Files, label: t('oaFilesScanned'), value: summary.by_source?.[source]?.files ?? 0, sub: [
+              source === 'mega' ? Object.entries(summary.sources || {}).filter(([k]) => k.startsWith('mega:')).map(([k, n]) => `${n} ${k.slice(5)}`).join(' · ') : '',
+              source === 'archive' && summary.sources?.upload ? `${summary.sources.upload} ${t('oaSourceUpload')}` : '',
               summary.files_with_errors ? `${summary.files_with_errors} ✗` : '',
             ].filter(Boolean).join(' · ') },
-            { icon: IdCard, label: t('oaCards'), value: summary.cards, sub: '' },
-            { icon: Gauge, label: t('oaRecords'), value: summary.records, sub: '' },
-            { icon: Truck, label: t('oaVehicles'), value: summary.plates, sub: '' },
+            { icon: IdCard, label: t('oaCards'), value: summary.by_source?.[source]?.cards ?? 0, sub: '' },
+            { icon: Gauge, label: t('oaRecords'), value: summary.by_source?.[source]?.records ?? 0, sub: summary.by_source?.[source]?.first_record ? `${fmtTs(summary.by_source[source].first_record, false)} – ${fmtTs(summary.by_source[source].last_record, false)}` : '' },
+            { icon: Truck, label: t('oaVehicles'), value: summary.by_source?.[source]?.plates ?? 0, sub: '' },
             { icon: Clock, label: `${t('oaYear')} ${year}`, value: report?.counts.active ?? 0, sub: report ? `${report.counts.exact} ${t('oaQualityExact')} · ${report.counts.ok} ${t('oaQualityOk')} · ${report.counts.gap} ${t('oaQualityGap')}` : '' },
           ].map(({ icon: Icon, label, value, sub }) => (
             <div key={label} className="card kpi kpi-accent px-4 py-3">
@@ -420,7 +448,7 @@ export function OdometerAuditPage() {
         ) : error ? (
           <p className="flex items-center gap-2 p-5 text-sm text-danger"><AlertTriangle size={15} /> {error}</p>
         ) : !rows.length ? (
-          <p className="p-6 text-sm text-muted">{summary && summary.records === 0 ? t('oaNoData') : '—'}</p>
+          <p className="p-6 text-sm text-muted">{summary && !(summary.by_source?.[source]?.records) ? t('oaNoData') : '—'}</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">

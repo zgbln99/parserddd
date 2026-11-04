@@ -7,10 +7,14 @@ gives, for each vehicle, an odometer timeline dense enough to read off the
 km-stand on 31.12 of each year, or the nearest reading before/after.
 
 Two tables:
-    card_scan_files     one row per scanned .ddd (path, size, driver, errors)
-    card_vehicle_usage  one row per (card, vehicle, insertion window);
+    card_scan_files     one row per scanned card file (path, size, driver, errors)
+    card_vehicle_usage  one row per (source, card, vehicle, insertion window);
                         the same window appears in every later download of
                         that card, so it is de-duplicated by the UNIQUE key.
+
+Sources are kept apart on purpose: the user audits EITHER the drivers'
+current files ("drivers") OR folders picked in MEGA ("mega") OR the upload
+archive ("archive"), and a report never mixes them.
 
 The scan walks two storage areas in a background thread: the drivers'
 folders ({SYNC_DEST_FOLDER}/{driver}/*.ddd, source "drivers") and a separate
@@ -86,6 +90,37 @@ def maybe_card_file(name: str) -> bool:
     return bool(n) and not n.endswith(_NOT_CARD_EXTS)
 _FOLDERS_KEY = 'odometer_audit_folders'
 
+SOURCES = ('drivers', 'mega', 'archive')
+
+
+def source_group(detail: str) -> str:
+    """card_scan_files.source (detailed) -> one of SOURCES."""
+    if detail.startswith('mega:'):
+        return 'mega'
+    if detail in ('archive', 'upload'):
+        return 'archive'
+    return 'drivers'
+
+def ensure_schema() -> None:
+    """Called before init_db(): the audit tables are a cache of parsed files,
+    so when their layout changed (v1 had no `source` column) they are dropped
+    and recreated by init_db(); a rescan rebuilds everything."""
+    try:
+        from database import get_engine
+        with get_db() as db:
+            if get_engine() == 'postgresql':
+                cols = [r['column_name'] for r in db.query(
+                    "SELECT column_name FROM information_schema.columns WHERE table_name = 'card_vehicle_usage'")]
+            else:
+                cols = [r['name'] for r in db.query('PRAGMA table_info(card_vehicle_usage)')]
+            if cols and 'source' not in cols:
+                db.execute('DROP TABLE IF EXISTS card_vehicle_usage')
+                db.execute('DROP TABLE IF EXISTS card_scan_files')
+                db.commit()
+                logger.warning('odometer audit: old tables dropped (new layout); run the scan again')
+    except Exception:
+        logger.exception('odometer audit: schema check failed')
+
 
 def _clean_folder(path: str) -> str:
     path = '/' + (path or '').replace('\\', '/').strip().strip('/')
@@ -158,6 +193,7 @@ def ingest_file(path: str, data: bytes, *, source: str = 'storage', driver: str 
     driver = driver or holder
     records = parsed.get('records') or []
     now = _now_iso()
+    group = source_group(source)
 
     with get_db() as db:
         row = db.query_one('SELECT id FROM card_scan_files WHERE path = ?', (path,))
@@ -181,7 +217,7 @@ def ingest_file(path: str, data: bytes, *, source: str = 'storage', driver: str 
         if records:
             existing = {
                 (r['plate_norm'], r['first_use'], r['last_use'])
-                for r in db.query('SELECT plate_norm, first_use, last_use FROM card_vehicle_usage WHERE card_number = ?', (card,))
+                for r in db.query('SELECT plate_norm, first_use, last_use FROM card_vehicle_usage WHERE source = ? AND card_number = ?', (group, card))
             }
             for rec in records:
                 pn = normalize_plate(rec['plate'])
@@ -192,9 +228,9 @@ def ingest_file(path: str, data: bytes, *, source: str = 'storage', driver: str 
                     continue
                 existing.add(key)
                 db.execute(
-                    'INSERT INTO card_vehicle_usage (card_number, driver, plate_norm, plate, nation, vin, odo_begin, odo_end, '
-                    'first_use, last_use, file_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                    (card, driver, pn, rec['plate'], rec['nation'], rec['vin'], rec['odo_begin'], rec['odo_end'],
+                    'INSERT INTO card_vehicle_usage (source, card_number, driver, plate_norm, plate, nation, vin, odo_begin, odo_end, '
+                    'first_use, last_use, file_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                    (group, card, driver, pn, rec['plate'], rec['nation'], rec['vin'], rec['odo_begin'], rec['odo_end'],
                      rec['first_use'], rec['last_use'], file_id),
                 )
                 inserted += 1
@@ -273,6 +309,7 @@ class ScanState:
         self.current = ''
         self.message = ''
         self.cancel = False
+        self.source = ''
 
     def snapshot(self) -> dict:
         with self.lock:
@@ -280,7 +317,7 @@ class ScanState:
                 'running': self.running, 'started_at': self.started_at, 'finished_at': self.finished_at,
                 'total': self.total, 'done': self.done, 'skipped': self.skipped, 'new_records': self.new_records,
                 'errors': self.errors[-50:], 'error_count': len(self.errors), 'current': self.current,
-                'message': self.message,
+                'message': self.message, 'source': self.source,
             }
 
 
@@ -296,44 +333,56 @@ def cancel_scan() -> None:
         _scan.cancel = True
 
 
-def _list_storage_files(refresh: bool) -> list[dict]:
-    drivers = None if refresh else load_portal_cache()
-    if drivers is None:
-        dbx = get_storage_client()
-        if dbx:
-            drivers = build_drivers_data(dbx, _sync_folder())
-            save_portal_cache(drivers)
-        else:
-            drivers = load_portal_cache()  # last listing, better than nothing
-            if drivers is None:
-                raise RuntimeError('Storage nie skonfigurowany (brak MEGA_S4_* w env)')
-    files = []
-    for d in drivers:
-        for f in d.get('files') or []:
-            if is_card_file(f.get('name') or ''):
-                files.append({'path': f['path'], 'size': int(f.get('size') or 0), 'driver': d.get('name', ''), 'source': 'drivers'})
-    # The separate audit archive (bulk-uploaded old card files) and any
-    # folders the user picked in MEGA.
-    if storage_service.is_configured():
-        sources = [(audit_folder(), 'archive', is_card_file)] + [(f, f'mega:{f}', maybe_card_file) for f in get_extra_folders()]
-        seen = {f['path'] for f in files}
-        for folder, source, accept in sources:
-            try:
-                for obj in storage_service.list_prefix(folder):
-                    if accept(obj.get('name') or '') and obj['path_display'] not in seen:
-                        seen.add(obj['path_display'])
-                        files.append({'path': obj['path_display'], 'size': int(obj.get('size') or 0), 'driver': '', 'source': source})
-            except Exception as exc:
-                logger.warning('odometer audit: cannot list %s: %s', folder, exc)
+def _list_storage_files(refresh: bool, source: str) -> list[dict]:
+    """Files of ONE source: 'drivers' (current driver folders), 'mega'
+    (folders the user picked) or 'archive' (the upload folder)."""
+    files: list[dict] = []
+    if source == 'drivers':
+        drivers = None if refresh else load_portal_cache()
+        if drivers is None:
+            dbx = get_storage_client()
+            if dbx:
+                drivers = build_drivers_data(dbx, _sync_folder())
+                save_portal_cache(drivers)
+            else:
+                drivers = load_portal_cache()  # last listing, better than nothing
+                if drivers is None:
+                    raise RuntimeError('Storage nie skonfigurowany (brak MEGA_S4_* w env)')
+        for d in drivers:
+            for f in d.get('files') or []:
+                if is_card_file(f.get('name') or ''):
+                    files.append({'path': f['path'], 'size': int(f.get('size') or 0), 'driver': d.get('name', ''), 'source': 'drivers'})
+        return files
+    if not storage_service.is_configured():
+        raise RuntimeError('Storage nie skonfigurowany (brak MEGA_S4_* w env)')
+    if source == 'mega':
+        folders = get_extra_folders()
+        if not folders:
+            raise RuntimeError('Nie wybrano folderów w MEGA / Keine MEGA-Ordner gewählt')
+        sources = [(f, f'mega:{f}', maybe_card_file) for f in folders]
+    else:
+        sources = [(audit_folder(), 'archive', is_card_file)]
+    seen: set = set()
+    for folder, detail, accept in sources:
+        try:
+            for obj in storage_service.list_prefix(folder):
+                if accept(obj.get('name') or '') and obj['path_display'] not in seen:
+                    seen.add(obj['path_display'])
+                    files.append({'path': obj['path_display'], 'size': int(obj.get('size') or 0), 'driver': '', 'source': detail})
+        except Exception as exc:
+            logger.warning('odometer audit: cannot list %s: %s', folder, exc)
     return files
 
 
-def start_scan(*, force: bool = False, refresh_list: bool = True) -> bool:
-    """Start the background scan; False when one is already running."""
+def start_scan(*, source: str = 'drivers', force: bool = False, refresh_list: bool = True) -> bool:
+    """Start the background scan of one source; False when one is already running."""
+    if source not in SOURCES:
+        raise ValueError('unknown source')
     with _scan.lock:
         if _scan.running:
             return False
         _scan.running = True
+        _scan.source = source
         _scan.cancel = False
         _scan.started_at = _now_iso()
         _scan.finished_at = ''
@@ -341,13 +390,13 @@ def start_scan(*, force: bool = False, refresh_list: bool = True) -> bool:
         _scan.errors = []
         _scan.current = ''
         _scan.message = 'listing files'
-    threading.Thread(target=_run_scan, args=(force, refresh_list), name='odometer-audit-scan', daemon=True).start()
+    threading.Thread(target=_run_scan, args=(source, force, refresh_list), name='odometer-audit-scan', daemon=True).start()
     return True
 
 
-def _run_scan(force: bool, refresh_list: bool) -> None:
+def _run_scan(source: str, force: bool, refresh_list: bool) -> None:
     try:
-        files = _list_storage_files(refresh_list)
+        files = _list_storage_files(refresh_list, source)
         if not force:
             with get_db() as db:
                 done = {r['path']: int(r['size']) for r in db.query('SELECT path, size FROM card_scan_files WHERE error = ?', ('',))}
@@ -409,6 +458,8 @@ def summary() -> dict:
                              'MAX(scanned_at) AS last FROM card_scan_files', ('',))
         usage = db.query_one('SELECT COUNT(*) AS n, COUNT(DISTINCT plate_norm) AS plates, COUNT(DISTINCT card_number) AS cards, '
                              'MIN(first_use) AS lo, MAX(last_use) AS hi FROM card_vehicle_usage')
+        per_source = db.query('SELECT source, COUNT(*) AS n, COUNT(DISTINCT plate_norm) AS plates, COUNT(DISTINCT card_number) AS cards, '
+                              'MIN(first_use) AS lo, MAX(last_use) AS hi FROM card_vehicle_usage GROUP BY source')
         recent_errors = db.query('SELECT path, error, scanned_at FROM card_scan_files WHERE error <> ? ORDER BY scanned_at DESC LIMIT 20', ('',))
         by_source = db.query('SELECT source, COUNT(*) AS n FROM card_scan_files GROUP BY source')
     lo, hi = (usage['lo'] or ''), (usage['hi'] or '')
@@ -419,6 +470,13 @@ def summary() -> dict:
         'first_record': lo, 'last_record': hi, 'years': years,
         'errors': [dict(r) for r in recent_errors],
         'sources': {('drivers' if r['source'] == 'storage' else r['source']): int(r['n']) for r in by_source},
+        'by_source': {
+            r['source']: {
+                'records': int(r['n'] or 0), 'plates': int(r['plates'] or 0), 'cards': int(r['cards'] or 0),
+                'first_record': r['lo'] or '', 'last_record': r['hi'] or '',
+                'files': sum(int(x['n']) for x in by_source if source_group('drivers' if x['source'] == 'storage' else x['source']) == r['source']),
+            } for r in per_source
+        },
         'audit_folder': audit_folder(),
         'extra_folders': get_extra_folders(),
         'storage_configured': storage_service.is_configured(),
@@ -432,15 +490,15 @@ def _cutoff(year: int) -> str:
     return local.astimezone(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
 
 
-def _year_end_reading(db, year: int, lower_bound: str) -> dict[str, dict]:
+def _year_end_reading(db, year: int, lower_bound: str, source: str) -> dict[str, dict]:
     """plate_norm -> newest record ending at or before the cutoff (odometer at withdrawal)."""
     cutoff = _cutoff(year)
     rows = db.query(
         'SELECT u.* FROM card_vehicle_usage u JOIN ('
         '  SELECT plate_norm, MAX(last_use) AS lu FROM card_vehicle_usage '
-        '  WHERE last_use <= ? AND last_use >= ? GROUP BY plate_norm'
-        ') m ON m.plate_norm = u.plate_norm AND m.lu = u.last_use ORDER BY u.odo_end DESC',
-        (cutoff, lower_bound),
+        '  WHERE source = ? AND last_use <= ? AND last_use >= ? GROUP BY plate_norm'
+        ') m ON m.plate_norm = u.plate_norm AND m.lu = u.last_use WHERE u.source = ? ORDER BY u.odo_end DESC',
+        (source, cutoff, lower_bound, source),
     )
     out: dict[str, dict] = {}
     for r in rows:
@@ -448,15 +506,15 @@ def _year_end_reading(db, year: int, lower_bound: str) -> dict[str, dict]:
     return out
 
 
-def _next_reading(db, year: int, upper_bound: str) -> dict[str, dict]:
+def _next_reading(db, year: int, upper_bound: str, source: str) -> dict[str, dict]:
     """plate_norm -> oldest record starting after the cutoff (odometer at insertion)."""
     cutoff = _cutoff(year)
     rows = db.query(
         'SELECT u.* FROM card_vehicle_usage u JOIN ('
         '  SELECT plate_norm, MIN(first_use) AS fu FROM card_vehicle_usage '
-        '  WHERE first_use > ? AND first_use <= ? GROUP BY plate_norm'
-        ') m ON m.plate_norm = u.plate_norm AND m.fu = u.first_use ORDER BY u.odo_begin ASC',
-        (cutoff, upper_bound),
+        '  WHERE source = ? AND first_use > ? AND first_use <= ? GROUP BY plate_norm'
+        ') m ON m.plate_norm = u.plate_norm AND m.fu = u.first_use WHERE u.source = ? ORDER BY u.odo_begin ASC',
+        (source, cutoff, upper_bound, source),
     )
     out: dict[str, dict] = {}
     for r in rows:
@@ -473,23 +531,26 @@ def _days_between(a: str, b: str) -> float | None:
     return round(abs((dbb - da).total_seconds()) / 86400, 1)
 
 
-def year_report(year: int) -> dict:
-    """Per vehicle: odometer on 31.12 of `year` (or nearest), with context."""
+def year_report(year: int, source: str = 'drivers') -> dict:
+    """Per vehicle: odometer on 31.12 of `year` (or nearest), with context.
+    Only records of ONE source are used."""
+    if source not in SOURCES:
+        raise ValueError('unknown source')
     cutoff = _cutoff(year)
     lower = f'{year - 1}-01-01T00:00:00Z'       # vehicles not seen for over a year are left out
     upper = f'{year + 1}-12-31T23:59:59Z'
     with get_db() as db:
-        before = _year_end_reading(db, year, lower)
-        after = _next_reading(db, year, upper)
-        prev = _year_end_reading(db, year - 1, f'{year - 2}-01-01T00:00:00Z')
+        before = _year_end_reading(db, year, lower, source)
+        after = _next_reading(db, year, upper, source)
+        prev = _year_end_reading(db, year - 1, f'{year - 2}-01-01T00:00:00Z', source)
         # Display form of each plate: the spelling seen most often.
-        spell_rows = db.query('SELECT plate_norm, plate, COUNT(*) AS n FROM card_vehicle_usage GROUP BY plate_norm, plate')
+        spell_rows = db.query('SELECT plate_norm, plate, COUNT(*) AS n FROM card_vehicle_usage WHERE source = ? GROUP BY plate_norm, plate', (source,))
         # Activity within the year.
         act_rows = db.query(
             'SELECT plate_norm, COUNT(*) AS n, COUNT(DISTINCT card_number) AS drivers, MIN(first_use) AS lo, MAX(last_use) AS hi, '
             'MIN(odo_begin) AS odo_lo, MAX(odo_end) AS odo_hi FROM card_vehicle_usage '
-            'WHERE last_use >= ? AND first_use <= ? GROUP BY plate_norm',
-            (f'{year}-01-01T00:00:00Z', cutoff),
+            'WHERE source = ? AND last_use >= ? AND first_use <= ? GROUP BY plate_norm',
+            (source, f'{year}-01-01T00:00:00Z', cutoff),
         )
     spelling: dict[str, tuple[int, str]] = {}
     for r in spell_rows:
@@ -559,7 +620,7 @@ def year_report(year: int) -> dict:
         })
     rows.sort(key=lambda r: r['plate'])
     return {
-        'year': year, 'cutoff': cutoff, 'rows': rows,
+        'year': year, 'cutoff': cutoff, 'source': source, 'rows': rows,
         'counts': {
             'vehicles': len(rows),
             'active': sum(1 for r in rows if r['active_in_year']),
@@ -570,7 +631,7 @@ def year_report(year: int) -> dict:
     }
 
 
-def vehicle_timeline(plate_norm: str, year: int, days: int = 45) -> dict:
+def vehicle_timeline(plate_norm: str, year: int, days: int = 45, source: str = 'drivers') -> dict:
     """All records of one vehicle around the year end (±days), plus totals."""
     cutoff_dt = datetime(year, 12, 31, 23, 59, 59, tzinfo=CET).astimezone(timezone.utc)
     lo = (cutoff_dt - timedelta(days=days)).strftime('%Y-%m-%dT%H:%M:%SZ')
@@ -579,12 +640,12 @@ def vehicle_timeline(plate_norm: str, year: int, days: int = 45) -> dict:
         rows = db.query(
             'SELECT plate, driver, card_number, odo_begin, odo_end, first_use, last_use, generation_hint FROM ('
             '  SELECT plate, driver, card_number, odo_begin, odo_end, first_use, last_use, 0 AS generation_hint '
-            '  FROM card_vehicle_usage WHERE plate_norm = ? AND last_use >= ? AND first_use <= ?'
+            '  FROM card_vehicle_usage WHERE source = ? AND plate_norm = ? AND last_use >= ? AND first_use <= ?'
             ') t ORDER BY first_use',
-            (plate_norm, lo, hi),
+            (source, plate_norm, lo, hi),
         )
         total = db.query_one('SELECT COUNT(*) AS n, MIN(first_use) AS lo, MAX(last_use) AS hi, COUNT(DISTINCT card_number) AS drivers '
-                             'FROM card_vehicle_usage WHERE plate_norm = ?', (plate_norm,))
+                             'FROM card_vehicle_usage WHERE source = ? AND plate_norm = ?', (source, plate_norm))
     return {
         'plate_norm': plate_norm, 'year': year, 'cutoff': _cutoff(year),
         'records': [{k: r[k] for k in ('plate', 'driver', 'card_number', 'odo_begin', 'odo_end', 'first_use', 'last_use')} for r in rows],
