@@ -79,3 +79,19 @@ def test_folder_picker_and_settings(app_env, card_gen1):
     assert b['ddd_files'] == 1 and b['sample'] == ['a.C1B']
     r = client.put('/api/odometer-audit/folders', json={'folders': ['/Samsara-DDD/Kontrola/Archiv', '/x/../y', '']}).get_json()
     assert r['folders'] == ['/Samsara-DDD/Kontrola/Archiv']
+
+
+def test_non_driver_card_is_skipped_without_false_error(app_env):
+    from tests.odometer_audit.test_parsers import _other_card_fixture
+    client, fake, svc = app_env
+    fake.blobs['/Other/CC_company.ddd'] = _other_card_fixture()
+    client.put('/api/odometer-audit/folders', json={'folders': ['/Other']})
+    st = run_scan(client, 'mega')
+    assert st['total'] == 1 and st['error_count'] == 0
+    assert st['new_records'] == 0
+    with svc.get_db() as db:
+        row = db.query_one('SELECT kind, error, records FROM card_scan_files WHERE path = ?', ('/Other/CC_company.ddd',))
+        assert row['kind'] == 'other' and row['error'] == '' and row['records'] == 0
+    assert client.get('/api/odometer-audit/report?year=2021&source=mega').get_json()['counts']['vehicles'] == 0
+    st = run_scan(client, 'mega')
+    assert st['total'] == 0 and st['skipped'] == 1

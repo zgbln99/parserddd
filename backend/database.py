@@ -329,17 +329,19 @@ _SCHEMA = [
         changed_by  TEXT NOT NULL DEFAULT 'admin',
         changed_at  TEXT NOT NULL
     )''',
-    # Application accounts. ``name`` is the login (unique, case-insensitive
-    # via lower() lookups); ``permissions`` is a JSON list of extra feature
-    # grants on top of the role defaults.
+    # Application accounts. ``username`` is the login while ``name`` is the
+    # human-readable full name shown in the admin panel. ``permissions`` is a
+    # JSON list of extra feature grants on top of the role defaults.
     '''
     CREATE TABLE IF NOT EXISTS app_users (
         id            INTEGER PRIMARY KEY AUTOINCREMENT,
-        name          TEXT NOT NULL UNIQUE,
+        username      TEXT NOT NULL DEFAULT '',
+        name          TEXT NOT NULL,
         password_hash TEXT NOT NULL,
         role          TEXT NOT NULL DEFAULT 'user',
         permissions   TEXT NOT NULL DEFAULT '[]',
         is_active     INTEGER NOT NULL DEFAULT 1,
+        onboarding_done INTEGER NOT NULL DEFAULT 0,
         created_at    TEXT NOT NULL,
         updated_at    TEXT NOT NULL
     )''',
@@ -348,6 +350,33 @@ _SCHEMA = [
     CREATE TABLE IF NOT EXISTS app_settings (
         key        TEXT PRIMARY KEY,
         value_json TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    )''',
+    '''
+    CREATE TABLE IF NOT EXISTS toll_settings (
+        period     TEXT PRIMARY KEY,
+        data_json  TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    )''',
+    '''
+    CREATE TABLE IF NOT EXISTS sync_runs (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        started_at      TEXT NOT NULL,
+        finished_at     TEXT NOT NULL,
+        status          TEXT NOT NULL DEFAULT '',
+        found           INTEGER NOT NULL DEFAULT 0,
+        uploaded        INTEGER NOT NULL DEFAULT 0,
+        errors          INTEGER NOT NULL DEFAULT 0,
+        error           TEXT NOT NULL DEFAULT '',
+        files_json      TEXT NOT NULL DEFAULT '[]',
+        synced_ids_json TEXT NOT NULL DEFAULT '[]'
+    )''',
+    '''
+    CREATE TABLE IF NOT EXISTS push_tokens (
+        token      TEXT PRIMARY KEY,
+        user_id    INTEGER,
+        platform   TEXT NOT NULL DEFAULT 'android',
+        created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
     )''',
     '''
@@ -418,6 +447,30 @@ _SCHEMA = [
         created_at    TEXT NOT NULL,
         updated_at    TEXT NOT NULL,
         last_access   TEXT NOT NULL DEFAULT ''
+    )''',
+    '''
+    CREATE TABLE IF NOT EXISTS driver_profile_requests (
+        id             INTEGER PRIMARY KEY AUTOINCREMENT,
+        card_number    TEXT NOT NULL,
+        period         TEXT NOT NULL,
+        shift_date     TEXT NOT NULL DEFAULT '',
+        request_type   TEXT NOT NULL DEFAULT 'correction',
+        message        TEXT NOT NULL DEFAULT '',
+        proposed_start TEXT NOT NULL DEFAULT '',
+        proposed_end   TEXT NOT NULL DEFAULT '',
+        status         TEXT NOT NULL DEFAULT 'pending',
+        admin_note     TEXT NOT NULL DEFAULT '',
+        created_at     TEXT NOT NULL,
+        updated_at     TEXT NOT NULL
+    )''',
+    '''
+    CREATE TABLE IF NOT EXISTS driver_profile_confirmations (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        card_number  TEXT NOT NULL,
+        period       TEXT NOT NULL,
+        confirmed_at TEXT NOT NULL,
+        updated_at   TEXT NOT NULL,
+        UNIQUE(card_number, period)
     )''',
     '''
     CREATE TABLE IF NOT EXISTS route_shares (
@@ -550,8 +603,10 @@ _MIGRATIONS = [
     (13, 'route_shares', 'to_time', "TEXT NOT NULL DEFAULT ''"),
     (14, 'route_shares', 'vehicles_json', "TEXT NOT NULL DEFAULT ''"),
     (15, 'app_users', 'is_active', 'INTEGER NOT NULL DEFAULT 1'),
-    (16, 'card_scan_files', 'kind', "TEXT NOT NULL DEFAULT 'card'"),
-    (17, 'card_scan_files', 'plate', "TEXT NOT NULL DEFAULT ''"),
+    (16, 'app_users', 'username', "TEXT NOT NULL DEFAULT ''"),
+    (17, 'app_users', 'onboarding_done', 'INTEGER NOT NULL DEFAULT 0'),
+    (18, 'card_scan_files', 'kind', "TEXT NOT NULL DEFAULT 'card'"),
+    (19, 'card_scan_files', 'plate', "TEXT NOT NULL DEFAULT ''"),
 ]
 
 
@@ -586,6 +641,12 @@ def init_db():
             )
             db.commit()
 
+        # Existing installations used ``name`` as the login. Preserve every
+        # account by copying it into the new dedicated username column once.
+        db.execute("UPDATE app_users SET username = name WHERE username IS NULL OR username = ''")
+        db.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_app_users_username_ci ON app_users(lower(username))')
+        db.commit()
+
 
 # ---------------------------------------------------------------------------
 # Migration script: SQLite → PostgreSQL
@@ -593,8 +654,9 @@ def init_db():
 
 _DATA_TABLES = [
     'driver_config', 'driver_monthly_days', 'config_audit_log', 'app_users',
-    'app_settings', 'login_history', 'activity_log', 'signing_tokens',
-    'payroll_status', 'driver_profiles', 'route_shares', 'vehicle_movement',
+    'app_settings', 'toll_settings', 'sync_runs', 'push_tokens', 'login_history', 'activity_log', 'signing_tokens',
+    'payroll_status', 'driver_profiles', 'driver_profile_requests',
+    'driver_profile_confirmations', 'route_shares', 'vehicle_movement',
     'violation_statuses',
 ]
 

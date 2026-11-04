@@ -2,7 +2,7 @@
 
 import collections
 
-from core.card_vehicles import parse_card_vehicles
+from core.card_vehicles import is_non_driver_card, parse_card_vehicles
 from core.vu_odometer import is_vu_file, parse_vu
 
 
@@ -46,3 +46,18 @@ def test_vu_truncated_file_keeps_what_was_read(vu_files):
     r = parse_vu(cut)
     assert r['plate'] == 'TF LS 2262' and len(r['days']) == 4
     assert r['warning']
+
+
+def _other_card_fixture():
+    """TLV structure of a non-driver card; FIDs match real CC_* files."""
+    def tlv(fid, payload):
+        return fid.to_bytes(2, 'big') + b'\x00' + len(payload).to_bytes(2, 'big') + payload
+    return (tlv(0x0002, b'\x00' * 25) + tlv(0x0005, b'\x00') +
+            tlv(0x0501, b'\x00' * 16) + tlv(0xC100, b'\x00' * 8) +
+            tlv(0xC108, b'\x00' * 8))
+
+
+def test_recognizes_other_tachograph_card_from_content(card_gen1):
+    assert is_non_driver_card(_other_card_fixture())
+    assert not is_non_driver_card(card_gen1)
+    assert not is_non_driver_card(b'not a ddd')

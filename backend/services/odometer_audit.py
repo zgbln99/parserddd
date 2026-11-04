@@ -38,7 +38,7 @@ from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from auth.helpers import _load_config, _save_config
-from core.card_vehicles import parse_card_vehicles
+from core.card_vehicles import is_non_driver_card, parse_card_vehicles
 from core.vu_odometer import is_vu_file, parse_vu
 from database import get_db
 from services import storage_service
@@ -103,24 +103,82 @@ def source_group(detail: str) -> str:
     return 'drivers'
 
 def ensure_schema() -> None:
-    """Called before init_db(): the audit tables are a cache of parsed files,
-    so when their layout changed (v1 had no `source` column) they are dropped
-    and recreated by init_db(); a rescan rebuilds everything."""
-    try:
-        from database import get_engine
-        with get_db() as db:
-            if get_engine() == 'postgresql':
-                cols = [r['column_name'] for r in db.query(
-                    "SELECT column_name FROM information_schema.columns WHERE table_name = 'card_vehicle_usage'")]
-            else:
-                cols = [r['name'] for r in db.query('PRAGMA table_info(card_vehicle_usage)')]
+    """Non-destructively migrate v1 audit readings to separate source groups.
+
+    The previous implementation dropped both audit tables and required a full
+    rescan. Production can have tens of thousands of parsed readings, so
+    preserve the scan cache and link each record to its original file source.
+    This is called before database.init_db() creates the new source indexes.
+    """
+    from database import get_engine
+    engine = get_engine()
+    with get_db() as db:
+        if engine == 'postgresql':
+            cols = [r['column_name'] for r in db.query(
+                "SELECT column_name FROM information_schema.columns WHERE table_name = 'card_vehicle_usage'")]
             if cols and 'source' not in cols:
-                db.execute('DROP TABLE IF EXISTS card_vehicle_usage')
-                db.execute('DROP TABLE IF EXISTS card_scan_files')
+                db.execute("ALTER TABLE card_vehicle_usage ADD COLUMN source TEXT NOT NULL DEFAULT 'drivers'")
+                db.execute(
+                    "UPDATE card_vehicle_usage AS u SET source = CASE "
+                    "WHEN f.source LIKE 'mega:%' THEN 'mega' "
+                    "WHEN f.source IN ('archive', 'upload') THEN 'archive' ELSE 'drivers' END "
+                    "FROM card_scan_files AS f WHERE f.id = u.file_id"
+                )
+                db.execute(
+                    'CREATE UNIQUE INDEX IF NOT EXISTS idx_cvu_source_unique '
+                    'ON card_vehicle_usage (source, card_number, plate_norm, first_use, last_use)'
+                )
                 db.commit()
-                logger.warning('odometer audit: old tables dropped (new layout); run the scan again')
-    except Exception:
-        logger.exception('odometer audit: schema check failed')
+                logger.info('odometer audit: PostgreSQL source column added without discarding readings')
+            return
+
+        # Lock before checking schema so two Gunicorn workers never migrate
+        # the same table concurrently. All table replacement is one transaction.
+        db.execute('BEGIN IMMEDIATE')
+        cols = [r['name'] for r in db.query('PRAGMA table_info(card_vehicle_usage)')]
+        if not cols or 'source' in cols:
+            db.commit()
+            return
+
+        old_count = db.query_one('SELECT COUNT(*) AS n FROM card_vehicle_usage')['n']
+        db.execute(
+            "CREATE TABLE card_vehicle_usage_v2 ("
+            "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+            "source TEXT NOT NULL DEFAULT 'drivers',"
+            "card_number TEXT NOT NULL DEFAULT '',"
+            "driver TEXT NOT NULL DEFAULT '',"
+            "plate_norm TEXT NOT NULL,"
+            "plate TEXT NOT NULL,"
+            "nation TEXT NOT NULL DEFAULT '',"
+            "vin TEXT NOT NULL DEFAULT '',"
+            "odo_begin INTEGER NOT NULL,"
+            "odo_end INTEGER NOT NULL,"
+            "first_use TEXT NOT NULL,"
+            "last_use TEXT NOT NULL,"
+            "file_id INTEGER NOT NULL DEFAULT 0,"
+            "UNIQUE (source, card_number, plate_norm, first_use, last_use)"
+            ")"
+        )
+        db.execute(
+            "INSERT INTO card_vehicle_usage_v2 "
+            "(id, source, card_number, driver, plate_norm, plate, nation, vin, "
+            "odo_begin, odo_end, first_use, last_use, file_id) "
+            "SELECT u.id, CASE "
+            "WHEN f.source LIKE 'mega:%' THEN 'mega' "
+            "WHEN f.source IN ('archive', 'upload') THEN 'archive' "
+            "ELSE 'drivers' END, "
+            "u.card_number, u.driver, u.plate_norm, u.plate, u.nation, u.vin, "
+            "u.odo_begin, u.odo_end, u.first_use, u.last_use, u.file_id "
+            "FROM card_vehicle_usage AS u "
+            "LEFT JOIN card_scan_files AS f ON f.id = u.file_id"
+        )
+        new_count = db.query_one('SELECT COUNT(*) AS n FROM card_vehicle_usage_v2')['n']
+        if new_count != old_count:
+            raise RuntimeError(f'odometer audit migration mismatch: {old_count} -> {new_count}')
+        db.execute('DROP TABLE card_vehicle_usage')
+        db.execute('ALTER TABLE card_vehicle_usage_v2 RENAME TO card_vehicle_usage')
+        db.commit()
+        logger.info('odometer audit: kept %d readings while splitting data sources', new_count)
 
 
 def _clean_folder(path: str) -> str:
@@ -186,10 +244,16 @@ def ingest_file(path: str, data: bytes, *, source: str = 'storage', driver: str 
     size = len(data) if size is None else size
     error = ''
     parsed = {'card_number': '', 'holder': '', 'records': []}
+    kind = 'card'
     try:
         parsed = parse_card_vehicles(data)
         if not parsed['records'] and not parsed['card_number']:
-            error = 'no vehicle records (not a tachograph file?)'
+            if is_non_driver_card(data):
+                # A real non-driver tachograph card, but no EF_Vehicles_Used.
+                # Save it as not applicable; do not flood the error list.
+                kind = 'other'
+            else:
+                error = 'no vehicle records (not a driver card or VU download?)'
     except Exception as exc:  # defensive: one bad file must not stop the scan
         error = f'parse error: {exc}'
     card = parsed.get('card_number') or ''
@@ -198,10 +262,10 @@ def ingest_file(path: str, data: bytes, *, source: str = 'storage', driver: str 
     records = parsed.get('records') or []
     group = source_group(source)
     with get_db() as db:
-        file_id = _upsert_file(db, path, size, source, 'card', driver, card, holder, '', len(records), error)
+        file_id = _upsert_file(db, path, size, source, kind, driver, card, holder, '', len(records), error)
         inserted = _store_usage(db, group, card, driver, records, file_id)
         db.commit()
-    return {'path': path, 'kind': 'card', 'card_number': card, 'holder': holder, 'records': len(records), 'new': inserted, 'error': error}
+    return {'path': path, 'kind': kind, 'card_number': card, 'holder': holder, 'records': len(records), 'new': inserted, 'error': error}
 
 
 def _upsert_file(db, path, size, source, kind, driver, card, holder, plate, records, error) -> int:

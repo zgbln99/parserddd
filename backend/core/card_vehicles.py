@@ -75,6 +75,20 @@ def iter_tlv(data: bytes):
         i += 5 + length
 
 
+def is_non_driver_card(data: bytes) -> bool:
+    """Recognize valid company/control/workshop-style card downloads.
+
+    These contain common card-identification/signature TLVs (0x0002, 0x0501,
+    0xC108) but no driver identity (0x0520) or vehicles-used (0x0505).
+    They cannot provide a vehicle's odometer and should be recorded as
+    non-applicable rather than corrupted driver-card downloads.
+    Detection relies on FIDs, never on the filename.
+    """
+    fids = {fid for fid, typ, payload in iter_tlv(data)}
+    return (0x0002 in fids and 0x0501 in fids and 0xC108 in fids
+            and 0x0520 not in fids and 0x0505 not in fids)
+
+
 def _records(payload: bytes, generation: int) -> list[dict]:
     rec_len = 31 if generation == 1 else 48
     out = []

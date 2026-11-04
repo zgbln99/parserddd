@@ -96,8 +96,7 @@ odczytów tachografów pojazdów (VU).
 - `backend/core/vu_odometer.py` — parser pliku VU (bloki `0x76 <TREP>`; Gen1 01..05 wg
   szerokości rekordów z Annex 1B, Gen2 21..25 i Gen2v2 31..35 jako tablice rekordów
   `typ(1) rozmiar(2) liczba(2)`). Zwraca rejestrację, VIN, `days:[{day, at, odo}]`
-  (licznik o północy) i `card_records` (włożenia/wyjęcia kart). **Zweryfikowany tylko na
-  plikach syntetycznych** (`backend/tests/odometer_audit/synth_vu.py`), nie na prawdziwych VU.
+  (licznik o północy) i `card_records` (włożenia/wyjęcia kart). **Sprawdzony na 91 rzeczywistych plikach VU Gen1 z archiwum MEGA (2015–2019); Gen2 i Gen2v2 nadal tylko na plikach syntetycznych** (`backend/tests/odometer_audit/synth_vu.py`), nie na prawdziwych VU.
 - `backend/services/odometer_audit.py` — cała logika:
   - rozpoznanie typu pliku po zawartości (`is_vu_file`), `ingest_file` → `card_scan_files`
     (kolumny `kind` card/vu, `plate`), `card_vehicle_usage` (wpisy kart i wpisy kart z VU),
@@ -118,7 +117,7 @@ odczytów tachografów pojazdów (VU).
     stan rok wcześniej, km w roku, wpisy w roku, liczba dni VU;
   - `vehicle_timeline` — wpisy ±45 dni wokół końca roku (karty + północ VU);
   - `ensure_schema()` uruchamiane w `app.py` przed `init_db()`: wykrywa starą wersję tabel
-    (bez kolumny `source`) i kasuje je (to cache, odtwarza je ponowny skan).
+    (bez kolumny `source`) i migruje bez usuwania istniejących odczytów.
 - `backend/routes/odometer_audit.py` — uprawnienie `vehicles`:
   `GET summary`, `POST scan {source, force, refresh}`, `POST scan/cancel`, `GET scan/status`,
   `POST upload (multipart files[], keep=1|0)`, `GET report?year&source`,
@@ -148,7 +147,7 @@ przeglądarka folderów). Uruchomienie: `cd backend && python -m pytest tests/od
 
 ## 5. Co jest otwarte / następne kroki
 
-1. **Weryfikacja parsera VU na prawdziwych plikach.** Po skanie archiwum użytkownika sprawdzić
+1. **Dalsza weryfikacja parsera Gen2/Gen2v2 na prawdziwych plikach.** Po skanie archiwum użytkownika sprawdzić
    listę „Pliki z błędami” (`GET /api/odometer-audit/files?errors=1`). Typowe ryzyka: inna
    kolejność bloków, bloki producenta (`0x76 0x8x`), inne szerokości rekordów Gen1 — poprawki
    w `core/vu_odometer.py`, test dopisać w `tests/odometer_audit/test_parsers.py`
