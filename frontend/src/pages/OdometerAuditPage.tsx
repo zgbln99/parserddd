@@ -99,6 +99,7 @@ export function OdometerAuditPage() {
     void loadSummary().then((s) => {
       if (s && s.years.length && !s.years.includes(year)) setYear(s.years[s.years.length - 1]);
     });
+    // (years outside the data can still be picked from the list)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -135,7 +136,7 @@ export function OdometerAuditPage() {
   // Thousands of files go up in batches (the server accepts 16 MB per
   // request); already-uploaded files are skipped server-side.
   const upload = async (files: FileList | File[]) => {
-    const list = Array.from(files).filter((f) => /\.(ddd|zip)$/i.test(f.name));
+    const list = Array.from(files).filter((f) => /\.(ddd|c1b|esm|tgd|dat|zip)$/i.test(f.name));
     if (!list.length) return;
     const MAX_BYTES = 12 * 1024 * 1024;
     const MAX_FILES = 150;
@@ -215,7 +216,12 @@ export function OdometerAuditPage() {
     }
   };
 
-  const years = summary?.years?.length ? summary.years : [year];
+  // Any year from 2015 on can be chosen, whether or not records exist yet.
+  const years = useMemo(() => {
+    const now = new Date().getFullYear();
+    const lo = Math.min(2015, ...(summary?.years?.length ? summary.years : [now]));
+    return Array.from({ length: now - lo + 1 }, (_, i) => now - i);
+  }, [summary?.years]);
   const progressPct = scan && scan.total > 0 ? Math.round((scan.done / scan.total) * 100) : 0;
 
   return (
@@ -326,7 +332,7 @@ export function OdometerAuditPage() {
                 )}
               </div>
             )}
-            <input ref={fileInput} type="file" accept=".ddd,.DDD,.zip" multiple className="hidden" onChange={(e) => { if (e.target.files) void upload(e.target.files); e.target.value = ''; }} />
+            <input ref={fileInput} type="file" accept=".ddd,.DDD,.c1b,.C1B,.esm,.ESM,.tgd,.TGD,.dat,.DAT,.zip" multiple className="hidden" onChange={(e) => { if (e.target.files) void upload(e.target.files); e.target.value = ''; }} />
             <input ref={folderInput} type="file" multiple className="hidden" {...({ webkitdirectory: '', directory: '' } as Record<string, string>)} onChange={(e) => { if (e.target.files) void upload(e.target.files); e.target.value = ''; }} />
           </div>
         </div>

@@ -64,6 +64,26 @@ def audit_folder() -> str:
 
 
 _SAFE_NAME = re.compile(r'[^A-Za-z0-9._()\- ]+')
+
+# Driver-card download files come with several extensions depending on the
+# download tool: .ddd (most), .c1b (VDO downloadkey), .esm (Stoneridge),
+# .tgd (Tachogramm), .dat. The content is the same TLV card file.
+CARD_EXTS = ('.ddd', '.c1b', '.esm', '.tgd', '.dat')
+
+
+def is_card_file(name: str) -> bool:
+    return (name or '').lower().endswith(CARD_EXTS)
+
+
+# In a folder the user picked by hand, anything that is not plainly a
+# document is tried; the parser tells a card file from the rest.
+_NOT_CARD_EXTS = ('.xlsx', '.xls', '.csv', '.pdf', '.txt', '.doc', '.docx', '.zip', '.7z', '.rar',
+                  '.jpg', '.jpeg', '.png', '.gif', '.json', '.xml', '.html', '.htm', '.ini', '.log', '.db')
+
+
+def maybe_card_file(name: str) -> bool:
+    n = (name or '').lower()
+    return bool(n) and not n.endswith(_NOT_CARD_EXTS)
 _FOLDERS_KEY = 'odometer_audit_folders'
 
 
@@ -102,13 +122,13 @@ def browse_storage(path: str) -> dict:
         raise RuntimeError('Storage nie skonfigurowany (brak MEGA_S4_* w env)')
     path = _clean_folder(path) or '/'
     listing = storage_service.list_folder(path)
-    ddd = [f for f in listing['files'] if f['name'].lower().endswith('.ddd')]
+    ddd = [f for f in listing['files'] if is_card_file(f['name'])]
     return {
         'path': listing['path'],
         'folders': listing['folders'],
         'ddd_files': len(ddd),
         'other_files': len(listing['files']) - len(ddd),
-        'sample': [f['name'] for f in ddd[:5]],
+        'sample': [f['name'] for f in (ddd or listing['files'])[:5]],
     }
 
 
@@ -199,7 +219,7 @@ def ingest_upload(name: str, data: bytes, *, keep: bool = True) -> list[dict]:
         try:
             with zipfile.ZipFile(io.BytesIO(data)) as zf:
                 for info in zf.infolist():
-                    if info.is_dir() or not info.filename.lower().endswith('.ddd'):
+                    if info.is_dir() or not is_card_file(info.filename):
                         continue
                     if info.file_size > 4 * 1024 * 1024:
                         results.append({'path': info.filename, 'status': 'error', 'error': 'file too large', 'records': 0, 'new': 0})
@@ -209,8 +229,8 @@ def ingest_upload(name: str, data: bytes, *, keep: bool = True) -> list[dict]:
             results.append({'path': name, 'status': 'error', 'error': 'bad zip', 'records': 0, 'new': 0})
         return results
 
-    if not name.lower().endswith('.ddd'):
-        return [{'path': name, 'status': 'error', 'error': 'not a .ddd file', 'records': 0, 'new': 0}]
+    if not is_card_file(name):
+        return [{'path': name, 'status': 'error', 'error': f"not a card file ({', '.join(CARD_EXTS)})", 'records': 0, 'new': 0}]
     if not data:
         return [{'path': name, 'status': 'error', 'error': 'empty file', 'records': 0, 'new': 0}]
 
@@ -290,17 +310,17 @@ def _list_storage_files(refresh: bool) -> list[dict]:
     files = []
     for d in drivers:
         for f in d.get('files') or []:
-            if (f.get('name') or '').lower().endswith('.ddd'):
+            if is_card_file(f.get('name') or ''):
                 files.append({'path': f['path'], 'size': int(f.get('size') or 0), 'driver': d.get('name', ''), 'source': 'drivers'})
     # The separate audit archive (bulk-uploaded old card files) and any
     # folders the user picked in MEGA.
     if storage_service.is_configured():
-        sources = [(audit_folder(), 'archive')] + [(f, f'mega:{f}') for f in get_extra_folders()]
+        sources = [(audit_folder(), 'archive', is_card_file)] + [(f, f'mega:{f}', maybe_card_file) for f in get_extra_folders()]
         seen = {f['path'] for f in files}
-        for folder, source in sources:
+        for folder, source, accept in sources:
             try:
                 for obj in storage_service.list_prefix(folder):
-                    if (obj.get('name') or '').lower().endswith('.ddd') and obj['path_display'] not in seen:
+                    if accept(obj.get('name') or '') and obj['path_display'] not in seen:
                         seen.add(obj['path_display'])
                         files.append({'path': obj['path_display'], 'size': int(obj.get('size') or 0), 'driver': '', 'source': source})
             except Exception as exc:
