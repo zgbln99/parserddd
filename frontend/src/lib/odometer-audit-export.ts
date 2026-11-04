@@ -24,8 +24,8 @@ function L(locale: Locale) {
         after: 'Eintrag nach dem Stichtag',
         midnight: 'Tachograph (VU), Stand um Mitternacht',
         legend: [
-          'genau: Eintrag vom 31.12. oder bis 3 Tage davon entfernt · nah: bis 14 Tage · Lücke: mehr als 14 Tage',
-          'Liegt ein Tachographen-Download vor, ist der Kilometerstand der vom Fahrzeug gespeicherte Stand um Mitternacht zum Jahreswechsel. Sonst der Stand beim Entnehmen der Fahrerkarte am letzten Eintrag vor dem Stichtag; fehlt ein solcher, der Stand beim Einstecken am ersten Eintrag danach.',
+          'genau: Messwert vom 31.12. oder VU zum Jahreswechsel · nah: bis 14 Tage · Lücke: mehr als 14 Tage',
+          'Nur LTS-Kennzeichen TF LS / TF KX. VU-Stand zum Jahreswechsel hat Vorrang. Sonst gilt der zeitlich nächste verfügbare Messwert vor oder nach dem Stichtag. Das Messdatum und der Abstand sind angegeben.',
         ],
         generated: (d: string) => `Erstellt am ${d} mit ${TOOL} (FleetView)`,
         sign: 'Datum, Unterschrift',
@@ -49,8 +49,8 @@ function L(locale: Locale) {
         after: 'wpis po dacie granicznej',
         midnight: 'tachograf (VU), stan o północy',
         legend: [
-          'dokładny: wpis z 31.12 lub do 3 dni od niego · bliski: do 14 dni · luka: ponad 14 dni',
-          'Gdy jest odczyt z tachografu pojazdu, stan licznika to wartość zapisana przez pojazd o północy na przełomie roku. W przeciwnym razie odczyt przy wyjęciu karty z ostatniego wpisu przed 31.12; gdy go brak, odczyt przy włożeniu z pierwszego wpisu po.',
+          'dokładny: odczyt z 31.12 lub VU na przełomie roku · bliski: do 14 dni · luka: ponad 14 dni',
+          'Tylko rejestracje LTS TF LS / TF KX. Odczyt VU z przełomu roku ma pierwszeństwo. W pozostałych przypadkach wybierany jest odczyt najbliższy końcowi roku, przed albo po dacie granicznej. Sprawdź faktyczną datę i odstęp.',
         ],
         generated: (d: string) => `Wygenerowano ${d} w ${TOOL} (FleetView)`,
         sign: 'Data, podpis',
@@ -90,68 +90,107 @@ function hint(r: AuditRow, t: ReturnType<typeof L>): string {
 // ───────────────────────────── Excel ─────────────────────────────
 
 export async function exportOdometerAuditXlsx(report: AuditReport, rows: AuditRow[], locale: Locale) {
-  const XLSX = await import('xlsx-js-style');
+  // FleetView already ships ExcelJS; avoid importing an uninstalled xlsx-js-style package.
+  const { default: ExcelJS } = await import('exceljs');
   const t = L(locale);
   const year = report.year;
+  const wb = new ExcelJS.Workbook();
+  wb.creator = TOOL;
+  wb.lastModifiedBy = TOOL;
+  wb.title = t.title(year);
+  wb.company = COMPANY;
+  wb.created = new Date();
 
-  const thin = { style: 'thin', color: { rgb: 'D0D7E2' } };
-  const border = { top: thin, bottom: thin, left: thin, right: thin };
-  const headStyle = { font: { bold: true, sz: 10, color: { rgb: 'FFFFFF' } }, fill: { fgColor: { rgb: '1E40AF' } }, alignment: { vertical: 'center', horizontal: 'center', wrapText: true }, border };
-  const cell = (v: string | number | null, extra: Record<string, unknown> = {}) => ({ v: v ?? '', t: typeof v === 'number' ? 'n' : 's', s: { font: { sz: 10 }, border, ...extra } });
+  const ws = wb.addWorksheet(t.sheet(year), { views: [{ state: 'frozen', ySplit: 5 }] });
+  ws.columns = [5, 16, 12, 9, 18, 34, 28].map(width => ({ width }));
+  ws.mergeCells('A1:G1');
+  ws.mergeCells('A2:G2');
+  ws.mergeCells('A3:G3');
+  ws.getCell('A1').value = t.title(year);
+  ws.getCell('A1').font = { name: 'Arial', size: 15, bold: true, color: { argb: 'FF0F172A' } };
+  ws.getRow(1).height = 24;
+  ws.getCell('A2').value = COMPANY + ' · ' + t.cutoff(year) + ' · ' + t.vehicles(rows.length);
+  ws.getCell('A2').font = { size: 10, color: { argb: 'FF64748B' } };
+  ws.getCell('A3').value = t.source;
+  ws.getCell('A3').font = { size: 9, color: { argb: 'FF64748B' } };
+  ws.getRow(4).height = 7;
+  const header = ws.getRow(5);
+  header.values = t.cols;
+  header.height = 26;
+  header.eachCell(c => {
+    c.font = { size: 10, bold: true, color: { argb: 'FFFFFFFF' } };
+    c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E40AF' } };
+    c.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+    c.border = { bottom: { style: 'thin', color: { argb: 'FFD0D7E2' } } };
+  });
 
-  // Sheet 1: the clean list
-  const aoa: unknown[][] = [
-    [{ v: t.title(year), t: 's', s: { font: { bold: true, sz: 15, color: { rgb: '0F172A' } } } }],
-    [{ v: `${COMPANY} · ${t.cutoff(year)} · ${t.vehicles(rows.length)}`, t: 's', s: { font: { sz: 10, color: { rgb: '64748B' } } } }],
-    [{ v: t.source, t: 's', s: { font: { sz: 9, color: { rgb: '64748B' } } } }],
-    [],
-    t.cols.map((c) => ({ v: c, t: 's', s: headStyle })),
-  ];
   rows.forEach((r, i) => {
     const { date, time } = dateParts(r.at);
-    const zebra = i % 2 ? { fill: { fgColor: { rgb: 'F6F8FB' } } } : {};
-    aoa.push([
-      cell(i + 1, { alignment: { horizontal: 'center' }, ...zebra }),
-      cell(r.plate, { font: { bold: true, sz: 10 }, ...zebra }),
-      cell(date, { alignment: { horizontal: 'center' }, ...zebra }),
-      cell(time, { alignment: { horizontal: 'center' }, ...zebra }),
-      { v: r.km, t: 'n', z: '#,##0', s: { font: { bold: true, sz: 10 }, border, alignment: { horizontal: 'right' }, ...zebra } },
-      cell(hint(r, t), { font: { sz: 9, color: { rgb: r.quality === 'gap' ? 'B45309' : r.quality === 'ok' ? '1D4ED8' : '15803D' } }, ...zebra }),
-      cell(r.driver || r.card_number, { font: { sz: 9, color: { rgb: '475569' } }, ...zebra }),
+    const row = ws.addRow([i + 1, r.plate, date, time, r.km, hint(r, t), r.driver || r.card_number]);
+    row.height = 20;
+    row.eachCell(c => {
+      c.font = { name: 'Arial', size: 10, color: { argb: 'FF334155' } };
+      c.alignment = { vertical: 'middle' };
+      c.border = { bottom: { style: 'hair', color: { argb: 'FFD0D7E2' } } };
+      if (i % 2) c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF6F8FB' } };
+    });
+    row.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' };
+    row.getCell(2).font = { bold: true, size: 10 };
+    row.getCell(3).alignment = { horizontal: 'center', vertical: 'middle' };
+    row.getCell(4).alignment = { horizontal: 'center', vertical: 'middle' };
+    row.getCell(5).numFmt = '#,##0';
+    row.getCell(5).alignment = { horizontal: 'right', vertical: 'middle' };
+    row.getCell(5).font = { bold: true, size: 10 };
+    row.getCell(6).font = { size: 9, color: { argb: r.quality === 'gap' ? 'FFB45309' : r.quality === 'ok' ? 'FF1D4ED8' : 'FF15803D' } };
+    row.getCell(7).font = { size: 9, color: { argb: 'FF475569' } };
+  });
+
+  ws.addRow([]);
+  for (const line of t.legend) {
+    const row = ws.addRow([line]);
+    row.getCell(1).font = { size: 8, italic: true, color: { argb: 'FF64748B' } };
+    ws.mergeCells(row.number, 1, row.number, 7);
+  }
+  ws.addRow([]);
+  const generated = ws.addRow([t.generated(nowText()) + ' · ' + COMPANY + ' · ' + t.confidential]);
+  generated.getCell(1).font = { bold: true, size: 9, color: { argb: 'FF1E40AF' } };
+  ws.mergeCells(generated.number, 1, generated.number, 7);
+
+  // Keep all source readings in a separate worksheet for checking the numbers.
+  const details = wb.addWorksheet(t.details, { views: [{ state: 'frozen', xSplit: 1, ySplit: 1 }] });
+  details.columns = [16, 12, 18, 12, 24, 18, 10, 10, 14, 18, 14, 18, 10, 14, 10, 10, 10, 20].map(width => ({ width }));
+  const dh = details.addRow(t.detailCols);
+  dh.height = 24;
+  dh.eachCell(c => {
+    c.font = { bold: true, size: 9 };
+    c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8EEF4' } };
+    c.alignment = { vertical: 'middle', wrapText: true };
+    c.border = { bottom: { style: 'thin', color: { argb: 'FFD0D7E2' } } };
+  });
+  rows.forEach(r => {
+    const d = details.addRow([
+      r.plate, r.km, [dateParts(r.at).date, dateParts(r.at).time].join(' ').trim(), r.source === 'before' ? t.srcBefore : t.srcAfter,
+      r.driver, r.card_number, r.gap_days, t.qual[r.quality], r.before_km,
+      r.before_at ? [dateParts(r.before_at).date, dateParts(r.before_at).time].join(' ') : '',
+      r.after_km, r.after_at ? [dateParts(r.after_at).date, dateParts(r.after_at).time].join(' ') : '',
+      r.bracket_km, r.km_prev_year, r.km_in_year, r.records_in_year, r.drivers_in_year, r.vin,
     ]);
+    [2,9,11,13,14,15].forEach(col => { d.getCell(col).numFmt = '#,##0'; });
   });
-  aoa.push([]);
-  aoa.push([{ v: t.legend[0], t: 's', s: { font: { sz: 8, italic: true, color: { rgb: '64748B' } } } }]);
-  aoa.push([{ v: t.legend[1], t: 's', s: { font: { sz: 8, italic: true, color: { rgb: '64748B' } } } }]);
-  aoa.push([]);
-  aoa.push([{ v: `${t.generated(nowText())} · ${COMPANY} · ${t.confidential}`, t: 's', s: { font: { bold: true, sz: 9, color: { rgb: '1E40AF' } } } }]);
 
-  const ws = XLSX.utils.aoa_to_sheet(aoa as (string | number)[][]);
-  ws['!cols'] = [{ wch: 5 }, { wch: 16 }, { wch: 12 }, { wch: 9 }, { wch: 18 }, { wch: 34 }, { wch: 28 }];
-  ws['!rows'] = [{ hpt: 24 }, { hpt: 16 }, { hpt: 14 }, { hpt: 6 }, { hpt: 22 }];
-  ws['!freeze'] = { xSplit: 0, ySplit: 5 };
-  ws['!merges'] = [0, 1, 2].map((r) => ({ s: { r, c: 0 }, e: { r, c: 6 } }));
-
-  // Sheet 2: everything the page shows
-  const detailRows = rows.map((r) => [
-    r.plate, r.km, `${dateParts(r.at).date} ${dateParts(r.at).time}`.trim(), r.kind === 'midnight' ? 'VU' : r.source === 'before' ? t.srcBefore : t.srcAfter, r.driver, r.card_number,
-    r.gap_days, t.qual[r.quality], r.before_km, r.before_at ? `${dateParts(r.before_at).date} ${dateParts(r.before_at).time}` : '',
-    r.after_km, r.after_at ? `${dateParts(r.after_at).date} ${dateParts(r.after_at).time}` : '', r.bracket_km, r.km_prev_year, r.km_in_year,
-    r.records_in_year, r.drivers_in_year, r.vin,
-  ]);
-  const ws2 = XLSX.utils.aoa_to_sheet([t.detailCols, ...detailRows]);
-  t.detailCols.forEach((_, c) => {
-    const addr = XLSX.utils.encode_cell({ r: 0, c });
-    if (ws2[addr]) ws2[addr].s = { font: { bold: true, sz: 9 }, fill: { fgColor: { rgb: 'E8EEF4' } }, border };
+  const buf = await wb.xlsx.writeBuffer();
+  const bytes = new Uint8Array(buf);
+  const blob = new Blob([bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   });
-  ws2['!cols'] = [16, 12, 18, 12, 24, 18, 10, 10, 14, 18, 14, 18, 10, 14, 10, 10, 10, 20].map((wch) => ({ wch }));
-  ws2['!freeze'] = { xSplit: 1, ySplit: 1 };
-
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, t.sheet(year));
-  XLSX.utils.book_append_sheet(wb, ws2, t.details);
-  wb.Props = { Title: t.title(year), Author: TOOL, Company: COMPANY, CreatedDate: new Date() };
-  XLSX.writeFile(wb, `${t.file(year)}.xlsx`);
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = t.file(year) + '.xlsx';
+  a.rel = 'noopener';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { a.remove(); URL.revokeObjectURL(url); }, 2000);
 }
 
 // ───────────────────────────── PDF ─────────────────────────────

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'tachoprufung-v3';
+const CACHE_NAME = 'tachoprufung-v5';
 const API_CACHE = 'tachoprufung-api-v1';
 const STATIC_ASSETS = [
   '/',

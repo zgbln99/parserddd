@@ -93,6 +93,10 @@ _FOLDERS_KEY = 'odometer_audit_folders'
 
 SOURCES = ('drivers', 'mega', 'archive')
 
+# Historical LTS registrations. Do not use today's Samsara fleet here: vehicles
+# that belonged to LTS in 2021 may have been sold and removed from Samsara.
+LTS_PLATE_PREFIXES = ('TFLS', 'TFKX')
+
 
 def source_group(detail: str) -> str:
     """card_scan_files.source (detailed) -> one of SOURCES."""
@@ -728,20 +732,24 @@ def _days_between(a: str, b: str) -> float | None:
 def _year_end_value(before: dict | None, after: dict | None, cutoff: str) -> tuple[dict | None, str]:
     """The km-stand to report and where it comes from.
 
-    A VU midnight reading of 1 January is the odometer exactly at the turn of
-    the year, so it wins whenever it exists (it is a few minutes past the
-    local cutoff only because the VU clock is UTC). Otherwise the last
-    reading before the cutoff, else the first after it.
+    A VU reading at midnight on 1 January wins as the boundary reading.
+    Otherwise choose the reading with the smallest time difference from
+    31 December 23:59:59 Europe/Berlin (before wins exact ties).
     """
     if after and after['kind'] == 'midnight':
         gap = _days_between(after['at'], cutoff)
         if gap is not None and gap <= 0.2:
             return after, 'midnight'
-    if before:
+    if not before:
+        return (after, 'after') if after else (None, '')
+    if not after:
         return before, 'before'
-    if after:
-        return after, 'after'
-    return None, ''
+    # Choose the nearest real reading on EITHER side of year-end; a December
+    # withdrawal is not automatically better than a January insertion.
+    boundary = datetime.strptime(cutoff, '%Y-%m-%dT%H:%M:%SZ')
+    before_gap = abs((datetime.strptime(before['at'], '%Y-%m-%dT%H:%M:%SZ') - boundary).total_seconds())
+    after_gap = abs((datetime.strptime(after['at'], '%Y-%m-%dT%H:%M:%SZ') - boundary).total_seconds())
+    return (before, 'before') if before_gap <= after_gap else (after, 'after')
 
 
 def year_report(year: int, source: str = 'drivers') -> dict:
@@ -786,6 +794,10 @@ def year_report(year: int, source: str = 'drivers') -> dict:
     plates = set(before_c) | set(after_c) | set(before_v) | set(after_v) | set(activity) | set(vu_activity)
     rows = []
     for pn in plates:
+        # The driver archive contains other carriers' trucks. The annual
+        # LTS report must only show known company registration series.
+        if not pn.startswith(LTS_PLATE_PREFIXES):
+            continue
         before = _best_before(before_c.get(pn), before_v.get(pn))
         after = _best_after(after_c.get(pn), after_v.get(pn))
         chosen, src = _year_end_value(before, after, cutoff)
@@ -795,8 +807,12 @@ def year_report(year: int, source: str = 'drivers') -> dict:
         vact = vu_activity.get(pn, {})
         km, at = chosen['km'], chosen['at']
         gap_days = 0.0 if src == 'midnight' else _days_between(at, cutoff)
-        exact = src == 'midnight' or at[:10] == cutoff[:10] or (src == 'after' and at[:10] == f'{year + 1}-01-01')
-        if exact or (gap_days is not None and gap_days <= 3):
+        # A close reading is not an exact 31.12 odometer reading. Compare the
+        # calendar day in the audit's local timezone, not the UTC date.
+        at_local_day = datetime.strptime(at, '%Y-%m-%dT%H:%M:%SZ').replace(
+            tzinfo=timezone.utc).astimezone(CET).strftime('%Y-%m-%d')
+        exact = src == 'midnight' or at_local_day == f'{year}-12-31'
+        if exact:
             quality = 'exact'
         elif gap_days is not None and gap_days <= 14:
             quality = 'ok'
@@ -841,7 +857,9 @@ def year_report(year: int, source: str = 'drivers') -> dict:
             'odo_min_in_year': min(x for x in (act.get('odo_lo'), vact.get('odo_lo')) if x is not None) if (act.get('odo_lo') is not None or vact.get('odo_lo') is not None) else None,
             'odo_max_in_year': max(x for x in (act.get('odo_hi'), vact.get('odo_hi')) if x is not None) if (act.get('odo_hi') is not None or vact.get('odo_hi') is not None) else None,
         })
-    rows.sort(key=lambda r: r['plate'])
+    # Show the most useful readings first, not historical readings hundreds
+    # of days away from year-end. Stable registration order for equal gaps.
+    rows.sort(key=lambda r: (r['gap_days'] if r['gap_days'] is not None else float('inf'), r['plate_norm']))
     return {
         'year': year, 'cutoff': cutoff, 'source': source, 'rows': rows,
         'counts': {
