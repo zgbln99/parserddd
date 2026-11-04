@@ -12,3 +12,6 @@ reportlab>=4.2
 openpyxl>=3.1
 pdfplumber>=0.11
 pymupdf>=1.24
+
+# tests
+pytest>=8.0

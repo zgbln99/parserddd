@@ -346,12 +346,12 @@ def ingest_upload(name: str, data: bytes, *, keep: bool = True) -> list[dict]:
     stored = keep and storage_service.is_configured()
     path = f"{folder}/{sub or 'unbekannt'}/{name}" if stored else f'upload/{name}'
     if _already_scanned(path, len(data)):
-        return [{'path': path, 'status': 'skipped', 'error': '', 'records': 0, 'new': 0, 'card_number': card}]
+        return [{'path': path, 'status': 'skipped', 'error': '', 'records': 0, 'new': 0, 'card_number': sub}]
     if stored:
         try:
             storage_service.upload_bytes(path, data, content_type='application/octet-stream')
         except Exception as exc:
-            return [{'path': path, 'status': 'error', 'error': f'storage: {exc}', 'records': 0, 'new': 0, 'card_number': card}]
+            return [{'path': path, 'status': 'error', 'error': f'storage: {exc}', 'records': 0, 'new': 0, 'card_number': sub}]
     res = ingest_file(path, data, source='archive' if stored else 'upload')
     res['status'] = 'error' if res.get('error') else 'new'
     return [res]
