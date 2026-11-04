@@ -8,6 +8,9 @@
     GET  /api/odometer-audit/report?year=     per-vehicle km-stand on 31.12
     GET  /api/odometer-audit/vehicle?plate=&year=   records around the year end
     GET  /api/odometer-audit/files?errors=1
+    GET  /api/odometer-audit/storage/browse?path=/   one level of the MEGA tree (folder picker)
+    GET  /api/odometer-audit/folders                 extra MEGA folders to scan
+    PUT  /api/odometer-audit/folders                 {folders: [...]}
     POST /api/odometer-audit/reset            admin: drop all scanned data
 """
 
@@ -105,6 +108,33 @@ def api_files():
     except ValueError:
         limit = 200
     return jsonify({'files': svc.list_files(limit, request.args.get('errors') == '1')})
+
+
+@bp.route('/api/odometer-audit/storage/browse')
+@permission_required('vehicles')
+def api_browse():
+    try:
+        return jsonify(svc.browse_storage(request.args.get('path') or '/'))
+    except Exception as exc:
+        return jsonify({'error': str(exc)}), 500
+
+
+@bp.route('/api/odometer-audit/folders', methods=['GET'])
+@permission_required('vehicles')
+def api_folders_get():
+    return jsonify({'folders': svc.get_extra_folders(), 'audit_folder': svc.audit_folder()})
+
+
+@bp.route('/api/odometer-audit/folders', methods=['PUT'])
+@permission_required('vehicles')
+def api_folders_put():
+    data = request.get_json(silent=True) or {}
+    folders = data.get('folders')
+    if not isinstance(folders, list):
+        return jsonify({'error': 'folders must be a list'}), 400
+    out = svc.set_extra_folders([str(f) for f in folders][:50])
+    _log_activity('odometer_audit_folders', ', '.join(out) or '(none)')
+    return jsonify({'folders': out, 'audit_folder': svc.audit_folder()})
 
 
 @bp.route('/api/odometer-audit/reset', methods=['POST'])

@@ -1174,6 +1174,7 @@ export interface AuditSummary {
   errors: { path: string; error: string; scanned_at: string }[];
   sources: Record<string, number>;
   audit_folder: string;
+  extra_folders: string[];
   storage_configured: boolean;
   scan: AuditScanStatus;
 }
@@ -1254,3 +1255,18 @@ export async function uploadAuditFiles(files: File[], keep = true) {
   files.forEach((f) => fd.append('files', f, f.name));
   return request<AuditUploadResult>('/api/odometer-audit/upload', { method: 'POST', body: fd });
 }
+
+export interface AuditBrowse {
+  path: string;
+  folders: { name: string; path: string }[];
+  ddd_files: number;
+  other_files: number;
+  sample: string[];
+}
+export const browseAuditStorage = (path: string) =>
+  request<AuditBrowse>(`/api/odometer-audit/storage/browse?path=${encodeURIComponent(path)}`);
+export const fetchAuditFolders = () => request<{ folders: string[]; audit_folder: string }>('/api/odometer-audit/folders');
+export const saveAuditFolders = (folders: string[]) =>
+  request<{ folders: string[]; audit_folder: string }>('/api/odometer-audit/folders', {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ folders }),
+  });

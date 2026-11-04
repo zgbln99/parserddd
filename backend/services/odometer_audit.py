@@ -33,6 +33,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
+from auth.helpers import _load_config, _save_config
 from core.card_vehicles import parse_card_vehicles
 from database import get_db
 from services import storage_service
@@ -63,6 +64,52 @@ def audit_folder() -> str:
 
 
 _SAFE_NAME = re.compile(r'[^A-Za-z0-9._()\- ]+')
+_FOLDERS_KEY = 'odometer_audit_folders'
+
+
+def _clean_folder(path: str) -> str:
+    path = '/' + (path or '').replace('\\', '/').strip().strip('/')
+    if '..' in path.split('/'):
+        return ''
+    return '' if path == '/' else path
+
+
+def get_extra_folders() -> list[str]:
+    """Folders already in MEGA that the user picked as extra scan sources."""
+    raw = _load_config().get(_FOLDERS_KEY) or []
+    out = []
+    for f in raw if isinstance(raw, list) else []:
+        c = _clean_folder(str(f))
+        if c and c not in out:
+            out.append(c)
+    return out
+
+
+def set_extra_folders(folders: list[str]) -> list[str]:
+    out = []
+    for f in folders or []:
+        c = _clean_folder(str(f))
+        if c and c not in out:
+            out.append(c)
+    _save_config({_FOLDERS_KEY: out})
+    return out
+
+
+def browse_storage(path: str) -> dict:
+    """One level of the storage tree for the folder picker, with the number of
+    .ddd files directly in each entry's level left to the client."""
+    if not storage_service.is_configured():
+        raise RuntimeError('Storage nie skonfigurowany (brak MEGA_S4_* w env)')
+    path = _clean_folder(path) or '/'
+    listing = storage_service.list_folder(path)
+    ddd = [f for f in listing['files'] if f['name'].lower().endswith('.ddd')]
+    return {
+        'path': listing['path'],
+        'folders': listing['folders'],
+        'ddd_files': len(ddd),
+        'other_files': len(listing['files']) - len(ddd),
+        'sample': [f['name'] for f in ddd[:5]],
+    }
 
 
 def _safe_name(name: str) -> str:
@@ -245,14 +292,19 @@ def _list_storage_files(refresh: bool) -> list[dict]:
         for f in d.get('files') or []:
             if (f.get('name') or '').lower().endswith('.ddd'):
                 files.append({'path': f['path'], 'size': int(f.get('size') or 0), 'driver': d.get('name', ''), 'source': 'drivers'})
-    # The separate audit archive (bulk-uploaded old card files).
+    # The separate audit archive (bulk-uploaded old card files) and any
+    # folders the user picked in MEGA.
     if storage_service.is_configured():
-        try:
-            for obj in storage_service.list_prefix(audit_folder()):
-                if (obj.get('name') or '').lower().endswith('.ddd'):
-                    files.append({'path': obj['path_display'], 'size': int(obj.get('size') or 0), 'driver': '', 'source': 'archive'})
-        except Exception as exc:
-            logger.warning('odometer audit: cannot list %s: %s', audit_folder(), exc)
+        sources = [(audit_folder(), 'archive')] + [(f, f'mega:{f}') for f in get_extra_folders()]
+        seen = {f['path'] for f in files}
+        for folder, source in sources:
+            try:
+                for obj in storage_service.list_prefix(folder):
+                    if (obj.get('name') or '').lower().endswith('.ddd') and obj['path_display'] not in seen:
+                        seen.add(obj['path_display'])
+                        files.append({'path': obj['path_display'], 'size': int(obj.get('size') or 0), 'driver': '', 'source': source})
+            except Exception as exc:
+                logger.warning('odometer audit: cannot list %s: %s', folder, exc)
     return files
 
 
@@ -348,6 +400,7 @@ def summary() -> dict:
         'errors': [dict(r) for r in recent_errors],
         'sources': {('drivers' if r['source'] == 'storage' else r['source']): int(r['n']) for r in by_source},
         'audit_folder': audit_folder(),
+        'extra_folders': get_extra_folders(),
         'storage_configured': storage_service.is_configured(),
         'scan': scan_status(),
     }

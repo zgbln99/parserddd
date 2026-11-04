@@ -212,6 +212,36 @@ def list_prefix(prefix: str) -> list[dict]:
     return out
 
 
+def list_folder(path: str) -> dict:
+    """One level of a "folder": its sub-folders and files (object storage has
+    no folders; this uses the '/' delimiter). Returns
+    {'path', 'folders': [{'name', 'path'}], 'files': [{'name', 'path', 'size'}]}."""
+    s3 = _s3_client()
+    pfx = key_for(path).strip('/')
+    if pfx:
+        pfx += '/'
+    folders: list[dict] = []
+    files: list[dict] = []
+    try:
+        paginator = s3.get_paginator('list_objects_v2')
+        for page in paginator.paginate(Bucket=_bucket(), Prefix=pfx, Delimiter='/'):
+            for cp in page.get('CommonPrefixes', []) or []:
+                sub = cp.get('Prefix', '')
+                name = sub[len(pfx):].strip('/')
+                if name:
+                    folders.append({'name': name, 'path': '/' + sub.rstrip('/')})
+            for obj in page.get('Contents', []) or []:
+                key = obj['Key']
+                if key.endswith('/') or key == pfx:
+                    continue
+                files.append({'name': os.path.basename(key), 'path': '/' + key, 'size': obj.get('Size', 0)})
+    except Exception as exc:
+        raise StorageError(f'List failed for {pfx or "/"}: {exc}') from exc
+    folders.sort(key=lambda f: f['name'].lower())
+    files.sort(key=lambda f: f['name'].lower())
+    return {'path': '/' + pfx.rstrip('/') if pfx else '/', 'folders': folders, 'files': files}
+
+
 # ---------------------------------------------------------------------------
 # Dropbox-compatible client shim
 # ---------------------------------------------------------------------------

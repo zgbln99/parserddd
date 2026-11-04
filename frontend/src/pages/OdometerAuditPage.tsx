@@ -1,7 +1,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   CalendarCheck, RefreshCw, Upload, FileDown, Search, ChevronDown, ChevronRight, AlertTriangle,
-  CheckCircle2, CircleDot, XCircle, Files, Gauge, Truck, IdCard, Clock, Info,
+  CheckCircle2, CircleDot, XCircle, Files, Gauge, Truck, IdCard, Clock, Info, FolderOpen, Folder, Plus, X, Cloud,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useI18n } from '../i18n';
@@ -13,7 +13,7 @@ import { matchesText } from '../lib/text';
 import {
   fetchAuditSummary, startAuditScan, cancelAuditScan, fetchAuditScanStatus, fetchAuditReport, fetchAuditVehicle,
   uploadAuditFiles, type AuditSummary, type AuditScanStatus, type AuditReport, type AuditRow, type AuditTimeline,
-  type AuditUploadResult,
+  type AuditUploadResult, browseAuditStorage, saveAuditFolders, type AuditBrowse,
 } from '../lib/api';
 
 /**
@@ -59,6 +59,17 @@ export function OdometerAuditPage() {
   const [dragOver, setDragOver] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const folderInput = useRef<HTMLInputElement>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  const saveFolders = async (folders: string[]) => {
+    try {
+      const r = await saveAuditFolders(folders);
+      setSummary((s) => (s ? { ...s, extra_folders: r.folders } : s));
+      toast(t('oaFolderSaved'), 'success');
+    } catch (e) {
+      toast(e instanceof Error ? e.message : String(e), 'error');
+    }
+  };
 
   const loadSummary = useCallback(async () => {
     try {
@@ -333,6 +344,42 @@ export function OdometerAuditPage() {
         </div>
       </Card>
 
+      {/* Folders already in MEGA that the scan should include */}
+      {summary?.storage_configured && (
+        <Card className="p-4" data-animate>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="flex items-center gap-2 text-sm font-semibold text-ink"><Cloud size={15} className="text-accent" /> {t('oaFolders')}</p>
+              <p className="mt-0.5 text-xs text-muted">{t('oaFoldersHint')}</p>
+            </div>
+            <button type="button" id="oa-add-folder" onClick={() => setPickerOpen(true)} className="btn-secondary btn-press inline-flex items-center gap-1.5 px-3 py-1.5 text-xs">
+              <Plus size={13} /> {t('oaAddFolder')}
+            </button>
+          </div>
+          <ul className="mt-3 flex flex-wrap gap-2">
+            <li className="inline-flex items-center gap-1.5 rounded-lg bg-surface-2 px-2.5 py-1.5 font-mono text-xs text-muted" title={t('oaSourceArchive')}>
+              <Folder size={13} /> {summary.audit_folder}
+            </li>
+            {(summary.extra_folders || []).map((f) => (
+              <li key={f} className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1.5 font-mono text-xs text-ink">
+                <FolderOpen size={13} className="text-accent" /> {f}
+                <button type="button" onClick={() => saveFolders((summary.extra_folders || []).filter((x) => x !== f))} title={t('oaRemove')} className="ml-1 rounded p-0.5 text-muted hover:text-danger">
+                  <X size={12} />
+                </button>
+              </li>
+            ))}
+            {!(summary.extra_folders || []).length && <li className="text-xs text-muted">{t('oaNoFolders')}</li>}
+          </ul>
+        </Card>
+      )}
+      {pickerOpen && (
+        <FolderPicker
+          t={t}
+          onClose={() => setPickerOpen(false)}
+          onPick={(path) => { setPickerOpen(false); void saveFolders([...(summary?.extra_folders || []), path]); }}
+        />
+      )}
+
       {/* KPIs */}
       {summary && (
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-5" data-animate>
@@ -341,6 +388,7 @@ export function OdometerAuditPage() {
               summary.sources?.drivers ? `${summary.sources.drivers} ${t('oaSourceDrivers')}` : '',
               summary.sources?.archive ? `${summary.sources.archive} ${t('oaSourceArchive')}` : '',
               summary.sources?.upload ? `${summary.sources.upload} ${t('oaSourceUpload')}` : '',
+              ...Object.entries(summary.sources || {}).filter(([k]) => k.startsWith('mega:')).map(([k, n]) => `${n} ${k.slice(5)}`),
               summary.files_with_errors ? `${summary.files_with_errors} ✗` : '',
             ].filter(Boolean).join(' · ') },
             { icon: IdCard, label: t('oaCards'), value: summary.cards, sub: '' },
@@ -508,6 +556,80 @@ function TimelineView({ tl, cutoff, t }: { tl: AuditTimeline; cutoff: string; t:
           </table>
         </div>
       )}
+    </div>
+  );
+}
+
+/** Modal folder picker over the storage tree (one level at a time). */
+function FolderPicker({ t, onClose, onPick }: { t: (k: any) => string; onClose: () => void; onPick: (path: string) => void }) {
+  const [path, setPath] = useState('/');
+  const [data, setData] = useState<AuditBrowse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    setError('');
+    browseAuditStorage(path)
+      .then((d) => { if (alive) setData(d); })
+      .catch((e) => { if (alive) setError(e instanceof Error ? e.message : String(e)); })
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, [path]);
+
+  const crumbs = path === '/' ? [] : path.split('/').filter(Boolean);
+
+  return (
+    <div className="fixed inset-0 z-[90] flex items-center justify-center p-4 animate-fade-in">
+      <div className="fixed inset-0 bg-black/30" onClick={onClose} />
+      <div className="card relative flex max-h-[80vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl shadow-xl animate-scale-in">
+        <div className="flex items-center justify-between border-b border-border px-4 py-3">
+          <h3 className="flex items-center gap-2 font-semibold text-ink"><Cloud size={16} className="text-accent" /> {t('oaPickTitle')}</h3>
+          <button type="button" onClick={onClose} className="rounded-lg p-1 text-muted hover:text-ink"><X size={16} /></button>
+        </div>
+        <div className="flex flex-wrap items-center gap-1 border-b border-border px-4 py-2 font-mono text-xs">
+          <button type="button" onClick={() => setPath('/')} className={clsx('rounded px-1.5 py-0.5 hover:bg-surface-2', path === '/' ? 'font-bold text-ink' : 'text-muted')}>{t('oaPickRoot')}</button>
+          {crumbs.map((c, i) => {
+            const p = '/' + crumbs.slice(0, i + 1).join('/');
+            return (
+              <Fragment key={p}>
+                <ChevronRight size={12} className="text-muted" />
+                <button type="button" onClick={() => setPath(p)} className={clsx('rounded px-1.5 py-0.5 hover:bg-surface-2', i === crumbs.length - 1 ? 'font-bold text-ink' : 'text-muted')}>{c}</button>
+              </Fragment>
+            );
+          })}
+        </div>
+        <div className="min-h-[200px] flex-1 overflow-y-auto">
+          {loading ? (
+            <div className="flex justify-center p-8"><Spinner /></div>
+          ) : error ? (
+            <p className="p-4 text-sm text-danger">{error}</p>
+          ) : !data?.folders.length ? (
+            <p className="p-4 text-sm text-muted">{t('oaPickEmpty')}</p>
+          ) : (
+            <ul className="divide-y divide-border">
+              {data.folders.map((f) => (
+                <li key={f.path}>
+                  <button type="button" onClick={() => setPath(f.path)} className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm hover:bg-surface-2">
+                    <Folder size={15} className="shrink-0 text-accent" />
+                    <span className="min-w-0 flex-1 truncate font-medium text-ink">{f.name}</span>
+                    <ChevronRight size={14} className="text-muted" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-4 py-3">
+          <span className="text-[11px] text-muted">
+            {data ? <>{data.ddd_files} {t('oaPickDdd')}{data.other_files ? ` · ${data.other_files} ${t('oaPickOther')}` : ''}{data.sample.length ? <span className="block truncate font-mono text-[10px]">{data.sample.join(', ')}</span> : null}</> : ''}
+          </span>
+          <button type="button" id="oa-pick-here" disabled={path === '/' || loading} onClick={() => onPick(path)} className="btn-primary btn-press inline-flex items-center gap-1.5 px-3 py-1.5 text-xs disabled:opacity-50">
+            <CheckCircle2 size={13} /> {t('oaPickHere')}: <span className="font-mono">{path}</span>
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
