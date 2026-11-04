@@ -1,7 +1,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   CalendarCheck, RefreshCw, Upload, FileDown, Search, ChevronDown, ChevronRight, AlertTriangle,
-  CheckCircle2, CircleDot, XCircle, Files, Gauge, Truck, IdCard, Clock, Info, FolderOpen, Folder, Plus, X, Cloud,
+  CheckCircle2, CircleDot, XCircle, Files, Gauge, Truck, IdCard, Clock, Info, FolderOpen, Folder, Plus, X, Cloud, FileText,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useI18n } from '../i18n';
@@ -200,34 +200,19 @@ export function OdometerAuditPage() {
     return list;
   }, [report, onlyActive, query]);
 
-  const exportXlsx = async () => {
-    if (!report) return;
-    const XLSX = await import('xlsx-js-style');
-    const de = locale === 'de';
-    const headers = de
-      ? ['Kennzeichen', `Km-Stand 31.12.${year}`, 'Datum des Eintrags', 'Quelle', 'Fahrer', 'Kartennummer', 'Abstand (Tage)', 'Qualität',
-         'Letzter Eintrag davor (km)', 'Datum', 'Erster Eintrag danach (km)', 'Datum', 'Km zwischen', `Km-Stand 31.12.${year - 1}`, 'Km im Jahr', 'Einträge im Jahr', 'Fahrer im Jahr', 'VIN']
-      : ['Rejestracja', `Stan km 31.12.${year}`, 'Data wpisu', 'Źródło', 'Kierowca', 'Nr karty', 'Odstęp (dni)', 'Jakość',
-         'Ostatni wpis przed (km)', 'Data', 'Pierwszy wpis po (km)', 'Data', 'Km między', `Stan km 31.12.${year - 1}`, 'Km w roku', 'Wpisy w roku', 'Kierowcy w roku', 'VIN'];
-    const q = { exact: t('oaQualityExact'), ok: t('oaQualityOk'), gap: t('oaQualityGap') };
-    const data: (string | number | null)[][] = rows.map((r) => [
-      r.plate, r.km, fmtTs(r.at), r.source === 'before' ? t('oaSourceBefore') : t('oaSourceAfter'), r.driver, r.card_number,
-      r.gap_days, q[r.quality], r.before_km, r.before_at ? fmtTs(r.before_at) : '', r.after_km, r.after_at ? fmtTs(r.after_at) : '',
-      r.bracket_km, r.km_prev_year, r.km_in_year, r.records_in_year, r.drivers_in_year, r.vin,
-    ]);
-    const title = de ? `Kilometerstand zum Jahresende ${year} (aus Fahrerkartendateien)` : `Stan licznika na koniec roku ${year} (z plików kart kierowców)`;
-    const ws = XLSX.utils.aoa_to_sheet([[title], [t('oaCutoffNote')], [], headers, ...data]);
-    const headerStyle = { font: { bold: true, sz: 10 }, fill: { fgColor: { rgb: 'E8EEF4' } }, border: { bottom: { style: 'thin', color: { rgb: 'CCCCCC' } } } };
-    headers.forEach((_, c) => {
-      const addr = XLSX.utils.encode_cell({ r: 3, c });
-      if (ws[addr]) ws[addr].s = headerStyle;
-    });
-    ws['A1'].s = { font: { bold: true, sz: 13 } };
-    ws['!cols'] = [16, 16, 18, 34, 24, 18, 12, 10, 16, 18, 16, 18, 12, 16, 12, 12, 12, 20].map((wch) => ({ wch }));
-    ws['!freeze'] = { xSplit: 1, ySplit: 4 };
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, `${year}`);
-    XLSX.writeFile(wb, `${de ? 'Km-Stand' : 'Stan-km'}_31-12-${year}.xlsx`);
+  const [exporting, setExporting] = useState<'' | 'xlsx' | 'pdf'>('');
+  const runExport = async (kind: 'xlsx' | 'pdf') => {
+    if (!report || !rows.length) return;
+    setExporting(kind);
+    try {
+      const mod = await import('../lib/odometer-audit-export');
+      if (kind === 'xlsx') await mod.exportOdometerAuditXlsx(report, rows, locale);
+      else await mod.exportOdometerAuditPdf(report, rows, locale);
+    } catch (e) {
+      toast(e instanceof Error ? e.message : String(e), 'error');
+    } finally {
+      setExporting('');
+    }
   };
 
   const years = summary?.years?.length ? summary.years : [year];
@@ -253,8 +238,11 @@ export function OdometerAuditPage() {
               {years.map((y) => <option key={y} value={y}>{y}</option>)}
             </select>
           </label>
-          <button type="button" onClick={exportXlsx} disabled={!rows.length} className="btn-secondary btn-press inline-flex items-center gap-2 px-3 py-1.5 text-sm disabled:opacity-50">
-            <FileDown size={15} /> {t('oaExport')}
+          <button type="button" id="oa-export-xlsx" onClick={() => runExport('xlsx')} disabled={!rows.length || !!exporting} className="btn-secondary btn-press inline-flex items-center gap-2 px-3 py-1.5 text-sm disabled:opacity-50">
+            {exporting === 'xlsx' ? <Spinner size="sm" /> : <FileDown size={15} />} {t('oaExport')}
+          </button>
+          <button type="button" id="oa-export-pdf" onClick={() => runExport('pdf')} disabled={!rows.length || !!exporting} className="btn-primary btn-press inline-flex items-center gap-2 px-3 py-1.5 text-sm disabled:opacity-50">
+            {exporting === 'pdf' ? <Spinner size="sm" /> : <FileText size={15} />} {t('oaExportPdf')}
           </button>
         </div>
       </div>
