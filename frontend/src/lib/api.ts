@@ -1174,7 +1174,7 @@ export interface AuditSummary {
   years: number[];
   errors: { path: string; error: string; scanned_at: string }[];
   sources: Record<string, number>;
-  by_source: Record<string, { records: number; plates: number; cards: number; first_record: string; last_record: string; files: number }>;
+  by_source: Record<string, { records: number; plates: number; cards: number; first_record: string; last_record: string; files: number; card_files: number; vu_files: number; vu_days: number; vu_plates: number }>;
   audit_folder: string;
   extra_folders: string[];
   storage_configured: boolean;
@@ -1187,16 +1187,19 @@ export interface AuditRow {
   vin: string;
   km: number;
   at: string;
-  source: 'before' | 'after';
+  source: 'before' | 'after' | 'midnight';
+  kind: 'withdrawal' | 'insertion' | 'midnight';
   driver: string;
   card_number: string;
   gap_days: number | null;
   quality: 'exact' | 'ok' | 'gap';
   before_km: number | null;
   before_at: string;
+  before_kind: '' | 'withdrawal' | 'midnight';
   before_driver: string;
   after_km: number | null;
   after_at: string;
+  after_kind: '' | 'insertion' | 'midnight';
   after_driver: string;
   bracket_km: number | null;
   bracket_days: number | null;
@@ -1204,6 +1207,7 @@ export interface AuditRow {
   km_in_year: number | null;
   active_in_year: boolean;
   records_in_year: number;
+  vu_days_in_year: number;
   drivers_in_year: number;
   first_seen_in_year: string;
   last_seen_in_year: string;
@@ -1215,9 +1219,10 @@ export interface AuditReport {
   cutoff: string;
   source: AuditSource;
   rows: AuditRow[];
-  counts: { vehicles: number; active: number; exact: number; ok: number; gap: number };
+  counts: { vehicles: number; active: number; exact: number; ok: number; gap: number; from_vu: number };
 }
 export interface AuditUsageRecord {
+  kind: 'card' | 'midnight';
   plate: string;
   driver: string;
   card_number: string;
@@ -1232,6 +1237,7 @@ export interface AuditTimeline {
   cutoff: string;
   records: AuditUsageRecord[];
   total_records: number;
+  vu_days: number;
   first_record: string;
   last_record: string;
   drivers: number;
@@ -1249,7 +1255,7 @@ export const fetchAuditReport = (year: number, source: AuditSource) => request<A
 export const fetchAuditVehicle = (plate: string, year: number, source: AuditSource, days = 45) =>
   request<AuditTimeline>(`/api/odometer-audit/vehicle?plate=${encodeURIComponent(plate)}&year=${year}&days=${days}&source=${source}`);
 export interface AuditUploadResult {
-  results: { path: string; status: 'new' | 'skipped' | 'error'; records: number; new: number; error: string; card_number?: string }[];
+  results: { path: string; status: 'new' | 'skipped' | 'error'; records: number; new: number; error: string; card_number?: string; kind?: 'card' | 'vu'; plate?: string }[];
   counts: { new: number; skipped: number; error: number };
   new_records: number;
 }

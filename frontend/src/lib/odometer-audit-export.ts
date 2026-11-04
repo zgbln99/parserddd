@@ -16,15 +16,16 @@ function L(locale: Locale) {
     ? {
         title: (y: number) => `Kilometerstand zum Jahresende ${y}`,
         cutoff: (y: number) => `Stichtag 31.12.${y}, 23:59 Uhr (Europe/Berlin)`,
-        source: 'Quelle: Fahrerkartendateien (EF_Vehicles_Used), Tachostand bei Kartenentnahme bzw. -einstecken',
+        source: 'Quelle: Fahrerkarten (Tachostand bei Kartenentnahme/-einstecken) und Fahrzeugeinheiten (Tachostand um Mitternacht)',
         vehicles: (n: number) => `${n} Fahrzeuge`,
         cols: ['Nr.', 'Kennzeichen', 'Datum', 'Uhrzeit', 'Kilometerstand (km)', 'Hinweis', 'Fahrer (Karte)'],
         qual: { exact: 'genau', ok: 'nah', gap: 'Lücke' } as Record<AuditRow['quality'], string>,
         days: 'Tage',
         after: 'Eintrag nach dem Stichtag',
+        midnight: 'Tachograph (VU), Stand um Mitternacht',
         legend: [
           'genau: Eintrag vom 31.12. oder bis 3 Tage davon entfernt · nah: bis 14 Tage · Lücke: mehr als 14 Tage',
-          'Der Kilometerstand ist der Tachostand beim Entnehmen der Fahrerkarte am letzten Eintrag vor dem Stichtag; fehlt ein solcher, der Stand beim Einstecken am ersten Eintrag danach.',
+          'Liegt ein Tachographen-Download vor, ist der Kilometerstand der vom Fahrzeug gespeicherte Stand um Mitternacht zum Jahreswechsel. Sonst der Stand beim Entnehmen der Fahrerkarte am letzten Eintrag vor dem Stichtag; fehlt ein solcher, der Stand beim Einstecken am ersten Eintrag danach.',
         ],
         generated: (d: string) => `Erstellt am ${d} mit ${TOOL} (FleetView)`,
         sign: 'Datum, Unterschrift',
@@ -40,15 +41,16 @@ function L(locale: Locale) {
     : {
         title: (y: number) => `Stan licznika na koniec roku ${y}`,
         cutoff: (y: number) => `Stan na 31.12.${y}, 23:59 (Europe/Berlin)`,
-        source: 'Źródło: pliki kart kierowców (EF_Vehicles_Used), licznik przy wyjęciu lub włożeniu karty',
+        source: 'Źródło: karty kierowców (licznik przy wyjęciu/włożeniu karty) i tachografy pojazdów (licznik o północy)',
         vehicles: (n: number) => `${n} pojazdów`,
         cols: ['Nr', 'Rejestracja', 'Data', 'Godzina', 'Stan licznika (km)', 'Uwaga', 'Kierowca (karta)'],
         qual: { exact: 'dokładny', ok: 'bliski', gap: 'luka' } as Record<AuditRow['quality'], string>,
         days: 'dni',
         after: 'wpis po dacie granicznej',
+        midnight: 'tachograf (VU), stan o północy',
         legend: [
           'dokładny: wpis z 31.12 lub do 3 dni od niego · bliski: do 14 dni · luka: ponad 14 dni',
-          'Stan licznika to odczyt przy wyjęciu karty z ostatniego wpisu przed 31.12; gdy go brak, odczyt przy włożeniu z pierwszego wpisu po.',
+          'Gdy jest odczyt z tachografu pojazdu, stan licznika to wartość zapisana przez pojazd o północy na przełomie roku. W przeciwnym razie odczyt przy wyjęciu karty z ostatniego wpisu przed 31.12; gdy go brak, odczyt przy włożeniu z pierwszego wpisu po.',
         ],
         generated: (d: string) => `Wygenerowano ${d} w ${TOOL} (FleetView)`,
         sign: 'Data, podpis',
@@ -79,6 +81,7 @@ function nowText(): string {
 
 function hint(r: AuditRow, t: ReturnType<typeof L>): string {
   const parts = [t.qual[r.quality]];
+  if (r.kind === 'midnight') parts.push(t.midnight);
   if (r.gap_days != null && r.quality !== 'exact') parts.push(`${r.gap_days} ${t.days}`);
   if (r.source === 'after') parts.push(t.after);
   return parts.join(' · ');
@@ -131,7 +134,7 @@ export async function exportOdometerAuditXlsx(report: AuditReport, rows: AuditRo
 
   // Sheet 2: everything the page shows
   const detailRows = rows.map((r) => [
-    r.plate, r.km, `${dateParts(r.at).date} ${dateParts(r.at).time}`.trim(), r.source === 'before' ? t.srcBefore : t.srcAfter, r.driver, r.card_number,
+    r.plate, r.km, `${dateParts(r.at).date} ${dateParts(r.at).time}`.trim(), r.kind === 'midnight' ? 'VU' : r.source === 'before' ? t.srcBefore : t.srcAfter, r.driver, r.card_number,
     r.gap_days, t.qual[r.quality], r.before_km, r.before_at ? `${dateParts(r.before_at).date} ${dateParts(r.before_at).time}` : '',
     r.after_km, r.after_at ? `${dateParts(r.after_at).date} ${dateParts(r.after_at).time}` : '', r.bracket_km, r.km_prev_year, r.km_in_year,
     r.records_in_year, r.drivers_in_year, r.vin,

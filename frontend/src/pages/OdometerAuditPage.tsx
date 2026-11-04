@@ -409,6 +409,7 @@ export function OdometerAuditPage() {
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-5" data-animate>
           {[
             { icon: Files, label: t('oaFilesScanned'), value: summary.by_source?.[source]?.files ?? 0, sub: [
+              summary.by_source?.[source]?.vu_files ? `${summary.by_source[source].card_files} ${t('oaKindCards')} · ${summary.by_source[source].vu_files} ${t('oaKindVu')} (${summary.by_source[source].vu_days} ${t('oaVuDays')})` : '',
               source === 'mega' ? Object.entries(summary.sources || {}).filter(([k]) => k.startsWith('mega:')).map(([k, n]) => `${n} ${k.slice(5)}`).join(' · ') : '',
               source === 'archive' && summary.sources?.upload ? `${summary.sources.upload} ${t('oaSourceUpload')}` : '',
               summary.files_with_errors ? `${summary.files_with_errors} ✗` : '',
@@ -416,7 +417,7 @@ export function OdometerAuditPage() {
             { icon: IdCard, label: t('oaCards'), value: summary.by_source?.[source]?.cards ?? 0, sub: '' },
             { icon: Gauge, label: t('oaRecords'), value: summary.by_source?.[source]?.records ?? 0, sub: summary.by_source?.[source]?.first_record ? `${fmtTs(summary.by_source[source].first_record, false)} – ${fmtTs(summary.by_source[source].last_record, false)}` : '' },
             { icon: Truck, label: t('oaVehicles'), value: summary.by_source?.[source]?.plates ?? 0, sub: '' },
-            { icon: Clock, label: `${t('oaYear')} ${year}`, value: report?.counts.active ?? 0, sub: report ? `${report.counts.exact} ${t('oaQualityExact')} · ${report.counts.ok} ${t('oaQualityOk')} · ${report.counts.gap} ${t('oaQualityGap')}` : '' },
+            { icon: Clock, label: `${t('oaYear')} ${year}`, value: report?.counts.active ?? 0, sub: report ? `${report.counts.exact} ${t('oaQualityExact')} · ${report.counts.ok} ${t('oaQualityOk')} · ${report.counts.gap} ${t('oaQualityGap')}${report.counts.from_vu ? ` · ${report.counts.from_vu} VU` : ''}` : '' },
           ].map(({ icon: Icon, label, value, sub }) => (
             <div key={label} className="card kpi kpi-accent px-4 py-3">
               <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted"><Icon size={12} /> {label}</p>
@@ -480,9 +481,11 @@ export function OdometerAuditPage() {
                           {!r.active_in_year && <span className="ml-1.5 text-[10px] font-normal text-muted">({t('oaQualityGap')})</span>}
                         </td>
                         <td className="whitespace-nowrap px-3 py-2.5 text-right font-mono text-base font-bold tabular-nums text-ink">{fmtKm(r.km)}</td>
-                        <td className="whitespace-nowrap px-3 py-2.5 font-mono text-xs tabular-nums" title={r.source === 'before' ? t('oaSourceBefore') : t('oaSourceAfter')}>
+                        <td className="whitespace-nowrap px-3 py-2.5 font-mono text-xs tabular-nums" title={r.kind === 'midnight' ? t('oaKindMidnight') : r.source === 'before' ? t('oaSourceBefore') : t('oaSourceAfter')}>
                           {fmtTs(r.at)}
-                          <span className="ml-1 text-[10px] text-muted">{r.source === 'before' ? '◄' : '►'}</span>
+                          {r.kind === 'midnight'
+                            ? <span className="ml-1.5 inline-flex items-center gap-0.5 rounded bg-success-soft px-1 text-[10px] font-semibold text-success"><Truck size={10} /> VU</span>
+                            : <span className="ml-1 text-[10px] text-muted">{r.source === 'before' ? '◄' : '►'}</span>}
                         </td>
                         <td className="whitespace-nowrap px-3 py-2.5">
                           <Badge variant={QUALITY_VARIANT[r.quality]} dot>
@@ -492,16 +495,16 @@ export function OdometerAuditPage() {
                         </td>
                         <td className="max-w-[180px] truncate px-3 py-2.5 text-xs" title={r.card_number}>{r.driver || r.card_number}</td>
                         <td className="whitespace-nowrap px-3 py-2.5 text-right font-mono text-xs tabular-nums text-muted">
-                          {r.before_km != null ? <>{fmtKm(r.before_km)}<br /><span className="text-[10px]">{fmtTs(r.before_at, false)}</span></> : '–'}
+                          {r.before_km != null ? <>{fmtKm(r.before_km)}{r.before_kind === 'midnight' ? ' ·VU' : ''}<br /><span className="text-[10px]">{fmtTs(r.before_at, false)}</span></> : '–'}
                         </td>
                         <td className="whitespace-nowrap px-3 py-2.5 text-right font-mono text-xs tabular-nums text-muted">
-                          {r.after_km != null ? <>{fmtKm(r.after_km)}<br /><span className="text-[10px]">{fmtTs(r.after_at, false)}</span></> : '–'}
+                          {r.after_km != null ? <>{fmtKm(r.after_km)}{r.after_kind === 'midnight' ? ' ·VU' : ''}<br /><span className="text-[10px]">{fmtTs(r.after_at, false)}</span></> : '–'}
                         </td>
                         <td className={clsx('whitespace-nowrap px-3 py-2.5 text-right font-mono text-xs tabular-nums', (r.bracket_km ?? 0) > 2000 ? 'text-warning' : 'text-muted')}>
                           {r.bracket_km != null ? `${fmtKm(r.bracket_km)}${r.bracket_days != null ? ` / ${r.bracket_days} d` : ''}` : '–'}
                         </td>
                         <td className="whitespace-nowrap px-3 py-2.5 text-right font-mono text-xs tabular-nums">{fmtKm(r.km_in_year)}</td>
-                        <td className="whitespace-nowrap px-3 py-2.5 text-right font-mono text-xs tabular-nums text-muted">{r.records_in_year}{r.drivers_in_year ? ` / ${r.drivers_in_year}` : ''}</td>
+                        <td className="whitespace-nowrap px-3 py-2.5 text-right font-mono text-xs tabular-nums text-muted">{r.records_in_year}{r.drivers_in_year ? ` / ${r.drivers_in_year}` : ''}{r.vu_days_in_year ? <span className="ml-1 text-success" title={t('oaVuDays')}>+{r.vu_days_in_year} VU</span> : null}</td>
                       </tr>
                       {open && (
                         <tr>
@@ -541,13 +544,13 @@ function TimelineView({ tl, cutoff, t }: { tl: AuditTimeline; cutoff: string; t:
   const render = (list: typeof tl.records, highlightLast: boolean) => list.map((r, i) => {
     const isPick = highlightLast ? i === list.length - 1 : i === 0;
     return (
-      <tr key={`${r.card_number}-${r.first_use}`} className={clsx(isPick && 'bg-success-soft font-semibold')}>
+      <tr key={`${r.kind}-${r.card_number}-${r.first_use}`} className={clsx(isPick && 'bg-success-soft font-semibold', r.kind === 'midnight' && 'text-success')}>
         <td className="whitespace-nowrap px-2 py-1 font-mono text-[11px] tabular-nums">{fmtTs(r.first_use)}</td>
-        <td className="whitespace-nowrap px-2 py-1 font-mono text-[11px] tabular-nums">{fmtTs(r.last_use)}</td>
-        <td className="whitespace-nowrap px-2 py-1 text-right font-mono text-[11px] tabular-nums">{fmtKm(r.odo_begin)}</td>
+        <td className="whitespace-nowrap px-2 py-1 font-mono text-[11px] tabular-nums">{r.kind === 'midnight' ? '' : fmtTs(r.last_use)}</td>
+        <td className="whitespace-nowrap px-2 py-1 text-right font-mono text-[11px] tabular-nums">{r.kind === 'midnight' ? '' : fmtKm(r.odo_begin)}</td>
         <td className="whitespace-nowrap px-2 py-1 text-right font-mono text-[11px] tabular-nums">{fmtKm(r.odo_end)}</td>
-        <td className="whitespace-nowrap px-2 py-1 text-right font-mono text-[11px] tabular-nums text-muted">{fmtKm(r.odo_end - r.odo_begin)}</td>
-        <td className="truncate px-2 py-1 text-[11px]" title={r.card_number}>{r.driver || r.card_number}</td>
+        <td className="whitespace-nowrap px-2 py-1 text-right font-mono text-[11px] tabular-nums text-muted">{r.kind === 'midnight' ? '' : fmtKm(r.odo_end - r.odo_begin)}</td>
+        <td className="truncate px-2 py-1 text-[11px]" title={r.card_number}>{r.kind === 'midnight' ? <span className="inline-flex items-center gap-1"><Truck size={11} /> {t('oaKindMidnight')}</span> : (r.driver || r.card_number)}</td>
         <td className="px-2 py-1 font-mono text-[11px] text-muted">{r.plate}</td>
         <td className="px-2 py-1">{isPick && <CircleDot size={12} className="text-success" />}</td>
       </tr>
@@ -556,7 +559,7 @@ function TimelineView({ tl, cutoff, t }: { tl: AuditTimeline; cutoff: string; t:
   return (
     <div>
       <p className="mb-2 text-xs text-muted">
-        <span className="font-semibold text-ink">{t('oaTimeline')}</span> · {tl.total_records} {t('oaTotalRecords')} · {tl.drivers} {t('oaDrivers')} · {fmtTs(tl.first_record, false)} – {fmtTs(tl.last_record, false)}
+        <span className="font-semibold text-ink">{t('oaTimeline')}</span> · {tl.total_records} {t('oaTotalRecords')}{tl.vu_days ? ` · ${tl.vu_days} ${t('oaVuDays')}` : ''} · {tl.drivers} {t('oaDrivers')} · {fmtTs(tl.first_record, false)} – {fmtTs(tl.last_record, false)}
       </p>
       {tl.records.length === 0 ? (
         <p className="text-xs text-muted">{t('oaTimelineEmpty')}</p>

@@ -39,6 +39,7 @@ from zoneinfo import ZoneInfo
 
 from auth.helpers import _load_config, _save_config
 from core.card_vehicles import parse_card_vehicles
+from core.vu_odometer import is_vu_file, parse_vu
 from database import get_db
 from services import storage_service
 from services.drivers_index import build_drivers_data, get_storage_client, load_portal_cache, save_portal_cache
@@ -72,7 +73,7 @@ _SAFE_NAME = re.compile(r'[^A-Za-z0-9._()\- ]+')
 # Driver-card download files come with several extensions depending on the
 # download tool: .ddd (most), .c1b (VDO downloadkey), .esm (Stoneridge),
 # .tgd (Tachogramm), .dat. The content is the same TLV card file.
-CARD_EXTS = ('.ddd', '.c1b', '.esm', '.tgd', '.dat')
+CARD_EXTS = ('.ddd', '.c1b', '.esm', '.tgd', '.dat', '.v1b', '.v2b', '.vub')
 
 
 def is_card_file(name: str) -> bool:
@@ -178,64 +179,125 @@ def _safe_name(name: str) -> str:
 # ---------------------------------------------------------------------------
 
 def ingest_file(path: str, data: bytes, *, source: str = 'storage', driver: str = '', size: int | None = None) -> dict:
-    """Parse one card file and store its vehicle records. Returns a summary."""
+    """Parse one tachograph file (driver card or vehicle unit, told apart by
+    content) and store what it says about vehicles. Returns a summary."""
+    if is_vu_file(data):
+        return _ingest_vu(path, data, source=source, size=size)
     size = len(data) if size is None else size
     error = ''
     parsed = {'card_number': '', 'holder': '', 'records': []}
     try:
         parsed = parse_card_vehicles(data)
         if not parsed['records'] and not parsed['card_number']:
-            error = 'no vehicle records (not a driver card?)'
+            error = 'no vehicle records (not a tachograph file?)'
     except Exception as exc:  # defensive: one bad file must not stop the scan
         error = f'parse error: {exc}'
     card = parsed.get('card_number') or ''
     holder = parsed.get('holder') or ''
     driver = driver or holder
     records = parsed.get('records') or []
-    now = _now_iso()
     group = source_group(source)
-
     with get_db() as db:
-        row = db.query_one('SELECT id FROM card_scan_files WHERE path = ?', (path,))
-        if row:
-            file_id = int(row['id'])
-            db.execute(
-                'UPDATE card_scan_files SET size = ?, source = ?, driver = ?, card_number = ?, holder = ?, '
-                'records = ?, error = ?, scanned_at = ? WHERE id = ?',
-                (size, source, driver, card, holder, len(records), error, now, file_id),
-            )
-        else:
-            db.execute(
-                'INSERT INTO card_scan_files (path, size, source, driver, card_number, holder, records, error, scanned_at) '
-                'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                (path, size, source, driver, card, holder, len(records), error, now),
-            )
-            row = db.query_one('SELECT id FROM card_scan_files WHERE path = ?', (path,))
-            file_id = int(row['id'])
-
-        inserted = 0
-        if records:
-            existing = {
-                (r['plate_norm'], r['first_use'], r['last_use'])
-                for r in db.query('SELECT plate_norm, first_use, last_use FROM card_vehicle_usage WHERE source = ? AND card_number = ?', (group, card))
-            }
-            for rec in records:
-                pn = normalize_plate(rec['plate'])
-                if not pn:
-                    continue
-                key = (pn, rec['first_use'], rec['last_use'])
-                if key in existing:
-                    continue
-                existing.add(key)
-                db.execute(
-                    'INSERT INTO card_vehicle_usage (source, card_number, driver, plate_norm, plate, nation, vin, odo_begin, odo_end, '
-                    'first_use, last_use, file_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                    (group, card, driver, pn, rec['plate'], rec['nation'], rec['vin'], rec['odo_begin'], rec['odo_end'],
-                     rec['first_use'], rec['last_use'], file_id),
-                )
-                inserted += 1
+        file_id = _upsert_file(db, path, size, source, 'card', driver, card, holder, '', len(records), error)
+        inserted = _store_usage(db, group, card, driver, records, file_id)
         db.commit()
-    return {'path': path, 'card_number': card, 'holder': holder, 'records': len(records), 'new': inserted, 'error': error}
+    return {'path': path, 'kind': 'card', 'card_number': card, 'holder': holder, 'records': len(records), 'new': inserted, 'error': error}
+
+
+def _upsert_file(db, path, size, source, kind, driver, card, holder, plate, records, error) -> int:
+    now = _now_iso()
+    row = db.query_one('SELECT id FROM card_scan_files WHERE path = ?', (path,))
+    if row:
+        file_id = int(row['id'])
+        db.execute(
+            'UPDATE card_scan_files SET size = ?, source = ?, kind = ?, driver = ?, card_number = ?, holder = ?, plate = ?, '
+            'records = ?, error = ?, scanned_at = ? WHERE id = ?',
+            (size, source, kind, driver, card, holder, plate, records, error, now, file_id),
+        )
+        return file_id
+    db.execute(
+        'INSERT INTO card_scan_files (path, size, source, kind, driver, card_number, holder, plate, records, error, scanned_at) '
+        'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        (path, size, source, kind, driver, card, holder, plate, records, error, now),
+    )
+    return int(db.query_one('SELECT id FROM card_scan_files WHERE path = ?', (path,))['id'])
+
+
+def _store_usage(db, group: str, card: str, driver: str, records: list, file_id: int) -> int:
+    """Insert (card, vehicle, insertion window) rows not yet known for this source/card."""
+    if not records:
+        return 0
+    existing = {
+        (r['plate_norm'], r['first_use'], r['last_use'])
+        for r in db.query('SELECT plate_norm, first_use, last_use FROM card_vehicle_usage WHERE source = ? AND card_number = ?', (group, card))
+    }
+    inserted = 0
+    for rec in records:
+        pn = normalize_plate(rec['plate'])
+        if not pn:
+            continue
+        key = (pn, rec['first_use'], rec['last_use'])
+        if key in existing:
+            continue
+        existing.add(key)
+        db.execute(
+            'INSERT INTO card_vehicle_usage (source, card_number, driver, plate_norm, plate, nation, vin, odo_begin, odo_end, '
+            'first_use, last_use, file_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            (group, card, rec.get('driver') or driver, pn, rec['plate'], rec.get('nation', ''), rec.get('vin', ''),
+             rec['odo_begin'], rec['odo_end'], rec['first_use'], rec['last_use'], file_id),
+        )
+        inserted += 1
+    return inserted
+
+
+def _ingest_vu(path: str, data: bytes, *, source: str, size: int | None) -> dict:
+    """A vehicle-unit download: the vehicle's own registration, the odometer
+    at midnight of every downloaded day, and the card in/out records."""
+    size = len(data) if size is None else size
+    error = ''
+    parsed = {'plate': '', 'nation': '', 'vin': '', 'days': [], 'card_records': [], 'warning': ''}
+    try:
+        parsed = parse_vu(data)
+        if not parsed['plate']:
+            error = 'vehicle unit file without registration (overview block missing?)'
+        elif parsed.get('warning'):
+            error = ''  # partial read is fine; the warning is kept in the result
+    except Exception as exc:
+        error = f'parse error: {exc}'
+    plate = parsed.get('plate') or ''
+    pn = normalize_plate(plate)
+    group = source_group(source)
+    days = parsed.get('days') or []
+    recs = parsed.get('card_records') or []
+    n_new_days = n_new_recs = 0
+    with get_db() as db:
+        file_id = _upsert_file(db, path, size, source, 'vu', '', '', parsed.get('vin') or '', plate,
+                               len(days) + len(recs), error)
+        if pn and days:
+            known = {r['day'] for r in db.query('SELECT day FROM vu_odometer_days WHERE source = ? AND plate_norm = ?', (group, pn))}
+            for d in days:
+                if d['day'] in known:
+                    continue
+                known.add(d['day'])
+                db.execute(
+                    'INSERT INTO vu_odometer_days (source, plate_norm, plate, nation, vin, day, at, odo, file_id) '
+                    'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                    (group, pn, plate, parsed.get('nation') or '', parsed.get('vin') or '', d['day'], d['at'], d['odo'], file_id),
+                )
+                n_new_days += 1
+        if pn and recs:
+            by_card: dict[str, list] = {}
+            for r in recs:
+                by_card.setdefault(r['card_number'], []).append({
+                    'plate': plate, 'nation': parsed.get('nation') or '', 'vin': parsed.get('vin') or '',
+                    'odo_begin': r['odo_begin'], 'odo_end': r['odo_end'], 'first_use': r['first_use'], 'last_use': r['last_use'],
+                    'driver': r['holder'],
+                })
+            for card, lst in by_card.items():
+                n_new_recs += _store_usage(db, group, card, '', lst, file_id)
+        db.commit()
+    return {'path': path, 'kind': 'vu', 'plate': plate, 'card_number': '', 'holder': '', 'records': len(days) + len(recs),
+            'new': n_new_days + n_new_recs, 'new_days': n_new_days, 'error': error, 'warning': parsed.get('warning') or ''}
 
 
 def _already_scanned(path: str, size: int) -> bool:
@@ -270,15 +332,19 @@ def ingest_upload(name: str, data: bytes, *, keep: bool = True) -> list[dict]:
     if not data:
         return [{'path': name, 'status': 'error', 'error': 'empty file', 'records': 0, 'new': 0}]
 
-    # Identify the card first so the stored copy lands in its folder.
+    # Identify the file first so the stored copy lands in its folder:
+    # cards under their card number, vehicle units under "VU_<plate>".
+    sub = ''
     try:
-        parsed = parse_card_vehicles(data)
-        card = parsed.get('card_number') or ''
+        if is_vu_file(data):
+            sub = 'VU_' + (normalize_plate(parse_vu(data).get('plate') or '') or 'unbekannt')
+        else:
+            sub = parse_card_vehicles(data).get('card_number') or ''
     except Exception:
-        card = ''
+        sub = ''
     folder = audit_folder()
     stored = keep and storage_service.is_configured()
-    path = f"{folder}/{card or 'unbekannt'}/{name}" if stored else f'upload/{name}'
+    path = f"{folder}/{sub or 'unbekannt'}/{name}" if stored else f'upload/{name}'
     if _already_scanned(path, len(data)):
         return [{'path': path, 'status': 'skipped', 'error': '', 'records': 0, 'new': 0, 'card_number': card}]
     if stored:
@@ -462,6 +528,8 @@ def summary() -> dict:
                               'MIN(first_use) AS lo, MAX(last_use) AS hi FROM card_vehicle_usage GROUP BY source')
         recent_errors = db.query('SELECT path, error, scanned_at FROM card_scan_files WHERE error <> ? ORDER BY scanned_at DESC LIMIT 20', ('',))
         by_source = db.query('SELECT source, COUNT(*) AS n FROM card_scan_files GROUP BY source')
+        kinds = db.query('SELECT source, kind, COUNT(*) AS n FROM card_scan_files GROUP BY source, kind')
+        vu_days = db.query('SELECT source, COUNT(*) AS n, COUNT(DISTINCT plate_norm) AS plates, MIN(at) AS lo, MAX(at) AS hi FROM vu_odometer_days GROUP BY source')
     lo, hi = (usage['lo'] or ''), (usage['hi'] or '')
     years = list(range(int(lo[:4]), int(hi[:4]) + 1)) if lo and hi else []
     return {
@@ -470,18 +538,36 @@ def summary() -> dict:
         'first_record': lo, 'last_record': hi, 'years': years,
         'errors': [dict(r) for r in recent_errors],
         'sources': {('drivers' if r['source'] == 'storage' else r['source']): int(r['n']) for r in by_source},
-        'by_source': {
-            r['source']: {
-                'records': int(r['n'] or 0), 'plates': int(r['plates'] or 0), 'cards': int(r['cards'] or 0),
-                'first_record': r['lo'] or '', 'last_record': r['hi'] or '',
-                'files': sum(int(x['n']) for x in by_source if source_group('drivers' if x['source'] == 'storage' else x['source']) == r['source']),
-            } for r in per_source
-        },
+        'by_source': _by_source(per_source, by_source, kinds, vu_days),
         'audit_folder': audit_folder(),
         'extra_folders': get_extra_folders(),
         'storage_configured': storage_service.is_configured(),
         'scan': scan_status(),
     }
+
+
+def _by_source(per_source, by_source, kinds, vu_days) -> dict:
+    out: dict = {}
+    def _grp(detail):
+        return source_group('drivers' if detail == 'storage' else detail)
+    groups = {_grp(r['source']) for r in by_source} | {r['source'] for r in per_source} | {r['source'] for r in vu_days}
+    for g in groups:
+        usage = next((r for r in per_source if r['source'] == g), None)
+        vd = next((r for r in vu_days if r['source'] == g), None)
+        lo = min(x for x in ((usage['lo'] if usage else ''), (vd['lo'] if vd else '')) if x) if (usage and usage['lo']) or (vd and vd['lo']) else ''
+        hi = max(x for x in ((usage['hi'] if usage else ''), (vd['hi'] if vd else '')) if x) if (usage and usage['hi']) or (vd and vd['hi']) else ''
+        out[g] = {
+            'records': int(usage['n'] or 0) if usage else 0,
+            'plates': int(usage['plates'] or 0) if usage else 0,
+            'cards': int(usage['cards'] or 0) if usage else 0,
+            'first_record': lo, 'last_record': hi,
+            'files': sum(int(x['n']) for x in by_source if _grp(x['source']) == g),
+            'card_files': sum(int(x['n']) for x in kinds if _grp(x['source']) == g and x['kind'] == 'card'),
+            'vu_files': sum(int(x['n']) for x in kinds if _grp(x['source']) == g and x['kind'] == 'vu'),
+            'vu_days': int(vd['n'] or 0) if vd else 0,
+            'vu_plates': int(vd['plates'] or 0) if vd else 0,
+        }
+    return out
 
 
 def _cutoff(year: int) -> str:
@@ -491,7 +577,7 @@ def _cutoff(year: int) -> str:
 
 
 def _year_end_reading(db, year: int, lower_bound: str, source: str) -> dict[str, dict]:
-    """plate_norm -> newest record ending at or before the cutoff (odometer at withdrawal)."""
+    """plate_norm -> newest card record ending at or before the cutoff (odometer at withdrawal)."""
     cutoff = _cutoff(year)
     rows = db.query(
         'SELECT u.* FROM card_vehicle_usage u JOIN ('
@@ -507,7 +593,7 @@ def _year_end_reading(db, year: int, lower_bound: str, source: str) -> dict[str,
 
 
 def _next_reading(db, year: int, upper_bound: str, source: str) -> dict[str, dict]:
-    """plate_norm -> oldest record starting after the cutoff (odometer at insertion)."""
+    """plate_norm -> oldest card record starting after the cutoff (odometer at insertion)."""
     cutoff = _cutoff(year)
     rows = db.query(
         'SELECT u.* FROM card_vehicle_usage u JOIN ('
@@ -522,6 +608,50 @@ def _next_reading(db, year: int, upper_bound: str, source: str) -> dict[str, dic
     return out
 
 
+def _vu_before(db, cutoff: str, lower_bound: str, source: str) -> dict[str, dict]:
+    rows = db.query(
+        'SELECT v.* FROM vu_odometer_days v JOIN ('
+        '  SELECT plate_norm, MAX(at) AS a FROM vu_odometer_days WHERE source = ? AND at <= ? AND at >= ? GROUP BY plate_norm'
+        ') m ON m.plate_norm = v.plate_norm AND m.a = v.at WHERE v.source = ?',
+        (source, cutoff, lower_bound, source),
+    )
+    return {r['plate_norm']: dict(r) for r in rows}
+
+
+def _vu_after(db, cutoff: str, upper_bound: str, source: str) -> dict[str, dict]:
+    rows = db.query(
+        'SELECT v.* FROM vu_odometer_days v JOIN ('
+        '  SELECT plate_norm, MIN(at) AS a FROM vu_odometer_days WHERE source = ? AND at > ? AND at <= ? GROUP BY plate_norm'
+        ') m ON m.plate_norm = v.plate_norm AND m.a = v.at WHERE v.source = ?',
+        (source, cutoff, upper_bound, source),
+    )
+    return {r['plate_norm']: dict(r) for r in rows}
+
+
+def _reading(kind: str, km: int, at: str, driver: str = '', card: str = '') -> dict:
+    return {'kind': kind, 'km': int(km), 'at': at, 'driver': driver or '', 'card_number': card or ''}
+
+
+def _best_before(card_rec, vu_rec) -> dict | None:
+    """Later of: card withdrawal reading, VU midnight reading."""
+    cands = []
+    if card_rec:
+        cands.append(_reading('withdrawal', card_rec['odo_end'], card_rec['last_use'], card_rec['driver'], card_rec['card_number']))
+    if vu_rec:
+        cands.append(_reading('midnight', vu_rec['odo'], vu_rec['at']))
+    return max(cands, key=lambda c: c['at']) if cands else None
+
+
+def _best_after(card_rec, vu_rec) -> dict | None:
+    """Earlier of: card insertion reading, VU midnight reading."""
+    cands = []
+    if card_rec:
+        cands.append(_reading('insertion', card_rec['odo_begin'], card_rec['first_use'], card_rec['driver'], card_rec['card_number']))
+    if vu_rec:
+        cands.append(_reading('midnight', vu_rec['odo'], vu_rec['at']))
+    return min(cands, key=lambda c: c['at']) if cands else None
+
+
 def _days_between(a: str, b: str) -> float | None:
     try:
         da = datetime.strptime(a, '%Y-%m-%dT%H:%M:%SZ')
@@ -531,20 +661,45 @@ def _days_between(a: str, b: str) -> float | None:
     return round(abs((dbb - da).total_seconds()) / 86400, 1)
 
 
+def _year_end_value(before: dict | None, after: dict | None, cutoff: str) -> tuple[dict | None, str]:
+    """The km-stand to report and where it comes from.
+
+    A VU midnight reading of 1 January is the odometer exactly at the turn of
+    the year, so it wins whenever it exists (it is a few minutes past the
+    local cutoff only because the VU clock is UTC). Otherwise the last
+    reading before the cutoff, else the first after it.
+    """
+    if after and after['kind'] == 'midnight':
+        gap = _days_between(after['at'], cutoff)
+        if gap is not None and gap <= 0.2:
+            return after, 'midnight'
+    if before:
+        return before, 'before'
+    if after:
+        return after, 'after'
+    return None, ''
+
+
 def year_report(year: int, source: str = 'drivers') -> dict:
     """Per vehicle: odometer on 31.12 of `year` (or nearest), with context.
-    Only records of ONE source are used."""
+    Only records of ONE source are used; card and VU readings are merged."""
     if source not in SOURCES:
         raise ValueError('unknown source')
     cutoff = _cutoff(year)
     lower = f'{year - 1}-01-01T00:00:00Z'       # vehicles not seen for over a year are left out
     upper = f'{year + 1}-12-31T23:59:59Z'
+    prev_cutoff = _cutoff(year - 1)
     with get_db() as db:
-        before = _year_end_reading(db, year, lower, source)
-        after = _next_reading(db, year, upper, source)
-        prev = _year_end_reading(db, year - 1, f'{year - 2}-01-01T00:00:00Z', source)
+        before_c = _year_end_reading(db, year, lower, source)
+        after_c = _next_reading(db, year, upper, source)
+        before_v = _vu_before(db, cutoff, lower, source)
+        after_v = _vu_after(db, cutoff, upper, source)
+        prev_c = _year_end_reading(db, year - 1, f'{year - 2}-01-01T00:00:00Z', source)
+        prev_v = _vu_before(db, prev_cutoff, f'{year - 2}-01-01T00:00:00Z', source)
+        prev_after_v = _vu_after(db, prev_cutoff, f'{year}-12-31T23:59:59Z', source)
         # Display form of each plate: the spelling seen most often.
         spell_rows = db.query('SELECT plate_norm, plate, COUNT(*) AS n FROM card_vehicle_usage WHERE source = ? GROUP BY plate_norm, plate', (source,))
+        spell_vu = db.query('SELECT plate_norm, plate, COUNT(*) AS n FROM vu_odometer_days WHERE source = ? GROUP BY plate_norm, plate', (source,))
         # Activity within the year.
         act_rows = db.query(
             'SELECT plate_norm, COUNT(*) AS n, COUNT(DISTINCT card_number) AS drivers, MIN(first_use) AS lo, MAX(last_use) AS hi, '
@@ -552,71 +707,75 @@ def year_report(year: int, source: str = 'drivers') -> dict:
             'WHERE source = ? AND last_use >= ? AND first_use <= ? GROUP BY plate_norm',
             (source, f'{year}-01-01T00:00:00Z', cutoff),
         )
+        vu_rows = db.query(
+            'SELECT plate_norm, COUNT(*) AS n, MIN(at) AS lo, MAX(at) AS hi, MIN(odo) AS odo_lo, MAX(odo) AS odo_hi, MAX(vin) AS vin '
+            'FROM vu_odometer_days WHERE source = ? AND at >= ? AND at <= ? GROUP BY plate_norm',
+            (source, f'{year}-01-01T00:00:00Z', cutoff),
+        )
     spelling: dict[str, tuple[int, str]] = {}
-    for r in spell_rows:
+    for r in list(spell_rows) + list(spell_vu):
         if int(r['n']) > spelling.get(r['plate_norm'], (0, ''))[0]:
             spelling[r['plate_norm']] = (int(r['n']), r['plate'])
     activity = {r['plate_norm']: dict(r) for r in act_rows}
+    vu_activity = {r['plate_norm']: dict(r) for r in vu_rows}
 
-    plates = set(before) | set(after) | set(activity)
+    plates = set(before_c) | set(after_c) | set(before_v) | set(after_v) | set(activity) | set(vu_activity)
     rows = []
     for pn in plates:
-        b = before.get(pn)
-        a = after.get(pn)
-        p = prev.get(pn)
-        act = activity.get(pn, {})
-        # The km-stand: the withdrawal reading before the cutoff when there is
-        # one; else the next insertion reading after it.
-        if b:
-            km, at, src = b['odo_end'], b['last_use'], 'before'
-        elif a:
-            km, at, src = a['odo_begin'], a['first_use'], 'after'
-        else:
+        before = _best_before(before_c.get(pn), before_v.get(pn))
+        after = _best_after(after_c.get(pn), after_v.get(pn))
+        chosen, src = _year_end_value(before, after, cutoff)
+        if not chosen:
             continue
-        gap_days = _days_between(at, cutoff)
-        exact = at[:10] == cutoff[:10] or (src == 'after' and at[:10] == f'{year + 1}-01-01')
+        act = activity.get(pn, {})
+        vact = vu_activity.get(pn, {})
+        km, at = chosen['km'], chosen['at']
+        gap_days = 0.0 if src == 'midnight' else _days_between(at, cutoff)
+        exact = src == 'midnight' or at[:10] == cutoff[:10] or (src == 'after' and at[:10] == f'{year + 1}-01-01')
         if exact or (gap_days is not None and gap_days <= 3):
             quality = 'exact'
         elif gap_days is not None and gap_days <= 14:
             quality = 'ok'
         else:
             quality = 'gap'
-        bracket_km = (a['odo_begin'] - b['odo_end']) if (a and b) else None
-        bracket_days = _days_between(b['last_use'], a['first_use']) if (a and b) else None
-        km_prev = p['odo_end'] if p else None
-        active = int(act.get('n') or 0) > 0
-        # Distance in the year only makes sense when the vehicle was used in it
-        # and both year-end readings exist.
+        prev_chosen, _ = _year_end_value(_best_before(prev_c.get(pn), prev_v.get(pn)), _best_after(None, prev_after_v.get(pn)), prev_cutoff)
+        km_prev = prev_chosen['km'] if prev_chosen else None
+        active = int(act.get('n') or 0) > 0 or int(vact.get('n') or 0) > 0
         km_in_year = (km - km_prev) if (active and km_prev is not None and km >= km_prev) else None
+        any_rec = before_c.get(pn) or after_c.get(pn) or {}
         rows.append({
             'plate_norm': pn,
             'plate': spelling.get(pn, (0, pn))[1],
-            'nation': (b or a or {}).get('nation', ''),
-            'vin': (b or a or {}).get('vin', '') or '',
+            'nation': any_rec.get('nation', '') or (before_v.get(pn) or after_v.get(pn) or {}).get('nation', ''),
+            'vin': (any_rec.get('vin') or vact.get('vin') or (before_v.get(pn) or after_v.get(pn) or {}).get('vin') or ''),
             'km': km,
             'at': at,
             'source': src,
-            'driver': (b or a)['driver'],
-            'card_number': (b or a)['card_number'],
+            'kind': chosen['kind'],
+            'driver': chosen['driver'],
+            'card_number': chosen['card_number'],
             'gap_days': gap_days,
             'quality': quality,
-            'before_km': b['odo_end'] if b else None,
-            'before_at': b['last_use'] if b else '',
-            'before_driver': b['driver'] if b else '',
-            'after_km': a['odo_begin'] if a else None,
-            'after_at': a['first_use'] if a else '',
-            'after_driver': a['driver'] if a else '',
-            'bracket_km': bracket_km,
-            'bracket_days': bracket_days,
+            'before_km': before['km'] if before else None,
+            'before_at': before['at'] if before else '',
+            'before_kind': before['kind'] if before else '',
+            'before_driver': before['driver'] if before else '',
+            'after_km': after['km'] if after else None,
+            'after_at': after['at'] if after else '',
+            'after_kind': after['kind'] if after else '',
+            'after_driver': after['driver'] if after else '',
+            'bracket_km': (after['km'] - before['km']) if (after and before) else None,
+            'bracket_days': _days_between(before['at'], after['at']) if (after and before) else None,
             'km_prev_year': km_prev,
             'km_in_year': km_in_year,
             'active_in_year': active,
             'records_in_year': int(act.get('n') or 0),
+            'vu_days_in_year': int(vact.get('n') or 0),
             'drivers_in_year': int(act.get('drivers') or 0),
-            'first_seen_in_year': act.get('lo') or '',
-            'last_seen_in_year': act.get('hi') or '',
-            'odo_min_in_year': act.get('odo_lo'),
-            'odo_max_in_year': act.get('odo_hi'),
+            'first_seen_in_year': min(x for x in (act.get('lo') or '', vact.get('lo') or '') if x) if (act.get('lo') or vact.get('lo')) else '',
+            'last_seen_in_year': max(x for x in (act.get('hi') or '', vact.get('hi') or '') if x) if (act.get('hi') or vact.get('hi')) else '',
+            'odo_min_in_year': min(x for x in (act.get('odo_lo'), vact.get('odo_lo')) if x is not None) if (act.get('odo_lo') is not None or vact.get('odo_lo') is not None) else None,
+            'odo_max_in_year': max(x for x in (act.get('odo_hi'), vact.get('odo_hi')) if x is not None) if (act.get('odo_hi') is not None or vact.get('odo_hi') is not None) else None,
         })
     rows.sort(key=lambda r: r['plate'])
     return {
@@ -627,29 +786,46 @@ def year_report(year: int, source: str = 'drivers') -> dict:
             'exact': sum(1 for r in rows if r['quality'] == 'exact'),
             'ok': sum(1 for r in rows if r['quality'] == 'ok'),
             'gap': sum(1 for r in rows if r['quality'] == 'gap'),
+            'from_vu': sum(1 for r in rows if r['kind'] == 'midnight'),
         },
     }
 
 
 def vehicle_timeline(plate_norm: str, year: int, days: int = 45, source: str = 'drivers') -> dict:
-    """All records of one vehicle around the year end (±days), plus totals."""
+    """All readings of one vehicle around the year end (±days): card in/out
+    records and VU midnight odometers, plus totals."""
     cutoff_dt = datetime(year, 12, 31, 23, 59, 59, tzinfo=CET).astimezone(timezone.utc)
     lo = (cutoff_dt - timedelta(days=days)).strftime('%Y-%m-%dT%H:%M:%SZ')
     hi = (cutoff_dt + timedelta(days=days)).strftime('%Y-%m-%dT%H:%M:%SZ')
     with get_db() as db:
         rows = db.query(
-            'SELECT plate, driver, card_number, odo_begin, odo_end, first_use, last_use, generation_hint FROM ('
-            '  SELECT plate, driver, card_number, odo_begin, odo_end, first_use, last_use, 0 AS generation_hint '
-            '  FROM card_vehicle_usage WHERE source = ? AND plate_norm = ? AND last_use >= ? AND first_use <= ?'
-            ') t ORDER BY first_use',
+            'SELECT plate, driver, card_number, odo_begin, odo_end, first_use, last_use FROM card_vehicle_usage '
+            'WHERE source = ? AND plate_norm = ? AND last_use >= ? AND first_use <= ? ORDER BY first_use',
+            (source, plate_norm, lo, hi),
+        )
+        vrows = db.query(
+            'SELECT plate, day, at, odo FROM vu_odometer_days WHERE source = ? AND plate_norm = ? AND at >= ? AND at <= ? ORDER BY at',
             (source, plate_norm, lo, hi),
         )
         total = db.query_one('SELECT COUNT(*) AS n, MIN(first_use) AS lo, MAX(last_use) AS hi, COUNT(DISTINCT card_number) AS drivers '
                              'FROM card_vehicle_usage WHERE source = ? AND plate_norm = ?', (source, plate_norm))
+        vtotal = db.query_one('SELECT COUNT(*) AS n, MIN(at) AS lo, MAX(at) AS hi FROM vu_odometer_days WHERE source = ? AND plate_norm = ?', (source, plate_norm))
+    records = [
+        {'kind': 'card', 'plate': r['plate'], 'driver': r['driver'], 'card_number': r['card_number'],
+         'odo_begin': r['odo_begin'], 'odo_end': r['odo_end'], 'first_use': r['first_use'], 'last_use': r['last_use']}
+        for r in rows
+    ] + [
+        {'kind': 'midnight', 'plate': r['plate'], 'driver': '', 'card_number': '',
+         'odo_begin': r['odo'], 'odo_end': r['odo'], 'first_use': r['at'], 'last_use': r['at']}
+        for r in vrows
+    ]
+    records.sort(key=lambda r: (r['first_use'], r['kind']))
+    los = [x for x in (total['lo'], vtotal['lo']) if x]
+    his = [x for x in (total['hi'], vtotal['hi']) if x]
     return {
-        'plate_norm': plate_norm, 'year': year, 'cutoff': _cutoff(year),
-        'records': [{k: r[k] for k in ('plate', 'driver', 'card_number', 'odo_begin', 'odo_end', 'first_use', 'last_use')} for r in rows],
-        'total_records': int(total['n'] or 0), 'first_record': total['lo'] or '', 'last_record': total['hi'] or '',
+        'plate_norm': plate_norm, 'year': year, 'cutoff': _cutoff(year), 'records': records,
+        'total_records': int(total['n'] or 0), 'vu_days': int(vtotal['n'] or 0),
+        'first_record': min(los) if los else '', 'last_record': max(his) if his else '',
         'drivers': int(total['drivers'] or 0),
     }
 
@@ -666,5 +842,6 @@ def list_files(limit: int = 200, only_errors: bool = False) -> list[dict]:
 def reset_all() -> None:
     with get_db() as db:
         db.execute('DELETE FROM card_vehicle_usage')
+        db.execute('DELETE FROM vu_odometer_days')
         db.execute('DELETE FROM card_scan_files')
         db.commit()

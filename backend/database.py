@@ -504,6 +504,22 @@ _SCHEMA = [
         UNIQUE (source, card_number, plate_norm, first_use, last_use)
     )''',
     '''
+    CREATE TABLE IF NOT EXISTS vu_odometer_days (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        source      TEXT NOT NULL DEFAULT 'drivers',
+        plate_norm  TEXT NOT NULL,
+        plate       TEXT NOT NULL,
+        nation      TEXT NOT NULL DEFAULT '',
+        vin         TEXT NOT NULL DEFAULT '',
+        day         TEXT NOT NULL,
+        at          TEXT NOT NULL,
+        odo         INTEGER NOT NULL,
+        file_id     INTEGER NOT NULL DEFAULT 0,
+        UNIQUE (source, plate_norm, day)
+    )''',
+    '''
+    CREATE INDEX IF NOT EXISTS idx_vod_src_plate_at ON vu_odometer_days (source, plate_norm, at)''',
+    '''
     CREATE INDEX IF NOT EXISTS idx_cvu_src_plate_last ON card_vehicle_usage (source, plate_norm, last_use)''',
     '''
     CREATE INDEX IF NOT EXISTS idx_cvu_src_plate_first ON card_vehicle_usage (source, plate_norm, first_use)''',
@@ -534,6 +550,8 @@ _MIGRATIONS = [
     (13, 'route_shares', 'to_time', "TEXT NOT NULL DEFAULT ''"),
     (14, 'route_shares', 'vehicles_json', "TEXT NOT NULL DEFAULT ''"),
     (15, 'app_users', 'is_active', 'INTEGER NOT NULL DEFAULT 1'),
+    (16, 'card_scan_files', 'kind', "TEXT NOT NULL DEFAULT 'card'"),
+    (17, 'card_scan_files', 'plate', "TEXT NOT NULL DEFAULT ''"),
 ]
 
 
