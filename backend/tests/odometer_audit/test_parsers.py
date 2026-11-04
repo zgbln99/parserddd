@@ -40,6 +40,21 @@ def test_vu_all_generations(vu_files):
     assert parse_vu(vu_files['gen2'])['generation'] == 2
 
 
+
+def test_gen2_14_byte_registration_number_from_real_vu_format():
+    """Gen2 0x0B can be a 14-byte plate (without nationality byte)."""
+    from tests.odometer_audit.synth_vu import DAYS, gen2
+
+    data = gen2('TF LS 1183', 'W1T96340310513069', DAYS, number_only=True)
+    parsed = parse_vu(data)
+    assert parsed['plate'] == 'TF LS 1183'
+    assert parsed['nation'] == ''  # 14-byte record does not include country
+    assert parsed['vin'] == 'W1T96340310513069'
+    assert len(parsed['days']) == 4
+    assert len(parsed['card_records']) == 3
+    assert not parsed['warning']
+
+
 def test_vu_truncated_file_keeps_what_was_read(vu_files):
     data = vu_files['gen1']
     cut = data[: len(data) - 300]  # inside the technical-data block

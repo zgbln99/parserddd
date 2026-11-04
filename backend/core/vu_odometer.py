@@ -212,8 +212,15 @@ def _gen2_block(d: bytes, out: dict) -> int:
             raise VuFormatError('truncated record array')
         if rtype == RT_VIN and count and size >= 17:
             out['vin'] = d[p:p + 17].rstrip(b'\xff\x00 ').decode('latin-1', errors='replace').strip()
-        elif rtype in (RT_REGISTRATION, RT_REGISTRATION_V2) and count and size >= 15 and not out.get('plate'):
-            out['nation'], out['plate'] = _registration(d[p:p + 15])
+        elif rtype in (RT_REGISTRATION, RT_REGISTRATION_V2) and count and not out.get('plate'):
+            # Gen2 RecordType 0x0B is VehicleRegistrationNumber (14 bytes:
+            # codepage + 13 characters), with no country byte. Some files use
+            # the 15-byte VehicleRegistrationIdentification structure instead.
+            # Gen2v2 RecordType 0x24 contains the 15-byte identification.
+            if rtype == RT_REGISTRATION and size == 14:
+                out['plate'] = _text(d[p:p + 14])
+            elif size >= 15:
+                out['nation'], out['plate'] = _registration(d[p:p + 15])
         elif rtype == RT_DATE_OF_DAY and count and size >= 4:
             day_at = _time(d, p)
         elif rtype == RT_ODOMETER_MIDNIGHT and count and size >= 3:

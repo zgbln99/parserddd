@@ -36,11 +36,12 @@ def arr(rtype, records, size=None):
     size = size if size is not None else (len(records[0]) if records else 0)
     return bytes([rtype]) + struct.pack('>HH', size, len(records)) + b''.join(records)
 
-def gen2(plate, vin, days, v2=False):
+def gen2(plate, vin, days, v2=False, number_only=False):
     ov = 0x31 if v2 else 0x21; ac = 0x32 if v2 else 0x22
+    registration = text(plate, 14) if number_only and not v2 else reg(plate)
     f = b'\x76\x00' + b'\x01\x00'
     f += b'\x76' + bytes([ov]) + arr(0x04, [b'\xaa' * 204]) + arr(0x0f, [b'\xbb' * 204]) + arr(0x0a, [vin.encode().ljust(17, b' ')]) \
-        + arr(0x24 if v2 else 0x0b, [reg(plate)]) + arr(0x03, [treal('2022-01-10T08:00:00Z')]) + arr(0x13, [treal('2021-12-01T00:00:00Z') + treal('2022-01-10T00:00:00Z')]) \
+        + arr(0x24 if v2 else 0x0b, [registration]) + arr(0x03, [treal('2022-01-10T08:00:00Z')]) + arr(0x13, [treal('2021-12-01T00:00:00Z') + treal('2022-01-10T00:00:00Z')]) \
         + arr(0x02, [b'\x00']) + arr(0x14, [b'\x00' * 59]) + arr(0x10, [], 99) + arr(0x11, [], 31) + arr(0x08, [b'\x55' * 64])
     for day, odo, recs in days:
         f += b'\x76' + bytes([ac]) + arr(0x06, [treal(day + 'T00:00:00Z')]) + arr(0x05, [u24(odo)]) + arr(0x0d, [iw2(*r) for r in recs], 131) \

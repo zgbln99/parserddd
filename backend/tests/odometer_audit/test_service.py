@@ -69,6 +69,25 @@ def test_vehicle_unit_files_give_midnight_readings(app_env, card_gen1, vu_files)
     assert r['results'][0]['kind'] == 'vu' and r['results'][0]['path'].startswith('/Archiv-Fahrerkarten/VU_TFLS1190/')
 
 
+
+def test_gen2_14_byte_registration_is_saved_and_reported(app_env):
+    from tests.odometer_audit.synth_vu import DAYS, gen2
+    client, fake, svc = app_env
+    name = '/Old/M_20220110_TFLS1183.DDD'
+    fake.blobs[name] = gen2('TF LS 1183', 'W1T96340310513069', DAYS, number_only=True)
+    client.put('/api/odometer-audit/folders', json={'folders': ['/Old']})
+    state = run_scan(client, 'mega')
+    assert state['error_count'] == 0 and state['new_records'] >= 4
+    with svc.get_db() as db:
+        rec = db.query_one('SELECT kind, plate, error FROM card_scan_files WHERE path = ?', (name,))
+        assert rec['kind'] == 'vu' and rec['plate'] == 'TF LS 1183' and rec['error'] == ''
+    report = client.get('/api/odometer-audit/report?year=2021&source=mega').get_json()
+    assert report['counts']['vehicles'] == 1
+    assert report['rows'][0]['plate_norm'] == 'TFLS1183'
+    assert report['rows'][0]['km'] == 455980
+    assert report['rows'][0]['kind'] == 'midnight'
+
+
 def test_folder_picker_and_settings(app_env, card_gen1):
     client, fake, svc = app_env
     fake.blobs['/Samsara-DDD/Kontrola/Archiv/2021/a.C1B'] = card_gen1
