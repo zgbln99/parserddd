@@ -2,9 +2,17 @@ import { useState, useEffect } from 'react';
 import { X, Sparkles } from 'lucide-react';
 import { createPortal } from 'react-dom';
 
-const CHANGELOG_VERSION = '2026-10-12';
+const CHANGELOG_VERSION = '2026-11-04';
 
 const ENTRIES = [
+  {
+    version: '2026-11-04',
+    items: [
+      'Pojazdy → Przebieg roczny: stan licznika każdego pojazdu na 31.12 odczytany z plików kart kierowców (skan archiwum, wgrywanie plików, eksport XLSX)',
+      'Linki do plików dla księgowości: strona po niemiecku, wyszukiwanie bez polskich znaków',
+      'Wyszukiwarka kierowców i globalna ignorują polskie znaki („pieta” znajdzie „Pięta”)',
+    ],
+  },
   {
     version: '2026-10-12',
     items: [

@@ -28,6 +28,7 @@ _BLUEPRINTS = [
     ("vehicles", "vehicles"),
     ("routeshare", "routeshare"),
     ("fileshare", "fileshare"),
+    ("odometer_audit", "odometer_audit"),
     ("tollcollect", "tollcollect"),
     ("sync", "sync"),
     ("dashboard", "dashboard"),

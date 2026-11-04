@@ -474,6 +474,39 @@ _SCHEMA = [
         download_count INTEGER NOT NULL DEFAULT 0
     )''',
     '''
+    CREATE TABLE IF NOT EXISTS card_scan_files (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        path        TEXT NOT NULL UNIQUE,
+        size        INTEGER NOT NULL DEFAULT 0,
+        source      TEXT NOT NULL DEFAULT 'storage',
+        driver      TEXT NOT NULL DEFAULT '',
+        card_number TEXT NOT NULL DEFAULT '',
+        holder      TEXT NOT NULL DEFAULT '',
+        records     INTEGER NOT NULL DEFAULT 0,
+        error       TEXT NOT NULL DEFAULT '',
+        scanned_at  TEXT NOT NULL
+    )''',
+    '''
+    CREATE TABLE IF NOT EXISTS card_vehicle_usage (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        card_number TEXT NOT NULL DEFAULT '',
+        driver      TEXT NOT NULL DEFAULT '',
+        plate_norm  TEXT NOT NULL,
+        plate       TEXT NOT NULL,
+        nation      TEXT NOT NULL DEFAULT '',
+        vin         TEXT NOT NULL DEFAULT '',
+        odo_begin   INTEGER NOT NULL,
+        odo_end     INTEGER NOT NULL,
+        first_use   TEXT NOT NULL,
+        last_use    TEXT NOT NULL,
+        file_id     INTEGER NOT NULL DEFAULT 0,
+        UNIQUE (card_number, plate_norm, first_use, last_use)
+    )''',
+    '''
+    CREATE INDEX IF NOT EXISTS idx_cvu_plate_last ON card_vehicle_usage (plate_norm, last_use)''',
+    '''
+    CREATE INDEX IF NOT EXISTS idx_cvu_plate_first ON card_vehicle_usage (plate_norm, first_use)''',
+    '''
     CREATE TABLE IF NOT EXISTS schema_migrations (
         version    INTEGER PRIMARY KEY,
         applied_at TEXT NOT NULL

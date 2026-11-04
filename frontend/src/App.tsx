@@ -24,6 +24,7 @@ const VehiclesPage = lazy(() => import('./pages/VehiclesPage').then(m => ({ defa
 const AnalysisPage = lazy(() => import('./pages/AnalysisPage').then(m => ({ default: m.AnalysisPage })));
 const TollCollectPage = lazy(() => import('./pages/TollCollectPage').then(m => ({ default: m.TollCollectPage })));
 const OdometerPage = lazy(() => import('./pages/OdometerPage').then(m => ({ default: m.OdometerPage })));
+const OdometerAuditPage = lazy(() => import('./pages/OdometerAuditPage').then(m => ({ default: m.OdometerAuditPage })));
 const FleetMapPage = lazy(() => import('./pages/FleetMapPage').then(m => ({ default: m.FleetMapPage })));
 const RouteTrackingPage = lazy(() => import('./pages/RouteTrackingPage').then(m => ({ default: m.RouteTrackingPage })));
 const RouteSharePage = lazy(() => import('./pages/RouteSharePage').then(m => ({ default: m.RouteSharePage })));
@@ -149,6 +150,7 @@ export function App() {
           <Route path="/vehicles" element={<PermissionRoute permission="vehicles"><VehiclesPage /></PermissionRoute>} />
           <Route path="/toll" element={<PermissionRoute permission="toll"><TollCollectPage /></PermissionRoute>} />
           <Route path="/odometer" element={<PermissionRoute permission="vehicles"><OdometerPage /></PermissionRoute>} />
+          <Route path="/odometer-audit" element={<PermissionRoute permission="vehicles"><OdometerAuditPage /></PermissionRoute>} />
           <Route path="/map" element={<PermissionRoute permission="vehicles"><FleetMapPage /></PermissionRoute>} />
           <Route path="/route-tracking" element={<PermissionRoute permission="vehicles"><RouteTrackingPage /></PermissionRoute>} />
           <Route path="/analysis" element={<ProtectedRoute><AnalysisPage /></ProtectedRoute>} />

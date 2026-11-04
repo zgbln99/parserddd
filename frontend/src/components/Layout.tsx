@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Users, FileText, RefreshCw, Sun, Moon, Globe, LogOut,
   Shield, UserCog, Truck, Gauge, Coins, ClipboardCheck,
   Menu, ChevronLeft, ChevronRight, PanelLeftClose, PanelLeftOpen,
-  Palette, Clock, Search, MapPin, Share2,
+  Palette, Clock, Search, MapPin, Share2, CalendarCheck,
 } from 'lucide-react';
 import { NotificationCenter } from './NotificationCenter';
 import { prefetchRoute } from '../lib/prefetch';
@@ -54,6 +54,7 @@ export function Layout({ children }: { children: ReactNode }) {
     { to: '/map', icon: MapPin, labelKey: 'navFleetMap' as const, permission: 'vehicles' },
     { to: '/route-tracking', icon: Share2, labelKey: 'navRouteTracking' as const, permission: 'vehicles' },
     { to: '/odometer', icon: Gauge, labelKey: 'navOdometer' as const, permission: 'vehicles' },
+    { to: '/odometer-audit', icon: CalendarCheck, labelKey: 'navOdometerAudit' as const, permission: 'vehicles' },
     { to: '/toll', icon: Coins, labelKey: 'navTollCollect' as const, permission: 'toll' },
     { to: '/sync', icon: RefreshCw, labelKey: 'navSync' as const, permission: 'sync' },
     { to: '/config', icon: UserCog, labelKey: 'navDriverConfig' as const, permission: 'config' },

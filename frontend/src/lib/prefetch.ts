@@ -17,6 +17,7 @@ const importers: Record<string, () => Promise<unknown>> = {
   '/analysis': () => import('../pages/AnalysisPage'),
   '/toll': () => import('../pages/TollCollectPage'),
   '/odometer': () => import('../pages/OdometerPage'),
+  '/odometer-audit': () => import('../pages/OdometerAuditPage'),
   '/map': () => import('../pages/FleetMapPage'),
   '/payroll': () => import('../pages/PayrollPage'),
   '/stundenzettel': () => import('../pages/StundenzettelPage'),
