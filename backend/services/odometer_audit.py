@@ -861,7 +861,7 @@ def year_report(year: int, source: str = 'drivers') -> dict:
     # of days away from year-end. Stable registration order for equal gaps.
     rows.sort(key=lambda r: (r['gap_days'] if r['gap_days'] is not None else float('inf'), r['plate_norm']))
     return {
-        'year': year, 'cutoff': cutoff, 'source': source, 'rows': rows,
+        'year': year, 'period': 'year_end', 'cutoff': cutoff, 'source': source, 'rows': rows,
         'counts': {
             'vehicles': len(rows),
             'active': sum(1 for r in rows if r['active_in_year']),
@@ -873,10 +873,121 @@ def year_report(year: int, source: str = 'drivers') -> dict:
     }
 
 
-def vehicle_timeline(plate_norm: str, year: int, days: int = 45, source: str = 'drivers') -> dict:
+
+def january_report(year: int, source: str = 'drivers') -> dict:
+    """First real odometer reading in January of the selected year.
+
+    January mode does not fill missing January data with readings from the
+    preceding December or a later February. It uses the same TF LS / TF KX
+    filter as the year-end report and keeps sources separate.
+    """
+    if source not in SOURCES:
+        raise ValueError('unknown source')
+    jan_start = datetime(year, 1, 1, tzinfo=CET).astimezone(timezone.utc)
+    feb_start = datetime(year, 2, 1, tzinfo=CET).astimezone(timezone.utc)
+    lower = jan_start.strftime('%Y-%m-%dT%H:%M:%SZ')
+    upper = feb_start.strftime('%Y-%m-%dT%H:%M:%SZ')
+    # This is a month, not a closest-reading search extending into other
+    # months. Each card insertion, withdrawal and VU reading is a candidate.
+    with get_db() as db:
+        events = db.query(
+            "SELECT plate_norm, plate, driver, card_number, odo_begin AS km, "
+            "first_use AS at, 'insertion' AS kind, id AS record_id "
+            "FROM card_vehicle_usage WHERE source = ? AND first_use >= ? AND first_use < ? "
+            "UNION ALL "
+            "SELECT plate_norm, plate, driver, card_number, odo_end AS km, "
+            "last_use AS at, 'withdrawal' AS kind, id AS record_id "
+            "FROM card_vehicle_usage WHERE source = ? AND last_use >= ? AND last_use < ? "
+            "UNION ALL "
+            "SELECT plate_norm, plate, '' AS driver, '' AS card_number, odo AS km, "
+            "at, 'midnight' AS kind, id AS record_id "
+            "FROM vu_odometer_days WHERE source = ? AND at >= ? AND at < ? "
+            "ORDER BY plate_norm, at",
+            (source, lower, upper, source, lower, upper, source, lower, upper),
+        )
+
+    first: dict[str, dict] = {}
+    stats: dict[str, dict] = {}
+    for rec in events:
+        r = dict(rec)
+        pn = r['plate_norm']
+        if not pn.startswith(LTS_PLATE_PREFIXES):
+            continue
+        at = datetime.strptime(r['at'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc)
+        if not (jan_start <= at < feb_start):
+            continue
+        is_jan_first = at.astimezone(CET).date() == jan_start.astimezone(CET).date()
+        # The vehicle-unit midnight record on January 1 is preferable
+        # to a card reading of the same date (actual vehicle odometer).
+        priority = (0 if r['kind'] == 'midnight' and is_jan_first else 1, r['at'])
+        current = first.get(pn)
+        if not current or priority < current['_priority']:
+            first[pn] = {**r, '_priority': priority}
+        st = stats.setdefault(pn, {
+            'cards': set(), 'drivers': set(), 'vu': set(), 'times': [],
+            'odo': [], 'plate_spelling': {},
+        })
+        st['times'].append(r['at'])
+        st['odo'].append(int(r['km']))
+        st['plate_spelling'][r['plate']] = st['plate_spelling'].get(r['plate'], 0) + 1
+        if r['kind'] == 'midnight':
+            st['vu'].add(r['record_id'])
+        else:
+            st['cards'].add(r['record_id'])
+            if r['card_number']:
+                st['drivers'].add(r['card_number'])
+
+    rows = []
+    for pn, selected in first.items():
+        st = stats[pn]
+        at = selected['at']
+        local_day = datetime.strptime(at, '%Y-%m-%dT%H:%M:%SZ').replace(
+            tzinfo=timezone.utc).astimezone(CET).strftime('%Y-%m-%d')
+        gap_days = _days_between(lower, at)
+        if local_day == f'{year}-01-01':
+            quality = 'exact'
+        elif gap_days is not None and gap_days <= 14:
+            quality = 'ok'
+        else:
+            quality = 'gap'
+        plate = max(st['plate_spelling'], key=st['plate_spelling'].get)
+        kind = selected['kind']
+        rows.append({
+            'plate_norm': pn, 'plate': plate, 'nation': '', 'vin': '',
+            'km': int(selected['km']), 'at': at,
+            'source': 'midnight' if kind == 'midnight' else 'after',
+            'kind': kind, 'driver': selected['driver'],
+            'card_number': selected['card_number'], 'gap_days': gap_days,
+            'quality': quality,
+            'before_km': None, 'before_at': '', 'before_kind': '', 'before_driver': '',
+            'after_km': None, 'after_at': '', 'after_kind': '', 'after_driver': '',
+            'bracket_km': None, 'bracket_days': None,
+            'km_prev_year': None, 'km_in_year': None,
+            'active_in_year': True,
+            'records_in_year': len(st['cards']), 'vu_days_in_year': len(st['vu']),
+            'drivers_in_year': len(st['drivers']),
+            'first_seen_in_year': min(st['times']),
+            'last_seen_in_year': max(st['times']),
+            'odo_min_in_year': min(st['odo']), 'odo_max_in_year': max(st['odo']),
+        })
+    rows.sort(key=lambda r: (r['gap_days'], r['plate_norm']))
+    return {
+        'year': year, 'period': 'january', 'cutoff': lower, 'source': source,
+        'rows': rows,
+        'counts': {
+            'vehicles': len(rows), 'active': len(rows),
+            'exact': sum(r['quality'] == 'exact' for r in rows),
+            'ok': sum(r['quality'] == 'ok' for r in rows),
+            'gap': sum(r['quality'] == 'gap' for r in rows),
+            'from_vu': sum(r['kind'] == 'midnight' for r in rows),
+        },
+    }
+
+
+def vehicle_timeline(plate_norm: str, year: int, days: int = 45, source: str = 'drivers', period: str = 'year_end') -> dict:
     """All readings of one vehicle around the year end (±days): card in/out
     records and VU midnight odometers, plus totals."""
-    cutoff_dt = datetime(year, 12, 31, 23, 59, 59, tzinfo=CET).astimezone(timezone.utc)
+    cutoff_dt = datetime(year, 1, 1, tzinfo=CET).astimezone(timezone.utc) if period == 'january' else datetime(year, 12, 31, 23, 59, 59, tzinfo=CET).astimezone(timezone.utc)
     lo = (cutoff_dt - timedelta(days=days)).strftime('%Y-%m-%dT%H:%M:%SZ')
     hi = (cutoff_dt + timedelta(days=days)).strftime('%Y-%m-%dT%H:%M:%SZ')
     with get_db() as db:
@@ -905,7 +1016,7 @@ def vehicle_timeline(plate_norm: str, year: int, days: int = 45, source: str = '
     los = [x for x in (total['lo'], vtotal['lo']) if x]
     his = [x for x in (total['hi'], vtotal['hi']) if x]
     return {
-        'plate_norm': plate_norm, 'year': year, 'cutoff': _cutoff(year), 'records': records,
+        'plate_norm': plate_norm, 'year': year, 'cutoff': cutoff_dt.strftime('%Y-%m-%dT%H:%M:%SZ'), 'records': records,
         'total_records': int(total['n'] or 0), 'vu_days': int(vtotal['n'] or 0),
         'first_record': min(los) if los else '', 'last_record': max(his) if his else '',
         'drivers': int(total['drivers'] or 0),

@@ -13,7 +13,7 @@ import { matchesText } from '../lib/text';
 import {
   fetchAuditSummary, startAuditScan, cancelAuditScan, fetchAuditScanStatus, fetchAuditReport, fetchAuditVehicle,
   uploadAuditFiles, type AuditSummary, type AuditScanStatus, type AuditReport, type AuditRow, type AuditTimeline,
-  type AuditUploadResult, browseAuditStorage, saveAuditFolders, type AuditBrowse, type AuditSource,
+  type AuditUploadResult, browseAuditStorage, saveAuditFolders, type AuditBrowse, type AuditSource, type AuditPeriod,
 } from '../lib/api';
 
 /**
@@ -46,6 +46,7 @@ export function OdometerAuditPage() {
   const [summary, setSummary] = useState<AuditSummary | null>(null);
   const [scan, setScan] = useState<AuditScanStatus | null>(null);
   const [year, setYear] = useState<number>(new Date().getFullYear() - 1);
+  const [period, setPeriod] = useState<AuditPeriod>('year_end');
   // The audit runs on ONE source at a time: current driver files, folders picked in MEGA, or the upload archive.
   const [source, setSourceState] = useState<AuditSource>(() => {
     try { const v = localStorage.getItem('oa-source'); return v === 'mega' || v === 'archive' ? v : 'drivers'; } catch { return 'drivers'; }
@@ -88,11 +89,12 @@ export function OdometerAuditPage() {
     }
   }, []);
 
-  const loadReport = useCallback(async (y: number, src: AuditSource) => {
+  const loadReport = useCallback(async (y: number, src: AuditSource, selectedPeriod: AuditPeriod) => {
     setLoading(true);
     setError('');
+    setReport(null);
     try {
-      setReport(await fetchAuditReport(y, src));
+      setReport(await fetchAuditReport(y, src, selectedPeriod));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -108,7 +110,7 @@ export function OdometerAuditPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => { void loadReport(year, source); setExpanded(null); setTimeline({}); }, [year, source, loadReport]);
+  useEffect(() => { void loadReport(year, source, period); setExpanded(null); setTimeline({}); }, [year, source, period, loadReport]);
 
   // Poll the scan while it runs; refresh everything when it ends.
   useEffect(() => {
@@ -121,12 +123,12 @@ export function OdometerAuditPage() {
           clearInterval(id);
           toast(`${t('oaScanDone')}: ${st.done} · ${st.new_records} ${t('oaNewRecords')}`, st.error_count ? 'info' : 'success');
           await loadSummary();
-          await loadReport(year, source);
+          await loadReport(year, source, period);
         }
       } catch { /* keep polling */ }
     }, 2500);
     return () => clearInterval(id);
-  }, [scan?.running, loadSummary, loadReport, year, source, t, toast]);
+  }, [scan?.running, loadSummary, loadReport, year, source, period, t, toast]);
 
   const runScan = async (force = false) => {
     try {
@@ -176,7 +178,7 @@ export function OdometerAuditPage() {
       }
       toast(`${t('oaUploadDone')}: ${prog.counts.new} ${t('oaUploadNew')} · ${prog.counts.skipped} ${t('oaUploadSkipped')} · ${prog.counts.error} ${t('oaUploadErrors')} · ${prog.records} ${t('oaNewRecords')}`, prog.counts.error ? 'info' : 'success');
       await loadSummary();
-      await loadReport(year, source);
+      await loadReport(year, source, period);
     } finally {
       setUploading(false);
     }
@@ -189,7 +191,7 @@ export function OdometerAuditPage() {
     if (!timeline[key]) {
       setTimeline((m) => ({ ...m, [key]: 'loading' }));
       try {
-        const tl = await fetchAuditVehicle(key, year, source);
+        const tl = await fetchAuditVehicle(key, year, source, 45, period);
         setTimeline((m) => ({ ...m, [key]: tl }));
       } catch (e) {
         toast(e instanceof Error ? e.message : String(e), 'error');
@@ -239,7 +241,7 @@ export function OdometerAuditPage() {
           </div>
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-ink">{t('oaTitle')}</h1>
-            <p className="text-xs text-muted">{t('oaSubtitle')}</p>
+            <p className="text-xs text-muted">{t(period === 'january' ? 'oaSubtitleJanuary' : 'oaSubtitle')}</p>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -247,6 +249,13 @@ export function OdometerAuditPage() {
             {t('oaYear')}
             <select id="oa-year" value={year} onChange={(e) => setYear(Number(e.target.value))} className="input rounded-lg px-3 py-1.5 text-sm font-semibold text-ink outline-none">
               {years.map((y) => <option key={y} value={y}>{y}</option>)}
+            </select>
+          </label>
+          <label className="flex items-center gap-2 text-xs font-semibold text-muted">
+            {t('oaPeriod')}
+            <select id="oa-period" value={period} onChange={(e) => setPeriod(e.target.value as AuditPeriod)} className="input rounded-lg px-3 py-1.5 text-sm font-semibold text-ink outline-none">
+              <option value="year_end">{t('oaPeriodYearEnd')}</option>
+              <option value="january">{t('oaPeriodJanuary')}</option>
             </select>
           </label>
           <button type="button" id="oa-export-xlsx" onClick={() => runExport('xlsx')} disabled={!rows.length || !!exporting} className="btn-secondary btn-press inline-flex items-center gap-2 px-3 py-1.5 text-sm disabled:opacity-50">
@@ -290,7 +299,7 @@ export function OdometerAuditPage() {
         </div>
         <div className={clsx('grid gap-4', source === 'archive' && 'lg:grid-cols-[1fr_400px]')}>
           <div>
-            <p className="text-sm text-muted">{t('oaIntro')}</p>
+            <p className="text-sm text-muted">{t(period === 'january' ? 'oaIntroJanuary' : 'oaIntro')}</p>
             <div className="mt-3 flex flex-wrap items-center gap-2">
               {scan?.running ? (
                 <button type="button" onClick={() => cancelAuditScan()} className="btn-secondary btn-press inline-flex items-center gap-2 px-3 py-2 text-sm">
@@ -437,10 +446,10 @@ export function OdometerAuditPage() {
           </div>
           <label className="inline-flex items-center gap-2 text-xs font-semibold text-muted">
             <input type="checkbox" checked={onlyActive} onChange={(e) => setOnlyActive(e.target.checked)} className="h-4 w-4 accent-[var(--color-accent)]" />
-            {t('oaOnlyActive')}
+            {t(period === 'january' ? 'oaOnlyActiveJanuary' : 'oaOnlyActive')}
           </label>
-          <span className="inline-flex items-center gap-1 text-[11px] text-muted" title={t('oaQualityHint')}>
-            <Info size={12} /> {t('oaCutoffNote')}
+          <span className="inline-flex items-center gap-1 text-[11px] text-muted" title={t(period === 'january' ? 'oaQualityHintJanuary' : 'oaQualityHint')}>
+            <Info size={12} /> {t(period === 'january' ? 'oaCutoffJanuary' : 'oaCutoffNote')}
           </span>
         </div>
 
@@ -457,15 +466,15 @@ export function OdometerAuditPage() {
                 <tr className="text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
                   <th className="w-8 px-2 py-2.5" />
                   <th className="px-3 py-2.5">{t('oaColPlate')}</th>
-                  <th className="px-3 py-2.5 text-right">{t('oaColKm')}</th>
+                  <th className="px-3 py-2.5 text-right">{t(period === 'january' ? 'oaColKmJanuary' : 'oaColKm')}</th>
                   <th className="px-3 py-2.5">{t('oaColAt')}</th>
                   <th className="px-3 py-2.5">{t('oaColStatus')}</th>
                   <th className="px-3 py-2.5">{t('oaColDriver')}</th>
-                  <th className="px-3 py-2.5 text-right">{t('oaColBefore')}</th>
-                  <th className="px-3 py-2.5 text-right">{t('oaColAfter')}</th>
-                  <th className="px-3 py-2.5 text-right">{t('oaColBracket')}</th>
-                  <th className="px-3 py-2.5 text-right">{t('oaColKmYear')}</th>
-                  <th className="px-3 py-2.5 text-right">{t('oaColRecords')}</th>
+                  {period !== 'january' && <th className="px-3 py-2.5 text-right">{t('oaColBefore')}</th>}
+                  {period !== 'january' && <th className="px-3 py-2.5 text-right">{t('oaColAfter')}</th>}
+                  {period !== 'january' && <th className="px-3 py-2.5 text-right">{t('oaColBracket')}</th>}
+                  {period !== 'january' && <th className="px-3 py-2.5 text-right">{t('oaColKmYear')}</th>}
+                  <th className="px-3 py-2.5 text-right">{t(period === 'january' ? 'oaColRecordsJanuary' : 'oaColRecords')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -494,6 +503,7 @@ export function OdometerAuditPage() {
                           </Badge>
                         </td>
                         <td className="max-w-[180px] truncate px-3 py-2.5 text-xs" title={r.card_number}>{r.driver || r.card_number}</td>
+                        {period !== 'january' && <>
                         <td className="whitespace-nowrap px-3 py-2.5 text-right font-mono text-xs tabular-nums text-muted">
                           {r.before_km != null ? <>{fmtKm(r.before_km)}{r.before_kind === 'midnight' ? ' ·VU' : ''}<br /><span className="text-[10px]">{fmtTs(r.before_at, false)}</span></> : '–'}
                         </td>
@@ -503,12 +513,13 @@ export function OdometerAuditPage() {
                         <td className={clsx('whitespace-nowrap px-3 py-2.5 text-right font-mono text-xs tabular-nums', (r.bracket_km ?? 0) > 2000 ? 'text-warning' : 'text-muted')}>
                           {r.bracket_km != null ? `${fmtKm(r.bracket_km)}${r.bracket_days != null ? ` / ${r.bracket_days} d` : ''}` : '–'}
                         </td>
-                        <td className="whitespace-nowrap px-3 py-2.5 text-right font-mono text-xs tabular-nums">{fmtKm(r.km_in_year)}</td>
+                        </>}
+                        {period !== 'january' && <td className="whitespace-nowrap px-3 py-2.5 text-right font-mono text-xs tabular-nums">{fmtKm(r.km_in_year)}</td>}
                         <td className="whitespace-nowrap px-3 py-2.5 text-right font-mono text-xs tabular-nums text-muted">{r.records_in_year}{r.drivers_in_year ? ` / ${r.drivers_in_year}` : ''}{r.vu_days_in_year ? <span className="ml-1 text-success" title={t('oaVuDays')}>+{r.vu_days_in_year} VU</span> : null}</td>
                       </tr>
                       {open && (
                         <tr>
-                          <td colSpan={11} className="bg-surface-2/40 px-4 py-3">
+                          <td colSpan={period === 'january' ? 7 : 11} className="bg-surface-2/40 px-4 py-3">
                             {!tl || tl === 'loading' ? (
                               <div className="flex justify-center py-3"><Spinner size="sm" /></div>
                             ) : (

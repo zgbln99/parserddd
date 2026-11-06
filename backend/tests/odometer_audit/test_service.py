@@ -167,3 +167,66 @@ def test_year_end_midnight_vu_wins_even_over_closer_card():
     after = {'kind': 'midnight', 'at': '2022-01-01T00:00:00Z', 'km': 455980}
     choice, source = _year_end_value(before, after, '2021-12-31T22:59:59Z')
     assert source == 'midnight' and choice['km'] == 455980
+
+
+def test_january_report_only_january_readings_and_lts_fleet(app_env):
+    client, fake, svc = app_env
+
+    with svc.get_db() as db:
+        def card(plate, when, odometer, source='mega'):
+            normalized = svc.normalize_plate(plate)
+            db.execute(
+                'INSERT INTO card_vehicle_usage '
+                '(source, card_number, driver, plate_norm, plate, nation, vin, '
+                'odo_begin, odo_end, first_use, last_use, file_id) '
+                'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                (source, f'card-{plate}-{when}', 'Test Driver', normalized, plate,
+                 'D', '', odometer, odometer + 12, when, when, 0),
+            )
+        # 31.12 23:15 UTC is already 1 January in Germany.
+        card('TF LS 9901', '2020-12-31T23:15:00Z', 1000)
+        card('TF LS 9901', '2021-01-02T15:00:00Z', 1020)
+        card('TF KX 4000', '2021-01-14T08:00:00Z', 5550)
+        card('B AB 3130', '2021-01-01T10:00:00Z', 200)
+        card('TF LS 9000', '2020-12-31T20:00:00Z', 300)  # December only
+        card('TF LS 9001', '2021-02-01T10:00:00Z', 400)  # February only
+        card('TF LS 8888', '2022-01-01T10:00:00Z', 500)  # different year
+        card('TF LS 7777', '2021-01-01T10:00:00Z', 600, source='archive')
+        db.execute(
+            'INSERT INTO vu_odometer_days '
+            '(source, plate_norm, plate, nation, vin, day, at, odo, file_id) '
+            'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            ('mega', 'TFLS9901', 'TF LS 9901', 'D', 'WMA1', '2021-01-01',
+             '2021-01-01T00:00:00Z', 1010, 0),
+        )
+        db.commit()
+
+    response = client.get('/api/odometer-audit/report?source=mega&year=2021&period=january')
+    assert response.status_code == 200
+    report = response.get_json()
+    assert report['period'] == 'january'
+    assert report['cutoff'] == '2020-12-31T23:00:00Z'
+    assert report['counts'] == {
+        'vehicles': 2, 'active': 2, 'exact': 1, 'ok': 1,
+        'gap': 0, 'from_vu': 1,
+    }
+    assert {r['plate_norm'] for r in report['rows']} == {'TFLS9901', 'TFKX4000'}
+    by = {r['plate_norm']: r for r in report['rows']}
+    assert by['TFLS9901']['km'] == 1010
+    assert by['TFLS9901']['kind'] == 'midnight'
+    assert by['TFLS9901']['quality'] == 'exact'
+    assert by['TFKX4000']['km'] == 5550
+    assert by['TFKX4000']['quality'] == 'ok'
+    assert by['TFKX4000']['at'] == '2021-01-14T08:00:00Z'
+    assert by['TFKX4000']['km_in_year'] is None
+
+    # Invalid mode is rejected, the legacy annual API remains unchanged.
+    assert client.get('/api/odometer-audit/report?period=bad').status_code == 400
+    annual = client.get('/api/odometer-audit/report?source=mega&year=2021').get_json()
+    assert annual['period'] == 'year_end'
+    assert annual['cutoff'].startswith('2021-12-31')
+    january_next = client.get('/api/odometer-audit/report?source=mega&year=2022&period=january').get_json()
+    assert {r['plate_norm'] for r in january_next['rows']} == {'TFLS8888'}
+
+    tl = client.get('/api/odometer-audit/vehicle?source=mega&year=2021&period=january&plate=TFLS9901').get_json()
+    assert tl['cutoff'] == '2020-12-31T23:00:00Z'

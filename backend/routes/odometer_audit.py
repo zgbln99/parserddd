@@ -90,7 +90,11 @@ def api_upload():
 @bp.route('/api/odometer-audit/report')
 @permission_required('vehicles')
 def api_report():
-    return jsonify(svc.year_report(_year_arg(), _source_arg()))
+    period = request.args.get('period', 'year_end')
+    if period not in ('year_end', 'january'):
+        return jsonify({'error': 'invalid period'}), 400
+    report = svc.january_report if period == 'january' else svc.year_report
+    return jsonify(report(_year_arg(), _source_arg()))
 
 
 @bp.route('/api/odometer-audit/vehicle')
@@ -103,7 +107,10 @@ def api_vehicle():
         days = max(7, min(400, int(request.args.get('days') or 45)))
     except ValueError:
         days = 45
-    return jsonify(svc.vehicle_timeline(plate, _year_arg(), days, _source_arg()))
+    period = request.args.get('period', 'year_end')
+    if period not in ('year_end', 'january'):
+        return jsonify({'error': 'invalid period'}), 400
+    return jsonify(svc.vehicle_timeline(plate, _year_arg(), days, _source_arg(), period))
 
 
 @bp.route('/api/odometer-audit/files')

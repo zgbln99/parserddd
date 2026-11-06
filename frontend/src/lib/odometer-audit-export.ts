@@ -65,6 +65,37 @@ function L(locale: Locale) {
       };
 }
 
+
+function periodText(report: AuditReport, locale: Locale, t: ReturnType<typeof L>) {
+  const y = report.year;
+  if (report.period !== 'january') {
+    return { title: t.title(y), cutoff: t.cutoff(y), sheet: t.sheet(y), file: t.file(y), legend: t.legend };
+  }
+  return locale === 'de'
+    ? {
+      title: `Erster Kilometerstand im Januar ${y}`,
+      cutoff: `01.–31.01.${y} (erste verfügbare Messung je Fahrzeug)`,
+      sheet: `Januar ${y}`,
+      file: `Kilometerstand_Januar_${y}`,
+      legend: [
+        'Nur LTS-Kennzeichen TF LS / TF KX; nur im Januar erfasste Messwerte.',
+        'Der erste verfügbare Januar-Messwert gilt. Eine VU-Messung am 1. Januar hat Vorrang. Die tatsächliche Uhrzeit steht neben dem Kilometerstand.',
+        'genau: 1. Januar · nah: bis 14 Tage nach dem 1. Januar · Lücke: später im Januar.',
+      ],
+    }
+    : {
+      title: `Pierwszy odczyt licznika w styczniu ${y}`,
+      cutoff: `01–31.01.${y} (pierwszy dostępny odczyt pojazdu)`,
+      sheet: `Styczeń ${y}`,
+      file: `Stan_licznika_styczen_${y}`,
+      legend: [
+        'Tylko tablice LTS TF LS / TF KX i odczyty z wybranego stycznia.',
+        'Wybierany jest pierwszy dostępny odczyt w styczniu. Odczyt VU z 1 stycznia ma pierwszeństwo. Faktyczna data i godzina są widoczne.',
+        'dokładny: 1 stycznia · bliski: do 14 dni od 1 stycznia · luka: późniejszy odczyt w styczniu.',
+      ],
+    };
+}
+
 function dateParts(iso: string): { date: string; time: string } {
   if (!iso) return { date: '', time: '' };
   const d = new Date(iso);
@@ -94,22 +125,23 @@ export async function exportOdometerAuditXlsx(report: AuditReport, rows: AuditRo
   const { default: ExcelJS } = await import('exceljs');
   const t = L(locale);
   const year = report.year;
+  const pt = periodText(report, locale, t);
   const wb = new ExcelJS.Workbook();
   wb.creator = TOOL;
   wb.lastModifiedBy = TOOL;
-  wb.title = t.title(year);
+  wb.title = pt.title;
   wb.company = COMPANY;
   wb.created = new Date();
 
-  const ws = wb.addWorksheet(t.sheet(year), { views: [{ state: 'frozen', ySplit: 5 }] });
+  const ws = wb.addWorksheet(pt.sheet, { views: [{ state: 'frozen', ySplit: 5 }] });
   ws.columns = [5, 16, 12, 9, 18, 34, 28].map(width => ({ width }));
   ws.mergeCells('A1:G1');
   ws.mergeCells('A2:G2');
   ws.mergeCells('A3:G3');
-  ws.getCell('A1').value = t.title(year);
+  ws.getCell('A1').value = pt.title;
   ws.getCell('A1').font = { name: 'Arial', size: 15, bold: true, color: { argb: 'FF0F172A' } };
   ws.getRow(1).height = 24;
-  ws.getCell('A2').value = COMPANY + ' · ' + t.cutoff(year) + ' · ' + t.vehicles(rows.length);
+  ws.getCell('A2').value = COMPANY + ' · ' + pt.cutoff + ' · ' + t.vehicles(rows.length);
   ws.getCell('A2').font = { size: 10, color: { argb: 'FF64748B' } };
   ws.getCell('A3').value = t.source;
   ws.getCell('A3').font = { size: 9, color: { argb: 'FF64748B' } };
@@ -146,7 +178,7 @@ export async function exportOdometerAuditXlsx(report: AuditReport, rows: AuditRo
   });
 
   ws.addRow([]);
-  for (const line of t.legend) {
+  for (const line of pt.legend) {
     const row = ws.addRow([line]);
     row.getCell(1).font = { size: 8, italic: true, color: { argb: 'FF64748B' } };
     ws.mergeCells(row.number, 1, row.number, 7);
@@ -186,7 +218,7 @@ export async function exportOdometerAuditXlsx(report: AuditReport, rows: AuditRo
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = t.file(year) + '.xlsx';
+  a.download = pt.file + '.xlsx';
   a.rel = 'noopener';
   document.body.appendChild(a);
   a.click();
@@ -201,6 +233,7 @@ export async function exportOdometerAuditPdf(report: AuditReport, rows: AuditRow
   ]);
   const t = L(locale);
   const year = report.year;
+  const pt = periodText(report, locale, t);
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const W = doc.internal.pageSize.getWidth();
   const H = doc.internal.pageSize.getHeight();
@@ -226,9 +259,9 @@ export async function exportOdometerAuditPdf(report: AuditReport, rows: AuditRow
   doc.setFont(font, 'normal'); doc.setFontSize(7.5);
   doc.text(nowText(), W - M, 12, { align: 'right' });
   doc.setFont(font, 'bold'); doc.setFontSize(17); doc.setTextColor(...ink);
-  doc.text(t.title(year), M, 21);
+  doc.text(pt.title, M, 21);
   doc.setFont(font, 'normal'); doc.setFontSize(8.5); doc.setTextColor(...mut);
-  doc.text(`${t.cutoff(year)} · ${t.vehicles(rows.length)}`, M, 27);
+  doc.text(`${pt.cutoff} · ${t.vehicles(rows.length)}`, M, 27);
   doc.setFontSize(7.5);
   doc.text(t.source, M, 31.5);
   doc.setDrawColor(...ink); doc.setLineWidth(0.3);
@@ -273,7 +306,7 @@ export async function exportOdometerAuditPdf(report: AuditReport, rows: AuditRow
   let y = ((doc as any).lastAutoTable?.finalY ?? 39) + 8;
   if (y > H - 50) { doc.addPage(); y = 20; }
   doc.setFont(font, 'normal'); doc.setFontSize(7.5); doc.setTextColor(...mut);
-  for (const l of t.legend) {
+  for (const l of pt.legend) {
     const lines = doc.splitTextToSize(l, W - 2 * M) as string[];
     doc.text(lines, M, y);
     y += lines.length * 3.6 + 1;
@@ -302,6 +335,6 @@ export async function exportOdometerAuditPdf(report: AuditReport, rows: AuditRow
     doc.rect(0, H - 2, W, 2, 'F');
   }
 
-  doc.setProperties({ title: t.title(year), author: TOOL, creator: `${TOOL} (FleetView)`, subject: COMPANY });
-  doc.save(`${t.file(year)}.pdf`);
+  doc.setProperties({ title: pt.title, author: TOOL, creator: `${TOOL} (FleetView)`, subject: COMPANY });
+  doc.save(`${pt.file}.pdf`);
 }

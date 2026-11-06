@@ -1,5 +1,12 @@
 const BASE = '';
 
+export class ApiError extends Error {
+  constructor(public readonly status: number, message: string) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
 function friendlyError(status: number, serverMsg?: string): string {
   if (serverMsg) return serverMsg;
   switch (status) {
@@ -24,24 +31,23 @@ async function request<T>(url: string, opts?: RequestInit): Promise<T> {
   } catch {
     throw new Error('Brak połączenia z serwerem / Keine Verbindung zum Server');
   }
-  if (res.status === 401) {
+  if (res.status === 401 && url !== '/api/auth/login' && window.location.pathname !== '/login') {
     window.location.href = '/login';
-    throw new Error('Unauthorized');
   }
   const text = await res.text();
   let data: any;
   try {
     data = JSON.parse(text);
   } catch {
-    throw new Error(friendlyError(res.status));
+    throw new ApiError(res.status, friendlyError(res.status));
   }
-  if (!res.ok) throw new Error(data.error || friendlyError(res.status));
+  if (!res.ok) throw new ApiError(res.status, data.error || friendlyError(res.status));
   return data as T;
 }
 
 // Auth
 export const authLogin = (username: string, password: string) =>
-  request<{ ok: boolean; role: string }>('/api/auth/login', {
+  request<{ ok: boolean; role: string; username: string; permissions: string[]; onboarding_done: boolean }>('/api/auth/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username, password }),
@@ -59,7 +65,22 @@ export const authLogout = () =>
   request<{ ok: boolean }>('/api/auth/logout', { method: 'POST' });
 
 export const authStatus = () =>
-  request<{ logged_in: boolean; role: string }>('/api/auth/status');
+  request<{
+    logged_in: boolean;
+    role: string;
+    username: string;
+    permissions: string[];
+    onboarding_done: boolean;
+    hidden_features: string[];
+    company_name: string;
+  }>('/api/auth/status');
+
+export const setOnboardingState = (done: boolean) =>
+  request<{ ok: boolean; onboarding_done: boolean }>('/api/auth/onboarding', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ done }),
+  });
 
 // Dashboard
 export interface StaleDriver {
@@ -350,6 +371,51 @@ export const deleteDriverProfileAvatar = (cardNumber: string) =>
     { method: 'DELETE' },
   );
 
+
+export interface DriverProfileRequestItem {
+  id: number;
+  card_number: string;
+  driver_name?: string;
+  period: string;
+  shift_date: string;
+  request_type: string;
+  message: string;
+  proposed_start: string;
+  proposed_end: string;
+  status: 'pending' | 'approved' | 'rejected';
+  admin_note: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DriverProfileConfirmationItem {
+  card_number: string;
+  driver_name?: string;
+  period: string;
+  confirmed_at: string;
+  updated_at: string;
+}
+
+export const listDriverProfileEvents = () =>
+  request<{
+    requests: DriverProfileRequestItem[];
+    confirmations: DriverProfileConfirmationItem[];
+  }>('/api/admin/driver-profile-events');
+
+export const setDriverProfileRequestStatus = (
+  requestId: number,
+  status: 'pending' | 'approved' | 'rejected',
+  adminNote = '',
+) =>
+  request<{ ok: boolean }>(
+    `/api/admin/driver-profile-requests/${requestId}/status`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status, admin_note: adminNote }),
+    },
+  );
+
 // Add driver manually
 export const addDriver = (name: string) =>
   request<{ ok: boolean; path: string }>('/api/drivers/add', {
@@ -632,6 +698,7 @@ export const fetchActivityLog = () =>
 // User management
 export interface UserEntry {
   id: number;
+  username: string;
   name: string;
   role: string;
   permissions: string[];
@@ -641,17 +708,18 @@ export interface UserEntry {
 export const fetchUsers = () =>
   request<{ users: UserEntry[] }>('/api/admin/users');
 
-export const createUser = (name: string, password: string, role: string, permissions?: string[]) =>
+export const createUser = (username: string, name: string, password: string, role: string, permissions?: string[]) =>
   request<{ ok: boolean; id: number }>('/api/admin/users', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, password, role, permissions }),
+    body: JSON.stringify({ username, name, password, role, permissions }),
   });
 
 export const deleteUser = (id: number) =>
   request<{ ok: boolean }>(`/api/admin/users/${id}`, { method: 'DELETE' });
 
 export interface UserUpdatePatch {
+  username?: string;
   name?: string;
   role?: string;
   permissions?: string[];
@@ -683,6 +751,8 @@ export interface SyncConfig {
   company_name: string;
   mindestlohn_default_monthly_gross_eur: number;
   mindestlohn_min_hourly_eur: number;
+  notify_enabled: boolean;
+  notify_to: string;
 }
 
 export const fetchConfig = () =>
@@ -871,11 +941,11 @@ export interface SettlementDriver {
   mindestlohn?: import('./mindestlohn').MindestlohnResult | null;
 }
 
-export const fetchSettlement = (period: string) =>
+export const fetchSettlement = (period: string, cardNumber = '') =>
   request<{ period: string; drivers: SettlementDriver[] }>('/api/settlement', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ period }),
+    body: JSON.stringify({ period, card_number: cardNumber }),
   });
 
 // DATEV batch export (returns blob)
@@ -985,6 +1055,24 @@ export interface TollCollectFile {
 export const fetchTollCollectFiles = () =>
   request<{ files: TollCollectFile[] }>('/api/tollcollect/files');
 
+
+export type TollSettingsData = Record<string, unknown>;
+
+export const fetchTollSettings = (period: string) =>
+  request<{ period: string; data: TollSettingsData; updated_at: string }>(
+    `/api/tollcollect/settings/${encodeURIComponent(period)}`,
+  );
+
+export const saveTollSettings = (period: string, data: TollSettingsData) =>
+  request<{ ok: boolean; period: string; updated_at: string }>(
+    `/api/tollcollect/settings/${encodeURIComponent(period)}`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    },
+  );
+
 export async function uploadTollCollectFile(file: File, period?: string) {
   const form = new FormData();
   form.append('file', file);
@@ -1052,6 +1140,9 @@ export const fetchOdometerRange = (
 };
 
 
+
+export const registerPushToken = (token: string, platform = 'android') =>
+  request<{ ok: boolean }>('/api/push/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token, platform }) });
 
 // ---------------------------------------------------------------------------
 // File shares: password-protected links to the driver-card archive (/share/<token>)
@@ -1216,6 +1307,7 @@ export interface AuditRow {
 }
 export interface AuditReport {
   year: number;
+  period?: 'year_end' | 'january';
   cutoff: string;
   source: AuditSource;
   rows: AuditRow[];
@@ -1251,9 +1343,10 @@ export const startAuditScan = (source: AuditSource, force = false) =>
   });
 export const cancelAuditScan = () => request<{ ok: boolean }>('/api/odometer-audit/scan/cancel', { method: 'POST' });
 export const fetchAuditScanStatus = () => request<AuditScanStatus>('/api/odometer-audit/scan/status');
-export const fetchAuditReport = (year: number, source: AuditSource) => request<AuditReport>(`/api/odometer-audit/report?year=${year}&source=${source}`);
-export const fetchAuditVehicle = (plate: string, year: number, source: AuditSource, days = 45) =>
-  request<AuditTimeline>(`/api/odometer-audit/vehicle?plate=${encodeURIComponent(plate)}&year=${year}&days=${days}&source=${source}`);
+export type AuditPeriod = 'year_end' | 'january';
+export const fetchAuditReport = (year: number, source: AuditSource, period: AuditPeriod = 'year_end') => request<AuditReport>(`/api/odometer-audit/report?year=${year}&source=${source}&period=${period}`);
+export const fetchAuditVehicle = (plate: string, year: number, source: AuditSource, days = 45, period: AuditPeriod = 'year_end') =>
+  request<AuditTimeline>(`/api/odometer-audit/vehicle?plate=${encodeURIComponent(plate)}&year=${year}&days=${days}&source=${source}&period=${period}`);
 export interface AuditUploadResult {
   results: { path: string; status: 'new' | 'skipped' | 'error'; records: number; new: number; error: string; card_number?: string; kind?: 'card' | 'vu'; plate?: string }[];
   counts: { new: number; skipped: number; error: number };
